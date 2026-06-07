@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-ember: #ff6b2b;
+    --color-frost: #00d4ff;
+    --color-gold: #ffd600;
+    --color-stone-deep: #09090b;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #09090b;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f4a;
+    border-radius: 3px;
+  }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .text-gradient-ember {
+    background: linear-gradient(135deg, #ff6b2b, #ff9060);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-frost {
+    background: linear-gradient(135deg, #00d4ff, #80eaff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .border-glow-ember {
+    box-shadow: 0 0 30px rgba(255, 107, 43, 0.3);
+  }
+
+  .border-glow-frost {
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+  }
+
+  .hero-image-spotlight {
+    background: radial-gradient(
+      ellipse 55% 50% at 72% 42%,
+      rgba(255, 107, 43, 0.14) 0%,
+      rgba(0, 212, 255, 0.06) 45%,
+      transparent 72%
+    );
+  }
+
+  .plan-organic-silver {
+    border-radius: 42% 58% 52% 48% / 48% 42% 58% 52%;
+  }
+
+  .plan-organic-ember {
+    border-radius: 55% 45% 38% 62% / 44% 56% 48% 52%;
+  }
+
+  .plan-organic-frost {
+    border-radius: 48% 52% 64% 36% / 40% 60% 35% 65%;
+  }
+
+  .dashboard-nav-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .dashboard-nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    pointer-events: none;
+  }
+}
