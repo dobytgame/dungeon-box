@@ -14,12 +14,15 @@ export default function SubscriptionActions({ subscription }: Props) {
   const [message, setMessage] = useState('');
 
   const status = subscription.status as SubscriptionStatus;
+  const isPending = status === 'pending';
   const canPause = status === 'active';
   const canResume = status === 'paused';
-  const canCancel = status === 'active' || status === 'paused' || status === 'past_due';
+  const canCancel =
+    status === 'active' || status === 'paused' || status === 'past_due';
+  const canAbandonPending = isPending;
 
   function run(action: 'pause' | 'cancel' | 'resume') {
-    if (action === 'cancel' && !reason.trim()) {
+    if (action === 'cancel' && canCancel && !reason.trim()) {
       setMessage('Informe o motivo do cancelamento.');
       return;
     }
@@ -35,6 +38,12 @@ export default function SubscriptionActions({ subscription }: Props) {
 
   return (
     <div className="space-y-4">
+      {isPending ? (
+        <p className="text-sm text-amber-200/90">
+          Pagamento ainda não concluído. Volte ao checkout para tentar de novo ou
+          cancele esta tentativa abaixo.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-3">
         {canPause ? (
           <button
@@ -57,6 +66,25 @@ export default function SubscriptionActions({ subscription }: Props) {
           </button>
         ) : null}
       </div>
+      {canAbandonPending ? (
+        <div className="border-l-2 border-amber-400/40 pl-4">
+          <p className="font-display text-sm uppercase tracking-wide text-amber-200/90">
+            Cancelar tentativa
+          </p>
+          <p className="mt-1 text-sm text-stone-500">
+            Remove a assinatura pendente para você poder escolher outro plano ou
+            pagar novamente.
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run('cancel')}
+            className="mt-3 cursor-pointer rounded-sm border border-amber-400/30 px-5 py-2.5 font-display text-xs uppercase tracking-widest text-amber-200/90 transition hover:bg-amber-500/10 disabled:opacity-50"
+          >
+            Cancelar tentativa
+          </button>
+        </div>
+      ) : null}
       {canCancel ? (
         <div className="border-l-2 border-red-400/40 pl-4">
           <p className="font-display text-sm uppercase tracking-wide text-red-300/90">

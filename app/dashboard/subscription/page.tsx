@@ -4,7 +4,7 @@ import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
-import { checkoutHref } from '@/lib/checkout/plans';
+import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import {
   formatDate,
   formatDateTime,
@@ -21,6 +21,10 @@ export default async function SubscriptionPage() {
   const plan = relOne(subscription?.plans);
   const address = relOne(subscription?.addresses);
   const isDev = process.env.NODE_ENV === 'development';
+  const isPending = subscription?.status === 'pending';
+  const resumeCheckoutHref = plan?.slug
+    ? checkoutHref(plan.slug as PlanSlug)
+    : checkoutHref('heroi');
 
   if (!subscription) {
     return (
@@ -35,6 +39,24 @@ export default async function SubscriptionPage() {
 
   return (
     <div className="space-y-8 md:space-y-10">
+      {isPending ? (
+        <div
+          className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100/90"
+          role="status"
+        >
+          <p>
+            Seu pagamento não foi concluído. Você pode tentar novamente no
+            checkout ou cancelar a tentativa em &quot;Gerenciar assinatura&quot;.
+          </p>
+          <Link
+            href={resumeCheckoutHref}
+            className="mt-3 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+          >
+            Continuar checkout
+          </Link>
+        </div>
+      ) : null}
+
       <DashboardCard
         title={plan?.name ?? 'Sua assinatura'}
         accent="ember"

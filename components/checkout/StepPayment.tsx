@@ -50,6 +50,11 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
         const payload = await res.json().catch(() => ({}));
 
         if (!res.ok) {
+          if (payload.code === 'SUBSCRIPTION_ALREADY_ACTIVE') {
+            router.push('/dashboard/subscription');
+            router.refresh();
+            return;
+          }
           throw new Error(
             typeof payload.error === 'string'
               ? payload.error

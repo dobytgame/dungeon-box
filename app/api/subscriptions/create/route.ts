@@ -8,6 +8,7 @@ import { validateMpCredentialPair } from '@/lib/mercadopago/credentials';
 import { createSubscriptionPreapproval } from '@/lib/mercadopago/create-preapproval';
 import { userFacingMpError } from '@/lib/mercadopago/errors';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
+import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
 
 const bodySchema = z.object({
   planSlug: z.enum(PLAN_SLUGS),
@@ -99,22 +100,36 @@ export async function POST(request: Request) {
 
   const { data: existingSub } = await supabase
     .from('subscriptions')
-    .select('id, status')
+    .select('id, status, mp_subscription_id')
     .eq('user_id', user.id)
     .in('status', [...BLOCKING_STATUSES])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (existingSub) {
-    const message =
-      existingSub.status === 'active' || existingSub.status === 'paused'
-        ? 'Você já possui uma assinatura ativa.'
-        : 'Já existe uma assinatura em processamento. Aguarde ou acesse sua conta.';
-    return NextResponse.json({ error: message, code: 'SUBSCRIPTION_EXISTS' }, {
-      status: 409,
-    });
+  const checkoutPrep = await prepareCheckoutSubscription(supabase, existingSub);
+
+  if (checkoutPrep.kind === 'blocked') {
+    return NextResponse.json(
+      { error: checkoutPrep.message, code: checkoutPrep.code },
+      { status: 409 }
+    );
   }
+
+  if (checkoutPrep.kind === 'activated') {
+    return NextResponse.json(
+      {
+        error: 'Sua assinatura já está ativa. Acesse o painel para ver os detalhes.',
+        code: 'SUBSCRIPTION_ALREADY_ACTIVE',
+        subscriptionId: checkoutPrep.subscriptionId,
+        activated: true,
+      },
+      { status: 409 }
+    );
+  }
+
+  const retrySubscriptionId =
+    checkoutPrep.kind === 'retry' ? checkoutPrep.subscriptionId : null;
 
   const { data: plan } = await supabase
     .from('plans')
@@ -150,27 +165,55 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: subscription, error: insertError } = await supabase
-      .from('subscriptions')
-      .insert({
-        user_id: user.id,
-        plan_id: plan.id,
-        address_id: body.addressId,
-        special_notes: specialNotes,
-        status: 'pending',
-        mp_subscription_id: preApproval.id,
-        mp_payer_id:
-          preApproval.payer_id != null ? String(preApproval.payer_id) : null,
-      })
-      .select('id, status')
-      .single();
+    const subscriptionPayload = {
+      plan_id: plan.id,
+      address_id: body.addressId,
+      special_notes: specialNotes,
+      status: 'pending' as const,
+      mp_subscription_id: preApproval.id,
+      mp_payer_id:
+        preApproval.payer_id != null ? String(preApproval.payer_id) : null,
+      updated_at: new Date().toISOString(),
+    };
 
-    if (insertError || !subscription) {
-      console.error('subscription insert:', insertError);
-      return NextResponse.json(
-        { error: 'Não foi possível salvar a assinatura.' },
-        { status: 500 }
-      );
+    let subscription: { id: string; status: string } | null = null;
+
+    if (retrySubscriptionId) {
+      const { data, error: updateError } = await supabase
+        .from('subscriptions')
+        .update(subscriptionPayload)
+        .eq('id', retrySubscriptionId)
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .select('id, status')
+        .single();
+
+      if (updateError || !data) {
+        console.error('subscription retry update:', updateError);
+        return NextResponse.json(
+          { error: 'Não foi possível atualizar a assinatura.' },
+          { status: 500 }
+        );
+      }
+      subscription = data;
+    } else {
+      const { data, error: insertError } = await supabase
+        .from('subscriptions')
+        .insert({
+          user_id: user.id,
+          ...subscriptionPayload,
+        })
+        .select('id, status')
+        .single();
+
+      if (insertError || !data) {
+        console.error('subscription insert:', insertError);
+        return NextResponse.json(
+          { error: 'Não foi possível salvar a assinatura.' },
+          { status: 500 }
+        );
+      }
+      subscription = data;
     }
 
     let activated = false;

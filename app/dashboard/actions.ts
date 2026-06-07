@@ -139,7 +139,11 @@ export async function updateSubscriptionStatus(formData: FormData) {
   } else if (action === 'cancel') {
     updates.status = 'cancelled';
     updates.cancelled_at = new Date().toISOString();
-    updates.cancel_reason = reason;
+    updates.cancel_reason =
+      reason ||
+      (subscription.status === 'pending'
+        ? 'Tentativa de checkout abandonada'
+        : null);
     mpStatus = 'cancelled';
   }
 
