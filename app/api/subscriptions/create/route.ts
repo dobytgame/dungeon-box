@@ -5,10 +5,7 @@ import { buildSpecialNotes } from '@/lib/checkout/special-notes';
 import { createClient } from '@/lib/supabase/server';
 import { MP_CONFIGURED } from '@/lib/mercadopago';
 import { validateMpCredentialPair } from '@/lib/mercadopago/credentials';
-import {
-  createSubscriptionPreapproval,
-  getPreapprovalCheckoutUrl,
-} from '@/lib/mercadopago/create-preapproval';
+import { createSubscriptionPreapproval } from '@/lib/mercadopago/create-preapproval';
 import { userFacingMpError } from '@/lib/mercadopago/errors';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
 
@@ -135,10 +132,10 @@ export async function POST(request: Request) {
     body.specialNotes
   );
 
-  const transactionAmount = plan.price_cents / 100;
+  const transactionAmount = Number((plan.price_cents / 100).toFixed(2));
 
   try {
-    const { preApproval, flow } = await createSubscriptionPreapproval({
+    const { preApproval } = await createSubscriptionPreapproval({
       cardTokenId: body.cardTokenId,
       payerEmail,
       externalReference: user.id,
@@ -185,16 +182,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const mpInitPoint =
-      flow === 'pending_redirect' ? getPreapprovalCheckoutUrl(preApproval) : undefined;
-
     return NextResponse.json({
       subscriptionId: subscription.id,
       mpSubscriptionId: preApproval.id,
       mpStatus: preApproval.status,
       activated,
-      mpInitPoint,
-      requiresRedirect: Boolean(mpInitPoint),
     });
   } catch (error) {
     console.error('MP preapproval error:', error);
