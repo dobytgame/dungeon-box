@@ -20,13 +20,26 @@ export function parseMpError(error: unknown): MpErrorShape {
 }
 
 export function userFacingMpError(error: unknown): string {
-  const { message, status } = parseMpError(error);
+  const parsed = parseMpError(error) as ReturnType<typeof parseMpError> & {
+    error?: string;
+  };
+  const { message, status } = parsed;
+  const lower = message?.toLowerCase() ?? '';
 
   if (
     status === 404 &&
-    message?.toLowerCase().includes('card token service not found')
+    lower.includes('card token service not found')
   ) {
     return mpCardTokenNotFoundMessage();
+  }
+
+  if (
+    status === 500 ||
+    parsed.error === 'internal_server_error' ||
+    lower.includes('something went wrong') ||
+    lower.includes('internal server error')
+  ) {
+    return 'O Mercado Pago retornou um erro temporário ao criar a assinatura. Tente novamente em instantes.';
   }
 
   return message ?? 'Erro ao processar pagamento.';

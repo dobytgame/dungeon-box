@@ -57,6 +57,15 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
           );
         }
 
+        if (
+          payload.requiresRedirect &&
+          typeof payload.mpInitPoint === 'string' &&
+          payload.mpInitPoint
+        ) {
+          window.location.assign(payload.mpInitPoint);
+          return;
+        }
+
         router.push('/checkout/success');
         router.refresh();
       } catch (err) {

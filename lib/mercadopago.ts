@@ -51,14 +51,11 @@ export function mpAppUrl(path = '') {
 }
 
 export function mpRecurringDates() {
-  const start = new Date();
-  start.setHours(start.getHours() + 1);
-
   const end = new Date();
   end.setFullYear(end.getFullYear() + 10);
 
   return {
-    start_date: start.toISOString(),
+    start_date: new Date().toISOString(),
     end_date: end.toISOString(),
   };
 }

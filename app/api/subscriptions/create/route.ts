@@ -1,18 +1,15 @@
-import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import { buildSpecialNotes } from '@/lib/checkout/special-notes';
 import { createClient } from '@/lib/supabase/server';
-import {
-  getPreApprovalClient,
-  mpAppUrl,
-  mpRecurringDates,
-  MP_CONFIGURED,
-} from '@/lib/mercadopago';
+import { MP_CONFIGURED } from '@/lib/mercadopago';
 import { validateMpCredentialPair } from '@/lib/mercadopago/credentials';
+import {
+  createSubscriptionPreapproval,
+  getPreapprovalCheckoutUrl,
+} from '@/lib/mercadopago/create-preapproval';
 import { userFacingMpError } from '@/lib/mercadopago/errors';
-import { attachCardTokenToPayer } from '@/lib/mercadopago/payer-card';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
 
 const bodySchema = z.object({
@@ -138,37 +135,15 @@ export async function POST(request: Request) {
     body.specialNotes
   );
 
-  const { start_date, end_date } = mpRecurringDates();
   const transactionAmount = plan.price_cents / 100;
 
   try {
-    const cardId = await attachCardTokenToPayer({
+    const { preApproval, flow } = await createSubscriptionPreapproval({
       cardTokenId: body.cardTokenId,
       payerEmail,
-      payerName: profile?.full_name,
-      cpf,
-    });
-
-    const preApprovalClient = getPreApprovalClient();
-    const preApproval = await preApprovalClient.create({
-      body: {
-        reason: `DungeonBox ${plan.name} — Assinatura Mensal`,
-        external_reference: user.id,
-        payer_email: payerEmail,
-        back_url: mpAppUrl('/checkout/success'),
-        status: 'authorized',
-        auto_recurring: {
-          frequency: 1,
-          frequency_type: 'months',
-          transaction_amount: transactionAmount,
-          currency_id: 'BRL',
-          start_date,
-          end_date,
-        },
-        // API accepts card_id; SDK types only document card_token_id.
-        card_id: cardId,
-      } as Parameters<typeof preApprovalClient.create>[0]['body'],
-      requestOptions: { idempotencyKey: randomUUID() },
+      externalReference: user.id,
+      reason: `DungeonBox ${plan.name} — Assinatura Mensal`,
+      transactionAmount,
     });
 
     if (!preApproval.id) {
@@ -210,11 +185,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const mpInitPoint =
+      flow === 'pending_redirect' ? getPreapprovalCheckoutUrl(preApproval) : undefined;
+
     return NextResponse.json({
       subscriptionId: subscription.id,
       mpSubscriptionId: preApproval.id,
       mpStatus: preApproval.status,
       activated,
+      mpInitPoint,
+      requiresRedirect: Boolean(mpInitPoint),
     });
   } catch (error) {
     console.error('MP preapproval error:', error);
