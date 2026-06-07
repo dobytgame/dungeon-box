@@ -1,8 +1,5 @@
-import {
-  getPaymentClient,
-  getPreApprovalClient,
-  MP_CONFIGURED,
-} from '@/lib/mercadopago';
+import { getPaymentClient, MP_CONFIGURED } from '@/lib/mercadopago';
+import { getPreapproval } from '@/lib/mercadopago/preapproval-api';
 
 function isMpNotFound(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -45,10 +42,8 @@ export async function fetchMpPreapproval(
   }
 
   try {
-    const preapproval = await getPreApprovalClient().get({
-      id: mpSubscriptionId,
-    });
-    return preapproval as unknown as Record<string, unknown>;
+    const preapproval = await getPreapproval(mpSubscriptionId);
+    return (preapproval as unknown as Record<string, unknown>) ?? null;
   } catch (error) {
     if (isMpNotFound(error)) {
       console.warn(

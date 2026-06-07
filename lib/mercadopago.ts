@@ -29,17 +29,16 @@ export function getPaymentClient() {
   return new Payment(getMpConfig());
 }
 
-export type MpPreapprovalStatus = 'authorized' | 'paused' | 'cancelled' | 'pending';
+import type { MpPreapprovalStatus } from '@/lib/mercadopago/preapproval-api';
+
+export type { MpPreapprovalStatus };
 
 export async function updateMpPreapprovalStatus(
   mpSubscriptionId: string,
   status: MpPreapprovalStatus
 ) {
-  const client = getPreApprovalClient();
-  return client.update({
-    id: mpSubscriptionId,
-    body: { status },
-  });
+  const { putPreapprovalStatus } = await import('@/lib/mercadopago/preapproval-api');
+  return putPreapprovalStatus(mpSubscriptionId, status);
 }
 
 export function mpAppUrl(path = '') {
@@ -97,11 +96,14 @@ export function mpBackUrl(path = '/checkout/success'): string {
 }
 
 export function mpRecurringDates() {
-  const end = new Date();
+  const start = new Date();
+  start.setMinutes(start.getMinutes() + 5);
+
+  const end = new Date(start);
   end.setFullYear(end.getFullYear() + 10);
 
   return {
-    start_date: new Date().toISOString(),
+    start_date: start.toISOString(),
     end_date: end.toISOString(),
   };
 }

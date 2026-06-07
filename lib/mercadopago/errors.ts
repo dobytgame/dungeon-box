@@ -34,6 +34,14 @@ export function userFacingMpError(error: unknown): string {
   }
 
   if (
+    status === 503 ||
+    status === 502 ||
+    status === 504
+  ) {
+    return 'O serviço de assinaturas do Mercado Pago está temporariamente indisponível. Aguarde alguns minutos e tente novamente. Se persistir, confira no painel do MP se a solução Assinaturas está ativa na sua aplicação.';
+  }
+
+  if (
     status === 500 ||
     parsed.error === 'internal_server_error' ||
     lower.includes('something went wrong') ||

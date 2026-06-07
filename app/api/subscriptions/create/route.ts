@@ -232,7 +232,18 @@ export async function POST(request: Request) {
       activated,
     });
   } catch (error) {
-    console.error('MP preapproval error:', error);
+    const mpError = error as {
+      status?: number;
+      message?: string;
+      error?: string;
+      cause?: unknown;
+    };
+    console.error('MP preapproval error:', {
+      status: mpError.status,
+      message: mpError.message,
+      error: mpError.error,
+      cause: mpError.cause,
+    });
     return NextResponse.json(
       { error: userFacingMpError(error) },
       { status: 502 }
