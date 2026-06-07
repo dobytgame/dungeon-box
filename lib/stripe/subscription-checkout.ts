@@ -4,6 +4,7 @@ import { getStripe } from '@/lib/stripe/server';
 import { assertStripePriceId } from '@/lib/stripe/prices';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { getOrCreateStripeCustomer } from '@/lib/stripe/customer';
+import { resolvePromotionCode } from '@/lib/stripe/promotion-code';
 
 export type PrepareStripeSubscriptionInput = {
   userId: string;
@@ -19,6 +20,7 @@ export type PrepareStripeSubscriptionInput = {
     stripe_customer_id: string | null;
   };
   retrySubscriptionId: string | null;
+  promotionCode?: string | null;
 };
 
 export type PrepareStripeSubscriptionResult = {
@@ -64,9 +66,16 @@ export async function prepareStripeSubscription(
     }
   }
 
+  let discounts: Array<{ promotion_code: string }> | undefined;
+  if (input.promotionCode?.trim()) {
+    const promotion = await resolvePromotionCode(input.promotionCode);
+    discounts = [{ promotion_code: promotion.id }];
+  }
+
   const stripeSubscription = await stripe.subscriptions.create({
     customer: stripeCustomerId,
     items: [{ price: priceId }],
+    ...(discounts ? { discounts } : {}),
     payment_behavior: 'default_incomplete',
     payment_settings: {
       save_default_payment_method: 'on_subscription',
@@ -75,6 +84,9 @@ export async function prepareStripeSubscription(
     metadata: {
       dungeonbox_user_id: input.userId,
       plan_slug: input.planSlug,
+      ...(input.promotionCode?.trim()
+        ? { promotion_code: input.promotionCode.trim().toUpperCase() }
+        : {}),
     },
   });
 

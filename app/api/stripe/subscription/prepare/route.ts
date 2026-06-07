@@ -13,6 +13,7 @@ const bodySchema = z.object({
   addressId: z.string().uuid(),
   specialNotes: z.string().max(2000).optional().default(''),
   paintKitBump: z.enum(['amador', 'profissional']).nullable().optional(),
+  promotionCode: z.string().max(64).optional().nullable(),
 });
 
 const BLOCKING_STATUSES = ['pending', 'active', 'paused', 'past_due'] as const;
@@ -145,6 +146,7 @@ export async function POST(request: Request) {
         stripe_customer_id: profile.stripe_customer_id,
       },
       retrySubscriptionId,
+      promotionCode: body.promotionCode?.trim() || null,
     });
 
     return NextResponse.json({

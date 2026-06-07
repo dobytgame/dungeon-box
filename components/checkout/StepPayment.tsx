@@ -3,11 +3,21 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { CreditCard, Lock, Loader2, ShieldCheck } from 'lucide-react';
+import {
+  CreditCard,
+  Lock,
+  Loader2,
+  ShieldCheck,
+  Tag,
+  X,
+} from 'lucide-react';
 import { checkoutHref, getCheckoutPlan } from '@/lib/checkout/plans';
 import type { CheckoutData } from '@/lib/checkout/types';
 import type { Profile } from '@/lib/dashboard/types';
-import { STRIPE_CHECKOUT_READY } from '@/lib/stripe/public';
+import {
+  STRIPE_CHECKOUT_READY,
+  STRIPE_COUPONS_ENABLED,
+} from '@/lib/stripe/public';
 import CheckoutSection from './CheckoutSection';
 import StripeCheckoutProvider from './StripeCheckoutProvider';
 import StripePaymentForm from './StripePaymentForm';
@@ -27,19 +37,17 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [promotionCode, setPromotionCode] = useState<string | null>(null);
+  const [couponSummary, setCouponSummary] = useState<string | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [showCoupon, setShowCoupon] = useState(false);
 
   const profileNext = encodeURIComponent(checkoutHref(data.planSlug));
   const stripeReady = STRIPE_CHECKOUT_READY && cpfReady && Boolean(data.addressId);
 
-  useEffect(() => {
-    if (!stripeReady) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function prepare() {
+  const prepareCheckout = useCallback(
+    async (promoCode: string | null, cancelled: () => boolean) => {
       setLoading(true);
       setError('');
       setClientSecret(null);
@@ -53,12 +61,13 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
             addressId: data.addressId,
             specialNotes: data.specialNotes,
             paintKitBump: data.paintKitBump,
+            promotionCode: promoCode,
           }),
         });
 
         const payload = await res.json().catch(() => ({}));
 
-        if (cancelled) return;
+        if (cancelled()) return;
 
         if (!res.ok) {
           if (payload.code === 'SUBSCRIPTION_ALREADY_ACTIVE') {
@@ -79,29 +88,78 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
 
         setClientSecret(payload.clientSecret);
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled()) {
           setError(
             err instanceof Error ? err.message : 'Erro ao preparar pagamento.'
           );
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled()) setLoading(false);
       }
+    },
+    [data, router]
+  );
+
+  useEffect(() => {
+    if (!stripeReady) {
+      setLoading(false);
+      return;
     }
 
-    void prepare();
+    let cancelled = false;
+    void prepareCheckout(promotionCode, () => cancelled);
 
     return () => {
       cancelled = true;
     };
-  }, [
-    stripeReady,
-    data.planSlug,
-    data.addressId,
-    data.specialNotes,
-    data.paintKitBump,
-    router,
-  ]);
+  }, [stripeReady, promotionCode, prepareCheckout]);
+
+  const handleApplyCoupon = useCallback(async () => {
+    const code = couponInput.trim();
+    if (!code) {
+      setError('Informe o código do cupom.');
+      return;
+    }
+
+    setCouponLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/stripe/promotion-code/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok || !payload.valid) {
+        throw new Error(
+          typeof payload.error === 'string'
+            ? payload.error
+            : 'Cupom inválido.'
+        );
+      }
+
+      setPromotionCode(payload.code ?? code);
+      setCouponSummary(
+        typeof payload.summary === 'string' ? payload.summary : 'Cupom aplicado'
+      );
+      setCouponInput(payload.code ?? code);
+    } catch (err) {
+      setPromotionCode(null);
+      setCouponSummary(null);
+      setError(err instanceof Error ? err.message : 'Cupom inválido.');
+    } finally {
+      setCouponLoading(false);
+    }
+  }, [couponInput]);
+
+  const handleRemoveCoupon = useCallback(() => {
+    setPromotionCode(null);
+    setCouponSummary(null);
+    setCouponInput('');
+    setError('');
+  }, []);
 
   const handleSuccess = useCallback(() => {
     router.push('/checkout/success');
@@ -132,6 +190,78 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
           </div>
         ) : null}
 
+        {STRIPE_COUPONS_ENABLED && cpfReady ? (
+          <div className="rounded-sm border border-white/[0.06] bg-stone-950/30 p-4">
+            {!showCoupon && !promotionCode ? (
+              <button
+                type="button"
+                onClick={() => setShowCoupon(true)}
+                className="flex cursor-pointer items-center gap-2 text-sm text-stone-400 transition-colors hover:text-ember"
+              >
+                <Tag className="h-4 w-4" aria-hidden="true" />
+                Tem um cupom de desconto?
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="flex items-center gap-2 text-sm font-medium text-white">
+                    <Tag className="h-4 w-4 text-ember" aria-hidden="true" />
+                    Cupom de desconto
+                  </p>
+                  {promotionCode ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      disabled={loading || couponLoading}
+                      className="flex cursor-pointer items-center gap-1 text-xs text-stone-500 transition-colors hover:text-stone-300 disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+
+                {promotionCode && couponSummary ? (
+                  <p
+                    className="rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100/90"
+                    role="status"
+                  >
+                    <span className="font-medium">{promotionCode}</span> —{' '}
+                    {couponSummary}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleApplyCoupon();
+                        }
+                      }}
+                      placeholder="Código do cupom"
+                      disabled={loading || couponLoading}
+                      className="min-w-0 flex-1 rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:border-ember/50 focus:outline-none focus:ring-1 focus:ring-ember/30 disabled:opacity-50"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleApplyCoupon()}
+                      disabled={loading || couponLoading || !couponInput.trim()}
+                      className="cursor-pointer rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300 transition-colors hover:border-ember/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {couponLoading ? 'Validando…' : 'Aplicar'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         <div className="rounded-sm border border-white/[0.06] bg-stone-950/40 p-5">
           <div className="flex items-start gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-stone-950">
@@ -159,7 +289,10 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
             ) : null}
 
             {!loading && stripeReady && clientSecret ? (
-              <StripeCheckoutProvider clientSecret={clientSecret}>
+              <StripeCheckoutProvider
+                key={clientSecret}
+                clientSecret={clientSecret}
+              >
                 <StripePaymentForm
                   disabled={!stripeReady}
                   onSuccess={handleSuccess}
