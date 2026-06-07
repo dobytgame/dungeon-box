@@ -67,19 +67,27 @@ export async function prepareCheckoutSubscription(
 
   if (existing.mp_subscription_id) {
     const mp = await fetchMpPreapproval(existing.mp_subscription_id);
-    const mpStatus = typeof mp?.status === 'string' ? mp.status : null;
 
-    if (mpStatus === 'authorized') {
-      const activated = await activateSubscriptionFromMp(supabase, existing.id, {
-        status: mpStatus,
-        payer_id: mp?.payer_id as string | number | null | undefined,
-      });
-      if (activated) {
-        return { kind: 'activated', subscriptionId: existing.id };
+    if (mp) {
+      const mpStatus = typeof mp.status === 'string' ? mp.status : null;
+
+      if (mpStatus === 'authorized') {
+        const activated = await activateSubscriptionFromMp(supabase, existing.id, {
+          status: mpStatus,
+          payer_id: mp.payer_id as string | number | null | undefined,
+        });
+        if (activated) {
+          return { kind: 'activated', subscriptionId: existing.id };
+        }
       }
-    }
 
-    await cancelMpPreapprovalBestEffort(existing.mp_subscription_id);
+      await cancelMpPreapprovalBestEffort(existing.mp_subscription_id);
+    } else {
+      console.warn(
+        '[mp] stale pending subscription — MP sync skipped, will replace mp_subscription_id:',
+        existing.mp_subscription_id
+      );
+    }
   }
 
   return { kind: 'retry', subscriptionId: existing.id };

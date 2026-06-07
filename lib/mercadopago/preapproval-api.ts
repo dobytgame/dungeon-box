@@ -7,6 +7,10 @@ export type MpPreapprovalStatus = 'authorized' | 'paused' | 'cancelled' | 'pendi
 const MP_API = 'https://api.mercadopago.com';
 const RETRYABLE_STATUSES = new Set([502, 503, 504]);
 
+export function isMpTransientHttpStatus(status?: number): boolean {
+  return status !== undefined && RETRYABLE_STATUSES.has(status);
+}
+
 export type MpApiError = Error & {
   status?: number;
   error?: string;
@@ -151,12 +155,22 @@ export async function getPreapproval(
   id: string
 ): Promise<PreApprovalResponse | null> {
   try {
-    return await mpRequest<PreApprovalResponse>(`/preapproval/${id}`, {
-      method: 'GET',
-    });
+    return await mpRequest<PreApprovalResponse>(
+      `/preapproval/${id}`,
+      { method: 'GET' },
+      { retries: 1 }
+    );
   } catch (error) {
     const mpError = error as MpApiError;
     if (mpError.status === 404) return null;
+    if (isMpTransientHttpStatus(mpError.status)) {
+      console.warn(
+        '[mp] preapproval GET unavailable — continuing without MP sync:',
+        id,
+        mpError.status
+      );
+      return null;
+    }
     throw error;
   }
 }

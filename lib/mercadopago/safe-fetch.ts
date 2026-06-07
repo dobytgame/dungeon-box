@@ -1,5 +1,9 @@
 import { getPaymentClient, MP_CONFIGURED } from '@/lib/mercadopago';
-import { getPreapproval } from '@/lib/mercadopago/preapproval-api';
+import {
+  getPreapproval,
+  isMpTransientHttpStatus,
+  type MpApiError,
+} from '@/lib/mercadopago/preapproval-api';
 
 function isMpNotFound(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -48,6 +52,13 @@ export async function fetchMpPreapproval(
     if (isMpNotFound(error)) {
       console.warn(
         '[mp-webhook] preapproval not found in MP API:',
+        mpSubscriptionId
+      );
+      return null;
+    }
+    if (isMpTransientHttpStatus((error as MpApiError).status)) {
+      console.warn(
+        '[mp-webhook] preapproval fetch unavailable:',
         mpSubscriptionId
       );
       return null;
