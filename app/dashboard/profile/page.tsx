@@ -9,9 +9,15 @@ import {
 } from '@/lib/dashboard/format';
 import { getProfile, requireDashboardUser } from '@/lib/dashboard/queries';
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: { next?: string };
+}) {
   const { user } = await requireDashboardUser();
   const profile = await getProfile(user.id);
+  const redirectTo =
+    searchParams.next?.startsWith('/') ? searchParams.next : undefined;
 
   if (!profile) {
     return (
@@ -42,7 +48,7 @@ export default async function ProfilePage() {
             <p className="text-sm text-stone-500">{profile.email}</p>
           </div>
         </div>
-        <ProfileForm profile={profile} />
+        <ProfileForm profile={profile} redirectTo={redirectTo} />
       </DashboardCard>
 
       <DashboardCard title="Detalhes da conta" accent="none">

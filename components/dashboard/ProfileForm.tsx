@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { updateProfile } from '@/app/dashboard/actions';
 import { maskCpf, maskPhone } from '@/lib/masks';
@@ -7,9 +8,11 @@ import type { Profile } from '@/lib/dashboard/types';
 
 interface Props {
   profile: Profile;
+  redirectTo?: string;
 }
 
-export default function ProfileForm({ profile }: Props) {
+export default function ProfileForm({ profile, redirectTo }: Props) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState('');
   const [phone, setPhone] = useState(() =>
@@ -23,7 +26,16 @@ export default function ProfileForm({ profile }: Props) {
     setMessage('');
     startTransition(async () => {
       const result = await updateProfile(formData);
-      setMessage(result.error ? result.error : 'Perfil salvo com sucesso.');
+      if (result.error) {
+        setMessage(result.error);
+        return;
+      }
+      if (redirectTo && redirectTo.startsWith('/')) {
+        router.push(redirectTo);
+        router.refresh();
+        return;
+      }
+      setMessage('Perfil salvo com sucesso.');
     });
   }
 

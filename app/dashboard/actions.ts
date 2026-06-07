@@ -1,6 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import {
+  MP_CONFIGURED,
+  updateMpPreapprovalStatus,
+  type MpPreapprovalStatus,
+} from '@/lib/mercadopago';
 import { createClient } from '@/lib/supabase/server';
 import { requireDashboardUser } from '@/lib/dashboard/queries';
 
@@ -108,20 +113,49 @@ export async function updateSubscriptionStatus(formData: FormData) {
 
   if (!id || !action) return { error: 'Dados inválidos' };
 
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('mp_subscription_id, status')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!subscription) return { error: 'Assinatura não encontrada' };
+
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
 
+  let mpStatus: MpPreapprovalStatus | null = null;
+
   if (action === 'pause') {
     updates.status = 'paused';
+    mpStatus = 'paused';
   } else if (action === 'resume') {
     updates.status = 'active';
     updates.cancelled_at = null;
     updates.cancel_reason = null;
+    mpStatus = 'authorized';
   } else if (action === 'cancel') {
     updates.status = 'cancelled';
     updates.cancelled_at = new Date().toISOString();
     updates.cancel_reason = reason;
+    mpStatus = 'cancelled';
+  }
+
+  if (mpStatus && subscription.mp_subscription_id && MP_CONFIGURED) {
+    try {
+      await updateMpPreapprovalStatus(
+        subscription.mp_subscription_id,
+        mpStatus
+      );
+    } catch (error) {
+      console.error('MP preapproval update:', error);
+      return {
+        error:
+          'Não foi possível atualizar a assinatura no Mercado Pago. Tente novamente.',
+      };
+    }
   }
 
   const { error } = await supabase

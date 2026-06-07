@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Address } from '@/lib/dashboard/types';
+import type { Address, Profile } from '@/lib/dashboard/types';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import type { CheckoutData } from '@/lib/checkout/types';
 import CheckoutShell from './CheckoutShell';
@@ -12,9 +12,16 @@ import StepPlan from './StepPlan';
 interface Props {
   planSlug: PlanSlug;
   addresses: Address[];
+  profile: Profile | null;
+  userEmail: string;
 }
 
-export default function CheckoutFlow({ planSlug, addresses }: Props) {
+export default function CheckoutFlow({
+  planSlug,
+  addresses,
+  profile,
+  userEmail,
+}: Props) {
   const defaultAddress =
     addresses.find((a) => a.is_default) ?? addresses[0] ?? null;
 
@@ -45,7 +52,12 @@ export default function CheckoutFlow({ planSlug, addresses }: Props) {
         />
       ) : null}
       {step === 3 ? (
-        <StepPayment onBack={() => setStep(2)} />
+        <StepPayment
+          data={data}
+          profile={profile}
+          userEmail={userEmail}
+          onBack={() => setStep(2)}
+        />
       ) : null}
     </CheckoutShell>
   );
