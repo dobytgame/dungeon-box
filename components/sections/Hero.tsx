@@ -176,7 +176,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
         <D20Icon variant="gold" className="h-11 w-11 md:h-14 md:w-14" />
       </ParallaxFloat>
 
-      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-6 pb-20 pt-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8 lg:px-8 lg:pt-32 xl:gap-12">
+      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8 lg:px-8 lg:pt-32 xl:gap-12">
         <motion.div
           variants={container}
           initial="hidden"
@@ -184,7 +184,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
           className="relative z-10"
         >
           <motion.div variants={item} className="mb-6">
-            <span className="inline-flex items-center gap-2 rounded-sm border border-frost/30 bg-frost/5 px-4 py-2 font-display text-xs uppercase tracking-[0.25em] text-frost backdrop-blur-sm">
+            <span className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-sm border border-frost/30 bg-frost/5 px-3 py-2 font-display text-[0.65rem] uppercase tracking-[0.2em] text-frost backdrop-blur-sm sm:px-4 sm:text-xs sm:tracking-[0.25em]">
               <Hexagon className="h-3.5 w-3.5" aria-hidden="true" />
               Assinatura Mensal · Cenários 3D
             </span>
@@ -192,7 +192,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
 
           <motion.h1
             variants={item}
-            className="font-display text-[clamp(3.5rem,11vw,9rem)] leading-[0.85] tracking-tight"
+            className="font-display text-[clamp(2.75rem,11vw,9rem)] leading-[0.85] tracking-tight"
           >
             <span className="block text-white">DUNGEON</span>
             <span className="block text-gradient-ember">BOX</span>
@@ -205,31 +205,37 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
             Todo mês uma dungeon nova na sua porta.
           </motion.p>
 
-          <motion.div variants={item} className="mt-10 flex flex-wrap gap-4">
+          <motion.div variants={item} className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:gap-4">
             {isLoggedIn ? (
               <>
                 <CTAButton
                   label={userName ? `Olá, ${userName.split(' ')[0]}` : 'Minha conta'}
                   size="lg"
                   href="/dashboard"
+                  className="w-full sm:w-auto"
                 />
                 <CTAButton
                   label="Ver planos"
                   variant="default"
                   size="lg"
                   href="#planos"
-                  className="gap-2"
+                  className="w-full gap-2 sm:w-auto"
                 />
               </>
             ) : (
               <>
-                <CTAButton label="Assinar agora" size="lg" href="/checkout?plan=heroi" />
+                <CTAButton
+                  label="Assinar agora"
+                  size="lg"
+                  href="/checkout?plan=heroi"
+                  className="w-full sm:w-auto"
+                />
                 <CTAButton
                   label="Ver planos"
                   variant="default"
                   size="lg"
                   href="#planos"
-                  className="gap-2"
+                  className="w-full gap-2 sm:w-auto"
                 />
               </>
             )}
@@ -276,7 +282,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
 
       <a
         href="#planos"
-        className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-2 text-stone-500 transition-colors hover:text-stone-300"
+        className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1.5 text-stone-500 transition-colors hover:text-stone-300 sm:bottom-8 sm:gap-2"
         aria-label="Rolar para ver os planos"
       >
         <span className="font-display text-xs uppercase tracking-[0.3em]">Scroll</span>

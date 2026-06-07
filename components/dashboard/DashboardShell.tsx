@@ -53,7 +53,7 @@ export default function DashboardShell({
         avatarUrl={avatarUrl}
       />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 pb-20 pt-28 md:pt-32">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 md:pt-32">
         <DashboardPageIntro
           eyebrow={navItem.eyebrow}
           title={title}

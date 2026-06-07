@@ -12,7 +12,7 @@ export default function DashboardPageIntro({ eyebrow, title, description }: Prop
       <p className="font-display text-xs uppercase tracking-[0.35em] text-frost">
         {eyebrow}
       </p>
-      <h1 className="mt-3 font-display text-4xl uppercase leading-[0.95] tracking-wide text-white md:text-5xl">
+      <h1 className="mt-3 font-display text-3xl uppercase leading-[0.95] tracking-wide text-white sm:text-4xl md:text-5xl">
         {title}
       </h1>
       {description ? (

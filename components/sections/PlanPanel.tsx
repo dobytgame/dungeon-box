@@ -54,8 +54,8 @@ export default function PlanPanel({
 
   const panelContent = (
     <div
-      className={`relative mx-auto grid w-full max-w-7xl items-center gap-10 px-6 lg:grid-cols-2 lg:gap-14 lg:px-8 ${
-        stacked ? 'py-6' : ''
+      className={`relative mx-auto grid w-full max-w-7xl items-center gap-6 px-4 sm:gap-8 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:px-8 ${
+        stacked ? 'py-4 lg:py-6' : ''
       }`}
     >
       {/* Image — máscara orgânica por plano */}
@@ -142,12 +142,13 @@ export default function PlanPanel({
           ))}
         </ul>
 
-        <div className="mt-9">
+        <div className="mt-7 sm:mt-9">
           <CTAButton
             label={`${plan.cta} →`}
             variant={theme.ctaVariant}
             size="lg"
             href={checkoutHref(plan.id)}
+            className="w-full sm:w-auto"
           />
         </div>
       </div>
@@ -185,7 +186,7 @@ export default function PlanPanel({
 
   return (
     <section
-      className={`${shellClass} px-0 py-20 md:py-28`}
+      className="relative w-full overflow-hidden noise px-0 py-16 sm:py-20 md:py-28"
       style={{ backgroundColor: plan.bgSolid }}
       aria-labelledby={`plan-${plan.id}-title`}
     >

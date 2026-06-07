@@ -99,6 +99,27 @@
     display: none;
   }
 
+  .dashboard-nav-fade::before,
+  .dashboard-nav-fade::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.25rem;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .dashboard-nav-fade::before {
+    left: 0;
+    background: linear-gradient(to right, rgb(12 10 9), transparent);
+  }
+
+  .dashboard-nav-fade::after {
+    right: 0;
+    background: linear-gradient(to left, rgb(12 10 9), transparent);
+  }
+
   .noise::after {
     content: '';
     position: absolute;

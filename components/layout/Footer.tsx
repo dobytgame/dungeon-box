@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import CTAButton from '@/components/ui/CTAButton';
+import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
 
 const exploreLinks = [
   { href: '#planos', label: 'Planos' },
@@ -12,6 +13,11 @@ const supportLinks = [
   { href: '#faq', label: 'Perguntas frequentes' },
   { href: '#faq', label: 'Cancelar assinatura' },
 ];
+
+const legalLinks = [
+  { href: '/privacidade', label: 'Política de Privacidade' },
+  { href: '/termos', label: 'Termos de Uso' },
+] as const;
 
 interface FooterProps {
   isLoggedIn?: boolean;
@@ -27,19 +33,20 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
         aria-hidden="true"
       />
 
-      <div className="mx-auto max-w-7xl px-6 py-14 md:py-16">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-start lg:gap-10">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 md:py-16">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto] lg:items-start lg:gap-8 xl:gap-10">
           <div className="max-w-sm">
             <Logo variant="footer" linked={false} />
             <p className="mt-4 text-sm leading-relaxed text-stone-400">
               Cenários 3D modulares para RPG. Uma dungeon nova na sua porta, todo
               mês — impressão premium, escala 28mm, sistema de encaixe universal.
             </p>
-            <div className="mt-6 hidden md:block">
+            <div className="mt-6">
               <CTAButton
                 label={isLoggedIn ? 'Minha conta' : 'Assinar agora'}
                 size="sm"
                 href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+                className="w-full sm:w-auto"
               />
             </div>
           </div>
@@ -80,6 +87,27 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
             </ul>
           </nav>
 
+          <nav aria-label="Legal">
+            <p className="font-display text-xs uppercase tracking-[0.3em] text-stone-500">
+              Legal
+            </p>
+            <ul className="mt-4 space-y-3">
+              {legalLinks.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="cursor-pointer text-sm text-stone-400 transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <CookiePreferencesLink />
+              </li>
+            </ul>
+          </nav>
+
           <div className="flex flex-col gap-4 md:items-start lg:items-end">
             <p className="font-display text-xs uppercase tracking-[0.3em] text-stone-500 lg:text-right">
               Comece hoje
@@ -100,9 +128,16 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
           <p className="text-xs text-stone-600">
             © {year} DungeonBox. Todos os direitos reservados.
           </p>
-          <p className="text-xs text-stone-600">
-            Feito para mesas de RPG em todo o Brasil.
-          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
+            <Link href="/privacidade" className="cursor-pointer hover:text-stone-400">
+              Privacidade
+            </Link>
+            <Link href="/termos" className="cursor-pointer hover:text-stone-400">
+              Termos
+            </Link>
+            <CookiePreferencesLink className="cursor-pointer text-xs text-stone-600 transition-colors hover:text-stone-400" />
+            <span>Feito para mesas de RPG em todo o Brasil.</span>
+          </div>
         </div>
       </div>
     </footer>

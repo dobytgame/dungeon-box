@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Bebas_Neue, DM_Sans } from 'next/font/google';
+import CookieConsentRoot from '@/components/legal/CookieConsentRoot';
 import './globals.css';
 
 const bebasNeue = Bebas_Neue({
@@ -48,7 +49,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className={`${bebasNeue.variable} ${dmSans.variable}`}>
-      <body className="bg-stone-950 font-body text-white antialiased">{children}</body>
+      <body className="bg-stone-950 font-body text-white antialiased">
+        <CookieConsentRoot>{children}</CookieConsentRoot>
+      </body>
     </html>
   );
 }

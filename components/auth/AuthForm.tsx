@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -167,7 +168,19 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         </p>
       )}
 
-      <div className="mt-6 flex flex-col gap-2 text-center text-sm text-stone-400">
+      <p className="mt-6 text-center text-xs leading-relaxed text-stone-500">
+        Ao continuar, você concorda com os{' '}
+        <Link href="/termos" className="text-stone-400 underline-offset-2 hover:text-ember hover:underline">
+          Termos de Uso
+        </Link>{' '}
+        e a{' '}
+        <Link href="/privacidade" className="text-stone-400 underline-offset-2 hover:text-ember hover:underline">
+          Política de Privacidade
+        </Link>
+        .
+      </p>
+
+      <div className="mt-4 flex flex-col gap-2 text-center text-sm text-stone-400">
         {mode === 'login' && (
           <>
             <button type="button" onClick={() => setMode('register')} className="hover:text-white">

@@ -64,7 +64,7 @@ export default async function DashboardPage() {
             </dl>
             <Link
               href="/dashboard/subscription"
-              className="mt-4 inline-block text-sm text-ember hover:underline"
+              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center text-sm text-ember hover:underline"
             >
               Ver detalhes →
             </Link>
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
             )}
             <Link
               href="/dashboard/deliveries"
-              className="mt-4 inline-block text-sm text-frost hover:underline"
+              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center text-sm text-frost hover:underline"
             >
               Histórico de entregas →
             </Link>
@@ -119,7 +119,7 @@ export default async function DashboardPage() {
             </dl>
             <Link
               href="/dashboard/loyalty"
-              className="mt-4 inline-block text-sm text-gold hover:underline"
+              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center text-sm text-gold hover:underline"
             >
               Ver progressão →
             </Link>
@@ -137,7 +137,7 @@ export default async function DashboardPage() {
       <DashboardCard title="Explorar" accent="none">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { href: '/dashboard/profile', label: 'Editar perfil', desc: 'CPF, telefone, cor' },
+            { href: '/dashboard/profile', label: 'Editar perfil', desc: 'CPF, telefone e dados' },
             { href: '/dashboard/addresses', label: 'Endereços', desc: 'Entrega e padrão' },
             { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e cartão' },
             { href: '/dashboard/loyalty', label: 'Fidelidade', desc: 'Níveis e votos' },
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-sm border border-white/10 p-4 transition hover:border-ember/30 hover:bg-white/5"
+              className="flex min-h-[72px] cursor-pointer flex-col justify-center rounded-sm border border-white/10 p-4 transition-colors duration-200 hover:border-ember/30 hover:bg-white/5"
             >
               <p className="text-sm font-medium text-white">{item.label}</p>
               <p className="mt-1 text-xs text-stone-500">{item.desc}</p>
