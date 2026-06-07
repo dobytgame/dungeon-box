@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
@@ -9,6 +10,9 @@ import {
   mpRecurringDates,
   MP_CONFIGURED,
 } from '@/lib/mercadopago';
+import { validateMpCredentialPair } from '@/lib/mercadopago/credentials';
+import { userFacingMpError } from '@/lib/mercadopago/errors';
+import { attachCardTokenToPayer } from '@/lib/mercadopago/payer-card';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
 
 const bodySchema = z.object({
@@ -26,6 +30,18 @@ export async function POST(request: Request) {
   if (!MP_CONFIGURED) {
     return NextResponse.json(
       { error: 'Mercado Pago não configurado.' },
+      { status: 503 }
+    );
+  }
+
+  const credentialCheck = validateMpCredentialPair();
+  if (!credentialCheck.ok) {
+    console.error('[mp] credential mismatch:', {
+      publicMode: credentialCheck.publicMode,
+      tokenMode: credentialCheck.tokenMode,
+    });
+    return NextResponse.json(
+      { error: credentialCheck.error },
       { status: 503 }
     );
   }
@@ -126,13 +142,19 @@ export async function POST(request: Request) {
   const transactionAmount = plan.price_cents / 100;
 
   try {
+    const cardId = await attachCardTokenToPayer({
+      cardTokenId: body.cardTokenId,
+      payerEmail,
+      payerName: profile?.full_name,
+      cpf,
+    });
+
     const preApprovalClient = getPreApprovalClient();
     const preApproval = await preApprovalClient.create({
       body: {
         reason: `DungeonBox ${plan.name} — Assinatura Mensal`,
         external_reference: user.id,
         payer_email: payerEmail,
-        card_token_id: body.cardTokenId,
         back_url: mpAppUrl('/checkout/success'),
         status: 'authorized',
         auto_recurring: {
@@ -143,7 +165,10 @@ export async function POST(request: Request) {
           start_date,
           end_date,
         },
-      },
+        // API accepts card_id; SDK types only document card_token_id.
+        card_id: cardId,
+      } as Parameters<typeof preApprovalClient.create>[0]['body'],
+      requestOptions: { idempotencyKey: randomUUID() },
     });
 
     if (!preApproval.id) {
@@ -193,8 +218,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('MP preapproval error:', error);
-    const message =
-      error instanceof Error ? error.message : 'Erro ao processar pagamento.';
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json(
+      { error: userFacingMpError(error) },
+      { status: 502 }
+    );
   }
 }

@@ -10,7 +10,7 @@ export function assertMpConfigured() {
 
 let mpConfig: MercadoPagoConfig | null = null;
 
-function getMpConfig(): MercadoPagoConfig {
+export function getMpConfig(): MercadoPagoConfig {
   assertMpConfigured();
   if (!mpConfig) {
     mpConfig = new MercadoPagoConfig({
