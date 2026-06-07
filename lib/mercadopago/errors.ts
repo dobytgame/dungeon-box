@@ -42,6 +42,10 @@ export function userFacingMpError(error: unknown): string {
     return 'O Mercado Pago retornou um erro temporário ao criar a assinatura. Tente novamente em instantes.';
   }
 
+  if (status === 400 && lower.includes('back_url')) {
+    return 'URL de retorno inválida para o Mercado Pago. Configure NEXT_PUBLIC_APP_URL com https público ou MP_BACK_URL.';
+  }
+
   return message ?? 'Erro ao processar pagamento.';
 }
 

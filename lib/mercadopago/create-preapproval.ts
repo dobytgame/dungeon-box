@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import type { PreApprovalResponse } from 'mercadopago/dist/clients/preApproval/commonTypes';
 import {
   getPreApprovalClient,
-  mpAppUrl,
+  mpBackUrl,
   mpRecurringDates,
 } from '@/lib/mercadopago';
 import { isCardTokenNotFoundError, parseMpError } from '@/lib/mercadopago/errors';
@@ -64,7 +64,7 @@ export async function createSubscriptionPreapproval(
     reason: input.reason,
     external_reference: input.externalReference,
     payer_email: input.payerEmail,
-    back_url: mpAppUrl('/checkout/success'),
+    back_url: mpBackUrl('/checkout/success'),
     auto_recurring,
   };
 
