@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getPaymentClient, getPreApprovalClient } from '@/lib/mercadopago';
+import { fetchMpPayment, fetchMpPreapproval } from '@/lib/mercadopago/safe-fetch';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
 import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
@@ -54,9 +54,14 @@ function mapPreapprovalStatus(mpStatus?: string): SubscriptionStatus | null {
 export async function handleSubscriptionPreapprovalEvent(
   supabase: SupabaseClient,
   mpSubscriptionId: string
-) {
-  const preApprovalClient = getPreApprovalClient();
-  const mpSub = await preApprovalClient.get({ id: mpSubscriptionId });
+): Promise<'processed' | 'skipped'> {
+  const mpSubRaw = await fetchMpPreapproval(mpSubscriptionId);
+  if (!mpSubRaw) return 'skipped';
+
+  const mpSub = mpSubRaw as {
+    status?: string;
+    payer_id?: number | string | null;
+  };
 
   const { data: subscription } = await supabase
     .from('subscriptions')
@@ -66,7 +71,7 @@ export async function handleSubscriptionPreapprovalEvent(
 
   if (!subscription) {
     console.warn('[mp-webhook] subscription not found:', mpSubscriptionId);
-    return;
+    return 'skipped';
   }
 
   const previousStatus = subscription.status;
@@ -74,10 +79,10 @@ export async function handleSubscriptionPreapprovalEvent(
 
   if (newStatus === 'active' && previousStatus === 'pending') {
     await activateSubscriptionFromMp(supabase, subscription.id, mpSub);
-    return;
+    return 'processed';
   }
 
-  if (!newStatus || newStatus === previousStatus) return;
+  if (!newStatus || newStatus === previousStatus) return 'skipped';
 
   const now = new Date().toISOString();
   const updates: Record<string, unknown> = {
@@ -97,21 +102,22 @@ export async function handleSubscriptionPreapprovalEvent(
   }
 
   await supabase.from('subscriptions').update(updates).eq('id', subscription.id);
+  return 'processed';
 }
 
 export async function handlePaymentEvent(
   supabase: SupabaseClient,
   mpPaymentId: string
-) {
-  const paymentClient = getPaymentClient();
-  const mpPayment = (await paymentClient.get({
-    id: mpPaymentId,
-  })) as MpPayment;
+): Promise<'processed' | 'skipped'> {
+  const mpPaymentRaw = await fetchMpPayment(mpPaymentId);
+  if (!mpPaymentRaw) return 'skipped';
+
+  const mpPayment = mpPaymentRaw as MpPayment;
 
   const preapprovalId = mpPayment.preapproval_id;
   if (!preapprovalId) {
     console.warn('[mp-webhook] payment without preapproval_id:', mpPaymentId);
-    return;
+    return 'skipped';
   }
 
   const { data: subscription } = await supabase
@@ -122,7 +128,7 @@ export async function handlePaymentEvent(
 
   if (!subscription) {
     console.warn('[mp-webhook] subscription for payment not found:', preapprovalId);
-    return;
+    return 'skipped';
   }
 
   const mappedStatus = mapPaymentStatus(mpPayment.status);
@@ -184,7 +190,7 @@ export async function handlePaymentEvent(
       .eq('id', subscription.id);
 
     await ensureSubscriptionCycle(supabase, subscription.id, nextCycle);
-    return;
+    return 'processed';
   }
 
   if (mappedStatus === 'rejected' || mappedStatus === 'cancelled') {
@@ -193,4 +199,6 @@ export async function handlePaymentEvent(
       .update({ status: 'past_due', updated_at: now })
       .eq('id', subscription.id);
   }
+
+  return 'processed';
 }

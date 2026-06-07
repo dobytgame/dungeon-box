@@ -1,0 +1,62 @@
+import {
+  getPaymentClient,
+  getPreApprovalClient,
+  MP_CONFIGURED,
+} from '@/lib/mercadopago';
+
+function isMpNotFound(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { status?: number; error?: string; message?: string };
+  return (
+    e.status === 404 ||
+    e.error === 'not_found' ||
+    /not found/i.test(e.message ?? '')
+  );
+}
+
+/** Busca pagamento no MP; retorna null se não existir (ex.: simulação do painel). */
+export async function fetchMpPayment(
+  mpPaymentId: string
+): Promise<Record<string, unknown> | null> {
+  if (!MP_CONFIGURED) {
+    console.warn('[mp] MP_ACCESS_TOKEN ausente — ignorando fetch de pagamento.');
+    return null;
+  }
+
+  try {
+    const payment = await getPaymentClient().get({ id: mpPaymentId });
+    return payment as unknown as Record<string, unknown>;
+  } catch (error) {
+    if (isMpNotFound(error)) {
+      console.warn('[mp-webhook] payment not found in MP API:', mpPaymentId);
+      return null;
+    }
+    throw error;
+  }
+}
+
+/** Busca pré-aprovação no MP; retorna null se não existir. */
+export async function fetchMpPreapproval(
+  mpSubscriptionId: string
+): Promise<Record<string, unknown> | null> {
+  if (!MP_CONFIGURED) {
+    console.warn('[mp] MP_ACCESS_TOKEN ausente — ignorando fetch de assinatura.');
+    return null;
+  }
+
+  try {
+    const preapproval = await getPreApprovalClient().get({
+      id: mpSubscriptionId,
+    });
+    return preapproval as unknown as Record<string, unknown>;
+  } catch (error) {
+    if (isMpNotFound(error)) {
+      console.warn(
+        '[mp-webhook] preapproval not found in MP API:',
+        mpSubscriptionId
+      );
+      return null;
+    }
+    throw error;
+  }
+}

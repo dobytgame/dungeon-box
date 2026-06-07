@@ -40,18 +40,24 @@ function resolveEventType(
   return null;
 }
 
+function assertAdminEnv() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase admin env missing (SUPABASE_SERVICE_ROLE_KEY).');
+  }
+}
+
 async function processNotification(
   eventType: 'subscription' | 'payment',
   resourceId: string
-) {
+): Promise<'processed' | 'skipped'> {
+  assertAdminEnv();
   const supabase = createAdminClient();
 
   if (eventType === 'subscription') {
-    await handleSubscriptionPreapprovalEvent(supabase, resourceId);
-    return;
+    return handleSubscriptionPreapprovalEvent(supabase, resourceId);
   }
 
-  await handlePaymentEvent(supabase, resourceId);
+  return handlePaymentEvent(supabase, resourceId);
 }
 
 async function handleWebhookRequest(request: NextRequest) {
@@ -105,8 +111,12 @@ async function handleWebhookRequest(request: NextRequest) {
   }
 
   try {
-    await processNotification(eventType, resourceId);
-    return NextResponse.json({ received: true });
+    const result = await processNotification(eventType, resourceId);
+    return NextResponse.json({
+      received: true,
+      processed: result === 'processed',
+      skipped: result === 'skipped',
+    });
   } catch (error) {
     console.error('[mp-webhook] processing error:', error);
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
