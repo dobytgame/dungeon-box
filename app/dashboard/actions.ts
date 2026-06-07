@@ -6,6 +6,7 @@ import {
   updateMpPreapprovalStatus,
   type MpPreapprovalStatus,
 } from '@/lib/mercadopago';
+import { getStripe, STRIPE_CONFIGURED } from '@/lib/stripe/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireDashboardUser } from '@/lib/dashboard/queries';
 
@@ -115,7 +116,7 @@ export async function updateSubscriptionStatus(formData: FormData) {
 
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('mp_subscription_id, status')
+    .select('mp_subscription_id, stripe_subscription_id, status')
     .eq('id', id)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -147,7 +148,32 @@ export async function updateSubscriptionStatus(formData: FormData) {
     mpStatus = 'cancelled';
   }
 
-  if (mpStatus && subscription.mp_subscription_id && MP_CONFIGURED) {
+  if (
+    subscription.stripe_subscription_id &&
+    STRIPE_CONFIGURED &&
+    (action === 'pause' || action === 'resume' || action === 'cancel')
+  ) {
+    try {
+      const stripe = getStripe();
+      if (action === 'cancel') {
+        await stripe.subscriptions.cancel(subscription.stripe_subscription_id);
+      } else if (action === 'pause') {
+        await stripe.subscriptions.update(subscription.stripe_subscription_id, {
+          pause_collection: { behavior: 'void' },
+        });
+      } else {
+        await stripe.subscriptions.update(subscription.stripe_subscription_id, {
+          pause_collection: null,
+        });
+      }
+    } catch (error) {
+      console.error('Stripe subscription update:', error);
+      return {
+        error:
+          'Não foi possível atualizar a assinatura no Stripe. Tente novamente.',
+      };
+    }
+  } else if (mpStatus && subscription.mp_subscription_id && MP_CONFIGURED) {
     try {
       await updateMpPreapprovalStatus(
         subscription.mp_subscription_id,

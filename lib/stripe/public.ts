@@ -1,0 +1,4 @@
+export const STRIPE_PUBLISHABLE_KEY =
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? '';
+
+export const STRIPE_CHECKOUT_READY = Boolean(STRIPE_PUBLISHABLE_KEY);
