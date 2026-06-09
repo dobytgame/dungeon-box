@@ -198,6 +198,11 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
       </p>
 
       <div className="mt-4 flex flex-col gap-2 text-center text-sm text-stone-400">
+        {mode === 'forgot' && (
+          <p className="text-xs text-stone-500">
+            Enviaremos um link para você cadastrar uma nova senha com segurança.
+          </p>
+        )}
         {mode === 'login' && (
           <>
             <button type="button" onClick={() => setMode('register')} className="hover:text-white">

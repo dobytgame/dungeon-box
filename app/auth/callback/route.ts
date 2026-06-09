@@ -28,7 +28,13 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      console.error('[auth] exchangeCodeForSession failed:', error);
+      const loginUrl = new URL('/auth', requestUrl.origin);
+      loginUrl.searchParams.set('error', 'link_invalido');
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
