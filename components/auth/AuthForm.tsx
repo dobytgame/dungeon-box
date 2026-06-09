@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-type Mode = 'login' | 'register' | 'magic';
+type Mode = 'login' | 'register' | 'magic' | 'forgot';
 
 function GoogleIcon() {
   return (
@@ -69,7 +69,15 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
     setLoading(true);
     setMessage('');
 
-    if (mode === 'magic') {
+    if (mode === 'forgot') {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = (await res.json()) as { message?: string; error?: string };
+      setMessage(data.message ?? data.error ?? 'Verifique seu e-mail.');
+    } else if (mode === 'magic') {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: callbackUrl },
@@ -81,6 +89,13 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         password,
         options: { emailRedirectTo: callbackUrl },
       });
+      if (!error) {
+        void fetch('/api/auth/account-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      }
       setMessage(error ? error.message : 'Conta criada! Verifique seu e-mail.');
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -135,7 +150,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
           className="w-full border border-stone-700 bg-stone-900 px-4 py-3 text-white placeholder-stone-500 transition focus:border-frost focus:outline-none"
         />
 
-        {mode !== 'magic' && (
+        {mode !== 'magic' && mode !== 'forgot' && (
           <input
             type="password"
             placeholder="Senha"
@@ -158,7 +173,9 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
               ? 'Criar conta'
               : mode === 'magic'
                 ? 'Enviar magic link'
-                : 'Entrar'}
+                : mode === 'forgot'
+                  ? 'Enviar link de recuperação'
+                  : 'Entrar'}
         </button>
       </form>
 
@@ -185,6 +202,9 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
           <>
             <button type="button" onClick={() => setMode('register')} className="hover:text-white">
               Não tem conta? <span className="text-ember">Criar conta</span>
+            </button>
+            <button type="button" onClick={() => setMode('forgot')} className="hover:text-white">
+              Esqueci minha senha
             </button>
             <button type="button" onClick={() => setMode('magic')} className="hover:text-white">
               Entrar sem senha (magic link)

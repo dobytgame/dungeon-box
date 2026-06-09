@@ -7,6 +7,10 @@ import { activateSubscriptionFromStripe } from '@/lib/subscriptions/activate-str
 import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
+import {
+  notifyPurchaseCompleted,
+  notifySubscriptionCancelled,
+} from '@/lib/email/subscription-notify';
 
 function mapStripeSubscriptionStatus(
   status: Stripe.Subscription.Status
@@ -82,6 +86,13 @@ export async function handleStripeSubscriptionUpdated(
   }
 
   await supabase.from('subscriptions').update(updates).eq('id', local.id);
+
+  if (mapped === 'cancelled' && local.status !== 'cancelled') {
+    void notifySubscriptionCancelled(supabase, local.id).catch((err) => {
+      console.error('[email] subscription cancelled notify failed:', err);
+    });
+  }
+
   return 'processed';
 }
 
@@ -121,7 +132,21 @@ export async function handleStripeInvoicePaid(
     .single();
 
   if (local.status === 'pending') {
-    await activateSubscriptionFromStripe(supabase, local.id, stripeSub);
+    const activated = await activateSubscriptionFromStripe(
+      supabase,
+      local.id,
+      stripeSub,
+    );
+    if (activated) {
+      void notifyPurchaseCompleted(
+        supabase,
+        local.id,
+        amountCents,
+        1,
+      ).catch((err) => {
+        console.error('[email] purchase completed notify failed:', err);
+      });
+    }
     return 'processed';
   }
 
