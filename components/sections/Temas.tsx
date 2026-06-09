@@ -166,7 +166,6 @@ export default function Temas() {
           })}
         </div>
 
-        {/* Box flutuante abaixo do grid — mesmo padrão em todas as telas */}
         <div
           className="relative mt-6 min-h-[9.5rem] md:mt-8 md:min-h-[10.5rem]"
           aria-live="polite"
@@ -221,7 +220,6 @@ export default function Temas() {
           </AnimatePresence>
         </div>
 
-        {/* Campaign progress */}
         <div className="mt-8" aria-hidden="true">
           <div className="flex gap-1">
             {themes.map((theme, index) => (

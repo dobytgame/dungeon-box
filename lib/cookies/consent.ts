@@ -1,3 +1,5 @@
+import { pushGtmConsentUpdate } from '@/lib/analytics/gtm';
+
 export const CONSENT_STORAGE_KEY = 'dungeonbox_cookie_consent';
 
 /** Incrementar quando categorias ou política de cookies mudar. */
@@ -138,11 +140,5 @@ export function hasCategoryConsent(
 /** Dispara scripts de terceiros somente após consentimento (analytics/marketing). */
 export function applyConsentSideEffects(consent: CookieConsentState): void {
   if (typeof window === 'undefined') return;
-  // Ponto de extensão: Google Analytics, Meta Pixel, etc.
-  if (consent.analytics) {
-    // window.gtag?.('consent', 'update', { analytics_storage: 'granted' });
-  }
-  if (consent.marketing) {
-    // window.gtag?.('consent', 'update', { ad_storage: 'granted' });
-  }
+  pushGtmConsentUpdate(consent);
 }

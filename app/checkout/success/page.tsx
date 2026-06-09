@@ -1,9 +1,9 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
+import { privatePageMetadata } from '@/lib/seo/metadata';
 
-export const metadata = {
-  title: 'Assinatura confirmada — DungeonBox',
-};
+export const metadata: Metadata = privatePageMetadata('Assinatura confirmada');
 
 export default function CheckoutSuccessPage() {
   return (

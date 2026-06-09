@@ -1,9 +1,11 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import ResetPasswordForm from '@/components/auth/ResetPasswordForm';
+import { privatePageMetadata } from '@/lib/seo/metadata';
 
-export const metadata = {
-  title: 'Nova senha — DungeonBox',
+export const metadata: Metadata = {
+  ...privatePageMetadata('Nova senha'),
   description: 'Defina uma nova senha para sua conta DungeonBox.',
 };
 

@@ -1,4 +1,6 @@
+import type { Metadata } from 'next';
 import CheckoutFlow from '@/components/checkout/CheckoutFlow';
+import { privatePageMetadata } from '@/lib/seo/metadata';
 import { resolvePlanSlug } from '@/lib/checkout/plans';
 import {
   getAddresses,
@@ -6,9 +8,7 @@ import {
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
 
-export const metadata = {
-  title: 'Checkout — DungeonBox',
-};
+export const metadata: Metadata = privatePageMetadata('Checkout');
 
 export default async function CheckoutPage({
   searchParams,

@@ -1,4 +1,8 @@
+import type { Metadata } from 'next';
 import DashboardShell from '@/components/dashboard/DashboardShell';
+import { privatePageMetadata } from '@/lib/seo/metadata';
+
+export const metadata: Metadata = privatePageMetadata('Minha conta');
 import {
   displayName,
   getProfile,

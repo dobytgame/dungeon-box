@@ -1,7 +1,11 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Logo from '@/components/ui/Logo';
 import AuthForm from '@/components/auth/AuthForm';
 import { createClient } from '@/lib/supabase/server';
+import { privatePageMetadata } from '@/lib/seo/metadata';
+
+export const metadata: Metadata = privatePageMetadata('Entrar');
 
 interface Props {
   searchParams: { next?: string };
