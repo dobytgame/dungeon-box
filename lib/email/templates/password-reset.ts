@@ -1,7 +1,6 @@
 import {
   buildEmailHtml,
   buildEmailText,
-  escapeHtml,
   greetingName,
 } from '@/lib/email/layout';
 
@@ -19,7 +18,8 @@ export function passwordResetHtml(data: PasswordResetTemplateData): string {
     subject: PASSWORD_RESET_SUBJECT,
     preheader: 'Link seguro para criar uma nova senha. Válido por 24 horas.',
     eyebrow: 'Guilda',
-    headline: `Nova senha, <span style="color:#ff6b2b;">${escapeHtml(name)}</span>.`,
+    headline: `Nova senha, ${name}.`,
+    headlineAccent: name,
     paragraphs: [
       'Recebemos um pedido para redefinir a senha da sua conta na DungeonBox.',
       'Se foi você, use o botão abaixo. O link é de uso único e <strong style="color:#fff;">expira em 24 horas</strong>.',

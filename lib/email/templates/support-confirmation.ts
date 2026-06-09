@@ -27,7 +27,8 @@ export function supportConfirmationHtml(
     subject: SUPPORT_CONFIRMATION_SUBJECT,
     preheader: 'Nossa equipe costuma responder em até 1 dia útil.',
     eyebrow: 'Mestre',
-    headline: 'Mensagem <span style="color:#ff6b2b;">recebida</span>.',
+    headline: 'Mensagem recebida.',
+    headlineAccent: 'recebida',
     paragraphs: [
       `${name}, sua mensagem chegou ao Mestre da DungeonBox.`,
       `Assunto: <strong style="color:#fff;">${ticketSubject}</strong>.`,

@@ -26,7 +26,8 @@ export function purchaseCompletedHtml(data: PurchaseCompletedTemplateData): stri
     subject: PURCHASE_COMPLETED_SUBJECT,
     preheader: `Plano ${data.planName} ativo. Ciclo ${cycle} em preparação na forja.`,
     eyebrow: 'Guilda',
-    headline: 'Pagamento <span style="color:#ff6b2b;">confirmado</span>.',
+    headline: 'Pagamento confirmado.',
+    headlineAccent: 'confirmado',
     paragraphs: [
       `${name}, sua assinatura <strong style="color:#fff;">${data.planName}</strong> está ativa.`,
       `Valor deste ciclo: <strong style="color:#fff;">${amount}</strong>. Já estamos preparando o kit do ciclo ${cycle} — peças impressas, curadas e embaladas para sua mesa.`,

@@ -2,7 +2,6 @@ import { getSiteUrl } from '@/lib/email/config';
 import {
   buildEmailHtml,
   buildEmailText,
-  escapeHtml,
   greetingName,
 } from '@/lib/email/layout';
 
@@ -23,7 +22,8 @@ export function accountCreatedHtml(data: AccountCreatedTemplateData): string {
     subject: ACCOUNT_CREATED_SUBJECT,
     preheader: 'Confirme seu e-mail e entre no painel do Mestre.',
     eyebrow: 'Guilda',
-    headline: `Bem-vindo, <span style="color:#ff6b2b;">${escapeHtml(name)}</span>.`,
+    headline: `Bem-vindo, ${name}.`,
+    headlineAccent: name,
     paragraphs: [
       'Sua conta na DungeonBox foi criada. Falta só um passo para abrir o painel e acompanhar assinatura, entregas e fidelidade.',
       data.confirmUrl

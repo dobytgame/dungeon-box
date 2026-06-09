@@ -33,7 +33,8 @@ export function subscriptionCancelledHtml(
     subject: SUBSCRIPTION_CANCELLED_SUBJECT,
     preheader: `Plano ${data.planName} cancelado. Sem novas cobranças.`,
     eyebrow: 'Tesouro',
-    headline: 'Até a próxima <span style="color:#ff6b2b;">aventura</span>.',
+    headline: 'Até a próxima aventura.',
+    headlineAccent: 'aventura',
     paragraphs: [
       `${name}, confirmamos o cancelamento da sua assinatura <strong style="color:#fff;">${data.planName}</strong>.`,
       until,

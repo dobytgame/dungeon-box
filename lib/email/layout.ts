@@ -110,16 +110,28 @@ function renderCallout(callout: EmailCallout): string {
     </table>`;
 }
 
+function buildHeadlineHtml(headline: string, accent?: string): string {
+  if (!accent) {
+    return escapeHtml(headline);
+  }
+
+  const index = headline.indexOf(accent);
+  if (index === -1) {
+    return escapeHtml(headline);
+  }
+
+  const before = escapeHtml(headline.slice(0, index));
+  const after = escapeHtml(headline.slice(index + accent.length));
+  const accentHtml = `<span style="color:${EMAIL_COLORS.ember};">${escapeHtml(accent)}</span>`;
+
+  return `${before}${accentHtml}${after}`;
+}
+
 export function buildEmailHtml(options: EmailLayoutOptions): string {
   const siteUrl = getSiteUrl();
   const logoUrl = `${siteUrl}/images/dungeonbox.png`;
   const privacyUrl = `${siteUrl}/privacidade`;
-  const headlineHtml = options.headlineAccent
-    ? options.headline.replace(
-        options.headlineAccent,
-        `<span style="color:${EMAIL_COLORS.ember};">${escapeHtml(options.headlineAccent)}</span>`,
-      )
-    : escapeHtml(options.headline);
+  const headlineHtml = buildHeadlineHtml(options.headline, options.headlineAccent);
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">

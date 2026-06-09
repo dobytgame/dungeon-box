@@ -29,7 +29,8 @@ export function orderShippedHtml(data: OrderShippedTemplateData): string {
     subject: ORDER_SHIPPED_SUBJECT,
     preheader: `Ciclo ${data.cycleNumber} a caminho. Código: ${data.trackingCode}`,
     eyebrow: 'Rastreio',
-    headline: 'Saiu da <span style="color:#ff6b2b;">forja</span>.',
+    headline: 'Saiu da forja.',
+    headlineAccent: 'forja',
     paragraphs: [
       `${name}, o kit do <strong style="color:#fff;">ciclo ${data.cycleNumber}</strong>${theme} foi despachado.`,
       `Transportadora: <strong style="color:#fff;">${carrier}</strong>.`,
