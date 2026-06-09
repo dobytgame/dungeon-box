@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { sendNewsletterWelcomeEmail } from '@/lib/email/send-newsletter-welcome';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const bodySchema = z.object({
@@ -69,9 +70,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const emailResult = await sendNewsletterWelcomeEmail(email);
+  if (!emailResult.sent && emailResult.reason === 'provider_error') {
+    console.warn(
+      '[newsletter] lead saved but welcome email failed:',
+      emailResult.message,
+    );
+  }
+
   return NextResponse.json({
     success: true,
     alreadySubscribed: false,
     message: 'Pronto! Você entrou na Crônica do Mestre.',
+    emailSent: emailResult.sent,
   });
 }
