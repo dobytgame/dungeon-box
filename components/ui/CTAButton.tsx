@@ -6,6 +6,7 @@ interface Props {
   size?: 'sm' | 'md' | 'lg';
   href?: string;
   className?: string;
+  external?: boolean;
 }
 
 const variants = {
@@ -27,8 +28,22 @@ export default function CTAButton({
   size = 'md',
   href = '#planos',
   className = '',
+  external = false,
 }: Props) {
   const classes = `inline-flex cursor-pointer items-center justify-center rounded-sm font-display uppercase tracking-widest transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember ${variants[variant]} ${sizes[size]} ${className}`;
+
+  if (external || href.startsWith('http')) {
+    return (
+      <a
+        href={href}
+        className={classes}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {label}
+      </a>
+    );
+  }
 
   return (
     <Link href={href} className={classes}>

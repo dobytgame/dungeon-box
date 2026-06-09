@@ -1,43 +1,36 @@
 -- =============================================================================
 -- DungeonBox — Schema completo do sistema de assinatura
 -- Cole este arquivo no Supabase Dashboard → SQL Editor → Run
--- Projeto NOVO (executar uma única vez)
+--
+-- Idempotente: pode rodar de novo em banco já existente (pula o que já existe).
+-- Para APENAS a newsletter, use: supabase/EXECUTAR_NEWSLETTER_LEADS.sql
 -- =============================================================================
-
--- DungeonBox · enums e extensões base
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TYPE subscription_status AS ENUM (
-  'pending',
-  'active',
-  'paused',
-  'past_due',
-  'cancelled',
-  'expired'
-);
+DO $$ BEGIN
+  CREATE TYPE subscription_status AS ENUM (
+    'pending', 'active', 'paused', 'past_due', 'cancelled', 'expired'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE cycle_status AS ENUM (
-  'upcoming',
-  'preparing',
-  'shipped',
-  'delivered',
-  'failed'
-);
+DO $$ BEGIN
+  CREATE TYPE cycle_status AS ENUM (
+    'upcoming', 'preparing', 'shipped', 'delivered', 'failed'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE payment_status AS ENUM (
-  'pending',
-  'approved',
-  'authorized',
-  'in_process',
-  'rejected',
-  'cancelled',
-  'refunded',
-  'charged_back'
-);
--- Planos, fidelidade e temas (sem FK externa)
+DO $$ BEGIN
+  CREATE TYPE payment_status AS ENUM (
+    'pending', 'approved', 'authorized', 'in_process',
+    'rejected', 'cancelled', 'refunded', 'charged_back'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE plans (
+CREATE TABLE IF NOT EXISTS plans (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug            text UNIQUE NOT NULL,
   name            text NOT NULL,
@@ -63,9 +56,10 @@ INSERT INTO plans (
 ) VALUES
   ('aventureiro', 'Aventureiro', 8900,  10, 12, 1, false, NULL,                    0,  false, false, '#a0aabb', 1),
   ('heroi',       'Herói',       13900, 18, 22, 2, true,  ARRAY['sul','sudeste'], 5,  true,  false, '#ff6b2b', 2),
-  ('lendario',    'Lendário',    19900, 28, 35, 99, true,  ARRAY['all'],          10, true,  true,  '#00d4ff', 3);
+  ('lendario',    'Lendário',    19900, 28, 35, 99, true,  ARRAY['all'],          10, true,  true,  '#00d4ff', 3)
+ON CONFLICT (slug) DO NOTHING;
 
-CREATE TABLE loyalty_levels (
+CREATE TABLE IF NOT EXISTS loyalty_levels (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   level           integer UNIQUE NOT NULL,
   name            text NOT NULL,
@@ -83,9 +77,10 @@ INSERT INTO loyalty_levels (level, name, icon, min_cycles, bonus_pieces, store_d
   (2, 'Aventureiro', '⚔️', 2,  1, 5,  false, false),
   (3, 'Veterano',    '🏹', 5,  2, 10, true,  false),
   (4, 'Campeão',     '🛡️', 9,  3, 15, true,  false),
-  (5, 'Lendário',    '👑', 12, 5, 20, true,  true);
+  (5, 'Lendário',    '👑', 12, 5, 20, true,  true)
+ON CONFLICT (level) DO NOTHING;
 
-CREATE TABLE themes (
+CREATE TABLE IF NOT EXISTS themes (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   month_number integer NOT NULL,
   year         integer NOT NULL,
@@ -99,9 +94,8 @@ CREATE TABLE themes (
   created_at   timestamptz DEFAULT now(),
   UNIQUE(month_number, year)
 );
--- Perfis (extensão auth.users) e endereços
 
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id              uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email           text UNIQUE NOT NULL,
   full_name       text,
@@ -147,11 +141,12 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
-CREATE TABLE addresses (
+CREATE TABLE IF NOT EXISTS addresses (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      uuid REFERENCES profiles(id) ON DELETE CASCADE,
   label        text DEFAULT 'Principal',
@@ -167,12 +162,11 @@ CREATE TABLE addresses (
   created_at   timestamptz DEFAULT now()
 );
 
-CREATE UNIQUE INDEX one_default_address
+CREATE UNIQUE INDEX IF NOT EXISTS one_default_address
   ON addresses (user_id)
   WHERE is_default = true;
--- Assinaturas
 
-CREATE TABLE subscriptions (
+CREATE TABLE IF NOT EXISTS subscriptions (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id               uuid REFERENCES profiles(id) ON DELETE CASCADE,
   plan_id               uuid REFERENCES plans(id),
@@ -194,12 +188,11 @@ CREATE TABLE subscriptions (
   updated_at            timestamptz DEFAULT now()
 );
 
-CREATE INDEX idx_subscriptions_user   ON subscriptions(user_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX idx_subscriptions_mp_id  ON subscriptions(mp_subscription_id);
--- Pagamentos
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_mp_id ON subscriptions(mp_subscription_id);
 
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           uuid REFERENCES profiles(id),
   subscription_id   uuid REFERENCES subscriptions(id),
@@ -218,9 +211,8 @@ CREATE TABLE payments (
   created_at        timestamptz DEFAULT now(),
   mp_raw_payload    jsonb
 );
--- Ciclos mensais (depende de subscriptions, payments, themes)
 
-CREATE TABLE subscription_cycles (
+CREATE TABLE IF NOT EXISTS subscription_cycles (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   subscription_id  uuid REFERENCES subscriptions(id) ON DELETE CASCADE,
   cycle_number     integer NOT NULL,
@@ -241,19 +233,17 @@ CREATE TABLE subscription_cycles (
   updated_at       timestamptz DEFAULT now()
 );
 
-CREATE INDEX idx_cycles_subscription ON subscription_cycles(subscription_id);
--- Votação de temas (assinantes com direito a voto)
+CREATE INDEX IF NOT EXISTS idx_cycles_subscription ON subscription_cycles(subscription_id);
 
-CREATE TABLE theme_votes (
+CREATE TABLE IF NOT EXISTS theme_votes (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid REFERENCES profiles(id),
   theme_option_id uuid,
   voted_at        timestamptz DEFAULT now(),
   UNIQUE(user_id, theme_option_id)
 );
--- Views operacionais
 
-CREATE VIEW active_subscribers WITH (security_invoker = true) AS
+CREATE OR REPLACE VIEW active_subscribers WITH (security_invoker = true) AS
 SELECT
   p.id,
   p.full_name,
@@ -272,7 +262,7 @@ JOIN plans pl    ON pl.id = s.plan_id
 JOIN loyalty_levels ll ON ll.level = s.loyalty_level
 WHERE s.status = 'active';
 
-CREATE VIEW mrr WITH (security_invoker = true) AS
+CREATE OR REPLACE VIEW mrr WITH (security_invoker = true) AS
 SELECT
   pl.name,
   COUNT(s.id)               AS subscribers,
@@ -281,7 +271,6 @@ FROM subscriptions s
 JOIN plans pl ON pl.id = s.plan_id
 WHERE s.status = 'active'
 GROUP BY pl.name;
--- Row Level Security
 
 ALTER TABLE profiles            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE addresses           ENABLE ROW LEVEL SECURITY;
@@ -293,47 +282,55 @@ ALTER TABLE plans               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE loyalty_levels      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE themes              ENABLE ROW LEVEL SECURITY;
 
--- Leitura pública
+DROP POLICY IF EXISTS "plans_public_read" ON plans;
 CREATE POLICY "plans_public_read" ON plans
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "loyalty_public_read" ON loyalty_levels;
 CREATE POLICY "loyalty_public_read" ON loyalty_levels
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "themes_public_read" ON themes;
 CREATE POLICY "themes_public_read" ON themes
   FOR SELECT USING (is_revealed = true);
 
--- Perfis (insert via trigger handle_new_user SECURITY DEFINER)
+DROP POLICY IF EXISTS "profiles_select_own" ON profiles;
 CREATE POLICY "profiles_select_own" ON profiles
   FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
 CREATE POLICY "profiles_update_own" ON profiles
   FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
--- Endereços
+DROP POLICY IF EXISTS "addresses_select_own" ON addresses;
 CREATE POLICY "addresses_select_own" ON addresses
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "addresses_insert_own" ON addresses;
 CREATE POLICY "addresses_insert_own" ON addresses
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "addresses_update_own" ON addresses;
 CREATE POLICY "addresses_update_own" ON addresses
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "addresses_delete_own" ON addresses;
 CREATE POLICY "addresses_delete_own" ON addresses
   FOR DELETE USING (auth.uid() = user_id);
 
--- Assinaturas
+DROP POLICY IF EXISTS "subscriptions_select_own" ON subscriptions;
 CREATE POLICY "subscriptions_select_own" ON subscriptions
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "subscriptions_insert_own" ON subscriptions;
 CREATE POLICY "subscriptions_insert_own" ON subscriptions
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "subscriptions_update_own" ON subscriptions;
 CREATE POLICY "subscriptions_update_own" ON subscriptions
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Ciclos e pagamentos (escrita via service role nos webhooks)
+DROP POLICY IF EXISTS "cycles_select_own" ON subscription_cycles;
 CREATE POLICY "cycles_select_own" ON subscription_cycles
   FOR SELECT USING (
     EXISTS (
@@ -342,15 +339,32 @@ CREATE POLICY "cycles_select_own" ON subscription_cycles
     )
   );
 
+DROP POLICY IF EXISTS "payments_select_own" ON payments;
 CREATE POLICY "payments_select_own" ON payments
   FOR SELECT USING (auth.uid() = user_id);
 
--- Votos
+DROP POLICY IF EXISTS "votes_select_own" ON theme_votes;
 CREATE POLICY "votes_select_own" ON theme_votes
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "votes_insert_own" ON theme_votes;
 CREATE POLICY "votes_insert_own" ON theme_votes
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "votes_delete_own" ON theme_votes;
 CREATE POLICY "votes_delete_own" ON theme_votes
   FOR DELETE USING (auth.uid() = user_id);
+
+-- Newsletter / lista de espera (LP de lançamento)
+CREATE TABLE IF NOT EXISTS newsletter_leads (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email       text NOT NULL,
+  source      text NOT NULL DEFAULT 'launch_lp',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS newsletter_leads_email_unique_idx
+  ON newsletter_leads (email);
+
+ALTER TABLE newsletter_leads ENABLE ROW LEVEL SECURITY;

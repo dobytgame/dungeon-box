@@ -5,18 +5,25 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import CTAButton from '@/components/ui/CTAButton';
 
-const LINKS = [
+const DEFAULT_LINKS = [
   { href: '#planos', label: 'Planos' },
   { href: '#fidelidade', label: 'Fidelidade' },
   { href: '#temas', label: 'Temas' },
   { href: '#faq', label: 'FAQ' },
 ] as const;
 
+export type MobileNavLink = { href: string; label: string };
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isLoggedIn?: boolean;
   userName?: string | null;
+  links?: readonly MobileNavLink[];
+  ctaLabel?: string;
+  ctaHref?: string;
+  ctaExternal?: boolean;
+  showAuthLink?: boolean;
 }
 
 export function MobileNavToggle({
@@ -42,7 +49,16 @@ export default function MobileNavPanel({
   onOpenChange,
   isLoggedIn = false,
   userName,
+  links = DEFAULT_LINKS,
+  ctaLabel,
+  ctaHref,
+  ctaExternal = false,
+  showAuthLink = true,
 }: Props) {
+  const primaryCtaLabel =
+    ctaLabel ?? (isLoggedIn ? 'Ir para o dashboard' : 'Assinar agora');
+  const primaryCtaHref =
+    ctaHref ?? (isLoggedIn ? '/dashboard' : '/checkout?plan=heroi');
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -79,7 +95,7 @@ export default function MobileNavPanel({
       >
         <nav className="flex flex-col p-4" aria-label="Navegação mobile">
           <ul className="divide-y divide-white/[0.06]">
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
@@ -90,25 +106,28 @@ export default function MobileNavPanel({
                 </Link>
               </li>
             ))}
-            <li>
-              <Link
-                href={isLoggedIn ? '/dashboard' : '/auth'}
-                onClick={() => onOpenChange(false)}
-                className="flex min-h-[48px] cursor-pointer items-center font-display text-sm uppercase tracking-widest text-stone-400 transition-colors duration-200 hover:text-white"
-              >
-                {isLoggedIn
-                  ? userName
-                    ? `Minha conta · ${userName.split(' ')[0]}`
-                    : 'Minha conta'
-                  : 'Entrar'}
-              </Link>
-            </li>
+            {showAuthLink ? (
+              <li>
+                <Link
+                  href={isLoggedIn ? '/dashboard' : '/auth'}
+                  onClick={() => onOpenChange(false)}
+                  className="flex min-h-[48px] cursor-pointer items-center font-display text-sm uppercase tracking-widest text-stone-400 transition-colors duration-200 hover:text-white"
+                >
+                  {isLoggedIn
+                    ? userName
+                      ? `Minha conta · ${userName.split(' ')[0]}`
+                      : 'Minha conta'
+                    : 'Entrar'}
+                </Link>
+              </li>
+            ) : null}
           </ul>
           <div className="mt-4 pt-2">
             <CTAButton
-              label={isLoggedIn ? 'Ir para o dashboard' : 'Assinar agora'}
+              label={primaryCtaLabel}
               size="md"
-              href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+              href={primaryCtaHref}
+              external={ctaExternal}
               className="w-full"
             />
           </div>
