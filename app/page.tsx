@@ -49,7 +49,7 @@ export default async function Home() {
     <>
       <LaunchNavbar isLoggedIn={isLoggedIn} userName={userName} />
       <main>
-        <LaunchHero />
+        <LaunchHero waitlistCount={waitlistCount} />
         <LaunchMarquee />
         <LaunchProblem />
         <LaunchSolution />
