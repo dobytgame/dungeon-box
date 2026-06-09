@@ -4,6 +4,7 @@ import { requestPasswordReset } from '@/lib/auth/password-reset';
 
 const bodySchema = z.object({
   email: z.string().email().max(320),
+  origin: z.string().url().optional(),
 });
 
 export async function POST(request: Request) {
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'E-mail inválido.' }, { status: 400 });
   }
 
-  const result = await requestPasswordReset(body.email);
+  const result = await requestPasswordReset(body.email, body.origin);
 
   return NextResponse.json(result);
 }

@@ -1,9 +1,8 @@
-import { getSiteUrl } from '@/lib/email/config';
 import { sendPasswordResetEmail } from '@/lib/email/send-transactional';
 import { greetingName } from '@/lib/email/layout';
+import { PASSWORD_RESET_PATH } from '@/lib/auth/recovery-session';
+import { resolveAuthRedirectOrigin } from '@/lib/auth/redirect-origin';
 import { createAdminClient } from '@/lib/supabase/admin';
-
-const RESET_NEXT_PATH = '/auth/nova-senha';
 
 export type RequestPasswordResetResult = {
   success: true;
@@ -17,10 +16,11 @@ export type RequestPasswordResetResult = {
  */
 export async function requestPasswordReset(
   email: string,
+  requestOrigin?: string,
 ): Promise<RequestPasswordResetResult> {
   const normalized = email.trim().toLowerCase();
-  const siteUrl = getSiteUrl();
-  const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(RESET_NEXT_PATH)}`;
+  const origin = resolveAuthRedirectOrigin(requestOrigin);
+  const redirectTo = `${origin}${PASSWORD_RESET_PATH}`;
 
   const supabase = createAdminClient();
 
@@ -69,4 +69,4 @@ export async function requestPasswordReset(
   };
 }
 
-export const PASSWORD_RESET_LANDING_PATH = RESET_NEXT_PATH;
+export const PASSWORD_RESET_LANDING_PATH = PASSWORD_RESET_PATH;

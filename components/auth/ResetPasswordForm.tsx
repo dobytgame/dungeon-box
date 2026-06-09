@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { establishRecoverySession } from '@/lib/auth/recovery-session';
 import { createClient } from '@/lib/supabase/client';
 
 type Status = 'loading' | 'ready' | 'invalid';
@@ -23,30 +24,21 @@ export default function ResetPasswordForm() {
     let cancelled = false;
 
     async function prepareRecoverySession() {
-      const params = new URLSearchParams(window.location.search);
-      const tokenHash = params.get('token_hash');
-      const type = params.get('type');
+      const result = await establishRecoverySession(supabase);
 
-      if (tokenHash && type === 'recovery') {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: 'recovery',
-        });
-        if (error) {
-          console.error('[auth] verifyOtp recovery failed:', error);
-          if (!cancelled) setStatus('invalid');
-          return;
-        }
-        window.history.replaceState({}, '', '/auth/nova-senha');
+      if (cancelled) return;
+
+      if (result === 'ready') {
+        setStatus('ready');
+        return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!cancelled) {
-        setStatus(session ? 'ready' : 'invalid');
+      if (result === 'invalid') {
+        setStatus('invalid');
+        return;
       }
+
+      setStatus('invalid');
     }
 
     const {
@@ -63,7 +55,7 @@ export default function ResetPasswordForm() {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [supabase.auth]);
+  }, [supabase]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

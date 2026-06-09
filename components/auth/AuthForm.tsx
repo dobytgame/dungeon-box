@@ -65,7 +65,10 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          origin: window.location.origin,
+        }),
       });
       const data = (await res.json()) as { message?: string; error?: string };
       setMessage(data.message ?? data.error ?? 'Verifique seu e-mail.');
