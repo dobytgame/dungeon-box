@@ -155,6 +155,22 @@ export async function prepareStripeSubscription(
   };
 }
 
+function isStripeSubscriptionMissing(error: unknown): boolean {
+  if (
+    typeof error !== 'object' ||
+    error === null ||
+    !('code' in error) ||
+    !('statusCode' in error)
+  ) {
+    return false;
+  }
+  const stripeError = error as { code?: string; statusCode?: number };
+  return (
+    stripeError.statusCode === 404 ||
+    stripeError.code === 'resource_missing'
+  );
+}
+
 export async function cancelStripeSubscriptionBestEffort(
   stripeSubscriptionId: string
 ) {
@@ -162,6 +178,9 @@ export async function cancelStripeSubscriptionBestEffort(
     const stripe = getStripe();
     await stripe.subscriptions.cancel(stripeSubscriptionId);
   } catch (error) {
+    if (isStripeSubscriptionMissing(error)) {
+      return;
+    }
     console.warn('[stripe] could not cancel subscription:', stripeSubscriptionId, error);
   }
 }

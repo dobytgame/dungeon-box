@@ -104,6 +104,9 @@ export async function createAsaasSubscription(
     special_notes: input.specialNotes,
     status: 'pending' as const,
     asaas_customer_id: asaasCustomerId,
+    asaas_subscription_id: null,
+    stripe_subscription_id: null,
+    mp_subscription_id: null,
     promo_code: input.promoCode ?? null,
     updated_at: new Date().toISOString(),
   };

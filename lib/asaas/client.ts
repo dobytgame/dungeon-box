@@ -1,4 +1,13 @@
-export const ASAAS_CONFIGURED = Boolean(process.env.ASAAS_API_KEY?.trim());
+/** Normaliza ASAAS_API_KEY (Vercel usa valor literal; .env local pode precisar de \$). */
+export function resolveAsaasApiKey(): string {
+  let key = process.env.ASAAS_API_KEY?.trim() ?? '';
+  if (key.startsWith('\\$')) {
+    key = key.slice(1);
+  }
+  return key;
+}
+
+export const ASAAS_CONFIGURED = Boolean(resolveAsaasApiKey());
 
 const DEFAULT_PRODUCTION_URL = 'https://api.asaas.com/v3';
 const DEFAULT_SANDBOX_URL = 'https://api-sandbox.asaas.com/v3';
@@ -44,7 +53,7 @@ export async function asaasRequest<T>(
   path: string,
   options: AsaasRequestOptions = {}
 ): Promise<T> {
-  const apiKey = process.env.ASAAS_API_KEY?.trim();
+  const apiKey = resolveAsaasApiKey();
   if (!apiKey) {
     throw new Error('Asaas não configurado (ASAAS_API_KEY).');
   }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
+import { isAsaasCheckout } from '@/lib/payments/provider';
 import { MP_CONFIGURED, updateMpPreapprovalStatus } from '@/lib/mercadopago';
 import { fetchMpPreapproval } from '@/lib/mercadopago/safe-fetch';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
@@ -115,7 +116,9 @@ export async function prepareCheckoutSubscription(
     };
   }
 
-  if (existing.stripe_subscription_id) {
+  const asaasCheckout = isAsaasCheckout();
+
+  if (!asaasCheckout && existing.stripe_subscription_id) {
     const stripeResult = await syncStaleStripePending(supabase, existing);
     if (stripeResult === 'activated') {
       return { kind: 'activated', subscriptionId: existing.id };
@@ -126,7 +129,7 @@ export async function prepareCheckoutSubscription(
     await cancelAsaasSubscriptionBestEffort(existing.asaas_subscription_id);
   }
 
-  if (existing.mp_subscription_id) {
+  if (!asaasCheckout && existing.mp_subscription_id) {
     const mp = await fetchMpPreapproval(existing.mp_subscription_id);
 
     if (mp) {
