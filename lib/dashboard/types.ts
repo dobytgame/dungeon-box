@@ -113,8 +113,13 @@ export interface Subscription {
   status: SubscriptionStatus;
   mp_subscription_id: string | null;
   mp_payer_id: string | null;
+  asaas_subscription_id?: string | null;
+  asaas_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_customer_id?: string | null;
   color_choices: string[] | null;
   special_notes: string | null;
+  promo_code?: string | null;
   started_at: string | null;
   current_period_start: string | null;
   current_period_end: string | null;

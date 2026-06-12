@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import {
   CreditCard,
   Lock,
@@ -12,39 +18,69 @@ import {
   X,
 } from 'lucide-react';
 import { checkoutHref, getCheckoutPlan } from '@/lib/checkout/plans';
+import { CHECKOUT_COUPONS_ENABLED } from '@/lib/checkout/public';
 import type { CheckoutData } from '@/lib/checkout/types';
 import type { Profile } from '@/lib/dashboard/types';
 import {
-  STRIPE_CHECKOUT_READY,
+  ASAAS_CHECKOUT_READY,
+  STRIPE_CHECKOUT_ACTIVE,
+} from '@/lib/payments/public';
+import {
   STRIPE_COUPONS_ENABLED,
 } from '@/lib/stripe/public';
+import AsaasPaymentForm, {
+  type AsaasCardPayload,
+} from './AsaasPaymentForm';
 import CheckoutSection from './CheckoutSection';
 import StripeCheckoutProvider from './StripeCheckoutProvider';
 import StripePaymentForm from './StripePaymentForm';
 
 interface Props {
   data: CheckoutData;
+  setData: Dispatch<SetStateAction<CheckoutData>>;
   profile: Profile | null;
   userEmail: string;
   onBack: () => void;
 }
 
-export default function StepPayment({ data, profile, userEmail, onBack }: Props) {
+export default function StepPayment({
+  data,
+  setData,
+  profile,
+  userEmail,
+  onBack,
+}: Props) {
   const router = useRouter();
   const plan = getCheckoutPlan(data.planSlug);
   const cpfDigits = profile?.cpf?.replace(/\D/g, '') ?? '';
+  const phoneDigits = profile?.phone?.replace(/\D/g, '') ?? '';
   const cpfReady = cpfDigits.length === 11;
+  const phoneReady = phoneDigits.length >= 10;
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(ASAAS_CHECKOUT_READY ? false : true);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [couponInput, setCouponInput] = useState('');
-  const [promotionCode, setPromotionCode] = useState<string | null>(null);
-  const [couponSummary, setCouponSummary] = useState<string | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [showCoupon, setShowCoupon] = useState(false);
 
+  const promotionCode = data.couponCode ?? null;
+  const couponSummary = data.couponSummary ?? null;
+  const discountedPriceCents = data.discountedPlanCents ?? null;
+
   const profileNext = encodeURIComponent(checkoutHref(data.planSlug));
-  const stripeReady = STRIPE_CHECKOUT_READY && cpfReady && Boolean(data.addressId);
+  const siteCouponsEnabled =
+    ASAAS_CHECKOUT_READY && CHECKOUT_COUPONS_ENABLED;
+  const couponsEnabled =
+    (siteCouponsEnabled || (STRIPE_CHECKOUT_ACTIVE && STRIPE_COUPONS_ENABLED)) &&
+    cpfReady;
+  const stripeReady =
+    STRIPE_CHECKOUT_ACTIVE && cpfReady && Boolean(data.addressId);
+  const asaasReady =
+    ASAAS_CHECKOUT_READY &&
+    cpfReady &&
+    phoneReady &&
+    Boolean(data.addressId);
+  const paymentConfigured = ASAAS_CHECKOUT_READY || STRIPE_CHECKOUT_ACTIVE;
 
   const prepareCheckout = useCallback(
     async (promoCode: string | null, cancelled: () => boolean) => {
@@ -101,6 +137,11 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
   );
 
   useEffect(() => {
+    if (!STRIPE_CHECKOUT_ACTIVE) {
+      setLoading(false);
+      return;
+    }
+
     if (!stripeReady) {
       setLoading(false);
       return;
@@ -125,10 +166,17 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
     setError('');
 
     try {
-      const res = await fetch('/api/stripe/promotion-code/validate', {
+      const endpoint = siteCouponsEnabled
+        ? '/api/checkout/coupon/validate'
+        : '/api/stripe/promotion-code/validate';
+      const requestBody = siteCouponsEnabled
+        ? { code, planSlug: data.planSlug }
+        : { code };
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify(requestBody),
       });
       const payload = await res.json().catch(() => ({}));
 
@@ -140,31 +188,98 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
         );
       }
 
-      setPromotionCode(payload.code ?? code);
-      setCouponSummary(
-        typeof payload.summary === 'string' ? payload.summary : 'Cupom aplicado'
-      );
-      setCouponInput(payload.code ?? code);
+      const appliedCode = payload.code ?? code;
+      const appliedSummary =
+        typeof payload.summary === 'string' ? payload.summary : 'Cupom aplicado';
+      const appliedDiscount =
+        typeof payload.discountedPriceCents === 'number'
+          ? payload.discountedPriceCents
+          : null;
+
+      setCouponInput(appliedCode);
+      setData((prev) => ({
+        ...prev,
+        couponCode: appliedCode,
+        couponSummary: appliedSummary,
+        discountedPlanCents: appliedDiscount,
+      }));
     } catch (err) {
-      setPromotionCode(null);
-      setCouponSummary(null);
+      setData((prev) => ({
+        ...prev,
+        couponCode: null,
+        couponSummary: null,
+        discountedPlanCents: null,
+      }));
       setError(err instanceof Error ? err.message : 'Cupom inválido.');
     } finally {
       setCouponLoading(false);
     }
-  }, [couponInput]);
+  }, [couponInput, data.planSlug, siteCouponsEnabled, setData]);
 
   const handleRemoveCoupon = useCallback(() => {
-    setPromotionCode(null);
-    setCouponSummary(null);
     setCouponInput('');
+    setData((prev) => ({
+      ...prev,
+      couponCode: null,
+      couponSummary: null,
+      discountedPlanCents: null,
+    }));
     setError('');
-  }, []);
+  }, [setData]);
 
   const handleSuccess = useCallback(() => {
     router.push('/checkout/success');
     router.refresh();
   }, [router]);
+
+  const handleAsaasSubmit = useCallback(
+    async (creditCard: AsaasCardPayload) => {
+      const res = await fetch('/api/asaas/subscription/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planSlug: data.planSlug,
+          addressId: data.addressId,
+          specialNotes: data.specialNotes,
+          paintKitBump: data.paintKitBump,
+          creditCard,
+          couponCode: promotionCode,
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (payload.code === 'SUBSCRIPTION_ALREADY_ACTIVE') {
+          router.push('/dashboard/subscription');
+          router.refresh();
+          return;
+        }
+        throw new Error(
+          typeof payload.error === 'string'
+            ? payload.error
+            : 'Não foi possível confirmar o pagamento.'
+        );
+      }
+
+      handleSuccess();
+    },
+    [data, promotionCode, router, handleSuccess]
+  );
+
+  const displayPrice =
+    discountedPriceCents != null
+      ? (discountedPriceCents / 100).toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : plan.price;
+
+  const paymentDescription = paymentConfigured
+    ? discountedPriceCents != null
+      ? `R$ ${displayPrice}/mês com cupom aplicado. Renovação automática no valor promocional.`
+      : `R$ ${plan.price}/mês com renovação automática. Pagamento seguro, sem sair do site.`
+    : 'Configure o provedor de pagamento para ativar o checkout.';
 
   return (
     <div className="space-y-8">
@@ -190,7 +305,25 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
           </div>
         ) : null}
 
-        {STRIPE_COUPONS_ENABLED && cpfReady ? (
+        {ASAAS_CHECKOUT_READY && cpfReady && !phoneReady ? (
+          <div
+            className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100/90"
+            role="status"
+          >
+            <p>
+              O telefone é obrigatório para pagamento com cartão. Cadastre seu
+              telefone no perfil antes de pagar.
+            </p>
+            <Link
+              href={`/dashboard/profile?next=${profileNext}`}
+              className="mt-3 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+            >
+              Completar perfil
+            </Link>
+          </div>
+        ) : null}
+
+        {couponsEnabled ? (
           <div className="rounded-sm border border-white/[0.06] bg-stone-950/30 p-4">
             {!showCoupon && !promotionCode ? (
               <button
@@ -270,15 +403,13 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-white">Cartão de crédito</p>
               <p className="mt-1 text-sm leading-relaxed text-stone-500">
-                {STRIPE_CHECKOUT_READY
-                  ? `R$ ${plan.price}/mês com renovação automática. Pagamento seguro, sem sair do site.`
-                  : 'Configure as chaves do Stripe para ativar o pagamento.'}
+                {paymentDescription}
               </p>
             </div>
           </div>
 
           <div className="relative mt-5 min-h-[120px] rounded-sm border border-dashed border-white/10 bg-stone-950/50 px-2 py-4">
-            {loading ? (
+            {STRIPE_CHECKOUT_ACTIVE && loading ? (
               <div className="flex min-h-[120px] items-center justify-center">
                 <Loader2
                   className="h-6 w-6 animate-spin text-ember"
@@ -288,7 +419,15 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
               </div>
             ) : null}
 
-            {!loading && stripeReady && clientSecret ? (
+            {ASAAS_CHECKOUT_READY && asaasReady ? (
+              <AsaasPaymentForm
+                disabled={!asaasReady}
+                onSubmit={handleAsaasSubmit}
+                onError={(message) => setError(message)}
+              />
+            ) : null}
+
+            {STRIPE_CHECKOUT_ACTIVE && !loading && stripeReady && clientSecret ? (
               <StripeCheckoutProvider
                 key={clientSecret}
                 clientSecret={clientSecret}
@@ -301,7 +440,11 @@ export default function StepPayment({ data, profile, userEmail, onBack }: Props)
               </StripeCheckoutProvider>
             ) : null}
 
-            {!loading && stripeReady && !clientSecret && !error ? (
+            {STRIPE_CHECKOUT_ACTIVE &&
+            !loading &&
+            stripeReady &&
+            !clientSecret &&
+            !error ? (
               <p className="text-center text-sm text-stone-500">
                 Não foi possível carregar o pagamento.
               </p>

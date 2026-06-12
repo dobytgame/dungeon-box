@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, MapPin, Package, Paintbrush } from 'lucide-react';
+import { Check, MapPin, Package, Paintbrush, Tag } from 'lucide-react';
 import { plans } from '@/lib/data';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import type { CheckoutData } from '@/lib/checkout/types';
@@ -31,7 +31,10 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
       : [];
   const address = addresses.find((a) => a.id === data.addressId);
   const planCents = plan.price * 100;
-  const firstChargeCents = planCents + (bump?.priceCents ?? 0);
+  const effectivePlanCents = data.discountedPlanCents ?? planCents;
+  const hasDiscount =
+    data.discountedPlanCents != null && data.discountedPlanCents < planCents;
+  const firstChargeCents = effectivePlanCents + (bump?.priceCents ?? 0);
 
   return (
     <aside className="lg:sticky lg:top-28 lg:self-start">
@@ -51,14 +54,37 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
               <p className="mt-0.5 text-xs text-stone-500">Assinatura mensal</p>
             </div>
             <p className="shrink-0 text-right">
-              <span className="font-display text-2xl tabular-nums text-white">
-                R$ {plan.price}
-              </span>
+              {hasDiscount ? (
+                <>
+                  <span className="block font-display text-sm tabular-nums text-stone-500 line-through">
+                    R$ {plan.price}
+                  </span>
+                  <span className="font-display text-2xl tabular-nums text-emerald-300">
+                    {formatBRL(effectivePlanCents)}
+                  </span>
+                </>
+              ) : (
+                <span className="font-display text-2xl tabular-nums text-white">
+                  R$ {plan.price}
+                </span>
+              )}
               <span className="block text-[10px] uppercase tracking-widest text-stone-600">
                 por mês
               </span>
             </p>
           </div>
+
+          {hasDiscount && data.couponCode ? (
+            <div className="border-b border-white/[0.06] py-3">
+              <p className="flex items-center gap-2 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100/90">
+                <Tag className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  <span className="font-medium">{data.couponCode}</span>
+                  {data.couponSummary ? ` — ${data.couponSummary}` : null}
+                </span>
+              </p>
+            </div>
+          ) : null}
 
           {step >= 1 && deliveryItems.length > 0 ? (
             <div className="border-b border-white/[0.06] py-4">
@@ -128,14 +154,37 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                   </p>
                 </div>
                 <p className="mt-1 text-right text-[10px] text-stone-600">
-                  Depois, R$ {plan.price}/mês
+                  Depois,{' '}
+                  {hasDiscount ? (
+                    <>
+                      <span className="text-stone-500 line-through">
+                        R$ {plan.price}
+                      </span>{' '}
+                      <span className="text-emerald-400/90">
+                        {formatBRL(effectivePlanCents)}/mês
+                      </span>
+                    </>
+                  ) : (
+                    <>R$ {plan.price}/mês</>
+                  )}
                 </p>
               </>
             ) : (
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs text-stone-500">Total recorrente</p>
                 <p className="font-display text-lg tabular-nums text-white">
-                  R$ {plan.price}
+                  {hasDiscount ? (
+                    <>
+                      <span className="mr-2 text-sm text-stone-500 line-through">
+                        R$ {plan.price}
+                      </span>
+                      <span className="text-emerald-300">
+                        {formatBRL(effectivePlanCents)}
+                      </span>
+                    </>
+                  ) : (
+                    <>R$ {plan.price}</>
+                  )}
                   <span className="text-sm text-stone-500">/mês</span>
                 </p>
               </div>

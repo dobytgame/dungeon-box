@@ -1,6 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
+import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import {
   MP_CONFIGURED,
   updateMpPreapprovalStatus,
@@ -116,7 +118,7 @@ export async function updateSubscriptionStatus(formData: FormData) {
 
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('mp_subscription_id, stripe_subscription_id, status')
+    .select('mp_subscription_id, stripe_subscription_id, asaas_subscription_id, status')
     .eq('id', id)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -149,6 +151,22 @@ export async function updateSubscriptionStatus(formData: FormData) {
   }
 
   if (
+    subscription.asaas_subscription_id &&
+    ASAAS_CONFIGURED &&
+    action === 'cancel'
+  ) {
+    try {
+      await cancelAsaasSubscriptionBestEffort(
+        subscription.asaas_subscription_id
+      );
+    } catch (error) {
+      console.error('Asaas subscription cancel:', error);
+      return {
+        error:
+          'Não foi possível cancelar a assinatura no Asaas. Tente novamente.',
+      };
+    }
+  } else if (
     subscription.stripe_subscription_id &&
     STRIPE_CONFIGURED &&
     (action === 'pause' || action === 'resume' || action === 'cancel')

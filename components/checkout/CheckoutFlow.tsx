@@ -34,7 +34,13 @@ export default function CheckoutFlow({
   });
 
   useEffect(() => {
-    setData((prev) => ({ ...prev, planSlug }));
+    setData((prev) => ({
+      ...prev,
+      planSlug,
+      discountedPlanCents: null,
+      couponCode: null,
+      couponSummary: null,
+    }));
   }, [planSlug]);
 
   return (
@@ -54,6 +60,7 @@ export default function CheckoutFlow({
       {step === 3 ? (
         <StepPayment
           data={data}
+          setData={setData}
           profile={profile}
           userEmail={userEmail}
           onBack={() => setStep(2)}

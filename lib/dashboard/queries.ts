@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { reconcilePendingAsaasSubscription } from '@/lib/asaas/payment-sync';
 import { createClient } from '@/lib/supabase/server';
 import type {
   Address,
@@ -89,6 +90,35 @@ export async function getSubscriptionWithCycles(
     ).sort((a, b) => b.cycle_number - a.cycle_number);
   }
 
+  if (data?.status === 'pending' && data.asaas_subscription_id) {
+    await reconcilePendingAsaasSubscription(data);
+    const { data: refreshed } = await supabase
+      .from('subscriptions')
+      .select(
+        `
+        *,
+        plans(*),
+        addresses(*),
+        subscription_cycles(
+          *,
+          themes(*)
+        )
+      `
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (refreshed?.subscription_cycles) {
+      refreshed.subscription_cycles = (
+        refreshed.subscription_cycles as SubscriptionCycle[]
+      ).sort((a, b) => b.cycle_number - a.cycle_number);
+    }
+
+    return refreshed;
+  }
+
   return data;
 }
 
@@ -99,7 +129,23 @@ export async function getAllSubscriptions(userId: string): Promise<Subscription[
     .select(`*, plans(*), addresses(*)`)
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
-  return data ?? [];
+
+  const subscriptions = data ?? [];
+  const pendingAsaas = subscriptions.find(
+    (sub) => sub.status === 'pending' && sub.asaas_subscription_id
+  );
+
+  if (pendingAsaas) {
+    await reconcilePendingAsaasSubscription(pendingAsaas);
+    const { data: refreshed } = await supabase
+      .from('subscriptions')
+      .select(`*, plans(*), addresses(*)`)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    return refreshed ?? subscriptions;
+  }
+
+  return subscriptions;
 }
 
 export async function getCycles(userId: string): Promise<SubscriptionCycle[]> {

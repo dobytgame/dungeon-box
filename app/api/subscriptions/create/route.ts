@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
   const { data: existingSub } = await supabase
     .from('subscriptions')
-    .select('id, status, mp_subscription_id, stripe_subscription_id')
+    .select('id, status, mp_subscription_id, stripe_subscription_id, asaas_subscription_id')
     .eq('user_id', user.id)
     .in('status', [...BLOCKING_STATUSES])
     .order('created_at', { ascending: false })

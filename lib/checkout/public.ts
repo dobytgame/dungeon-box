@@ -1,0 +1,2 @@
+export const CHECKOUT_COUPONS_ENABLED =
+  process.env.NEXT_PUBLIC_CHECKOUT_COUPONS_ENABLED === 'true';

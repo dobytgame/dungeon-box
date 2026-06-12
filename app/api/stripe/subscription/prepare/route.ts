@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import { buildSpecialNotes } from '@/lib/checkout/special-notes';
 import { createClient } from '@/lib/supabase/server';
+import { isStripeCheckout } from '@/lib/payments/provider';
 import { STRIPE_CONFIGURED } from '@/lib/stripe/server';
 import { userFacingStripeError } from '@/lib/stripe/errors';
 import { prepareStripeSubscription } from '@/lib/stripe/subscription-checkout';
@@ -19,9 +20,9 @@ const bodySchema = z.object({
 const BLOCKING_STATUSES = ['pending', 'active', 'paused', 'past_due'] as const;
 
 export async function POST(request: Request) {
-  if (!STRIPE_CONFIGURED) {
+  if (!STRIPE_CONFIGURED || !isStripeCheckout()) {
     return NextResponse.json(
-      { error: 'Stripe não configurado.' },
+      { error: 'Stripe não configurado como provedor de pagamento.' },
       { status: 503 }
     );
   }
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
 
   const { data: existingSub } = await supabase
     .from('subscriptions')
-    .select('id, status, mp_subscription_id, stripe_subscription_id')
+    .select('id, status, mp_subscription_id, stripe_subscription_id, asaas_subscription_id')
     .eq('user_id', user.id)
     .in('status', [...BLOCKING_STATUSES])
     .order('created_at', { ascending: false })
