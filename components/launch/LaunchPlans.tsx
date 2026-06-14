@@ -6,6 +6,7 @@ import AnimatedSection from '@/components/ui/AnimatedSection';
 import CTAButton from '@/components/ui/CTAButton';
 import PlanBadge from '@/components/ui/PlanBadge';
 import { WHATSAPP_GUILD_URL } from '@/lib/launch/constants';
+import { planSupportCopy } from '@/lib/data';
 import { launchPlans } from '@/lib/launch/data';
 import { getPlanTheme } from '@/lib/plan-theme';
 
@@ -33,9 +34,7 @@ export default function LaunchPlans() {
               </span>
             </h2>
             <p className="mt-5 text-base leading-relaxed text-stone-400 md:text-lg">
-              Quem começa no Aventureiro pode fazer upgrade para o Herói no mês
-              seguinte — e recebe tudo que estava faltando, com as peças
-              encaixando perfeitamente.
+              {planSupportCopy.evolution}
             </p>
           </div>
         </AnimatedSection>
@@ -149,12 +148,18 @@ export default function LaunchPlans() {
 
         <AnimatedSection delay={0.15}>
           <div className="mt-14 flex flex-col items-center gap-4 text-center">
+            <p className="font-display text-sm uppercase tracking-[0.2em] text-stone-300">
+              {planSupportCopy.guarantee}
+            </p>
+            <p className="max-w-2xl text-sm leading-relaxed text-stone-500">
+              {planSupportCopy.compatibility}
+            </p>
             <CTAButton
               label="Quero ser Fundador — Entrar no Grupo"
               size="lg"
               href={WHATSAPP_GUILD_URL}
               external
-              className="w-full sm:w-auto"
+              className="mt-2 w-full sm:w-auto"
             />
             <p className="max-w-md text-sm text-stone-500">
               Os preços de fundador são especiais. Depois do lançamento oficial,

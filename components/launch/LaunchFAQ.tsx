@@ -35,10 +35,14 @@ export default function LaunchFAQ() {
               id="faq-title"
               className="mt-3 font-display text-4xl uppercase leading-[0.95] tracking-wide text-white md:text-5xl lg:text-6xl"
             >
-              Três perguntas que
+              Perguntas
               <br />
-              <span className="text-gradient-ember">todo mestre faz.</span>
+              <span className="text-gradient-ember">frequentes</span>
             </h2>
+            <p className="mt-4 max-w-lg text-base leading-relaxed text-stone-400">
+              Tudo o que você precisa saber antes de assinar — encaixe, entrega,
+              pagamento e compatibilidade.
+            </p>
           </div>
         </AnimatedSection>
 

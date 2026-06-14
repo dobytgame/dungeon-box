@@ -6,6 +6,46 @@ export interface UserEmailProfile {
   name: string;
 }
 
+async function resolveNotificationEmail(
+  supabase: SupabaseClient,
+  userId: string,
+  profileEmail?: string | null
+): Promise<string | null> {
+  const fromProfile = profileEmail?.trim().toLowerCase();
+  if (fromProfile) return fromProfile;
+
+  try {
+    const { data, error } = await supabase.auth.admin.getUserById(userId);
+    if (error) {
+      console.warn(
+        '[email] auth.admin.getUserById failed:',
+        userId,
+        error.message
+      );
+      return null;
+    }
+
+    const authEmail = data.user?.email?.trim().toLowerCase();
+    if (!authEmail) {
+      console.warn('[email] usuário sem e-mail no auth:', userId);
+      return null;
+    }
+
+    await supabase
+      .from('profiles')
+      .update({
+        email: authEmail,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    return authEmail;
+  } catch (err) {
+    console.warn('[email] não foi possível resolver e-mail do auth:', userId, err);
+    return null;
+  }
+}
+
 export async function getUserEmailProfile(
   supabase: SupabaseClient,
   userId: string,
@@ -16,11 +56,16 @@ export async function getUserEmailProfile(
     .eq('id', userId)
     .maybeSingle();
 
-  if (!data?.email) return null;
+  const email = await resolveNotificationEmail(
+    supabase,
+    userId,
+    data?.email
+  );
+  if (!email) return null;
 
   return {
-    email: data.email,
-    name: greetingName(data.display_name ?? data.full_name),
+    email,
+    name: greetingName(data?.display_name ?? data?.full_name),
   };
 }
 
@@ -59,18 +104,34 @@ export async function getSubscriptionEmailContext(
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (!data) return null;
+  if (!data) {
+    console.warn('[email] assinatura não encontrada:', subscriptionId);
+    return null;
+  }
 
   const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
   const plan = Array.isArray(data.plans) ? data.plans[0] : data.plans;
 
-  if (!profile?.email || !plan?.name) return null;
+  const email = await resolveNotificationEmail(
+    supabase,
+    data.user_id,
+    profile?.email
+  );
+
+  if (!email || !plan?.name) {
+    console.warn('[email] contexto incompleto para assinatura:', subscriptionId, {
+      hasEmail: Boolean(email),
+      hasPlan: Boolean(plan?.name),
+      userId: data.user_id,
+    });
+    return null;
+  }
 
   return {
     subscriptionId: data.id,
     userId: data.user_id,
-    email: profile.email,
-    name: greetingName(profile.display_name ?? profile.full_name),
+    email,
+    name: greetingName(profile?.display_name ?? profile?.full_name),
     planName: plan.name,
     currentCycle: data.current_cycle ?? 1,
     status: data.status,

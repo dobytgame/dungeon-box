@@ -115,16 +115,39 @@ export default function PlanPanel({
           {plan.name}
         </h2>
 
+        {'tagline' in plan && plan.tagline ? (
+          <p className="mt-3 max-w-md text-base leading-relaxed text-stone-400">
+            {plan.tagline}
+          </p>
+        ) : null}
+
         <div
           className={`relative mt-8 overflow-hidden rounded-sm border-l-4 bg-gradient-to-r to-transparent pl-6 pr-4 py-5 ${theme.accentBar} ${theme.specBg}`}
         >
-          <p className="font-display text-[clamp(2.5rem,5vw,3.75rem)] leading-none text-white">
+          <p className="font-display text-[clamp(2rem,4vw,3rem)] leading-none text-white">
             R$ {plan.price}
             <span className="ml-2 text-lg text-stone-400 md:text-xl">/mês</span>
           </p>
-          <p className="mt-3 max-w-sm text-base leading-relaxed text-stone-300">
+          {'freight' in plan && plan.freight ? (
+            <p className="mt-2 text-sm text-stone-400">{plan.freight}</p>
+          ) : null}
+          <p className="mt-4 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] leading-none text-white">
             {plan.pieces}
           </p>
+          {'specs' in plan && Array.isArray(plan.specs) ? (
+            <ul className="mt-3 space-y-1 text-sm text-stone-300 md:text-base">
+              {plan.specs.map((spec) => (
+                <li key={spec}>{spec}</li>
+              ))}
+            </ul>
+          ) : null}
+          {'builds' in plan && plan.builds ? (
+            <div className="mt-4 grid gap-1 text-sm text-stone-400">
+              <p>{plan.builds}</p>
+              {'table' in plan && plan.table ? <p>{plan.table}</p> : null}
+              {'session' in plan && plan.session ? <p>{plan.session}</p> : null}
+            </div>
+          ) : null}
         </div>
 
         <ul className="mt-8 space-y-0 divide-y divide-white/[0.06]">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducedMotion } from 'framer-motion';
-import { plans } from '@/lib/data';
+import { planSupportCopy, plans } from '@/lib/data';
 import PlanPanel from '@/components/sections/PlanPanel';
 
 const PLAN_COUNT = plans.length;
@@ -22,6 +22,7 @@ export default function PlansStack() {
         {plans.map((plan, index) => (
           <PlanPanel key={plan.id} planId={plan.id} isFirst={index === 0} />
         ))}
+        <PlansSupportFooter />
       </section>
 
       {showScrollStack ? (
@@ -49,6 +50,7 @@ export default function PlansStack() {
               </div>
             ))}
           </section>
+          <PlansSupportFooter />
         </div>
       ) : null}
     </div>
@@ -65,10 +67,21 @@ function PlansIntro({ scrollStack }: { scrollStack: boolean }) {
         Escolha o nível da sua{' '}
         <span className="text-gradient-ember">campanha</span>
       </h2>
-      <p className="mt-4 max-w-lg text-base leading-relaxed text-stone-400">
-        {scrollStack
-          ? 'Mesma qualidade de impressão em todos os planos. Role para comparar peças, benefícios e preço.'
-          : 'Mesma qualidade de impressão em todos os planos. Compare peças, benefícios e preço nos cards abaixo.'}
+      <p className="mt-4 max-w-2xl text-base leading-relaxed text-stone-400">
+        {planSupportCopy.evolution}
+      </p>
+    </div>
+  );
+}
+
+function PlansSupportFooter() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 pb-16 pt-4 text-center sm:px-6 lg:px-8">
+      <p className="font-display text-sm uppercase tracking-[0.2em] text-stone-300">
+        {planSupportCopy.guarantee}
+      </p>
+      <p className="mt-3 text-sm leading-relaxed text-stone-500">
+        {planSupportCopy.compatibility}
       </p>
     </div>
   );

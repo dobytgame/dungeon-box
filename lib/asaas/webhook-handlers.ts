@@ -91,17 +91,12 @@ export async function handleAsaasPaymentConfirmed(
     .single();
 
   if (local.status === 'pending') {
-    const activated = await activateSubscriptionFromAsaas(supabase, local.id);
-    if (activated) {
-      void notifyPurchaseCompleted(
-        supabase,
-        local.id,
-        amountCents,
-        1
-      ).catch((err) => {
+    await activateSubscriptionFromAsaas(supabase, local.id);
+    void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
+      (err) => {
         console.error('[email] purchase completed notify failed:', err);
-      });
-    }
+      }
+    );
     return 'processed';
   }
 

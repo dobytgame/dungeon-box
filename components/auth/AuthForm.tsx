@@ -36,6 +36,7 @@ interface Props {
 export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
   const supabase = createClient();
   const [mode, setMode] = useState<Mode>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,16 +80,26 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
       });
       setMessage(error ? error.message : 'Link enviado! Verifique seu e-mail.');
     } else if (mode === 'register') {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        setMessage('Informe seu nome.');
+        setLoading(false);
+        return;
+      }
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: callbackUrl },
+        options: {
+          emailRedirectTo: callbackUrl,
+          data: { full_name: trimmedName },
+        },
       });
       if (!error) {
         void fetch('/api/auth/account-notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, name: trimmedName }),
         });
       }
       setMessage(error ? error.message : 'Conta criada! Verifique seu e-mail.');
@@ -126,6 +137,19 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
       </div>
 
       <form onSubmit={handleEmail} className="flex flex-col gap-4">
+        {mode === 'register' ? (
+          <input
+            type="text"
+            placeholder="Seu nome"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoComplete="name"
+            maxLength={120}
+            className="w-full border border-stone-700 bg-stone-900 px-4 py-3 text-white placeholder-stone-500 transition focus:border-frost focus:outline-none"
+          />
+        ) : null}
+
         <input
           type="email"
           placeholder="seu@email.com"

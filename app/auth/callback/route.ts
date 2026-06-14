@@ -35,6 +35,25 @@ export async function GET(request: NextRequest) {
       loginUrl.searchParams.set('error', 'link_invalido');
       return NextResponse.redirect(loginUrl);
     }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const authEmail = user?.email?.trim().toLowerCase();
+    if (user?.id && authEmail) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          email: authEmail,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.warn('[auth] profile email sync after OAuth failed:', profileError);
+      }
+    }
   }
 
   return NextResponse.redirect(new URL(safeNext, requestUrl.origin));

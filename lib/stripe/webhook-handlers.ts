@@ -132,21 +132,12 @@ export async function handleStripeInvoicePaid(
     .single();
 
   if (local.status === 'pending') {
-    const activated = await activateSubscriptionFromStripe(
-      supabase,
-      local.id,
-      stripeSub,
-    );
-    if (activated) {
-      void notifyPurchaseCompleted(
-        supabase,
-        local.id,
-        amountCents,
-        1,
-      ).catch((err) => {
+    await activateSubscriptionFromStripe(supabase, local.id, stripeSub);
+    void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
+      (err) => {
         console.error('[email] purchase completed notify failed:', err);
-      });
-    }
+      }
+    );
     return 'processed';
   }
 

@@ -14,13 +14,22 @@ export async function notifyPurchaseCompleted(
   const ctx = await getSubscriptionEmailContext(supabase, subscriptionId);
   if (!ctx) return;
 
-  await sendPurchaseCompletedEmail({
+  const result = await sendPurchaseCompletedEmail({
     to: ctx.email,
     name: ctx.name,
     planName: ctx.planName,
     amountCents,
     cycleNumber: cycleNumber ?? ctx.currentCycle,
   });
+
+  if (!result.sent) {
+    console.warn('[email] purchase completed not sent:', {
+      subscriptionId,
+      to: ctx.email,
+      reason: result.reason,
+      message: result.message,
+    });
+  }
 }
 
 export async function notifySubscriptionCancelled(
