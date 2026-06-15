@@ -64,11 +64,14 @@ function PlansIntro({ scrollStack }: { scrollStack: boolean }) {
         Assinatura mensal
       </p>
       <h2 className="mt-3 max-w-2xl font-display text-3xl uppercase leading-[0.95] tracking-wide text-white sm:text-4xl md:text-5xl">
-        Escolha o nível da sua{' '}
-        <span className="text-gradient-ember">campanha</span>
+        {planSupportCopy.heroTitleLine1}{' '}
+        <span className="text-gradient-ember">{planSupportCopy.heroTitleLine2}</span>
       </h2>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-stone-400">
-        {planSupportCopy.evolution}
+        {planSupportCopy.heroSubtitle}
+      </p>
+      <p className="mt-3 max-w-2xl text-sm uppercase tracking-[0.16em] text-stone-500">
+        {planSupportCopy.compatibility}
       </p>
     </div>
   );
@@ -76,12 +79,18 @@ function PlansIntro({ scrollStack }: { scrollStack: boolean }) {
 
 function PlansSupportFooter() {
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-16 pt-4 text-center sm:px-6 lg:px-8">
-      <p className="font-display text-sm uppercase tracking-[0.2em] text-stone-300">
+    <div className="mx-auto max-w-7xl px-4 pb-16 pt-8 text-center sm:px-6 lg:px-8">
+      <h3 className="font-display text-xl uppercase tracking-wide text-white md:text-2xl">
+        {planSupportCopy.evolutionTitle}
+      </h3>
+      <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-stone-400 md:text-base">
+        {planSupportCopy.evolution}
+      </p>
+      <p className="mt-10 font-display text-sm uppercase tracking-[0.2em] text-stone-300">
         {planSupportCopy.guarantee}
       </p>
       <p className="mt-3 text-sm leading-relaxed text-stone-500">
-        {planSupportCopy.compatibility}
+        {planSupportCopy.guaranteeExtended}
       </p>
     </div>
   );

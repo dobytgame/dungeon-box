@@ -51,6 +51,9 @@ export default function PlanSelector({ selected }: Props) {
             <p className="mt-1 text-[11px] leading-snug text-stone-500">
               {plan.pieces}
             </p>
+            <p className="mt-0.5 text-[10px] leading-snug text-stone-600">
+              {plan.freight}
+            </p>
             <div
               className={`absolute bottom-0 left-0 h-0.5 w-full origin-left transition-transform duration-300 ${
                 theme.accentLine

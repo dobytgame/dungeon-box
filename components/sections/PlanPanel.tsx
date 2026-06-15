@@ -99,12 +99,19 @@ export default function PlanPanel({
 
       {/* Content */}
       <div className={imageOnLeft ? 'lg:order-2' : 'lg:order-1'}>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <PlanBadge
             label={`Plano ${orderLabel}`}
             variant={theme.badgeVariant}
             pulse={plan.featured}
           />
+          {'badge' in plan && plan.badge ? (
+            <PlanBadge
+              label={plan.badge}
+              variant={plan.featured ? 'ember' : theme.badgeVariant}
+              pulse={plan.featured}
+            />
+          ) : null}
           <span className="hidden h-px flex-1 bg-white/10 sm:block" aria-hidden="true" />
         </div>
 
@@ -131,6 +138,9 @@ export default function PlanPanel({
           {'freight' in plan && plan.freight ? (
             <p className="mt-2 text-sm text-stone-400">{plan.freight}</p>
           ) : null}
+          {'billingNote' in plan && plan.billingNote ? (
+            <p className="mt-1 text-xs text-stone-500">{plan.billingNote}</p>
+          ) : null}
           <p className="mt-4 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] leading-none text-white">
             {plan.pieces}
           </p>
@@ -149,6 +159,12 @@ export default function PlanPanel({
             </div>
           ) : null}
         </div>
+
+        {'differentiator' in plan && plan.differentiator ? (
+          <p className="mt-4 rounded-sm border border-white/[0.08] bg-stone-950/40 px-4 py-3 text-sm leading-relaxed text-stone-300">
+            {plan.differentiator}
+          </p>
+        ) : null}
 
         <ul className="mt-8 space-y-0 divide-y divide-white/[0.06]">
           {plan.perks.map((perk) => (

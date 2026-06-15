@@ -3,9 +3,9 @@
 import Image from 'next/image';
 import { Check } from 'lucide-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
-import CTAButton from '@/components/ui/CTAButton';
+import LaunchCTAActions from '@/components/launch/LaunchCTAActions';
 import PlanBadge from '@/components/ui/PlanBadge';
-import { WHATSAPP_GUILD_URL } from '@/lib/launch/constants';
+import { launchCopy } from '@/lib/launch/constants';
 import { planSupportCopy } from '@/lib/data';
 import { launchPlans } from '@/lib/launch/data';
 import { getPlanTheme } from '@/lib/plan-theme';
@@ -27,14 +27,17 @@ export default function LaunchPlans() {
               id="planos-title"
               className="mt-3 font-display text-4xl uppercase leading-[0.95] tracking-wide text-white md:text-5xl lg:text-6xl"
             >
-              Três planos. Um sistema.
+              {planSupportCopy.heroTitleLine1}
               <br />
               <span className="text-gradient-ember">
-                Cada um expande o anterior.
+                {planSupportCopy.heroTitleLine2}
               </span>
             </h2>
             <p className="mt-5 text-base leading-relaxed text-stone-400 md:text-lg">
-              {planSupportCopy.evolution}
+              {planSupportCopy.heroSubtitle}
+            </p>
+            <p className="mt-3 text-sm uppercase tracking-[0.18em] text-stone-500 md:text-base">
+              {planSupportCopy.compatibility}
             </p>
           </div>
         </AnimatedSection>
@@ -92,8 +95,8 @@ export default function LaunchPlans() {
                       {plan.badge ? (
                         <PlanBadge
                           label={plan.badge}
-                          variant="ember"
-                          pulse
+                          variant={plan.featured ? 'ember' : theme.badgeVariant}
+                          pulse={plan.featured}
                         />
                       ) : null}
                     </div>
@@ -104,6 +107,19 @@ export default function LaunchPlans() {
                     >
                       {plan.name}
                     </h3>
+
+                    <p className="mt-3 max-w-md text-base leading-relaxed text-stone-400">
+                      {plan.tagline}
+                    </p>
+
+                    <div className="mt-4">
+                      <p className="font-display text-3xl leading-none text-white md:text-4xl">
+                        R$ {plan.price}
+                        <span className="text-lg text-stone-400">/mês</span>
+                      </p>
+                      <p className="mt-1 text-sm text-stone-400">{plan.freight}</p>
+                      <p className="mt-1 text-xs text-stone-500">{plan.billingNote}</p>
+                    </div>
 
                     <div
                       className={`relative mt-8 overflow-hidden rounded-sm border-l-4 bg-gradient-to-r to-transparent pl-6 pr-4 py-5 ${theme.accentBar} ${theme.specBg}`}
@@ -122,6 +138,12 @@ export default function LaunchPlans() {
                         <p>{plan.session}</p>
                       </div>
                     </div>
+
+                    {plan.differentiator ? (
+                      <p className="mt-4 rounded-sm border border-white/[0.08] bg-stone-950/40 px-4 py-3 text-sm leading-relaxed text-stone-300">
+                        {plan.differentiator}
+                      </p>
+                    ) : null}
 
                     <ul className="mt-8 space-y-0 divide-y divide-white/[0.06]">
                       {plan.perks.map((perk) => (
@@ -146,24 +168,31 @@ export default function LaunchPlans() {
           })}
         </div>
 
+        <AnimatedSection delay={0.12}>
+          <div className="mx-auto mt-14 max-w-3xl text-center">
+            <h3 className="font-display text-2xl uppercase tracking-wide text-white md:text-3xl">
+              {planSupportCopy.evolutionTitle}
+            </h3>
+            <p className="mt-4 text-sm leading-relaxed text-stone-400 md:text-base">
+              {planSupportCopy.evolution}
+            </p>
+          </div>
+        </AnimatedSection>
+
         <AnimatedSection delay={0.15}>
           <div className="mt-14 flex flex-col items-center gap-4 text-center">
+            <p className="max-w-2xl text-sm leading-relaxed text-stone-400 md:text-base">
+              {launchCopy.valueAnchor}
+            </p>
             <p className="font-display text-sm uppercase tracking-[0.2em] text-stone-300">
               {planSupportCopy.guarantee}
             </p>
             <p className="max-w-2xl text-sm leading-relaxed text-stone-500">
-              {planSupportCopy.compatibility}
+              {planSupportCopy.guaranteeExtended}
             </p>
-            <CTAButton
-              label="Quero ser Fundador — Entrar no Grupo"
-              size="lg"
-              href={WHATSAPP_GUILD_URL}
-              external
-              className="mt-2 w-full sm:w-auto"
-            />
-            <p className="max-w-md text-sm text-stone-500">
-              Os preços de fundador são especiais. Depois do lançamento oficial,
-              sem garantia.
+            <LaunchCTAActions align="center" className="mt-2" />
+            <p className="max-w-xl text-sm leading-relaxed text-stone-500">
+              {launchCopy.founderUrgency}
             </p>
           </div>
         </AnimatedSection>

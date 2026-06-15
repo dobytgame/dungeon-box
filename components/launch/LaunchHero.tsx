@@ -8,7 +8,7 @@ import {
   useSpring,
   useTransform,
 } from 'framer-motion';
-import { ChevronDown, Hexagon, Lock, Users } from 'lucide-react';
+import { ChevronDown, Hexagon, Users } from 'lucide-react';
 import Image from 'next/image';
 import { useRef } from 'react';
 import {
@@ -18,10 +18,14 @@ import {
   ScrollIcon,
   SwordIcon,
 } from '@/components/hero/RpgIcons';
-import CTAButton from '@/components/ui/CTAButton';
+import LaunchCTAActions from '@/components/launch/LaunchCTAActions';
 import GlowOrb from '@/components/ui/GlowOrb';
 import ParallaxFloat from '@/components/ui/ParallaxFloat';
-import { WHATSAPP_GUILD_URL } from '@/lib/launch/constants';
+import {
+  WAITLIST_DISPLAY_MIN,
+  formatFounderWaitlistCopy,
+  launchCopy,
+} from '@/lib/launch/constants';
 
 const container = {
   hidden: {},
@@ -82,7 +86,7 @@ export default function LaunchHero({ waitlistCount = 0 }: LaunchHeroProps) {
     mouseY.set(0);
   };
 
-  const showWaitlist = waitlistCount > 0;
+  const showWaitlist = waitlistCount >= WAITLIST_DISPLAY_MIN;
 
   return (
     <section
@@ -223,14 +227,13 @@ export default function LaunchHero({ waitlistCount = 0 }: LaunchHeroProps) {
             {showWaitlist ? (
               <span className="inline-flex items-center gap-2 rounded-sm border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-stone-300">
                 <Users className="h-3.5 w-3.5 text-frost" aria-hidden="true" />
-                <span>
-                  <span className="font-display text-sm text-white">
-                    {waitlistCount}
-                  </span>{' '}
-                  {waitlistCount === 1 ? 'mestre na lista' : 'mestres na lista'}
-                </span>
+                <span>{formatFounderWaitlistCopy(waitlistCount)}</span>
               </span>
-            ) : null}
+            ) : (
+              <span className="inline-flex max-w-full items-center rounded-sm border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-stone-300">
+                {launchCopy.positioningBadge}
+              </span>
+            )}
           </motion.div>
 
           <motion.div variants={item} className="relative pl-0 lg:pl-6">
@@ -277,38 +280,15 @@ export default function LaunchHero({ waitlistCount = 0 }: LaunchHeroProps) {
             ))}
           </motion.ul>
 
-          <motion.div
-            variants={item}
-            className="mt-9 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:gap-4"
-          >
-            <CTAButton
-              label="Entrar no Grupo de Fundadores"
-              size="lg"
-              href={WHATSAPP_GUILD_URL}
-              external
-              className="w-full border-glow-ember shadow-[0_8px_32px_rgba(255,107,43,0.25)] sm:w-auto"
-            />
-            <CTAButton
-              label="Receber novidades por e-mail"
-              variant="frost"
-              size="lg"
-              href="#captura"
-              className="w-full sm:w-auto"
-            />
+          <motion.div variants={item} className="mt-9 sm:mt-10">
+            <LaunchCTAActions />
           </motion.div>
 
           <motion.div
             variants={item}
-            className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-stone-500"
+            className="mt-6 text-sm text-stone-500"
           >
-            <span className="inline-flex items-center gap-2">
-              <Lock className="h-3.5 w-3.5 shrink-0 text-stone-600" aria-hidden="true" />
-              Grupo fechado
-            </span>
-            <span className="hidden h-1 w-1 rounded-full bg-stone-700 sm:inline" aria-hidden="true" />
-            <span>Sem spam</span>
-            <span className="hidden h-1 w-1 rounded-full bg-stone-700 sm:inline" aria-hidden="true" />
-            <span>Cancele quando quiser</span>
+            {launchCopy.ctaSupport}
           </motion.div>
         </motion.div>
 

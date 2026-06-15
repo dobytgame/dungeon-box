@@ -1,6 +1,6 @@
 import AnimatedSection from '@/components/ui/AnimatedSection';
-import CTAButton from '@/components/ui/CTAButton';
-import { WHATSAPP_GUILD_URL } from '@/lib/launch/constants';
+import LaunchCTAActions from '@/components/launch/LaunchCTAActions';
+import { launchCopy } from '@/lib/launch/constants';
 
 export default function LaunchFinalCTA() {
   return (
@@ -19,36 +19,22 @@ export default function LaunchFinalCTA() {
             id="final-cta-title"
             className="font-display text-4xl uppercase leading-[0.95] tracking-wide text-white md:text-5xl lg:text-6xl"
           >
-            A próxima sessão
+            Seus jogadores merecem
             <br />
-            <span className="text-gradient-ember">pode ser diferente.</span>
+            <span className="text-gradient-ember">
+              uma dungeon à altura da história que você criou.
+            </span>
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-stone-400 md:text-lg">
-            Não é sobre ter o cenário mais bonito. É sobre seus jogadores
-            chegarem na mesa e sentirem que a aventura já começou antes de rolar
-            o primeiro dado.
+            Cada mês, um novo kit. Cada kit, uma nova ala da dungeon. Sua
+            campanha cresce — e a mesa vira o cenário que você sempre imaginou.
           </p>
         </AnimatedSection>
 
         <AnimatedSection delay={0.1}>
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <CTAButton
-              label="Entrar na Guilda — Grupo WhatsApp"
-              size="lg"
-              href={WHATSAPP_GUILD_URL}
-              external
-              className="w-full sm:w-auto"
-            />
-            <CTAButton
-              label="Receber por e-mail"
-              variant="default"
-              size="lg"
-              href="#captura"
-              className="w-full sm:w-auto"
-            />
-          </div>
+          <LaunchCTAActions align="center" className="mt-10" />
           <p className="mt-6 text-sm text-stone-500">
-            Lançamento em breve · Vagas de fundador limitadas · Gratuito entrar
+            Lançamento em breve · {launchCopy.founderUrgencyShort}
           </p>
         </AnimatedSection>
       </div>

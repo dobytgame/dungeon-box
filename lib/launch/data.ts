@@ -1,4 +1,5 @@
 import type { PlanAccent } from '@/lib/plan-theme';
+import { plans } from '@/lib/data';
 
 export const launchPillars = [
   {
@@ -27,9 +28,14 @@ export type LaunchPlan = {
   id: LaunchPlanId;
   name: string;
   order: number;
+  price: number;
+  freight: string;
+  billingNote: string;
+  tagline: string;
   accent: PlanAccent;
   featured: boolean;
   badge?: string;
+  differentiator?: string;
   image: string;
   pieces: string;
   specs: string[];
@@ -41,106 +47,47 @@ export type LaunchPlan = {
   imagePosition: 'left' | 'right';
 };
 
-export const launchPlans: LaunchPlan[] = [
-  {
-    id: 'aventureiro',
-    name: 'Aventureiro',
-    order: 1,
-    accent: 'silver',
-    featured: false,
-    image: '/images/plano-aventureiro.png',
-    pieces: '56 peças',
-    specs: [
-      '30 tiles de piso',
-      '12 colunas (I, L e O)',
-      '14 clips OpenLOCK',
-    ],
-    builds: 'Monta: 3–4 salas',
-    table: 'Mesa: 40×40cm',
-    session: 'Sessão: 1–2 horas',
-    perks: [
-      'Kit temático mensal',
-      'Sistema OpenLOCK',
-      'Bilhete do mestre',
-      'Compatível com meses anteriores',
-    ],
-    bgSolid: '#222833',
-    imagePosition: 'left',
-  },
-  {
-    id: 'heroi',
-    name: 'Herói',
-    order: 2,
-    accent: 'ember',
-    featured: true,
-    badge: 'Mais popular',
-    image: '/images/plano-heroi.png',
-    pieces: '86 peças',
-    specs: [
-      'Tudo do Aventureiro',
-      '+ 20 tiles extras',
-      '+ 10 itens de decoração',
-    ],
-    builds: 'Monta: 5–7 salas',
-    table: 'Mesa: 60×70cm',
-    session: 'Sessão: 3–4 horas',
-    perks: [
-      'Tudo do Aventureiro',
-      'Barris, baús, tochas e porta',
-      'Dungeon habitada desde o kit 1',
-      'Acesso ao grupo VIP de assinantes',
-    ],
-    bgSolid: '#3a1f12',
-    imagePosition: 'right',
-  },
-  {
-    id: 'lendario',
-    name: 'Lendário',
-    order: 3,
-    accent: 'frost',
-    featured: false,
-    image: '/images/plano-lendario.png',
-    pieces: '122 peças',
-    specs: [
-      'Tudo do Herói',
-      '+ 20 tiles extras',
-      '+ Decoração premium',
-      '+ 3 miniaturas exclusivas',
-    ],
-    builds: 'Monta: 8–10 salas',
-    table: 'Mesa: 80×90cm',
-    session: 'Sessão: campanha completa',
-    perks: [
-      'Tudo do Herói',
-      'Altar, sarcófago, pilares e porta secreta',
-      '3 miniaturas exclusivas (guerreiro, mago e esqueleto)',
-      'Voto no tema do próximo mês',
-      '10% off em compras avulsas',
-      'Frete grátis',
-    ],
-    bgSolid: '#0c2a36',
-    imagePosition: 'left',
-  },
-];
+export const launchPlans: LaunchPlan[] = plans.map((plan) => ({
+  id: plan.id as LaunchPlanId,
+  name: plan.name,
+  order: plan.order,
+  price: plan.price,
+  freight: plan.freight,
+  billingNote: plan.billingNote,
+  tagline: plan.tagline,
+  accent: plan.accent,
+  featured: plan.featured,
+  badge: plan.badge,
+  differentiator: plan.differentiator,
+  image: plan.image,
+  pieces: plan.pieces,
+  specs: plan.specs,
+  builds: plan.builds,
+  table: plan.table,
+  session: plan.session,
+  perks: plan.perks,
+  bgSolid: plan.bgSolid,
+  imagePosition: plan.imagePosition,
+}));
 
 export const launchTestimonials = [
   {
     quote:
-      'Finalmente algo que resolve o problema de cenário sem eu precisar passar o fim de semana montando tudo na mão.',
+      'Quando vi o sistema OpenLOCK encaixando as peças do mês 1 com as do mês 2, entendi que isso é diferente de tudo que já comprei para mesa. Não é só um produto — é uma dungeon que cresce junto com a campanha.',
     author: 'Rafael M.',
-    role: 'Mestre de D&D há 7 anos',
+    role: 'São Paulo · Mestre de D&D há 7 anos',
   },
   {
     quote:
-      'Meu grupo sempre jogou no teatro da mente porque montar cenário era muito trabalho. A DungeonBox muda isso.',
+      'Joguei Tormenta por 4 anos sem nenhum cenário físico — teatro da mente era a única opção viável. Quando vi que a caixa do Mês 1 já monta de 3 a 4 salas com tiles de piso, colunas e clips encaixados, percebi que finalmente é possível ter imersão visual sem virar marceneiro todo final de semana.',
     author: 'Lucas T.',
-    role: 'DM de Tormenta RPG',
+    role: 'Rio de Janeiro · DM de Tormenta RPG',
   },
   {
     quote:
-      'O que mais me convenceu foi o sistema modular. Não é só um produto — é uma dungeon que cresce com a campanha.',
+      'Compro miniaturas avulsas há anos. O custo sempre foi o problema — cada sala nova virava um projeto de R$ 200. A lógica de assinatura da DungeonBox resolve isso: a dungeon cresce todo mês, no ritmo da campanha, sem estouro no orçamento.',
     author: 'Ana P.',
-    role: 'Game Master de Pathfinder',
+    role: 'Belo Horizonte · Game Master de Pathfinder',
   },
 ];
 

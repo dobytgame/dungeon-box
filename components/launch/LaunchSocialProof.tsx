@@ -1,13 +1,18 @@
 import { Users } from 'lucide-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 import { launchTestimonials } from '@/lib/launch/data';
+import {
+  WAITLIST_DISPLAY_MIN,
+  formatFounderWaitlistCopy,
+  launchCopy,
+} from '@/lib/launch/constants';
 
 interface Props {
   waitlistCount: number;
 }
 
 export default function LaunchSocialProof({ waitlistCount }: Props) {
-  const displayCount = waitlistCount > 0 ? waitlistCount : null;
+  const showWaitlist = waitlistCount >= WAITLIST_DISPLAY_MIN;
 
   return (
     <section
@@ -29,20 +34,14 @@ export default function LaunchSocialProof({ waitlistCount }: Props) {
               <span className="text-gradient-ember">já estão na Guilda.</span>
             </h2>
 
-            <div className="mx-auto mt-8 inline-flex items-center gap-3 rounded-sm border border-frost/25 bg-frost/5 px-5 py-3">
-              <Users className="h-5 w-5 text-frost" aria-hidden="true" />
-              <p className="font-display text-lg uppercase tracking-wide text-white md:text-xl">
-                {displayCount !== null ? (
-                  <>
-                    <span className="text-gradient-frost">{displayCount}</span>{' '}
-                    {displayCount === 1 ? 'pessoa' : 'pessoas'} na lista de
-                    espera
-                  </>
-                ) : (
-                  'Mestres entrando na lista de espera'
-                )}
-              </p>
-            </div>
+            {showWaitlist ? (
+              <div className="mx-auto mt-8 inline-flex items-center gap-3 rounded-sm border border-frost/25 bg-frost/5 px-5 py-3">
+                <Users className="h-5 w-5 text-frost" aria-hidden="true" />
+                <p className="font-display text-lg uppercase tracking-wide text-white md:text-xl">
+                  {formatFounderWaitlistCopy(waitlistCount)}
+                </p>
+              </div>
+            ) : null}
           </div>
         </AnimatedSection>
 
@@ -69,9 +68,8 @@ export default function LaunchSocialProof({ waitlistCount }: Props) {
         </div>
 
         <AnimatedSection delay={0.2}>
-          <p className="mt-8 text-center text-xs text-stone-600">
-            * Depoimentos de jogadores da lista de espera durante o período de
-            desenvolvimento.
+          <p className="mt-12 text-center text-xs text-stone-600">
+            {launchCopy.testimonialsDisclaimer}
           </p>
         </AnimatedSection>
       </div>
