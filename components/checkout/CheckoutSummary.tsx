@@ -1,12 +1,22 @@
 'use client';
 
-import { Check, MapPin, Package, Paintbrush, Tag } from 'lucide-react';
+import { Check, MapPin, Package, Paintbrush, Tag, Truck } from 'lucide-react';
 import { plans } from '@/lib/data';
-import { getPaintKitBump } from '@/lib/checkout/order-bumps';
+import {
+  resolveBumpBilling,
+  sumMonthlyWithBumpCents,
+} from '@/lib/checkout/bump-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
+import {
+  getEffectivePlanCents,
+  getPlanPriceCents,
+  sumMonthlyCents,
+  sumShippingCents,
+} from '@/lib/checkout/totals';
 import { getPlanTheme } from '@/lib/plan-theme';
 import { formatZip } from '@/lib/dashboard/format';
 import type { Address } from '@/lib/dashboard/types';
+import type { PlanSlug } from '@/lib/checkout/plans';
 
 interface Props {
   data: CheckoutData;
@@ -22,57 +32,98 @@ function formatBRL(cents: number) {
 }
 
 export default function CheckoutSummary({ data, step, addresses }: Props) {
-  const plan = plans.find((p) => p.id === data.planSlug)!;
-  const theme = getPlanTheme(plan.accent);
-  const bump = getPaintKitBump(data.paintKitBump);
-  const deliveryItems =
-    'deliveryItems' in plan && Array.isArray(plan.deliveryItems)
-      ? plan.deliveryItems
-      : [];
+  const { bump, monthlyExtraCents, oneTimeExtraCents } = resolveBumpBilling(data);
   const address = addresses.find((a) => a.id === data.addressId);
-  const planCents = plan.price * 100;
-  const effectivePlanCents = data.discountedPlanCents ?? planCents;
-  const hasDiscount =
-    data.discountedPlanCents != null && data.discountedPlanCents < planCents;
-  const firstChargeCents = effectivePlanCents + (bump?.priceCents ?? 0);
+  const monthlyTotalCents = sumMonthlyCents(data);
+  const recurringTotalCents = sumMonthlyWithBumpCents(data);
+  const originalMonthlyTotalCents = data.planSlugs.reduce(
+    (sum, slug) => sum + getPlanPriceCents(slug),
+    0
+  );
+  const hasDiscount = monthlyTotalCents < originalMonthlyTotalCents;
+  const shippingTotalCents = sumShippingCents(data);
+  const firstChargeCents =
+    monthlyTotalCents + oneTimeExtraCents + shippingTotalCents;
+  const hasFirstChargeExtras =
+    oneTimeExtraCents > 0 || shippingTotalCents > 0;
+  const showRecurringBump = Boolean(bump) && data.paintKitBumpRecurring;
 
   return (
     <aside className="lg:sticky lg:top-28 lg:self-start">
       <div className="overflow-hidden rounded-sm border border-white/[0.08] bg-stone-950/60 backdrop-blur-sm">
-        <div className={`h-1 w-full ${theme.accentLine}`} aria-hidden="true" />
+        <div className="h-1 w-full bg-ember" aria-hidden="true" />
 
         <div className="p-5 md:p-6">
           <p className="font-display text-[10px] uppercase tracking-[0.3em] text-stone-500">
             Resumo do pedido
           </p>
 
-          <div className="mt-4 flex items-start justify-between gap-3 border-b border-white/[0.06] pb-4">
-            <div>
-              <p className={`font-display text-lg uppercase tracking-wide ${theme.nameClass}`}>
-                {plan.name}
-              </p>
-              <p className="mt-0.5 text-xs text-stone-500">Assinatura mensal</p>
-            </div>
-            <p className="shrink-0 text-right">
-              {hasDiscount ? (
-                <>
-                  <span className="block font-display text-sm tabular-nums text-stone-500 line-through">
-                    R$ {plan.price}
-                  </span>
-                  <span className="font-display text-2xl tabular-nums text-emerald-300">
-                    {formatBRL(effectivePlanCents)}
-                  </span>
-                </>
-              ) : (
-                <span className="font-display text-2xl tabular-nums text-white">
-                  R$ {plan.price}
-                </span>
-              )}
-              <span className="block text-[10px] uppercase tracking-widest text-stone-600">
-                por mês
-              </span>
-            </p>
+          <div className="mt-4 space-y-3 border-b border-white/[0.06] pb-4">
+            {data.planSlugs.map((slug) => {
+              const plan = plans.find((p) => p.id === slug)!;
+              const theme = getPlanTheme(plan.accent);
+              const planCents = getPlanPriceCents(slug);
+              const effectiveCents = getEffectivePlanCents(data, slug);
+              const planDiscount = effectiveCents < planCents;
+
+              return (
+                <div
+                  key={slug}
+                  className="flex items-start justify-between gap-3"
+                >
+                  <div>
+                    <p
+                      className={`font-display text-sm uppercase tracking-wide ${theme.nameClass}`}
+                    >
+                      {plan.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      Assinatura mensal
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-right">
+                    {planDiscount ? (
+                      <>
+                        <span className="block font-display text-xs tabular-nums text-stone-500 line-through">
+                          R$ {plan.price}
+                        </span>
+                        <span className="font-display text-lg tabular-nums text-emerald-300">
+                          {formatBRL(effectiveCents)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-display text-lg tabular-nums text-white">
+                        R$ {plan.price}
+                      </span>
+                    )}
+                    <span className="block text-[10px] uppercase tracking-widest text-stone-600">
+                      por mês
+                    </span>
+                  </p>
+                </div>
+              );
+            })}
           </div>
+
+          {data.planSlugs.length > 1 ? (
+            <div className="flex items-baseline justify-between gap-2 border-b border-white/[0.06] py-3">
+              <p className="text-xs text-stone-500">Total mensal</p>
+              <p className="font-display text-base tabular-nums text-white">
+                {hasDiscount ? (
+                  <>
+                    <span className="mr-2 text-sm text-stone-500 line-through">
+                      {formatBRL(originalMonthlyTotalCents)}
+                    </span>
+                    <span className="text-emerald-300">
+                      {formatBRL(monthlyTotalCents)}
+                    </span>
+                  </>
+                ) : (
+                  formatBRL(monthlyTotalCents)
+                )}
+              </p>
+            </div>
+          ) : null}
 
           {hasDiscount && data.couponCode ? (
             <div className="border-b border-white/[0.06] py-3">
@@ -86,26 +137,40 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
             </div>
           ) : null}
 
-          {step >= 1 && deliveryItems.length > 0 ? (
-            <div className="border-b border-white/[0.06] py-4">
-              <div className="flex items-center gap-2 text-stone-500">
-                <Package className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <p className="font-display text-[10px] uppercase tracking-[0.25em]">
-                  Na sua caixa
-                </p>
-              </div>
-              <ul className="mt-3 max-h-36 space-y-2 overflow-y-auto pr-1 text-xs leading-relaxed text-stone-400 [scrollbar-width:thin]">
-                {deliveryItems.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <Check
-                      className={`mt-0.5 h-3 w-3 shrink-0 ${theme.checkClass}`}
-                      aria-hidden="true"
-                    />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {step >= 1 && data.planSlugs.length === 1 ? (
+            (() => {
+              const slug = data.planSlugs[0] as PlanSlug;
+              const plan = plans.find((p) => p.id === slug)!;
+              const theme = getPlanTheme(plan.accent);
+              const deliveryItems =
+                'deliveryItems' in plan && Array.isArray(plan.deliveryItems)
+                  ? plan.deliveryItems
+                  : [];
+
+              if (deliveryItems.length === 0) return null;
+
+              return (
+                <div className="border-b border-white/[0.06] py-4">
+                  <div className="flex items-center gap-2 text-stone-500">
+                    <Package className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <p className="font-display text-[10px] uppercase tracking-[0.25em]">
+                      Na sua caixa
+                    </p>
+                  </div>
+                  <ul className="mt-3 max-h-36 space-y-2 overflow-y-auto pr-1 text-xs leading-relaxed text-stone-400 [scrollbar-width:thin]">
+                    {deliveryItems.map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <Check
+                          className={`mt-0.5 h-3 w-3 shrink-0 ${theme.checkClass}`}
+                          aria-hidden="true"
+                        />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()
           ) : null}
 
           {bump ? (
@@ -117,10 +182,62 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                 />
                 <div>
                   <p className="text-xs font-medium text-stone-200">{bump.name}</p>
-                  <p className="mt-0.5 text-[10px] text-stone-500">Pagamento único · 1ª caixa</p>
+                  <p className="mt-0.5 text-[10px] text-stone-500">
+                    {data.paintKitBumpRecurring
+                      ? 'Todo mês na caixa · assinatura'
+                      : 'Pagamento único · 1ª caixa'}
+                  </p>
                 </div>
               </div>
-              <p className="shrink-0 font-display text-sm text-gold">{bump.priceLabel}</p>
+              <p className="shrink-0 text-right font-display text-sm text-gold">
+                {bump.priceLabel}
+                {data.paintKitBumpRecurring ? (
+                  <span className="block text-[10px] uppercase tracking-widest text-stone-600">
+                    /mês
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ) : null}
+
+          {showRecurringBump ? (
+            <div className="flex items-baseline justify-between gap-2 border-b border-white/[0.06] py-3">
+              <p className="text-xs text-stone-500">Total mensal c/ kit</p>
+              <p className="font-display text-base tabular-nums text-white">
+                {formatBRL(recurringTotalCents)}
+                <span className="text-sm text-stone-500">/mês</span>
+              </p>
+            </div>
+          ) : null}
+
+          {step >= 2 &&
+          data.planSlugs.some((slug) => data.shippingByPlan?.[slug]?.label) ? (
+            <div className="space-y-3 border-b border-white/[0.06] py-4">
+              <div className="flex items-center gap-2 text-stone-500">
+                <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <p className="font-display text-[10px] uppercase tracking-[0.25em]">
+                  Frete da 1ª caixa
+                </p>
+              </div>
+              {data.planSlugs.map((slug) => {
+                const quote = data.shippingByPlan?.[slug];
+                if (!quote?.label) return null;
+                const plan = plans.find((p) => p.id === slug)!;
+                return (
+                  <div
+                    key={slug}
+                    className="flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <p className="font-medium text-stone-200">{plan.name}</p>
+                      <p className="mt-0.5 text-stone-500">{quote.label}</p>
+                    </div>
+                    <p className="shrink-0 font-display text-sm text-frost">
+                      {quote.free ? 'Grátis' : formatBRL(quote.cents)}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 
@@ -145,7 +262,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
           ) : null}
 
           <div className="pt-4">
-            {bump ? (
+            {hasFirstChargeExtras ? (
               <>
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-xs text-stone-500">1ª cobrança</p>
@@ -158,14 +275,20 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                   {hasDiscount ? (
                     <>
                       <span className="text-stone-500 line-through">
-                        R$ {plan.price}
+                        {formatBRL(
+                          originalMonthlyTotalCents +
+                            (showRecurringBump ? monthlyExtraCents : 0)
+                        )}
+                        /mês
                       </span>{' '}
                       <span className="text-emerald-400/90">
-                        {formatBRL(effectivePlanCents)}/mês
+                        {formatBRL(recurringTotalCents)}/mês
                       </span>
                     </>
+                  ) : showRecurringBump ? (
+                    <>{formatBRL(recurringTotalCents)}/mês</>
                   ) : (
-                    <>R$ {plan.price}/mês</>
+                    <>{formatBRL(monthlyTotalCents)}/mês</>
                   )}
                 </p>
               </>
@@ -173,17 +296,20 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs text-stone-500">Total recorrente</p>
                 <p className="font-display text-lg tabular-nums text-white">
-                  {hasDiscount ? (
+                  {hasDiscount || showRecurringBump ? (
                     <>
                       <span className="mr-2 text-sm text-stone-500 line-through">
-                        R$ {plan.price}
+                        {formatBRL(
+                          originalMonthlyTotalCents +
+                            (showRecurringBump ? monthlyExtraCents : 0)
+                        )}
                       </span>
                       <span className="text-emerald-300">
-                        {formatBRL(effectivePlanCents)}
+                        {formatBRL(recurringTotalCents)}
                       </span>
                     </>
                   ) : (
-                    <>R$ {plan.price}</>
+                    formatBRL(monthlyTotalCents)
                   )}
                   <span className="text-sm text-stone-500">/mês</span>
                 </p>

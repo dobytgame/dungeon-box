@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
 import { asaasRequest } from '@/lib/asaas/client';
+import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
 import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
 
 export type AsaasCreditCardInput = {
@@ -53,6 +54,10 @@ export type CreateAsaasSubscriptionInput = {
   creditCard: AsaasCreditCardInput;
   creditCardHolderInfo: AsaasCreditCardHolderInput;
   retrySubscriptionId: string | null;
+  shippingCents: number;
+  shippingRegion: string;
+  oneTimeCents: number;
+  oneTimeDescription: string | null;
 };
 
 export type CreateAsaasSubscriptionResult = {
@@ -108,6 +113,8 @@ export async function createAsaasSubscription(
     stripe_subscription_id: null,
     mp_subscription_id: null,
     promo_code: input.promoCode ?? null,
+    shipping_cents: input.shippingCents,
+    shipping_region: input.shippingRegion,
     updated_at: new Date().toISOString(),
   };
 
@@ -174,6 +181,24 @@ export async function createAsaasSubscription(
   if (linkError) {
     await cancelAsaasSubscriptionBestEffort(asaasSubscription.id);
     throw new Error('Não foi possível vincular a assinatura.');
+  }
+
+  if (input.oneTimeCents > 0) {
+    try {
+      await chargeAsaasOneTimePayment({
+        customerId: asaasCustomerId,
+        valueCents: input.oneTimeCents,
+        description:
+          input.oneTimeDescription ?? 'DungeonBox — cobrança única (1ª caixa)',
+        remoteIp: input.remoteIp,
+        creditCard: input.creditCard,
+        creditCardHolderInfo: input.creditCardHolderInfo,
+        externalReference: `${subscriptionId}:one-time`,
+      });
+    } catch (error) {
+      await cancelAsaasSubscriptionBestEffort(asaasSubscription.id);
+      throw error;
+    }
   }
 
   return {

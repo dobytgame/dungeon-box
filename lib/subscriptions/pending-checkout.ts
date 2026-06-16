@@ -95,7 +95,7 @@ export async function prepareCheckoutSubscription(
     return {
       kind: 'blocked',
       code: 'SUBSCRIPTION_EXISTS',
-      message: 'Você já possui uma assinatura ativa.',
+      message: 'Você já possui uma assinatura ativa deste plano.',
     };
   }
 
@@ -104,7 +104,7 @@ export async function prepareCheckoutSubscription(
       kind: 'blocked',
       code: 'SUBSCRIPTION_PAST_DUE',
       message:
-        'Sua assinatura está com pagamento em atraso. Regularize em Minha conta antes de assinar novamente.',
+        'Este plano está com pagamento em atraso. Regularize em Minha conta antes de assinar novamente.',
     };
   }
 
@@ -112,7 +112,7 @@ export async function prepareCheckoutSubscription(
     return {
       kind: 'blocked',
       code: 'SUBSCRIPTION_EXISTS',
-      message: 'Já existe uma assinatura em andamento. Acesse sua conta.',
+      message: 'Já existe uma assinatura deste plano em andamento. Acesse sua conta.',
     };
   }
 

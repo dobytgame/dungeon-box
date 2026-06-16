@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/payment-sync';
+import type { PlanSlug } from '@/lib/checkout/plans';
+import { BLOCKING_SUBSCRIPTION_STATUSES } from '@/lib/subscriptions/blocking-statuses';
 import { createClient } from '@/lib/supabase/server';
 import type {
   Address,
@@ -146,6 +148,27 @@ export async function getAllSubscriptions(userId: string): Promise<Subscription[
   }
 
   return subscriptions;
+}
+
+export async function getManageableSubscriptions(
+  userId: string
+): Promise<Subscription[]> {
+  const subscriptions = await getAllSubscriptions(userId);
+  return subscriptions.filter((sub) =>
+    (BLOCKING_SUBSCRIPTION_STATUSES as readonly string[]).includes(sub.status)
+  );
+}
+
+export async function getActivePlanSlugs(userId: string): Promise<PlanSlug[]> {
+  const subscriptions = await getManageableSubscriptions(userId);
+  const slugs = subscriptions
+    .map((sub) => {
+      const plan = Array.isArray(sub.plans) ? sub.plans[0] : sub.plans;
+      return plan?.slug;
+    })
+    .filter((slug): slug is PlanSlug => Boolean(slug));
+
+  return Array.from(new Set(slugs));
 }
 
 export async function getCycles(userId: string): Promise<SubscriptionCycle[]> {

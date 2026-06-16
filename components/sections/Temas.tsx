@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { AnimatePresence, motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useInView, useReducedMotion } from 'framer-motion';
 import {
   Anchor,
   Castle,
@@ -11,19 +11,24 @@ import {
   Lock,
   LucideIcon,
   Mountain,
+  Rocket,
   Skull,
   Store,
   Tent,
   TreePine,
   Wine,
 } from 'lucide-react';
-import { themes } from '@/lib/data';
+import {
+  campaignCalendarCopy,
+  campaignMonths,
+  type CampaignMonthIcon,
+} from '@/lib/campaign-calendar';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 
-const themeIcons: Record<string, LucideIcon> = {
+const themeIcons: Record<CampaignMonthIcon, LucideIcon> = {
   ruins: Home,
-  skull: Skull,
-  tavern: Wine,
+  cave: Mountain,
+  scifi: Rocket,
   shrine: Flame,
   camp: Tent,
   market: Store,
@@ -32,7 +37,7 @@ const themeIcons: Record<string, LucideIcon> = {
   sewer: Anchor,
   throne: Castle,
   forest: TreePine,
-  dragon: Mountain,
+  dragon: Skull,
 };
 
 export default function Temas() {
@@ -43,8 +48,7 @@ export default function Temas() {
   const reducedMotion = useReducedMotion();
 
   const displayIndex = hovered ?? active;
-  const current = themes[displayIndex];
-  const CurrentIcon = themeIcons[current.icon] ?? Home;
+  const current = campaignMonths[displayIndex];
 
   return (
     <section
@@ -68,28 +72,36 @@ export default function Temas() {
         <AnimatedSection>
           <div className="max-w-2xl border-b border-white/[0.06] pb-10">
             <p className="font-display text-xs uppercase tracking-[0.35em] text-frost">
-              Calendário da campanha
+              {campaignCalendarCopy.eyebrow}
             </p>
             <h2
               id="temas-title"
               className="mt-3 font-display text-4xl uppercase leading-[0.95] tracking-wide text-white md:text-5xl lg:text-6xl"
             >
-              12 meses ·
+              {campaignCalendarCopy.titleLine1}
               <br />
-              <span className="text-gradient-frost">12 aventuras</span>
+              <span className="text-gradient-frost">{campaignCalendarCopy.titleLine2}</span>
             </h2>
             <p className="mt-4 max-w-lg text-base leading-relaxed text-stone-400">
-              Cada mês um cenário novo para sua mesa. Passe o mouse sobre um mês para
-              revelar a lore — ou toque para fixar a seleção.
+              {campaignCalendarCopy.subtitle}
             </p>
           </div>
         </AnimatedSection>
 
-        <div ref={gridRef} className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
-          {themes.map((theme, index) => {
+        <div
+          ref={gridRef}
+          className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4"
+        >
+          {campaignMonths.map((theme, index) => {
             const Icon = themeIcons[theme.icon] ?? Home;
             const isSelected = active === index;
-            const isPreview = displayIndex === index;
+            const isExpanded = displayIndex === index;
+            const displayLore = theme.revealed
+              ? theme.lore
+              : campaignCalendarCopy.lockedLore;
+            const displayName = theme.revealed
+              ? theme.name
+              : campaignCalendarCopy.lockedLabel;
 
             return (
               <motion.button
@@ -115,7 +127,7 @@ export default function Temas() {
                 onFocus={() => setHovered(index)}
                 onBlur={() => setHovered(null)}
                 aria-pressed={isSelected}
-                aria-label={`Mês ${theme.month}: ${theme.name} — ${theme.lore}`}
+                aria-label={`Mês ${theme.month}: ${theme.name}${theme.revealed ? ` — ${theme.lore}` : ''}`}
               >
                 <span
                   className="pointer-events-none absolute -right-1 top-2 select-none font-display text-5xl leading-none text-white/[0.05] sm:text-6xl"
@@ -126,103 +138,97 @@ export default function Temas() {
 
                 <span
                   className={`absolute left-0 top-0 bottom-0 w-1 bg-frost transition-opacity duration-300 ${
-                    isPreview ? 'opacity-100' : 'opacity-0'
+                    isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'
                   }`}
                   aria-hidden="true"
                 />
 
+                {/* Estado padrão */}
                 <div
-                  className={`pointer-events-none absolute inset-0 bg-gradient-to-t from-frost/10 via-transparent to-transparent transition-opacity duration-300 ${
-                    isPreview ? 'opacity-100' : 'opacity-0'
+                  className={`relative z-10 flex h-full flex-col justify-between p-3 transition-all duration-300 sm:p-4 ${
+                    isExpanded
+                      ? 'pointer-events-none scale-95 opacity-0'
+                      : 'opacity-100'
                   }`}
-                  aria-hidden="true"
-                />
-
-                <div className="relative z-10 flex h-full flex-col justify-between p-3 sm:p-4">
+                >
                   <span className="font-display text-[10px] uppercase tracking-[0.25em] text-stone-600">
                     Mês {theme.month}
                   </span>
 
                   <div className="flex flex-1 flex-col items-center justify-center">
+                    {theme.revealed ? (
+                      <Icon
+                        className="h-7 w-7 text-stone-500 transition-colors duration-300 group-hover:text-stone-300 sm:h-8 sm:w-8"
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Lock
+                        className="h-6 w-6 text-stone-600 sm:h-7 sm:w-7"
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </div>
+
+                  <p className="font-display text-[11px] uppercase leading-tight tracking-wide text-stone-500 transition-colors duration-300 group-hover:text-stone-300 sm:text-xs">
+                    {theme.revealed ? theme.name : displayName}
+                  </p>
+                </div>
+
+                {/* Lore dentro do card — hover / seleção */}
+                <div
+                  className={`absolute inset-0 z-20 flex flex-col bg-gradient-to-t from-stone-950 via-stone-950/95 to-stone-950/75 p-3 transition-all duration-300 sm:p-4 ${
+                    isExpanded
+                      ? 'translate-y-0 opacity-100'
+                      : 'pointer-events-none translate-y-2 opacity-0'
+                  }`}
+                  aria-hidden={!isExpanded}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-display text-[10px] uppercase tracking-[0.25em] text-frost">
+                      Mês {theme.month}
+                    </span>
                     <Icon
-                      className={`h-7 w-7 transition-colors duration-300 sm:h-8 sm:w-8 ${
-                        isPreview ? 'text-frost' : 'text-stone-500 group-hover:text-stone-300'
-                      }`}
+                      className="h-4 w-4 shrink-0 text-frost/70 sm:h-5 sm:w-5"
                       strokeWidth={1.5}
                       aria-hidden="true"
                     />
                   </div>
 
-                  <p
-                    className={`font-display text-[11px] uppercase leading-tight tracking-wide transition-colors duration-300 sm:text-xs ${
-                      isPreview ? 'text-frost' : 'text-stone-500 group-hover:text-stone-300'
-                    }`}
-                  >
-                    {theme.name}
-                  </p>
+                  <div className="mt-auto">
+                    <p className="font-display text-xs uppercase leading-tight tracking-wide text-gradient-frost sm:text-sm">
+                      {theme.revealed ? theme.name : displayName}
+                    </p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-stone-300 sm:text-xs">
+                      {displayLore}
+                    </p>
+                    {theme.revealed ? (
+                      <p className="mt-2 text-[10px] leading-snug text-stone-500">
+                        {campaignCalendarCopy.footerNote}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
+
+                <div
+                  className={`pointer-events-none absolute inset-0 bg-gradient-to-t from-frost/15 via-frost/5 to-transparent transition-opacity duration-300 ${
+                    isExpanded ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  aria-hidden="true"
+                />
               </motion.button>
             );
           })}
         </div>
 
-        <div
-          className="relative mt-6 min-h-[9.5rem] md:mt-8 md:min-h-[10.5rem]"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <div
-            className="pointer-events-none absolute -inset-x-4 -inset-y-3 rounded-sm bg-frost/[0.04] blur-2xl"
-            aria-hidden="true"
-          />
+        <p className="mt-8 text-center text-xs text-stone-500">
+          {campaignCalendarCopy.footerNote}
+        </p>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={displayIndex}
-              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
-              transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="relative overflow-hidden rounded-sm border-l-4 border-l-frost bg-stone-950/90 py-5 pl-5 pr-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-md md:py-6 md:pl-7 md:pr-8"
-            >
-              <div
-                className="pointer-events-none absolute -right-6 -top-8 h-32 w-32 rounded-full bg-frost/10 blur-3xl"
-                aria-hidden="true"
-              />
-
-              <div className="relative grid items-center gap-6 md:grid-cols-[1fr_auto] md:gap-10">
-                <div>
-                  <p className="font-display text-xs uppercase tracking-[0.35em] text-stone-500">
-                    Mês {current.month} de 12
-                    {hovered !== null && (
-                      <span className="ml-2 text-frost/70">· preview</span>
-                    )}
-                  </p>
-                  <h3 className="mt-2 font-display text-2xl uppercase text-gradient-frost md:text-3xl lg:text-4xl">
-                    {current.name}
-                  </h3>
-                  <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-300 md:text-base">
-                    {current.lore}
-                  </p>
-                  <p className="mt-3 text-xs text-stone-500 md:text-sm">
-                    Kit temático exclusivo · Peças modulares · Compatível com meses anteriores
-                  </p>
-                </div>
-
-                <div className="hidden shrink-0 md:flex" aria-hidden="true">
-                  <CurrentIcon
-                    className="h-20 w-20 text-frost opacity-[0.14] lg:h-28 lg:w-28"
-                    strokeWidth={0.75}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        <div className="mt-8" aria-hidden="true">
+        <div className="mt-6" aria-hidden="true">
           <div className="flex gap-1">
-            {themes.map((theme, index) => (
+            {campaignMonths.map((theme, index) => (
               <button
                 key={`progress-${theme.month}`}
                 type="button"

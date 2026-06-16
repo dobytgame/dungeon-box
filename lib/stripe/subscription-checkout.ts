@@ -21,6 +21,11 @@ export type PrepareStripeSubscriptionInput = {
   };
   retrySubscriptionId: string | null;
   promotionCode?: string | null;
+  shippingCents: number;
+  shippingRegion: string;
+  oneTimeCents: number;
+  oneTimeDescription: string | null;
+  recurringBump?: { name: string; priceCents: number } | null;
 };
 
 export type PrepareStripeSubscriptionResult = {
@@ -72,9 +77,36 @@ export async function prepareStripeSubscription(
     discounts = [{ promotion_code: promotion.id }];
   }
 
+  if (input.oneTimeCents > 0) {
+    await stripe.invoiceItems.create({
+      customer: stripeCustomerId,
+      amount: input.oneTimeCents,
+      currency: 'brl',
+      description:
+        input.oneTimeDescription ?? 'DungeonBox — cobrança única (1ª caixa)',
+    });
+  }
+
+  const subscriptionItems: Stripe.SubscriptionCreateParams.Item[] = [
+    { price: priceId },
+  ];
+
+  if (input.recurringBump) {
+    const product = await stripe.products.create({
+      name: input.recurringBump.name,
+    });
+    const bumpPrice = await stripe.prices.create({
+      product: product.id,
+      currency: 'brl',
+      unit_amount: input.recurringBump.priceCents,
+      recurring: { interval: 'month' },
+    });
+    subscriptionItems.push({ price: bumpPrice.id });
+  }
+
   const stripeSubscription = await stripe.subscriptions.create({
     customer: stripeCustomerId,
-    items: [{ price: priceId }],
+    items: subscriptionItems,
     ...(discounts ? { discounts } : {}),
     payment_behavior: 'default_incomplete',
     payment_settings: {
@@ -102,6 +134,8 @@ export async function prepareStripeSubscription(
     status: 'pending' as const,
     stripe_customer_id: stripeCustomerId,
     stripe_subscription_id: stripeSubscription.id,
+    shipping_cents: input.shippingCents,
+    shipping_region: input.shippingRegion,
     updated_at: new Date().toISOString(),
   };
 

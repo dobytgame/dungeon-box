@@ -8,6 +8,21 @@
     --color-frost: #00d4ff;
     --color-gold: #ffd600;
     --color-stone-deep: #09090b;
+    /* Navbar fixa (top + padding + logo/CTA) */
+    --site-header-offset: 4.5rem;
+    --plans-tier-nav-height: 3.25rem;
+  }
+
+  @media (min-width: 640px) {
+    :root {
+      --site-header-offset: 5.25rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --site-header-offset: 6.25rem;
+    }
   }
 
   html {

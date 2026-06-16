@@ -6,10 +6,21 @@ import { PAINT_KIT_BUMPS } from '@/lib/checkout/order-bumps';
 
 interface Props {
   selected: PaintKitBumpId | null;
+  recurring: boolean;
   onSelect: (id: PaintKitBumpId | null) => void;
+  onRecurringChange: (recurring: boolean) => void;
 }
 
-export default function OrderBumpCard({ selected, onSelect }: Props) {
+export default function OrderBumpCard({
+  selected,
+  recurring,
+  onSelect,
+  onRecurringChange,
+}: Props) {
+  const selectedBump = selected
+    ? PAINT_KIT_BUMPS.find((b) => b.id === selected)
+    : null;
+
   return (
     <div className="space-y-3">
       {PAINT_KIT_BUMPS.map((bump) => {
@@ -82,7 +93,7 @@ export default function OrderBumpCard({ selected, onSelect }: Props) {
                   {bump.priceLabel}
                 </p>
                 <p className="text-[9px] uppercase tracking-widest text-stone-600">
-                  uma vez
+                  {isSelected && recurring ? 'por mês' : 'uma vez'}
                 </p>
               </div>
             </div>
@@ -90,8 +101,50 @@ export default function OrderBumpCard({ selected, onSelect }: Props) {
         );
       })}
 
+      {selectedBump ? (
+        <fieldset className="rounded-sm border border-white/[0.08] bg-stone-950/40 p-4">
+          <legend className="px-1 font-display text-[10px] uppercase tracking-[0.25em] text-stone-500">
+            Como cobrar o kit
+          </legend>
+          <div className="mt-3 space-y-2">
+            <label className="flex cursor-pointer items-start gap-3 rounded-sm border border-transparent px-2 py-2 transition-colors hover:bg-white/[0.03] has-[:checked]:border-gold/30 has-[:checked]:bg-gold/[0.06]">
+              <input
+                type="radio"
+                name="paintKitBilling"
+                checked={!recurring}
+                onChange={() => onRecurringChange(false)}
+                className="mt-0.5 accent-gold"
+              />
+              <span className="text-sm text-stone-300">
+                <span className="font-medium text-white">Só na 1ª caixa</span>
+                <span className="mt-0.5 block text-xs text-stone-500">
+                  {selectedBump.priceLabel} único junto com o frete da primeira
+                  entrega
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-sm border border-transparent px-2 py-2 transition-colors hover:bg-white/[0.03] has-[:checked]:border-gold/30 has-[:checked]:bg-gold/[0.06]">
+              <input
+                type="radio"
+                name="paintKitBilling"
+                checked={recurring}
+                onChange={() => onRecurringChange(true)}
+                className="mt-0.5 accent-gold"
+              />
+              <span className="text-sm text-stone-300">
+                <span className="font-medium text-white">Todo mês na caixa</span>
+                <span className="mt-0.5 block text-xs text-stone-500">
+                  +{selectedBump.priceLabel}/mês na assinatura, kit enviado a
+                  cada entrega
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+      ) : null}
+
       <p className="text-center text-[11px] text-stone-600">
-        Toque novamente para remover o kit do pedido.
+        Toque novamente no kit para removê-lo do pedido.
       </p>
     </div>
   );

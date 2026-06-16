@@ -4,11 +4,13 @@ const PAINT_KIT_PREFIX = 'paint_kit_bump:';
 
 export function buildSpecialNotes(
   paintKitBump: PaintKitBumpId | null,
-  userNotes: string
+  userNotes: string,
+  paintKitBumpRecurring = false
 ): string | null {
   const parts: string[] = [];
   if (paintKitBump) {
-    parts.push(`${PAINT_KIT_PREFIX}${paintKitBump}`);
+    const suffix = paintKitBumpRecurring ? ':recurring' : '';
+    parts.push(`${PAINT_KIT_PREFIX}${paintKitBump}${suffix}`);
   }
   const trimmed = userNotes.trim();
   if (trimmed) parts.push(trimmed);
@@ -21,7 +23,16 @@ export function parsePaintKitBump(
   if (!notes) return null;
   const line = notes.split('\n').find((l) => l.startsWith(PAINT_KIT_PREFIX));
   if (!line) return null;
-  const id = line.slice(PAINT_KIT_PREFIX.length);
+  const raw = line.slice(PAINT_KIT_PREFIX.length);
+  const id = raw.replace(/:recurring$/, '');
   if (id === 'amador' || id === 'profissional') return id;
   return null;
+}
+
+export function parsePaintKitBumpRecurring(
+  notes: string | null | undefined
+): boolean {
+  if (!notes) return false;
+  const line = notes.split('\n').find((l) => l.startsWith(PAINT_KIT_PREFIX));
+  return line?.endsWith(':recurring') ?? false;
 }

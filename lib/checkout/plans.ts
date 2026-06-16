@@ -16,6 +16,24 @@ export function getCheckoutPlan(slug: PlanSlug) {
   return plans.find((p) => p.id === slug)!;
 }
 
-export function checkoutHref(slug: string) {
-  return `/checkout?plan=${resolvePlanSlug(slug)}`;
+export function checkoutHref(slug: string | PlanSlug | PlanSlug[]) {
+  const slugs = Array.isArray(slug)
+    ? slug.map((s) => resolvePlanSlug(s))
+    : [resolvePlanSlug(slug)];
+  const unique = Array.from(new Set(slugs));
+  const params = new URLSearchParams();
+  for (const plan of unique) {
+    params.append('plan', plan);
+  }
+  return `/checkout?${params.toString()}`;
+}
+
+export function parseCheckoutPlanSlugs(
+  searchParams: Record<string, string | string[] | undefined>
+): PlanSlug[] {
+  const raw = searchParams.plan;
+  const values =
+    raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+  const slugs = values.filter((value): value is PlanSlug => isPlanSlug(value));
+  return slugs.length > 0 ? Array.from(new Set(slugs)) : ['heroi'];
 }

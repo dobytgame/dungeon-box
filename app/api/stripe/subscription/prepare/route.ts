@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import { buildSpecialNotes } from '@/lib/checkout/special-notes';
+import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import { createClient } from '@/lib/supabase/server';
 import { isStripeCheckout } from '@/lib/payments/provider';
 import { STRIPE_CONFIGURED } from '@/lib/stripe/server';
 import { userFacingStripeError } from '@/lib/stripe/errors';
 import { prepareStripeSubscription } from '@/lib/stripe/subscription-checkout';
+import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
+import { ShippingQuoteError } from '@/lib/shipping/quote';
+import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
 
 const bodySchema = z.object({
@@ -14,10 +18,19 @@ const bodySchema = z.object({
   addressId: z.string().uuid(),
   specialNotes: z.string().max(2000).optional().default(''),
   paintKitBump: z.enum(['amador', 'profissional']).nullable().optional(),
+  paintKitBumpRecurring: z.boolean().optional().default(false),
   promotionCode: z.string().max(64).optional().nullable(),
 });
 
-const BLOCKING_STATUSES = ['pending', 'active', 'paused', 'past_due'] as const;
+function buildOneTimeDescription(
+  shippingLabel: string,
+  bumpName: string | null
+): string {
+  if (bumpName) {
+    return `DungeonBox — ${shippingLabel} + ${bumpName} (1ª caixa)`;
+  }
+  return `DungeonBox — ${shippingLabel} (1ª caixa)`;
+}
 
 export async function POST(request: Request) {
   if (!STRIPE_CONFIGURED || !isStripeCheckout()) {
@@ -42,6 +55,17 @@ export async function POST(request: Request) {
     body = bodySchema.parse(json);
   } catch {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
+  }
+
+  const { data: plan } = await supabase
+    .from('plans')
+    .select('id, name, price_cents, slug')
+    .eq('slug', body.planSlug)
+    .eq('is_active', true)
+    .single();
+
+  if (!plan) {
+    return NextResponse.json({ error: 'Plano não encontrado.' }, { status: 404 });
   }
 
   const { data: profile } = await supabase
@@ -83,14 +107,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: existingSub } = await supabase
-    .from('subscriptions')
-    .select('id, status, mp_subscription_id, stripe_subscription_id, asaas_subscription_id')
-    .eq('user_id', user.id)
-    .in('status', [...BLOCKING_STATUSES])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const existingSub = await findBlockingSubscriptionForPlan(
+    supabase,
+    user.id,
+    plan.id
+  );
 
   const checkoutPrep = await prepareCheckoutSubscription(supabase, existingSub);
 
@@ -104,7 +125,8 @@ export async function POST(request: Request) {
   if (checkoutPrep.kind === 'activated') {
     return NextResponse.json(
       {
-        error: 'Sua assinatura já está ativa. Acesse o painel para ver os detalhes.',
+        error:
+          'Sua assinatura deste plano já está ativa. Acesse o painel para ver os detalhes.',
         code: 'SUBSCRIPTION_ALREADY_ACTIVE',
         subscriptionId: checkoutPrep.subscriptionId,
         activated: true,
@@ -116,20 +138,30 @@ export async function POST(request: Request) {
   const retrySubscriptionId =
     checkoutPrep.kind === 'retry' ? checkoutPrep.subscriptionId : null;
 
-  const { data: plan } = await supabase
-    .from('plans')
-    .select('id, name, price_cents, slug')
-    .eq('slug', body.planSlug)
-    .eq('is_active', true)
-    .single();
-
-  if (!plan) {
-    return NextResponse.json({ error: 'Plano não encontrado.' }, { status: 404 });
+  let shippingQuote;
+  try {
+    shippingQuote = await resolveShippingForCheckout(
+      supabase,
+      user.id,
+      body.planSlug,
+      body.addressId
+    );
+  } catch (error) {
+    if (error instanceof ShippingQuoteError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
   }
+
+  const bump = getPaintKitBump(body.paintKitBump ?? null);
+  const bumpRecurring = Boolean(body.paintKitBumpRecurring && bump);
+  const bumpOneTimeCents = bump && !bumpRecurring ? bump.priceCents : 0;
+  const oneTimeCents = shippingQuote.cents + bumpOneTimeCents;
 
   const specialNotes = buildSpecialNotes(
     body.paintKitBump ?? null,
-    body.specialNotes
+    body.specialNotes,
+    bumpRecurring
   );
 
   try {
@@ -148,6 +180,17 @@ export async function POST(request: Request) {
       },
       retrySubscriptionId,
       promotionCode: body.promotionCode?.trim() || null,
+      shippingCents: shippingQuote.cents,
+      shippingRegion: shippingQuote.region,
+      oneTimeCents,
+      oneTimeDescription: buildOneTimeDescription(
+        shippingQuote.label,
+        bump && !bumpRecurring ? bump.name : null
+      ),
+      recurringBump:
+        bumpRecurring && bump
+          ? { name: bump.name, priceCents: bump.priceCents }
+          : null,
     });
 
     return NextResponse.json({

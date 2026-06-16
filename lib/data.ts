@@ -68,14 +68,11 @@ export const plans = [
       '+ 20 tiles extras',
       '+ 10 itens de decoração (barris, baús, tochas)',
       'Bilhete do mestre + mapa expandido',
-      'Acesso ao grupo VIP de assinantes',
     ],
     perks: [
       'Tudo do plano Aventureiro',
       '20 tiles extras — mais salas, mais possibilidades',
-      'Decoração scatter: barris, baús e tochas',
       'Dungeon habitada com atmosfera desde o primeiro kit',
-      'Acesso ao grupo VIP de assinantes',
     ],
     cta: 'Assinar agora — R$139/mês',
     imagePosition: 'right' as const,
@@ -115,7 +112,6 @@ export const plans = [
     perks: [
       'Tudo do plano Herói',
       '20 tiles extras — dungeons de 5–6 salas completas',
-      'Decoração premium: altar, sarcófago e pilares ornamentais',
       '3 miniaturas exclusivas em 28mm (guerreiro, mago e esqueleto)',
       'Voto no tema do próximo mês',
       '10% de desconto em todos os produtos avulsos',
@@ -139,6 +135,8 @@ export const planSupportCopy = {
     'Sem carência · Cancele quando quiser · Sem multa · Produção sob demanda · Sistema OpenLOCK · Escala 28mm',
   compatibility:
     'Compatível com D&D 5e · Tormenta RPG · Pathfinder · Old Dragon · Escala 28mm',
+  piecesEstimateNote:
+    'Quantidade estimada por kit. Pode variar conforme o tema do mês, chegando até o total informado ou próximo dele.',
 };
 
 export const faqItems = [
@@ -221,20 +219,7 @@ export const loyaltyLevels = [
   },
 ];
 
-export const themes = [
-  { month: '01', icon: 'ruins', name: 'A Entrada', lore: 'O começo de tudo.' },
-  { month: '02', icon: 'skull', name: 'Cripta', lore: 'Os mortos não descansam.' },
-  { month: '03', icon: 'tavern', name: 'Taverna', lore: 'Negócios se fazem aqui.' },
-  { month: '04', icon: 'shrine', name: 'Santuário', lore: 'A luz que não deveria existir.' },
-  { month: '05', icon: 'camp', name: 'Acampamento', lore: 'Descanso antes da batalha.' },
-  { month: '06', icon: 'market', name: 'Mercado das Sombras', lore: 'Tudo tem um preço.' },
-  { month: '07', icon: 'lab', name: 'Laboratório', lore: 'O arcanista estava aqui.' },
-  { month: '08', icon: 'prison', name: 'Prisão', lore: 'As celas estão abertas.' },
-  { month: '09', icon: 'sewer', name: 'Esgotos', lore: 'Outra cidade. Mais perigosa.' },
-  { month: '10', icon: 'throne', name: 'Câmara do Rei', lore: 'O trono está vazio.' },
-  { month: '11', icon: 'forest', name: 'Floresta', lore: 'As árvores têm dentes.' },
-  { month: '12', icon: 'dragon', name: 'Covil do Dragão', lore: 'Você chegou até aqui.' },
-];
+export { campaignMonths as themes } from './campaign-calendar';
 
 export const marqueeItems = [
   'Cenários 3D',

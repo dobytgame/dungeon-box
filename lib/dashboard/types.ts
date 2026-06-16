@@ -128,6 +128,8 @@ export interface Subscription {
   cancel_reason: string | null;
   current_cycle: number | null;
   loyalty_level: number | null;
+  shipping_cents?: number | null;
+  shipping_region?: string | null;
   created_at: string | null;
   updated_at: string | null;
   plans: Plan | Plan[] | null;

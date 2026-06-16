@@ -1,13 +1,26 @@
 import type { PaintKitBumpId } from './order-bumps';
 import type { PlanSlug } from './plans';
 
+export type ShippingQuoteSnapshot = {
+  cents: number;
+  free: boolean;
+  region: string;
+  label: string;
+  etaDaysMin: number;
+  etaDaysMax: number;
+};
+
 export interface CheckoutData {
-  planSlug: PlanSlug;
+  planSlugs: PlanSlug[];
   paintKitBump: PaintKitBumpId | null;
+  /** Kit de pintura incluso todo mês (cobrança recorrente) */
+  paintKitBumpRecurring: boolean;
   addressId: string;
   specialNotes: string;
-  /** Preço mensal do plano após cupom (centavos), quando aplicado no pagamento */
-  discountedPlanCents?: number | null;
+  /** Preço mensal por plano após cupom (centavos) */
+  discountedPlanCentsByPlan?: Partial<Record<PlanSlug, number>>;
   couponCode?: string | null;
   couponSummary?: string | null;
+  /** Frete da 1ª caixa por plano */
+  shippingByPlan?: Partial<Record<PlanSlug, ShippingQuoteSnapshot>>;
 }

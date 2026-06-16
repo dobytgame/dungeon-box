@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { checkoutHref } from '@/lib/checkout/plans';
 import { createClient } from '@/lib/supabase/client';
 
-type Mode = 'login' | 'register' | 'magic' | 'forgot';
+type Mode = 'login' | 'register' | 'forgot';
 
 function GoogleIcon() {
   return (
@@ -31,6 +32,13 @@ function GoogleIcon() {
 
 interface Props {
   redirectTo?: string;
+}
+
+function postRegisterRedirect(redirectTo: string) {
+  if (redirectTo === '/dashboard') {
+    return checkoutHref('heroi');
+  }
+  return redirectTo;
 }
 
 export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
@@ -73,12 +81,6 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
       });
       const data = (await res.json()) as { message?: string; error?: string };
       setMessage(data.message ?? data.error ?? 'Verifique seu e-mail.');
-    } else if (mode === 'magic') {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: callbackUrl },
-      });
-      setMessage(error ? error.message : 'Link enviado! Verifique seu e-mail.');
     } else if (mode === 'register') {
       const trimmedName = name.trim();
       if (!trimmedName) {
@@ -87,7 +89,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         return;
       }
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -95,14 +97,39 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
           data: { full_name: trimmedName },
         },
       });
-      if (!error) {
-        void fetch('/api/auth/account-notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, name: trimmedName }),
-        });
+
+      if (error) {
+        setMessage(error.message);
+        setLoading(false);
+        return;
       }
-      setMessage(error ? error.message : 'Conta criada! Verifique seu e-mail.');
+
+      void fetch('/api/auth/account-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: trimmedName }),
+      });
+
+      const destination = postRegisterRedirect(redirectTo);
+
+      if (data.session) {
+        window.location.href = destination;
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        setMessage(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      window.location.href = destination;
+      return;
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
@@ -160,7 +187,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
           className="w-full border border-stone-700 bg-stone-900 px-4 py-3 text-white placeholder-stone-500 transition focus:border-frost focus:outline-none"
         />
 
-        {mode !== 'magic' && mode !== 'forgot' && (
+        {mode !== 'forgot' && (
           <input
             type="password"
             placeholder="Senha"
@@ -181,11 +208,9 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
             ? 'Aguarde...'
             : mode === 'register'
               ? 'Criar conta'
-              : mode === 'magic'
-                ? 'Enviar magic link'
-                : mode === 'forgot'
-                  ? 'Enviar link de recuperação'
-                  : 'Entrar'}
+              : mode === 'forgot'
+                ? 'Enviar link de recuperação'
+                : 'Entrar'}
         </button>
       </form>
 
@@ -220,9 +245,6 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
             </button>
             <button type="button" onClick={() => setMode('forgot')} className="hover:text-white">
               Esqueci minha senha
-            </button>
-            <button type="button" onClick={() => setMode('magic')} className="hover:text-white">
-              Entrar sem senha (magic link)
             </button>
           </>
         )}

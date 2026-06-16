@@ -44,7 +44,7 @@ export default async function AuthPage({ searchParams }: Props) {
         </p>
 
         <div className="mt-8">
-          <AuthForm redirectTo={next} />
+          <AuthForm redirectTo={safeNext} />
         </div>
       </div>
     </div>

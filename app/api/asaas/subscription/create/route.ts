@@ -1,20 +1,24 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { PLAN_SLUGS } from '@/lib/checkout/plans';
+import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import { CHECKOUT_COUPONS_ENABLED } from '@/lib/checkout/public';
 import {
   recordPromoRedemption,
   resolvePromoCode,
 } from '@/lib/checkout/promo-codes';
 import { buildSpecialNotes } from '@/lib/checkout/special-notes';
+import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { userFacingAsaasError } from '@/lib/asaas/errors';
 import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
 import { createAsaasSubscription } from '@/lib/asaas/subscription-checkout';
 import { isAsaasCheckout } from '@/lib/payments/provider';
+import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
+import { ShippingQuoteError } from '@/lib/shipping/quote';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
 
 const cardSchema = z.object({
@@ -25,16 +29,30 @@ const cardSchema = z.object({
   ccv: z.string().regex(/^\d{3,4}$/),
 });
 
-const bodySchema = z.object({
-  planSlug: z.enum(PLAN_SLUGS),
-  addressId: z.string().uuid(),
-  specialNotes: z.string().max(2000).optional().default(''),
-  paintKitBump: z.enum(['amador', 'profissional']).nullable().optional(),
-  creditCard: cardSchema,
-  couponCode: z.string().max(64).optional().nullable(),
-});
+const bodySchema = z
+  .object({
+    planSlug: z.enum(PLAN_SLUGS).optional(),
+    planSlugs: z.array(z.enum(PLAN_SLUGS)).min(1).max(3).optional(),
+    addressId: z.string().uuid(),
+    specialNotes: z.string().max(2000).optional().default(''),
+    paintKitBump: z.enum(['amador', 'profissional']).nullable().optional(),
+    paintKitBumpRecurring: z.boolean().optional().default(false),
+    creditCard: cardSchema,
+    couponCode: z.string().max(64).optional().nullable(),
+  })
+  .refine((value) => value.planSlug || (value.planSlugs?.length ?? 0) > 0, {
+    message: 'Informe ao menos um plano.',
+  });
 
-const BLOCKING_STATUSES = ['pending', 'active', 'paused', 'past_due'] as const;
+function resolveCheckoutPlanSlugs(body: z.infer<typeof bodySchema>): PlanSlug[] {
+  if (body.planSlugs?.length) {
+    return Array.from(new Set(body.planSlugs));
+  }
+  if (body.planSlug) {
+    return [body.planSlug];
+  }
+  return [];
+}
 
 function normalizeCardNumber(raw: string): string {
   return raw.replace(/\D/g, '');
@@ -54,6 +72,16 @@ function normalizeExpiryYear(raw: string): string {
   if (digits.length === 2) return `20${digits}`;
   if (digits.length === 4) return digits;
   throw new Error('Ano de validade inválido.');
+}
+
+function buildOneTimeDescription(
+  shippingLabel: string,
+  bumpName: string | null
+): string {
+  if (bumpName) {
+    return `DungeonBox — ${shippingLabel} + ${bumpName} (1ª caixa)`;
+  }
+  return `DungeonBox — ${shippingLabel} (1ª caixa)`;
 }
 
 export async function POST(request: Request) {
@@ -78,6 +106,11 @@ export async function POST(request: Request) {
     const json = await request.json();
     body = bodySchema.parse(json);
   } catch {
+    return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
+  }
+
+  const planSlugs = resolveCheckoutPlanSlugs(body);
+  if (planSlugs.length === 0) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
 
@@ -134,55 +167,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: existingSub } = await supabase
-    .from('subscriptions')
-    .select(
-      'id, status, mp_subscription_id, stripe_subscription_id, asaas_subscription_id'
-    )
-    .eq('user_id', user.id)
-    .in('status', [...BLOCKING_STATUSES])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const checkoutPrep = await prepareCheckoutSubscription(supabase, existingSub);
-
-  if (checkoutPrep.kind === 'blocked') {
-    return NextResponse.json(
-      { error: checkoutPrep.message, code: checkoutPrep.code },
-      { status: 409 }
-    );
-  }
-
-  if (checkoutPrep.kind === 'activated') {
-    return NextResponse.json(
-      {
-        error: 'Sua assinatura já está ativa. Acesse o painel para ver os detalhes.',
-        code: 'SUBSCRIPTION_ALREADY_ACTIVE',
-        subscriptionId: checkoutPrep.subscriptionId,
-        activated: true,
-      },
-      { status: 409 }
-    );
-  }
-
-  const retrySubscriptionId =
-    checkoutPrep.kind === 'retry' ? checkoutPrep.subscriptionId : null;
-
-  const { data: plan } = await supabase
-    .from('plans')
-    .select('id, name, price_cents, slug')
-    .eq('slug', body.planSlug)
-    .eq('is_active', true)
-    .single();
-
-  if (!plan) {
-    return NextResponse.json({ error: 'Plano não encontrado.' }, { status: 404 });
-  }
-
+  const bump = getPaintKitBump(body.paintKitBump ?? null);
+  const bumpRecurring = Boolean(body.paintKitBumpRecurring && bump);
   const specialNotes = buildSpecialNotes(
     body.paintKitBump ?? null,
-    body.specialNotes
+    body.specialNotes,
+    bumpRecurring
   );
 
   let expiryMonth: string;
@@ -201,97 +191,192 @@ export async function POST(request: Request) {
   }
 
   const holderName = body.creditCard.holderName.trim();
+  const creditCard = {
+    holderName,
+    number: normalizeCardNumber(body.creditCard.number),
+    expiryMonth,
+    expiryYear,
+    ccv: body.creditCard.ccv.replace(/\D/g, ''),
+  };
+  const creditCardHolderInfo = {
+    name: profile.full_name?.trim() || holderName,
+    email: profile.email,
+    cpfCnpj: cpf,
+    postalCode: address.zip_code.replace(/\D/g, ''),
+    addressNumber: address.number,
+    addressComplement: address.complement ?? undefined,
+    phone,
+  };
 
-  let chargePriceCents = plan.price_cents;
-  let resolvedCoupon: Awaited<ReturnType<typeof resolvePromoCode>> | null = null;
-
-  if (body.couponCode?.trim()) {
-    if (!CHECKOUT_COUPONS_ENABLED) {
-      return NextResponse.json(
-        { error: 'Cupons desativados no checkout.' },
-        { status: 400 }
-      );
-    }
-
-    try {
-      const admin = createAdminClient();
-      resolvedCoupon = await resolvePromoCode(
-        admin,
-        body.couponCode,
-        body.planSlug,
-        user.id,
-        plan.price_cents
-      );
-      chargePriceCents = resolvedCoupon.discountedPriceCents;
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof Error ? error.message : 'Cupom inválido.',
-        },
-        { status: 400 }
-      );
-    }
-  }
+  const created: Array<{
+    subscriptionId: string;
+    asaasSubscriptionId: string;
+    planSlug: PlanSlug;
+  }> = [];
+  let promoRecorded = false;
 
   try {
-    const result = await createAsaasSubscription(supabase, {
-      userId: user.id,
-      planSlug: body.planSlug,
-      planId: plan.id,
-      planName: plan.name,
-      priceCents: chargePriceCents,
-      promoCode: resolvedCoupon?.promo.code ?? null,
-      addressId: body.addressId,
-      specialNotes: specialNotes ?? '',
-      remoteIp: getClientIpFromRequest(request),
-      profile: {
-        id: profile.id,
-        email: profile.email,
-        full_name: profile.full_name,
-        cpf: profile.cpf,
-        phone: profile.phone,
-        asaas_customer_id: profile.asaas_customer_id,
-      },
-      address,
-      creditCard: {
-        holderName,
-        number: normalizeCardNumber(body.creditCard.number),
-        expiryMonth,
-        expiryYear,
-        ccv: body.creditCard.ccv.replace(/\D/g, ''),
-      },
-      creditCardHolderInfo: {
-        name: profile.full_name?.trim() || holderName,
-        email: profile.email,
-        cpfCnpj: cpf,
-        postalCode: address.zip_code.replace(/\D/g, ''),
-        addressNumber: address.number,
-        addressComplement: address.complement ?? undefined,
-        phone,
-      },
-      retrySubscriptionId,
-    });
+    for (let index = 0; index < planSlugs.length; index += 1) {
+      const planSlug = planSlugs[index]!;
 
-    if (resolvedCoupon) {
-      const admin = createAdminClient();
-      await recordPromoRedemption(
-        admin,
-        resolvedCoupon.promo.id,
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('id, name, price_cents, slug')
+        .eq('slug', planSlug)
+        .eq('is_active', true)
+        .single();
+
+      if (!plan) {
+        return NextResponse.json({ error: 'Plano não encontrado.' }, { status: 404 });
+      }
+
+      const existingSub = await findBlockingSubscriptionForPlan(
+        supabase,
         user.id,
-        result.subscriptionId,
-        resolvedCoupon.promo.code
+        plan.id
       );
-    }
 
-    void syncAsaasSubscriptionPayments(result.asaasSubscriptionId).catch((err) => {
-      console.error('[asaas] post-create sync failed:', err);
-    });
+      const checkoutPrep = await prepareCheckoutSubscription(supabase, existingSub);
+
+      if (checkoutPrep.kind === 'blocked') {
+        return NextResponse.json(
+          { error: checkoutPrep.message, code: checkoutPrep.code },
+          { status: 409 }
+        );
+      }
+
+      if (checkoutPrep.kind === 'activated') {
+        return NextResponse.json(
+          {
+            error: `Sua assinatura do plano ${plan.name} já está ativa.`,
+            code: 'SUBSCRIPTION_ALREADY_ACTIVE',
+            subscriptionId: checkoutPrep.subscriptionId,
+            activated: true,
+          },
+          { status: 409 }
+        );
+      }
+
+      const retrySubscriptionId =
+        checkoutPrep.kind === 'retry' ? checkoutPrep.subscriptionId : null;
+
+      let shippingQuote;
+      try {
+        shippingQuote = await resolveShippingForCheckout(
+          supabase,
+          user.id,
+          planSlug,
+          body.addressId
+        );
+      } catch (error) {
+        if (error instanceof ShippingQuoteError) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        throw error;
+      }
+
+      const includeBump = index === 0 && bump;
+      const bumpOneTimeCents =
+        includeBump && !bumpRecurring ? bump.priceCents : 0;
+      const bumpMonthlyCents =
+        includeBump && bumpRecurring ? bump.priceCents : 0;
+      const oneTimeCents = shippingQuote.cents + bumpOneTimeCents;
+
+      let chargePriceCents = plan.price_cents;
+      let resolvedCoupon: Awaited<ReturnType<typeof resolvePromoCode>> | null =
+        null;
+
+      if (body.couponCode?.trim()) {
+        if (!CHECKOUT_COUPONS_ENABLED) {
+          return NextResponse.json(
+            { error: 'Cupons desativados no checkout.' },
+            { status: 400 }
+          );
+        }
+
+        try {
+          const admin = createAdminClient();
+          resolvedCoupon = await resolvePromoCode(
+            admin,
+            body.couponCode,
+            planSlug,
+            user.id,
+            plan.price_cents
+          );
+          chargePriceCents = resolvedCoupon.discountedPriceCents;
+        } catch {
+          // Cupom pode valer só para alguns planos do pedido.
+        }
+      }
+
+      chargePriceCents += bumpMonthlyCents;
+
+      const planDescription =
+        bumpMonthlyCents > 0 && bump
+          ? `${plan.name} + ${bump.name}`
+          : plan.name;
+
+      const result = await createAsaasSubscription(supabase, {
+        userId: user.id,
+        planSlug,
+        planId: plan.id,
+        planName: planDescription,
+        priceCents: chargePriceCents,
+        promoCode: resolvedCoupon?.promo.code ?? null,
+        addressId: body.addressId,
+        specialNotes: specialNotes ?? '',
+        remoteIp: getClientIpFromRequest(request),
+        profile: {
+          id: profile.id,
+          email: profile.email,
+          full_name: profile.full_name,
+          cpf: profile.cpf,
+          phone: profile.phone,
+          asaas_customer_id: profile.asaas_customer_id,
+        },
+        address,
+        creditCard,
+        creditCardHolderInfo,
+        retrySubscriptionId,
+        shippingCents: shippingQuote.cents,
+        shippingRegion: shippingQuote.region,
+        oneTimeCents,
+        oneTimeDescription: buildOneTimeDescription(
+          shippingQuote.label,
+          includeBump && !bumpRecurring ? bump.name : null
+        ),
+      });
+
+      if (resolvedCoupon && !promoRecorded) {
+        const admin = createAdminClient();
+        await recordPromoRedemption(
+          admin,
+          resolvedCoupon.promo.id,
+          user.id,
+          result.subscriptionId,
+          resolvedCoupon.promo.code
+        );
+        promoRecorded = true;
+      }
+
+      void syncAsaasSubscriptionPayments(result.asaasSubscriptionId).catch(
+        (err) => {
+          console.error('[asaas] post-create sync failed:', err);
+        }
+      );
+
+      created.push({
+        subscriptionId: result.subscriptionId,
+        asaasSubscriptionId: result.asaasSubscriptionId,
+        planSlug,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      subscriptionId: result.subscriptionId,
-      asaasSubscriptionId: result.asaasSubscriptionId,
+      subscriptions: created,
+      subscriptionId: created[0]?.subscriptionId,
+      asaasSubscriptionId: created[0]?.asaasSubscriptionId,
     });
   } catch (error) {
     console.error('[asaas] create subscription:', error);

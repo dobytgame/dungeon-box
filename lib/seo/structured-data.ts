@@ -1,3 +1,4 @@
+import { faqItems, plans } from '@/lib/data';
 import { launchFaqItems, launchPlans } from '@/lib/launch/data';
 import {
   DEFAULT_OG_IMAGE,
@@ -94,6 +95,79 @@ export function buildHomeJsonLd() {
             brand: { '@type': 'Brand', name: SITE_NAME },
             category: 'Cenários 3D modulares para RPG',
             image: absoluteUrl(plan.image),
+          },
+        })),
+      },
+    ],
+  };
+}
+
+export function buildSalesPageJsonLd() {
+  const siteUrl = getCanonicalSiteUrl();
+  const pageUrl = absoluteUrl('/lp2');
+  const logoUrl = absoluteUrl(FAVICON_PATH);
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': `${siteUrl}/#organization`,
+        name: SITE_NAME,
+        url: siteUrl,
+        logo: {
+          '@type': 'ImageObject',
+          url: logoUrl,
+        },
+        description: SITE_TAGLINE,
+        areaServed: {
+          '@type': 'Country',
+          name: 'Brasil',
+        },
+      },
+      {
+        '@type': 'WebPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: `Assinatura de Cenários 3D para RPG | ${SITE_NAME}`,
+        isPartOf: { '@id': `${siteUrl}/#website` },
+        about: { '@id': `${siteUrl}/#service` },
+        inLanguage: 'pt-BR',
+        description:
+          'Assinatura mensal de cenários 3D modulares para RPG. Tiles, paredes e props na sua porta todo mês. Compatível com D&D, Tormenta e Pathfinder.',
+      },
+      {
+        '@type': 'FAQPage',
+        '@id': `${pageUrl}#faq`,
+        mainEntity: faqItems.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: item.a,
+          },
+        })),
+      },
+      {
+        '@type': 'ItemList',
+        '@id': `${pageUrl}#planos`,
+        name: 'Planos DungeonBox',
+        itemListElement: plans.map((plan, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'Product',
+            name: `Plano ${plan.name}`,
+            description: plan.tagline,
+            brand: { '@type': 'Brand', name: SITE_NAME },
+            category: 'Cenários 3D modulares para RPG',
+            image: absoluteUrl(plan.image),
+            offers: {
+              '@type': 'Offer',
+              price: plan.price,
+              priceCurrency: 'BRL',
+              availability: 'https://schema.org/InStock',
+            },
           },
         })),
       },

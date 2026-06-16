@@ -9,25 +9,15 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import {
-  CreditCard,
-  Lock,
-  Loader2,
-  ShieldCheck,
-  Tag,
-  X,
-} from 'lucide-react';
-import { checkoutHref, getCheckoutPlan } from '@/lib/checkout/plans';
-import { CHECKOUT_COUPONS_ENABLED } from '@/lib/checkout/public';
+import { CreditCard, Lock, Loader2, ShieldCheck, Tag } from 'lucide-react';
+import { checkoutHref } from '@/lib/checkout/plans';
 import type { CheckoutData } from '@/lib/checkout/types';
+import { sumMonthlyCents } from '@/lib/checkout/totals';
 import type { Profile } from '@/lib/dashboard/types';
 import {
   ASAAS_CHECKOUT_READY,
   STRIPE_CHECKOUT_ACTIVE,
 } from '@/lib/payments/public';
-import {
-  STRIPE_COUPONS_ENABLED,
-} from '@/lib/stripe/public';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from './AsaasPaymentForm';
@@ -45,13 +35,11 @@ interface Props {
 
 export default function StepPayment({
   data,
-  setData,
   profile,
-  userEmail,
   onBack,
 }: Props) {
   const router = useRouter();
-  const plan = getCheckoutPlan(data.planSlug);
+  const primaryPlanSlug = data.planSlugs[0] ?? 'heroi';
   const cpfDigits = profile?.cpf?.replace(/\D/g, '') ?? '';
   const phoneDigits = profile?.phone?.replace(/\D/g, '') ?? '';
   const cpfReady = cpfDigits.length === 11;
@@ -59,22 +47,17 @@ export default function StepPayment({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(ASAAS_CHECKOUT_READY ? false : true);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [couponInput, setCouponInput] = useState('');
-  const [couponLoading, setCouponLoading] = useState(false);
-  const [showCoupon, setShowCoupon] = useState(false);
 
   const promotionCode = data.couponCode ?? null;
-  const couponSummary = data.couponSummary ?? null;
-  const discountedPriceCents = data.discountedPlanCents ?? null;
+  const monthlyTotalCents = sumMonthlyCents(data);
+  const stripeSinglePlanOnly = data.planSlugs.length > 1;
 
-  const profileNext = encodeURIComponent(checkoutHref(data.planSlug));
-  const siteCouponsEnabled =
-    ASAAS_CHECKOUT_READY && CHECKOUT_COUPONS_ENABLED;
-  const couponsEnabled =
-    (siteCouponsEnabled || (STRIPE_CHECKOUT_ACTIVE && STRIPE_COUPONS_ENABLED)) &&
-    cpfReady;
+  const profileNext = encodeURIComponent(checkoutHref(data.planSlugs));
   const stripeReady =
-    STRIPE_CHECKOUT_ACTIVE && cpfReady && Boolean(data.addressId);
+    STRIPE_CHECKOUT_ACTIVE &&
+    cpfReady &&
+    Boolean(data.addressId) &&
+    !stripeSinglePlanOnly;
   const asaasReady =
     ASAAS_CHECKOUT_READY &&
     cpfReady &&
@@ -93,10 +76,11 @@ export default function StepPayment({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            planSlug: data.planSlug,
+            planSlug: primaryPlanSlug,
             addressId: data.addressId,
             specialNotes: data.specialNotes,
             paintKitBump: data.paintKitBump,
+            paintKitBumpRecurring: data.paintKitBumpRecurring,
             promotionCode: promoCode,
           }),
         });
@@ -133,7 +117,7 @@ export default function StepPayment({
         if (!cancelled()) setLoading(false);
       }
     },
-    [data, router]
+    [data, primaryPlanSlug, router]
   );
 
   useEffect(() => {
@@ -155,78 +139,6 @@ export default function StepPayment({
     };
   }, [stripeReady, promotionCode, prepareCheckout]);
 
-  const handleApplyCoupon = useCallback(async () => {
-    const code = couponInput.trim();
-    if (!code) {
-      setError('Informe o código do cupom.');
-      return;
-    }
-
-    setCouponLoading(true);
-    setError('');
-
-    try {
-      const endpoint = siteCouponsEnabled
-        ? '/api/checkout/coupon/validate'
-        : '/api/stripe/promotion-code/validate';
-      const requestBody = siteCouponsEnabled
-        ? { code, planSlug: data.planSlug }
-        : { code };
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-      const payload = await res.json().catch(() => ({}));
-
-      if (!res.ok || !payload.valid) {
-        throw new Error(
-          typeof payload.error === 'string'
-            ? payload.error
-            : 'Cupom inválido.'
-        );
-      }
-
-      const appliedCode = payload.code ?? code;
-      const appliedSummary =
-        typeof payload.summary === 'string' ? payload.summary : 'Cupom aplicado';
-      const appliedDiscount =
-        typeof payload.discountedPriceCents === 'number'
-          ? payload.discountedPriceCents
-          : null;
-
-      setCouponInput(appliedCode);
-      setData((prev) => ({
-        ...prev,
-        couponCode: appliedCode,
-        couponSummary: appliedSummary,
-        discountedPlanCents: appliedDiscount,
-      }));
-    } catch (err) {
-      setData((prev) => ({
-        ...prev,
-        couponCode: null,
-        couponSummary: null,
-        discountedPlanCents: null,
-      }));
-      setError(err instanceof Error ? err.message : 'Cupom inválido.');
-    } finally {
-      setCouponLoading(false);
-    }
-  }, [couponInput, data.planSlug, siteCouponsEnabled, setData]);
-
-  const handleRemoveCoupon = useCallback(() => {
-    setCouponInput('');
-    setData((prev) => ({
-      ...prev,
-      couponCode: null,
-      couponSummary: null,
-      discountedPlanCents: null,
-    }));
-    setError('');
-  }, [setData]);
-
   const handleSuccess = useCallback(() => {
     router.push('/checkout/success');
     router.refresh();
@@ -238,10 +150,11 @@ export default function StepPayment({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planSlug: data.planSlug,
+          planSlugs: data.planSlugs,
           addressId: data.addressId,
           specialNotes: data.specialNotes,
           paintKitBump: data.paintKitBump,
+          paintKitBumpRecurring: data.paintKitBumpRecurring,
           creditCard,
           couponCode: promotionCode,
         }),
@@ -267,18 +180,17 @@ export default function StepPayment({
     [data, promotionCode, router, handleSuccess]
   );
 
-  const displayPrice =
-    discountedPriceCents != null
-      ? (discountedPriceCents / 100).toLocaleString('pt-BR', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      : plan.price;
+  const displayPrice = (monthlyTotalCents / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
   const paymentDescription = paymentConfigured
-    ? discountedPriceCents != null
-      ? `R$ ${displayPrice}/mês com cupom aplicado. Renovação automática no valor promocional.`
-      : `R$ ${plan.price}/mês com renovação automática. Pagamento seguro, sem sair do site.`
+    ? data.couponCode
+      ? `R$ ${displayPrice}/mês no total com cupom aplicado. Renovação automática.`
+      : data.planSlugs.length > 1
+        ? `R$ ${displayPrice}/mês no total (${data.planSlugs.length} assinaturas). Pagamento seguro, sem sair do site.`
+        : `R$ ${displayPrice}/mês com renovação automática. Pagamento seguro, sem sair do site.`
     : 'Configure o provedor de pagamento para ativar o checkout.';
 
   return (
@@ -323,76 +235,27 @@ export default function StepPayment({
           </div>
         ) : null}
 
-        {couponsEnabled ? (
-          <div className="rounded-sm border border-white/[0.06] bg-stone-950/30 p-4">
-            {!showCoupon && !promotionCode ? (
-              <button
-                type="button"
-                onClick={() => setShowCoupon(true)}
-                className="flex cursor-pointer items-center gap-2 text-sm text-stone-400 transition-colors hover:text-ember"
-              >
-                <Tag className="h-4 w-4" aria-hidden="true" />
-                Tem um cupom de desconto?
-              </button>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="flex items-center gap-2 text-sm font-medium text-white">
-                    <Tag className="h-4 w-4 text-ember" aria-hidden="true" />
-                    Cupom de desconto
-                  </p>
-                  {promotionCode ? (
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoupon}
-                      disabled={loading || couponLoading}
-                      className="flex cursor-pointer items-center gap-1 text-xs text-stone-500 transition-colors hover:text-stone-300 disabled:opacity-50"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" />
-                      Remover
-                    </button>
-                  ) : null}
-                </div>
+        {data.couponCode && data.couponSummary ? (
+          <p
+            className="flex items-center gap-2 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100/90"
+            role="status"
+          >
+            <Tag className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              <span className="font-medium">{data.couponCode}</span> —{' '}
+              {data.couponSummary}
+            </span>
+          </p>
+        ) : null}
 
-                {promotionCode && couponSummary ? (
-                  <p
-                    className="rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100/90"
-                    role="status"
-                  >
-                    <span className="font-medium">{promotionCode}</span> —{' '}
-                    {couponSummary}
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="text"
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          void handleApplyCoupon();
-                        }
-                      }}
-                      placeholder="Código do cupom"
-                      disabled={loading || couponLoading}
-                      className="min-w-0 flex-1 rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:border-ember/50 focus:outline-none focus:ring-1 focus:ring-ember/30 disabled:opacity-50"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleApplyCoupon()}
-                      disabled={loading || couponLoading || !couponInput.trim()}
-                      className="cursor-pointer rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300 transition-colors hover:border-ember/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {couponLoading ? 'Validando…' : 'Aplicar'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        {stripeSinglePlanOnly && STRIPE_CHECKOUT_ACTIVE ? (
+          <p
+            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
+            role="status"
+          >
+            Múltiplos planos no mesmo pedido estão disponíveis apenas com o
+            provedor Asaas.
+          </p>
         ) : null}
 
         <div className="rounded-sm border border-white/[0.06] bg-stone-950/40 p-5">

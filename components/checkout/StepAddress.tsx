@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { MapPin, Plus } from 'lucide-react';
+import { useEffect, useState, useTransition } from 'react';
+import { MapPin, Plus, Truck } from 'lucide-react';
 import { saveAddress } from '@/app/dashboard/actions';
 import { BRAZIL_STATES } from '@/lib/dashboard/constants';
 import { formatZip } from '@/lib/dashboard/format';
 import type { Address } from '@/lib/dashboard/types';
 import type { CheckoutData } from '@/lib/checkout/types';
+import type { PlanSlug } from '@/lib/checkout/plans';
+import { hasAnyShippingQuote } from '@/lib/checkout/totals';
 import { digitsOnly, maskCep } from '@/lib/masks';
 import { fetchAddressByCep } from '@/lib/viacep';
+import { formatShippingBRL } from '@/lib/shipping/quote';
 import CheckoutSection from './CheckoutSection';
 
 interface Props {
@@ -50,8 +53,68 @@ export default function StepAddress({
   const [form, setForm] = useState(emptyForm);
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [shippingError, setShippingError] = useState('');
 
   const selected = addresses.find((a) => a.id === data.addressId);
+
+  async function refreshShippingQuote(addressId: string) {
+    if (!addressId) return;
+
+    setShippingLoading(true);
+    setShippingError('');
+
+    try {
+      const res = await fetch('/api/shipping/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planSlugs: data.planSlugs,
+          addressId,
+        }),
+      });
+      const json = (await res.json()) as {
+        quotes?: Partial<
+          Record<
+            PlanSlug,
+            {
+              cents: number;
+              free: boolean;
+              region: string;
+              label: string;
+              etaDaysMin: number;
+              etaDaysMax: number;
+            }
+          >
+        >;
+        error?: string;
+      };
+
+      if (!res.ok || !json.quotes) {
+        setShippingError(json.error ?? 'Não foi possível calcular o frete.');
+        setData((prev) => ({
+          ...prev,
+          shippingByPlan: undefined,
+        }));
+        return;
+      }
+
+      setData((prev) => ({
+        ...prev,
+        shippingByPlan: json.quotes,
+      }));
+    } catch {
+      setShippingError('Não foi possível calcular o frete.');
+    } finally {
+      setShippingLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!data.addressId) return;
+    void refreshShippingQuote(data.addressId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recalcula ao mudar plano ou endereço
+  }, [data.addressId, data.planSlugs.join(',')]);
 
   async function handleCepChange(raw: string) {
     const masked = maskCep(raw);
@@ -106,6 +169,14 @@ export default function StepAddress({
     }
     if (!data.addressId && !selected) {
       setMessage('Selecione ou cadastre um endereço de entrega.');
+      return;
+    }
+    if (shippingLoading) {
+      setMessage('Aguarde o cálculo do frete.');
+      return;
+    }
+    if (shippingError || !hasAnyShippingQuote(data)) {
+      setMessage(shippingError || 'Não foi possível calcular o frete para este endereço.');
       return;
     }
     onNext();
@@ -277,6 +348,47 @@ export default function StepAddress({
           </button>
         )}
       </CheckoutSection>
+
+      {data.addressId ? (
+        <div
+          className="rounded-sm border border-white/[0.06] bg-stone-950/30 p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2 text-stone-500">
+            <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <p className="font-display text-[10px] uppercase tracking-[0.25em]">
+              Frete da 1ª caixa
+            </p>
+          </div>
+          {shippingLoading ? (
+            <p className="mt-2 text-sm text-stone-400">Calculando frete…</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {data.planSlugs.map((slug) => {
+                const quote = data.shippingByPlan?.[slug];
+                if (!quote?.label) return null;
+                return (
+                  <div
+                    key={slug}
+                    className="flex flex-wrap items-baseline justify-between gap-2"
+                  >
+                    <p className="text-sm text-stone-300">
+                      {quote.label}
+                    </p>
+                    <p className="font-display text-sm tabular-nums text-white">
+                      {quote.free ? 'Grátis' : formatShippingBRL(quote.cents)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {shippingError ? (
+            <p className="mt-2 text-xs text-red-400">{shippingError}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {message ? (
         <p className="rounded-sm border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">

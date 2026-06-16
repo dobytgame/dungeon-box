@@ -12,40 +12,32 @@ import {
   formatZip,
   relOne,
 } from '@/lib/dashboard/format';
-import { getAllSubscriptions, requireDashboardUser } from '@/lib/dashboard/queries';
+import { getManageableSubscriptions, requireDashboardUser } from '@/lib/dashboard/queries';
+import type { Subscription } from '@/lib/dashboard/types';
 
-export default async function SubscriptionPage() {
-  const { user } = await requireDashboardUser();
-  const subscriptions = await getAllSubscriptions(user.id);
-  const subscription = subscriptions[0] ?? null;
-  const plan = relOne(subscription?.plans);
-  const address = relOne(subscription?.addresses);
-  const isDev = process.env.NODE_ENV === 'development';
-  const isPending = subscription?.status === 'pending';
+function SubscriptionDetailCard({
+  subscription,
+  showDevMeta,
+}: {
+  subscription: Subscription;
+  showDevMeta: boolean;
+}) {
+  const plan = relOne(subscription.plans);
+  const address = relOne(subscription.addresses);
+  const isPending = subscription.status === 'pending';
   const resumeCheckoutHref = plan?.slug
     ? checkoutHref(plan.slug as PlanSlug)
     : checkoutHref('heroi');
 
-  if (!subscription) {
-    return (
-      <EmptyState
-        title="Nenhuma assinatura ativa"
-        description="Escolha um plano e complete o checkout para começar a receber suas dungeons todo mês."
-        ctaLabel="Escolher plano"
-        ctaHref={checkoutHref('heroi')}
-      />
-    );
-  }
-
   return (
-    <div className="space-y-8 md:space-y-10">
+    <div className="space-y-8">
       {isPending ? (
         <div
           className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100/90"
           role="status"
         >
           <p>
-            Seu pagamento não foi concluído. Você pode tentar novamente no
+            O pagamento deste plano não foi concluído. Você pode tentar novamente no
             checkout ou cancelar a tentativa em &quot;Gerenciar assinatura&quot;.
           </p>
           <Link
@@ -58,7 +50,7 @@ export default async function SubscriptionPage() {
       ) : null}
 
       <DashboardCard
-        title={plan?.name ?? 'Sua assinatura'}
+        title={plan?.name ?? 'Assinatura'}
         accent="ember"
         action={<StatusBadge kind="subscription" status={subscription.status} />}
       >
@@ -81,6 +73,12 @@ export default async function SubscriptionPage() {
           {subscription.special_notes ? (
             <DataRow label="Observações" value={subscription.special_notes} />
           ) : null}
+          {(subscription.shipping_cents ?? 0) > 0 ? (
+            <DataRow
+              label="Frete (1ª caixa)"
+              value={formatMoney(subscription.shipping_cents ?? 0)}
+            />
+          ) : null}
           <DataRow label="Ciclo atual" value={subscription.current_cycle ?? 0} />
           <DataRow
             label="Próxima cobrança"
@@ -95,11 +93,11 @@ export default async function SubscriptionPage() {
           <dl>
             <DataRow label="Peças por mês" value={`${plan.pieces_min}–${plan.pieces_max}`} />
             <DataRow
-              label="Frete grátis"
+              label="Frete"
               value={
                 plan.freight_free
-                  ? plan.freight_regions?.join(', ') ?? 'Sim'
-                  : 'Conforme região'
+                  ? `Grátis em ${plan.freight_regions?.join(', ') ?? 'regiões elegíveis'}`
+                  : 'Calculado por CEP no checkout'
               }
             />
             {plan.store_discount > 0 ? (
@@ -143,24 +141,7 @@ export default async function SubscriptionPage() {
         <SubscriptionActions subscription={subscription} />
       </DashboardCard>
 
-      {isDev && subscriptions.length > 1 ? (
-        <DashboardCard title="Histórico (dev)" accent="none">
-          <ul className="space-y-2 text-sm text-stone-400">
-            {subscriptions.map((sub) => {
-              const p = relOne(sub.plans);
-              return (
-                <li key={sub.id} className="flex flex-wrap items-center gap-2">
-                  <StatusBadge kind="subscription" status={sub.status} />
-                  <span>{p?.name ?? '—'}</span>
-                  <span className="text-stone-600">· {formatDate(sub.created_at)}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </DashboardCard>
-      ) : null}
-
-      {isDev ? (
+      {showDevMeta ? (
         <details className="rounded-sm border border-white/[0.04] bg-stone-950/30 p-4 text-xs text-stone-600">
           <summary className="cursor-pointer font-display uppercase tracking-widest text-stone-500">
             Detalhes técnicos
@@ -172,6 +153,61 @@ export default async function SubscriptionPage() {
           </dl>
         </details>
       ) : null}
+    </div>
+  );
+}
+
+export default async function SubscriptionPage() {
+  const { user } = await requireDashboardUser();
+  const subscriptions = await getManageableSubscriptions(user.id);
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (subscriptions.length === 0) {
+    return (
+      <EmptyState
+        title="Nenhuma assinatura ativa"
+        description="Escolha um plano e complete o checkout para começar a receber suas dungeons todo mês. Você pode assinar mais de um plano ao mesmo tempo."
+        ctaLabel="Escolher plano"
+        ctaHref={checkoutHref('heroi')}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-10 md:space-y-12">
+      {subscriptions.length > 1 ? (
+        <p className="text-sm text-stone-400">
+          Você tem {subscriptions.length} assinaturas ativas. Cada plano é cobrado e
+          enviado separadamente.
+        </p>
+      ) : null}
+
+      {subscriptions.map((subscription, index) => (
+        <section key={subscription.id} className="space-y-8 md:space-y-10">
+          {subscriptions.length > 1 ? (
+            <h2 className="font-display text-sm uppercase tracking-[0.25em] text-stone-500">
+              Assinatura {index + 1}
+            </h2>
+          ) : null}
+          <SubscriptionDetailCard
+            subscription={subscription}
+            showDevMeta={isDev && index === 0}
+          />
+        </section>
+      ))}
+
+      <DashboardCard title="Assinar outro plano" accent="none">
+        <p className="text-sm text-stone-400">
+          Quer receber outro tier de caixa? Escolha um plano que ainda não esteja na sua
+          conta.
+        </p>
+        <Link
+          href={checkoutHref('heroi')}
+          className="mt-4 inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+        >
+          Ver planos →
+        </Link>
+      </DashboardCard>
     </div>
   );
 }
