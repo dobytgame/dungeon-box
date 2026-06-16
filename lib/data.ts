@@ -91,8 +91,8 @@ export const plans = [
     badge: 'Premium',
     image: '/images/plano-lendario.png',
     tagline: 'A experiência épica completa. Para mestres que não aceitam menos.',
-    freight: 'Frete grátis para todo o Brasil',
-    billingNote: 'Cobrado mensalmente · Frete grátis para todo o Brasil',
+    freight: '+ frete (calculado por CEP)',
+    billingNote: 'Cobrado mensalmente · Cancele a qualquer momento',
     pieces: '132 peças',
     specs: [
       'Tudo do Herói',
@@ -104,14 +104,13 @@ export const plans = [
     table: 'Mesa: 70×80cm',
     session: 'Sessão: campanha completa (múltiplas sessões)',
     differentiator:
-      '+39 peças a mais que o Herói. 3 miniaturas exclusivas. Frete grátis. A dungeon que seus jogadores vão lembrar.',
+      '+39 peças a mais que o Herói. 3 miniaturas exclusivas. A dungeon que seus jogadores vão lembrar.',
     deliveryItems: [
       'Tudo do plano Herói',
       '+ 20 tiles extras',
       '+ Decoração premium (altar, sarcófago, pilares, porta)',
       '+ 3 miniaturas exclusivas (guerreiro, mago e esqueleto)',
       'Voto no tema do próximo mês',
-      'Frete grátis para todo o Brasil',
     ],
     perks: [
       'Tudo do plano Herói',
@@ -120,7 +119,6 @@ export const plans = [
       '3 miniaturas exclusivas em 28mm (guerreiro, mago e esqueleto)',
       'Voto no tema do próximo mês',
       '10% de desconto em todos os produtos avulsos',
-      'Frete grátis para todo o Brasil',
     ],
     cta: 'Assinar agora — R$199/mês',
     imagePosition: 'left' as const,
@@ -166,7 +164,7 @@ export const faqItems = [
   },
   {
     q: 'Como funciona o frete?',
-    a: 'Calculado pelo CEP no checkout. Nos planos Aventureiro e Herói o frete é por conta do cliente. No plano Lendário o frete é grátis para todo o Brasil.',
+    a: 'Calculado pelo CEP no checkout em todos os planos.',
   },
   {
     q: 'Para qual sistema de RPG as peças servem?',

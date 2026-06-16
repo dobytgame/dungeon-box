@@ -114,7 +114,7 @@ export const launchFaqItems = [
   },
   {
     q: 'Como funciona o frete?',
-    a: 'Calculado pelo CEP no checkout. Nos planos Aventureiro e Herói o frete é por conta do cliente. No plano Lendário o frete é grátis para todo o Brasil.',
+    a: 'Calculado pelo CEP no checkout em todos os planos.',
   },
   {
     q: 'Para qual sistema de RPG as peças servem?',

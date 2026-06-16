@@ -17,7 +17,7 @@ ${SITE_NAME} é a primeira assinatura mensal de cenários 3D modulares para RPG 
 ## Planos
 - Aventureiro: R$ 89/mês + frete (CEP), 60 peças, monta 3–4 salas (mesa 40×40cm)
 - Herói: R$ 139/mês + frete (CEP), 93 peças, monta 3–4 salas + corredores (mais popular, mesa 50×60cm)
-- Lendário: R$ 199/mês, 132 peças, monta 5–6 salas, frete grátis Brasil (mesa 70×80cm)
+- Lendário: R$ 199/mês + frete (CEP), 132 peças, monta 5–6 salas (mesa 70×80cm)
 
 ## Links
 - Site: ${siteUrl}
