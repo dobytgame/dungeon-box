@@ -1,8 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAsaasSubscriptionRef } from '@/lib/asaas/refs';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
-import { ensureSubscriptionCycle, markCyclePreparing, resolvePaidCycleNumber } from '@/lib/subscriptions/cycles';
-import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
+import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import { applyPendingPlanUpgrade } from '@/lib/subscriptions/upgrade';
 import {
   notifyPurchaseCompleted,
@@ -108,40 +107,25 @@ export async function handleAsaasPaymentConfirmed(
     return 'processed';
   }
 
-  const paidCycleNumber = resolvePaidCycleNumber(local.current_cycle);
-
   await applyPendingPlanUpgrade(supabase, local.id);
 
-  await supabase
-    .from('subscription_cycles')
-    .update({
-      status: 'preparing',
-      payment_id: paymentRow?.id ?? null,
-      paid_at: now,
-      amount_cents: paymentRow?.amount_cents ?? amountCents,
-      updated_at: now,
-    })
-    .eq('subscription_id', local.id)
-    .eq('cycle_number', paidCycleNumber);
-
-  const nextCycle = paidCycleNumber + 1;
   const periodEnd = new Date();
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-  await supabase
-    .from('subscriptions')
-    .update({
-      status: 'active',
-      current_cycle: nextCycle,
-      loyalty_level: calculateLoyaltyLevel(nextCycle - 1),
-      current_period_start: now,
-      current_period_end: periodEnd.toISOString(),
-      next_billing_date: periodEnd.toISOString(),
-      updated_at: now,
-    })
-    .eq('id', local.id);
+  if (paymentRow) {
+    await processActiveSubscriptionPayment(
+      supabase,
+      local.id,
+      local.current_cycle,
+      {
+        id: paymentRow.id,
+        amount_cents: paymentRow.amount_cents,
+        paid_at: now,
+      },
+      periodEnd.toISOString()
+    );
+  }
 
-  await ensureSubscriptionCycle(supabase, local.id, nextCycle);
   return 'processed';
 }
 

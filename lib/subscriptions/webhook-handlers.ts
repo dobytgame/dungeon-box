@@ -1,8 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchMpPayment, fetchMpPreapproval } from '@/lib/mercadopago/safe-fetch';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
-import { ensureSubscriptionCycle, resolvePaidCycleNumber } from '@/lib/subscriptions/cycles';
-import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
+import { ensureSubscriptionCycle, markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import type { PaymentStatus, SubscriptionStatus } from '@/lib/dashboard/types';
 
 type MpPayment = {
@@ -158,38 +157,37 @@ export async function handlePaymentEvent(
     .single();
 
   if (mappedStatus === 'approved') {
-    const paidCycleNumber = resolvePaidCycleNumber(subscription.current_cycle);
-
-    await supabase
-      .from('subscription_cycles')
-      .update({
-        status: 'preparing',
-        payment_id: payment?.id ?? null,
-        paid_at: now,
-        amount_cents: payment?.amount_cents ?? amountCents,
-        updated_at: now,
-      })
-      .eq('subscription_id', subscription.id)
-      .eq('cycle_number', paidCycleNumber);
-
-    const nextCycle = paidCycleNumber + 1;
     const periodEnd = new Date();
     periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-    await supabase
-      .from('subscriptions')
-      .update({
-        status: 'active',
-        current_cycle: nextCycle,
-        loyalty_level: calculateLoyaltyLevel(nextCycle - 1),
-        current_period_start: now,
-        current_period_end: periodEnd.toISOString(),
-        next_billing_date: periodEnd.toISOString(),
-        updated_at: now,
-      })
-      .eq('id', subscription.id);
+    if (subscription.status === 'pending') {
+      await activateSubscriptionFromMp(supabase, subscription.id, {
+        status: 'authorized',
+      });
+      if (payment) {
+        await markCyclePreparing(supabase, subscription.id, 1, {
+          id: payment.id,
+          amount_cents: payment.amount_cents,
+          paid_at: now,
+        });
+      }
+      return 'processed';
+    }
 
-    await ensureSubscriptionCycle(supabase, subscription.id, nextCycle);
+    if (payment) {
+      await processActiveSubscriptionPayment(
+        supabase,
+        subscription.id,
+        subscription.current_cycle,
+        {
+          id: payment.id,
+          amount_cents: payment.amount_cents,
+          paid_at: now,
+        },
+        periodEnd.toISOString()
+      );
+    }
+
     return 'processed';
   }
 

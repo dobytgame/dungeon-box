@@ -4,8 +4,7 @@ import { getStripe } from '@/lib/stripe/server';
 import { getInvoiceSubscriptionId } from '@/lib/stripe/invoice-subscription';
 import { getSubscriptionPeriodEnd } from '@/lib/stripe/subscription-period';
 import { activateSubscriptionFromStripe } from '@/lib/subscriptions/activate-stripe';
-import { ensureSubscriptionCycle, markCyclePreparing, resolvePaidCycleNumber } from '@/lib/subscriptions/cycles';
-import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
+import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
 import {
   notifyPurchaseCompleted,
@@ -148,39 +147,24 @@ export async function handleStripeInvoicePaid(
     return 'processed';
   }
 
-  const paidCycleNumber = resolvePaidCycleNumber(local.current_cycle);
-
-  await supabase
-    .from('subscription_cycles')
-    .update({
-      status: 'preparing',
-      payment_id: payment?.id ?? null,
-      paid_at: now,
-      amount_cents: payment?.amount_cents ?? amountCents,
-      updated_at: now,
-    })
-    .eq('subscription_id', local.id)
-    .eq('cycle_number', paidCycleNumber);
-
-  const nextCycle = paidCycleNumber + 1;
   const periodEndUnix = getSubscriptionPeriodEnd(stripeSub);
   const periodEnd = periodEndUnix
     ? new Date(periodEndUnix * 1000).toISOString()
     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  await supabase
-    .from('subscriptions')
-    .update({
-      status: 'active',
-      current_cycle: nextCycle,
-      loyalty_level: calculateLoyaltyLevel(nextCycle - 1),
-      current_period_start: now,
-      current_period_end: periodEnd,
-      next_billing_date: periodEnd,
-      updated_at: now,
-    })
-    .eq('id', local.id);
+  if (payment) {
+    await processActiveSubscriptionPayment(
+      supabase,
+      local.id,
+      local.current_cycle,
+      {
+        id: payment.id,
+        amount_cents: payment.amount_cents,
+        paid_at: now,
+      },
+      periodEnd
+    );
+  }
 
-  await ensureSubscriptionCycle(supabase, local.id, nextCycle);
   return 'processed';
 }

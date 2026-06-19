@@ -6,6 +6,7 @@ import {
   type AsaasWebhookPayment,
 } from '@/lib/asaas/webhook-handlers';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
+import { markCyclePreparing } from '@/lib/subscriptions/cycles';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -117,20 +118,33 @@ async function activatePendingFromActiveAsaasSubscription(
   await activateSubscriptionFromAsaas(supabase, local.id);
 
   if (latest?.id) {
-    await supabase.from('payments').upsert(
-      {
-        user_id: local.user_id,
-        subscription_id: local.id,
-        asaas_payment_id: latest.id,
-        amount_cents: amountCents,
-        currency: 'BRL',
-        status: isAsaasPaymentConfirmed(latest.status) ? 'approved' : 'pending',
-        paid_at: isAsaasPaymentConfirmed(latest.status)
-          ? new Date().toISOString()
-          : null,
-      },
-      { onConflict: 'asaas_payment_id' }
-    );
+    const paidAt = isAsaasPaymentConfirmed(latest.status)
+      ? new Date().toISOString()
+      : null;
+    const { data: paymentRow } = await supabase
+      .from('payments')
+      .upsert(
+        {
+          user_id: local.user_id,
+          subscription_id: local.id,
+          asaas_payment_id: latest.id,
+          amount_cents: amountCents,
+          currency: 'BRL',
+          status: isAsaasPaymentConfirmed(latest.status) ? 'approved' : 'pending',
+          paid_at: paidAt,
+        },
+        { onConflict: 'asaas_payment_id' }
+      )
+      .select('id, amount_cents')
+      .single();
+
+    if (paymentRow && paidAt) {
+      await markCyclePreparing(supabase, local.id, 1, {
+        id: paymentRow.id,
+        amount_cents: paymentRow.amount_cents,
+        paid_at: paidAt,
+      });
+    }
   }
 
   void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(

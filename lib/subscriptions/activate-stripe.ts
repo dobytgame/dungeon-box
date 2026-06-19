@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 import {
   getSubscriptionPeriodEnd,
 } from '@/lib/stripe/subscription-period';
+import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
 
 /** Ativa assinatura local quando o Stripe confirma pagamento/assinatura. */
 export async function activateSubscriptionFromStripe(
@@ -46,20 +47,7 @@ export async function activateSubscriptionFromStripe(
     return false;
   }
 
-  const { data: existingCycle } = await supabase
-    .from('subscription_cycles')
-    .select('id')
-    .eq('subscription_id', subscriptionId)
-    .eq('cycle_number', 1)
-    .maybeSingle();
-
-  if (!existingCycle) {
-    await supabase.from('subscription_cycles').insert({
-      subscription_id: subscriptionId,
-      cycle_number: 1,
-      status: 'upcoming',
-    });
-  }
+  await ensureSubscriptionCycle(supabase, subscriptionId, 1);
 
   return true;
 }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
 
 /** Ativa assinatura local quando o Asaas confirma pagamento da assinatura. */
 export async function activateSubscriptionFromAsaas(
@@ -29,20 +30,7 @@ export async function activateSubscriptionFromAsaas(
     return false;
   }
 
-  const { data: existingCycle } = await supabase
-    .from('subscription_cycles')
-    .select('id')
-    .eq('subscription_id', subscriptionId)
-    .eq('cycle_number', 1)
-    .maybeSingle();
-
-  if (!existingCycle) {
-    await supabase.from('subscription_cycles').insert({
-      subscription_id: subscriptionId,
-      cycle_number: 1,
-      status: 'upcoming',
-    });
-  }
+  await ensureSubscriptionCycle(supabase, subscriptionId, 1);
 
   return true;
 }

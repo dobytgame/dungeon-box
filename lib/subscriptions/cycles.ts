@@ -1,4 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
+
+const CYCLE_STATUS_RANK: Record<string, number> = {
+  delivered: 6,
+  shipped: 5,
+  preparing: 4,
+  upcoming: 3,
+  failed: 2,
+  cancelled: 1,
+};
 
 export function resolvePaidCycleNumber(
   currentCycle: number | null | undefined
@@ -32,6 +42,15 @@ export async function ensureSubscriptionCycle(
     .single();
 
   if (error) {
+    if (error.code === '23505') {
+      const { data: retry } = await supabase
+        .from('subscription_cycles')
+        .select('id')
+        .eq('subscription_id', subscriptionId)
+        .eq('cycle_number', cycleNumber)
+        .maybeSingle();
+      return retry?.id ?? null;
+    }
     console.error('ensureSubscriptionCycle:', error);
     return null;
   }
@@ -72,10 +91,172 @@ export async function markCyclePreparing(
   }
 }
 
+async function removePrematureUpcomingCycles(
+  supabase: SupabaseClient,
+  subscriptionId: string
+) {
+  await supabase
+    .from('subscription_cycles')
+    .delete()
+    .eq('subscription_id', subscriptionId)
+    .gt('cycle_number', 1)
+    .eq('status', 'upcoming')
+    .is('payment_id', null);
+}
+
+/**
+ * Pagamento confirmado em assinatura já ativa.
+ * Distingue catch-up do 1º ciclo (evita criar ciclo 2 "aguardando") de renovação real.
+ */
+export async function processActiveSubscriptionPayment(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  currentCycle: number | null | undefined,
+  payment: CyclePaymentLink,
+  periodEndIso: string
+): Promise<'initial' | 'renewal'> {
+  const now = payment.paid_at ?? new Date().toISOString();
+
+  const { count: approvedCount } = await supabase
+    .from('payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('subscription_id', subscriptionId)
+    .eq('status', 'approved');
+
+  const { data: cycle1 } = await supabase
+    .from('subscription_cycles')
+    .select('id, status, payment_id')
+    .eq('subscription_id', subscriptionId)
+    .eq('cycle_number', 1)
+    .maybeSingle();
+
+  const cycle1NeedsPayment =
+    !cycle1 ||
+    (['upcoming', 'failed'].includes(cycle1.status) && !cycle1.payment_id);
+
+  if ((approvedCount ?? 0) <= 1 && cycle1NeedsPayment) {
+    await markCyclePreparing(supabase, subscriptionId, 1, payment);
+    await removePrematureUpcomingCycles(supabase, subscriptionId);
+    await supabase
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        current_cycle: 1,
+        updated_at: now,
+      })
+      .eq('id', subscriptionId);
+    return 'initial';
+  }
+
+  const paidCycleNumber = resolvePaidCycleNumber(currentCycle);
+  await markCyclePreparing(supabase, subscriptionId, paidCycleNumber, payment);
+
+  const nextCycle = paidCycleNumber + 1;
+  await supabase
+    .from('subscriptions')
+    .update({
+      status: 'active',
+      current_cycle: nextCycle,
+      loyalty_level: calculateLoyaltyLevel(nextCycle - 1),
+      current_period_start: now,
+      current_period_end: periodEndIso,
+      next_billing_date: periodEndIso,
+      updated_at: now,
+    })
+    .eq('id', subscriptionId);
+
+  await ensureSubscriptionCycle(supabase, subscriptionId, nextCycle);
+  return 'renewal';
+}
+
+/** Remove ciclos duplicados e contadores adiantados por race no 1º pagamento. */
+export async function repairDuplicateSubscriptionCycles(
+  supabase: SupabaseClient
+): Promise<{ removed: number; countersFixed: number }> {
+  let removed = 0;
+  let countersFixed = 0;
+
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('id, current_cycle')
+    .in('status', ['active', 'past_due']);
+
+  for (const sub of subs ?? []) {
+    const { data: cycles } = await supabase
+      .from('subscription_cycles')
+      .select('id, cycle_number, status, payment_id')
+      .eq('subscription_id', sub.id);
+
+    const byNumber = new Map<number, typeof cycles>();
+    for (const cycle of cycles ?? []) {
+      const list = byNumber.get(cycle.cycle_number) ?? [];
+      list.push(cycle);
+      byNumber.set(cycle.cycle_number, list);
+    }
+
+    for (const rows of Array.from(byNumber.values())) {
+      if (!rows || rows.length <= 1) continue;
+      const sorted = [...rows].sort(
+        (a, b) =>
+          (CYCLE_STATUS_RANK[b.status] ?? 0) -
+          (CYCLE_STATUS_RANK[a.status] ?? 0)
+      );
+      for (const dup of sorted.slice(1)) {
+        await supabase.from('subscription_cycles').delete().eq('id', dup.id);
+        removed++;
+      }
+    }
+
+    const { count: paymentCount } = await supabase
+      .from('payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_id', sub.id)
+      .eq('status', 'approved');
+
+    if ((paymentCount ?? 0) > 1) continue;
+
+    const { data: premature } = await supabase
+      .from('subscription_cycles')
+      .select('id')
+      .eq('subscription_id', sub.id)
+      .gt('cycle_number', 1)
+      .eq('status', 'upcoming')
+      .is('payment_id', null);
+
+    if (premature?.length) {
+      await supabase
+        .from('subscription_cycles')
+        .delete()
+        .in(
+          'id',
+          premature.map((row) => row.id)
+        );
+      removed += premature.length;
+    }
+
+    if ((sub.current_cycle ?? 1) > 1) {
+      await supabase
+        .from('subscriptions')
+        .update({ current_cycle: 1, updated_at: new Date().toISOString() })
+        .eq('id', sub.id);
+      countersFixed++;
+    }
+  }
+
+  return { removed, countersFixed };
+}
+
 /** Repara ciclos ausentes ou presos em upcoming para assinaturas já ativas. */
 export async function backfillActiveSubscriptionCycles(
   supabase: SupabaseClient
-): Promise<{ created: number; updated: number; fixedCounters: number }> {
+): Promise<{
+  created: number;
+  updated: number;
+  fixedCounters: number;
+  removed: number;
+  countersFixed: number;
+}> {
+  const repair = await repairDuplicateSubscriptionCycles(supabase);
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('id, current_cycle')
@@ -149,5 +330,11 @@ export async function backfillActiveSubscriptionCycles(
     }
   }
 
-  return { created, updated, fixedCounters };
+  return {
+    created,
+    updated,
+    fixedCounters,
+    removed: repair.removed,
+    countersFixed: repair.countersFixed,
+  };
 }
