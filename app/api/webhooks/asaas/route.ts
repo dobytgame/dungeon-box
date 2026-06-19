@@ -13,6 +13,7 @@ export const runtime = 'nodejs';
 const PAYMENT_CONFIRM_EVENTS = new Set([
   'PAYMENT_CONFIRMED',
   'PAYMENT_RECEIVED',
+  'PAYMENT_AUTHORIZED',
 ]);
 
 const PAYMENT_OVERDUE_EVENTS = new Set(['PAYMENT_OVERDUE']);

@@ -18,7 +18,8 @@ type SubscriptionStatusRow = {
 };
 
 const POLL_MS = 2000;
-const MAX_ATTEMPTS = 30;
+const MAX_ATTEMPTS = 45;
+const TRANSIENT_ERROR_ATTEMPTS = 8;
 
 export default function CheckoutSuccessStatus() {
   const searchParams = useSearchParams();
@@ -62,6 +63,17 @@ export default function CheckoutSuccessStatus() {
           if (cancelled) return;
 
           if (!res.ok) {
+            if (attempts < TRANSIENT_ERROR_ATTEMPTS && res.status >= 500) {
+              await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+              continue;
+            }
+            if (
+              attempts < TRANSIENT_ERROR_ATTEMPTS &&
+              (res.status === 401 || res.status === 404)
+            ) {
+              await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+              continue;
+            }
             setState('failed');
             return;
           }
@@ -80,6 +92,13 @@ export default function CheckoutSuccessStatus() {
             return;
           }
         } catch {
+          if (
+            !cancelled &&
+            attempts < TRANSIENT_ERROR_ATTEMPTS
+          ) {
+            await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+            continue;
+          }
           if (!cancelled) setState('failed');
           return;
         }
@@ -202,14 +221,22 @@ export default function CheckoutSuccessStatus() {
             <p className="mt-4 text-sm leading-relaxed text-stone-400">
               {state === 'invalid'
                 ? 'Volte ao checkout e tente novamente.'
-                : 'O pagamento não foi aprovado ou foi cancelado. Você pode tentar de novo no checkout.'}
+                : 'O pagamento pode ter sido aprovado mesmo assim. Verifique sua conta antes de tentar de novo.'}
             </p>
-            <Link
-              href="/checkout"
-              className="mt-10 inline-flex cursor-pointer rounded-sm bg-ember px-8 py-3.5 font-display text-sm uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-            >
-              Voltar ao checkout
-            </Link>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/dashboard/subscription"
+                className="inline-flex cursor-pointer rounded-sm bg-ember px-8 py-3.5 font-display text-sm uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+              >
+                Ver minha assinatura
+              </Link>
+              <Link
+                href="/checkout"
+                className="inline-flex cursor-pointer rounded-sm border border-white/15 px-8 py-3.5 font-display text-sm uppercase tracking-widest text-stone-300 transition hover:text-white"
+              >
+                Voltar ao checkout
+              </Link>
+            </div>
           </>
         ) : null}
       </main>

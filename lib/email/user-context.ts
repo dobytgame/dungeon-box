@@ -83,57 +83,67 @@ export async function getSubscriptionEmailContext(
   supabase: SupabaseClient,
   subscriptionId: string,
 ): Promise<SubscriptionEmailContext | null> {
-  const { data } = await supabase
-    .from('subscriptions')
-    .select(
-      `
-      id,
-      user_id,
-      status,
-      current_cycle,
-      profiles (
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .select('id, user_id, status, current_cycle, plan_id')
+      .eq('id', subscriptionId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(
+        '[email] erro ao buscar assinatura:',
+        subscriptionId,
+        error.message
+      );
+      return null;
+    }
+
+    if (subscription) {
+      const [{ data: profile }, { data: plan }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('email, full_name, display_name')
+          .eq('id', subscription.user_id)
+          .maybeSingle(),
+        supabase
+          .from('plans')
+          .select('name')
+          .eq('id', subscription.plan_id)
+          .maybeSingle(),
+      ]);
+
+      const email = await resolveNotificationEmail(
+        supabase,
+        subscription.user_id,
+        profile?.email
+      );
+
+      if (!email || !plan?.name) {
+        console.warn('[email] contexto incompleto para assinatura:', subscriptionId, {
+          hasEmail: Boolean(email),
+          hasPlan: Boolean(plan?.name),
+          userId: subscription.user_id,
+        });
+        return null;
+      }
+
+      return {
+        subscriptionId: subscription.id,
+        userId: subscription.user_id,
         email,
-        full_name,
-        display_name
-      ),
-      plans (
-        name
-      )
-    `,
-    )
-    .eq('id', subscriptionId)
-    .maybeSingle();
+        name: greetingName(profile?.display_name ?? profile?.full_name),
+        planName: plan.name,
+        currentCycle: subscription.current_cycle ?? 1,
+        status: subscription.status,
+      };
+    }
 
-  if (!data) {
-    console.warn('[email] assinatura não encontrada:', subscriptionId);
-    return null;
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
   }
 
-  const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
-  const plan = Array.isArray(data.plans) ? data.plans[0] : data.plans;
-
-  const email = await resolveNotificationEmail(
-    supabase,
-    data.user_id,
-    profile?.email
-  );
-
-  if (!email || !plan?.name) {
-    console.warn('[email] contexto incompleto para assinatura:', subscriptionId, {
-      hasEmail: Boolean(email),
-      hasPlan: Boolean(plan?.name),
-      userId: data.user_id,
-    });
-    return null;
-  }
-
-  return {
-    subscriptionId: data.id,
-    userId: data.user_id,
-    email,
-    name: greetingName(profile?.display_name ?? profile?.full_name),
-    planName: plan.name,
-    currentCycle: data.current_cycle ?? 1,
-    status: data.status,
-  };
+  console.warn('[email] assinatura não encontrada:', subscriptionId);
+  return null;
 }

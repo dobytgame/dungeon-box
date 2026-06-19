@@ -361,7 +361,7 @@ export async function POST(request: Request) {
         promoRecorded = true;
       }
 
-      void syncAsaasSubscriptionPayments(result.asaasSubscriptionId).catch(
+      await syncAsaasSubscriptionPayments(result.asaasSubscriptionId).catch(
         (err) => {
           console.error('[asaas] post-create sync failed:', err);
         }

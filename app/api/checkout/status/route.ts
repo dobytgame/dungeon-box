@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/payment-sync';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const UUID_RE =
@@ -37,29 +38,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const { data: subscriptions, error } = await supabase
+  const { data: owned, error: ownedError } = await supabase
     .from('subscriptions')
-    .select(
-      `
-      id,
-      status,
-      asaas_subscription_id,
-      plan_id,
-      plans (
-        slug,
-        name,
-        price_cents
-      )
-    `
-    )
+    .select('id, status, asaas_subscription_id, plan_id')
     .eq('user_id', user.id)
     .in('id', ids);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (ownedError) {
+    return NextResponse.json({ error: ownedError.message }, { status: 500 });
   }
 
-  const found = subscriptions ?? [];
+  const found = owned ?? [];
   if (found.length !== ids.length) {
     return NextResponse.json(
       { error: 'Assinatura não encontrada.' },
@@ -76,20 +65,10 @@ export async function GET(request: Request) {
     }
   }
 
-  const { data: refreshed, error: refreshError } = await supabase
+  const admin = createAdminClient();
+  const { data: refreshed, error: refreshError } = await admin
     .from('subscriptions')
-    .select(
-      `
-      id,
-      status,
-      plan_id,
-      plans (
-        slug,
-        name,
-        price_cents
-      )
-    `
-    )
+    .select('id, status, plan_id, user_id')
     .eq('user_id', user.id)
     .in('id', ids);
 
@@ -98,6 +77,13 @@ export async function GET(request: Request) {
   }
 
   const rows = refreshed ?? [];
+  const planIds = Array.from(new Set(rows.map((row) => row.plan_id).filter(Boolean)));
+  const { data: planRows } = planIds.length
+    ? await admin.from('plans').select('id, slug, name, price_cents').in('id', planIds)
+    : { data: [] as Array<{ id: string; slug: string; name: string; price_cents: number }> };
+
+  const planById = new Map((planRows ?? []).map((plan) => [plan.id, plan]));
+
   const statuses = rows.map((row) => row.status);
   const allActive = statuses.every((status) => status === 'active');
   const anyPending = statuses.some((status) => status === 'pending');
@@ -117,7 +103,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     state,
     subscriptions: rows.map((row) => {
-      const plan = Array.isArray(row.plans) ? row.plans[0] : row.plans;
+      const plan = row.plan_id ? planById.get(row.plan_id) : undefined;
       return {
         id: row.id,
         status: row.status,
