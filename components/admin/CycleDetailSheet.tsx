@@ -9,7 +9,7 @@ import ProductionPipeline from '@/components/admin/ProductionPipeline';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
-import { formatDate, formatDateTime, formatMoney } from '@/lib/dashboard/format';
+import { formatDate, formatDateTime, formatMoney, formatPhone } from '@/lib/dashboard/format';
 
 interface Props {
   cycleId: string | null;
@@ -107,6 +107,110 @@ export default function CycleDetailSheet({
           <ProductionPipeline status={detail.status} />
 
           <section className="admin-panel rounded p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+              Pedido
+            </p>
+
+            <dl className="mt-4">
+              <DataRow
+                label="Plano"
+                value={
+                  detail.orderPlan ? (
+                    <span>
+                      {detail.orderPlan.name}
+                      <span className="block text-xs text-zinc-500">
+                        {formatMoney(detail.orderPlan.priceCents)}/mês
+                        {detail.orderPlan.piecesLabel
+                          ? ` · ${detail.orderPlan.piecesLabel}`
+                          : ''}
+                      </span>
+                    </span>
+                  ) : (
+                    detail.planName ?? '—'
+                  )
+                }
+              />
+              {detail.orderPromoCode ? (
+                <DataRow label="Cupom" value={detail.orderPromoCode} />
+              ) : null}
+              <DataRow
+                label="Frete mensal"
+                value={
+                  detail.orderShippingCents != null &&
+                  detail.orderShippingCents > 0
+                    ? `${formatMoney(detail.orderShippingCents)}/mês${
+                        detail.orderShippingRegion
+                          ? ` · ${detail.orderShippingRegion}`
+                          : ''
+                      }`
+                    : 'Grátis'
+                }
+              />
+              {detail.orderAddons.length > 0 ? (
+                <DataRow
+                  label="Adicionais"
+                  value={
+                    <ul className="space-y-2">
+                      {detail.orderAddons.map((addon) => (
+                        <li key={addon.id} className="text-sm text-zinc-300">
+                          <span className="text-zinc-100">{addon.name}</span>
+                          <span className="block text-xs text-zinc-500">
+                            {addon.priceLabel}
+                            {addon.billing === 'recurring'
+                              ? ' · recorrente todo mês'
+                              : ' · cobrança única na 1ª caixa'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                />
+              ) : (
+                <DataRow label="Adicionais" value="Nenhum" />
+              )}
+              {detail.orderMonthlyTotalCents != null ? (
+                <DataRow
+                  label="Total recorrente"
+                  value={`${formatMoney(detail.orderMonthlyTotalCents)}/mês`}
+                />
+              ) : null}
+              {detail.orderCustomerNotes ? (
+                <DataRow
+                  label="Observações do cliente"
+                  value={detail.orderCustomerNotes}
+                />
+              ) : null}
+            </dl>
+          </section>
+
+          {detail.orderAddress ? (
+            <section className="admin-panel rounded p-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                Endereço de entrega
+              </p>
+              <dl className="mt-4">
+                <DataRow label="Destinatário" value={detail.orderAddress.recipient} />
+                {detail.orderAddress.label ? (
+                  <DataRow label="Identificação" value={detail.orderAddress.label} />
+                ) : null}
+                <DataRow
+                  label="Logradouro"
+                  value={`${detail.orderAddress.street}, ${detail.orderAddress.number}`}
+                />
+                {detail.orderAddress.complement ? (
+                  <DataRow label="Complemento" value={detail.orderAddress.complement} />
+                ) : null}
+                <DataRow label="Bairro" value={detail.orderAddress.neighborhood} />
+                <DataRow
+                  label="Cidade / UF"
+                  value={`${detail.orderAddress.city}/${detail.orderAddress.state}`}
+                />
+                <DataRow label="CEP" value={detail.orderAddress.zipCode} mono />
+              </dl>
+            </section>
+          ) : null}
+
+          <section className="admin-panel rounded p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
@@ -136,7 +240,7 @@ export default function CycleDetailSheet({
                 }
               />
               <DataRow label="E-mail" value={detail.customerEmail} />
-              <DataRow label="Telefone" value={detail.customerPhone} />
+              <DataRow label="Telefone" value={formatPhone(detail.customerPhone)} />
               <DataRow
                 label="Assinatura"
                 value={
@@ -162,8 +266,8 @@ export default function CycleDetailSheet({
               <DataRow label="Motivo cancelamento" value={detail.cancel_reason} />
               <DataRow label="Notas de produção" value={detail.production_notes} />
               <DataRow label="Previsão entrega" value={formatDate(detail.estimated_delivery)} />
-              {detail.addressLine ? (
-                <DataRow label="Endereço" value={detail.addressLine} />
+              {detail.themeName ? (
+                <DataRow label="Tema do ciclo" value={detail.themeName} />
               ) : null}
             </dl>
           </section>
