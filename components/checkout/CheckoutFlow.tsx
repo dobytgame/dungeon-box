@@ -46,14 +46,21 @@ export default function CheckoutFlow({
   const planSlugsKey = planSlugs.join(',');
 
   useEffect(() => {
-    setData((prev) => ({
-      ...prev,
-      planSlugs,
-      discountedPlanCentsByPlan: undefined,
-      couponCode: null,
-      couponSummary: null,
-      shippingByPlan: undefined,
-    }));
+    setData((prev) => {
+      const prevKey = prev.planSlugs.join(',');
+      if (prevKey === planSlugsKey) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        planSlugs,
+        discountedPlanCentsByPlan: undefined,
+        couponCode: null,
+        couponSummary: null,
+        shippingByPlan: undefined,
+      };
+    });
   }, [planSlugsKey, planSlugs]);
 
   function handlePlanSlugsChange(nextSlugs: PlanSlug[]) {
@@ -98,7 +105,6 @@ export default function CheckoutFlow({
             setProfileState((current) =>
               current ? { ...current, ...updates } : current
             );
-            router.refresh();
           }}
           onBack={() => setStep(2)}
         />
