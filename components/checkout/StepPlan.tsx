@@ -80,6 +80,7 @@ export default function StepPlan({
               couponCode: result.code,
               couponSummary: result.summary,
               discountedPlanCentsByPlan: result.discountedPlanCentsByPlan,
+              shippingByPlan: undefined,
             }));
           }}
           onRemove={() => {
@@ -89,6 +90,7 @@ export default function StepPlan({
               couponCode: null,
               couponSummary: null,
               discountedPlanCentsByPlan: undefined,
+              shippingByPlan: undefined,
             }));
           }}
           onError={setCouponError}

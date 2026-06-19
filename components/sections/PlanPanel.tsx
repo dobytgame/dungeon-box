@@ -188,6 +188,7 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
                 variant={theme.ctaVariant}
                 size="lg"
                 href={checkoutHref(plan.id)}
+                trackingLocation={`planos_${plan.id}`}
                 className="w-full sm:w-auto sm:shrink-0"
               />
             </div>
@@ -285,6 +286,7 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
                 variant={theme.ctaVariant}
                 size="lg"
                 href={checkoutHref(plan.id)}
+                trackingLocation={`planos_${plan.id}_mobile`}
                 className="w-full"
               />
             </div>

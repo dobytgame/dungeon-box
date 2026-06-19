@@ -4,6 +4,7 @@ import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
+import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import {
   formatDate,
@@ -75,7 +76,7 @@ function SubscriptionDetailCard({
           ) : null}
           {(subscription.shipping_cents ?? 0) > 0 ? (
             <DataRow
-              label="Frete (1ª caixa)"
+              label="Frete mensal"
               value={formatMoney(subscription.shipping_cents ?? 0)}
             />
           ) : null}
@@ -138,6 +139,11 @@ function SubscriptionDetailCard({
       </DashboardCard>
 
       <DashboardCard title="Gerenciar assinatura" accent="none">
+        {!isPending ? (
+          <div className="mb-6">
+            <SubscriptionUpgrade subscription={subscription} />
+          </div>
+        ) : null}
         <SubscriptionActions subscription={subscription} />
       </DashboardCard>
 

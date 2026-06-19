@@ -106,7 +106,7 @@ export const launchFaqItems = [
   },
   {
     q: 'Quais formas de pagamento são aceitas?',
-    a: 'Cartão de crédito com cobrança recorrente automática todo mês, e Pix para o valor à vista do mês corrente.',
+    a: 'Cartão de crédito com cobrança recorrente automática todo mês.',
   },
   {
     q: 'As peças vêm pintadas?',

@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import { buildSpecialNotes } from '@/lib/checkout/special-notes';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { isStripeCheckout } from '@/lib/payments/provider';
 import { STRIPE_CONFIGURED } from '@/lib/stripe/server';
 import { userFacingStripeError } from '@/lib/stripe/errors';
 import { prepareStripeSubscription } from '@/lib/stripe/subscription-checkout';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
-import { ShippingQuoteError } from '@/lib/shipping/quote';
+import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
 
@@ -20,16 +21,11 @@ const bodySchema = z.object({
   paintKitBump: z.enum(['amador', 'profissional']).nullable().optional(),
   paintKitBumpRecurring: z.boolean().optional().default(false),
   promotionCode: z.string().max(64).optional().nullable(),
+  couponCode: z.string().max(64).optional().nullable(),
 });
 
-function buildOneTimeDescription(
-  shippingLabel: string,
-  bumpName: string | null
-): string {
-  if (bumpName) {
-    return `DungeonBox — ${shippingLabel} + ${bumpName} (1ª caixa)`;
-  }
-  return `DungeonBox — ${shippingLabel} (1ª caixa)`;
+function buildOneTimeDescription(bumpName: string): string {
+  return `DungeonBox — ${bumpName} (1ª caixa)`;
 }
 
 export async function POST(request: Request) {
@@ -140,11 +136,18 @@ export async function POST(request: Request) {
 
   let shippingQuote;
   try {
+    const promoSupabase = body.couponCode?.trim()
+      ? createAdminClient()
+      : undefined;
     shippingQuote = await resolveShippingForCheckout(
       supabase,
       user.id,
       body.planSlug,
-      body.addressId
+      body.addressId,
+      {
+        couponCode: body.couponCode,
+        promoSupabase,
+      }
     );
   } catch (error) {
     if (error instanceof ShippingQuoteError) {
@@ -156,7 +159,8 @@ export async function POST(request: Request) {
   const bump = getPaintKitBump(body.paintKitBump ?? null);
   const bumpRecurring = Boolean(body.paintKitBumpRecurring && bump);
   const bumpOneTimeCents = bump && !bumpRecurring ? bump.priceCents : 0;
-  const oneTimeCents = shippingQuote.cents + bumpOneTimeCents;
+  const freightMonthlyCents = shippingMonthlyCents(shippingQuote);
+  const oneTimeCents = bumpOneTimeCents;
 
   const specialNotes = buildSpecialNotes(
     body.paintKitBump ?? null,
@@ -180,16 +184,18 @@ export async function POST(request: Request) {
       },
       retrySubscriptionId,
       promotionCode: body.promotionCode?.trim() || null,
-      shippingCents: shippingQuote.cents,
+      shippingCents: freightMonthlyCents,
       shippingRegion: shippingQuote.region,
       oneTimeCents,
-      oneTimeDescription: buildOneTimeDescription(
-        shippingQuote.label,
-        bump && !bumpRecurring ? bump.name : null
-      ),
+      oneTimeDescription:
+        bump && !bumpRecurring ? buildOneTimeDescription(bump.name) : null,
       recurringBump:
         bumpRecurring && bump
           ? { name: bump.name, priceCents: bump.priceCents }
+          : null,
+      recurringShipping:
+        freightMonthlyCents > 0
+          ? { label: shippingQuote.label, priceCents: freightMonthlyCents }
           : null,
     });
 

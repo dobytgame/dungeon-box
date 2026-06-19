@@ -128,7 +128,9 @@ export async function getAllSubscriptions(userId: string): Promise<Subscription[
   const supabase = createClient();
   const { data } = await supabase
     .from('subscriptions')
-    .select(`*, plans(*), addresses(*)`)
+    .select(
+      `*, plans!plan_id(*), addresses(*), pending_plan:plans!pending_plan_id(*)`
+    )
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -141,7 +143,9 @@ export async function getAllSubscriptions(userId: string): Promise<Subscription[
     await reconcilePendingAsaasSubscription(pendingAsaas);
     const { data: refreshed } = await supabase
       .from('subscriptions')
-      .select(`*, plans(*), addresses(*)`)
+      .select(
+        `*, plans!plan_id(*), addresses(*), pending_plan:plans!pending_plan_id(*)`
+      )
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return refreshed ?? subscriptions;

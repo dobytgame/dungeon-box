@@ -15,7 +15,7 @@ import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
 import { createAsaasSubscription } from '@/lib/asaas/subscription-checkout';
 import { isAsaasCheckout } from '@/lib/payments/provider';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
-import { ShippingQuoteError } from '@/lib/shipping/quote';
+import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
@@ -74,14 +74,8 @@ function normalizeExpiryYear(raw: string): string {
   throw new Error('Ano de validade inválido.');
 }
 
-function buildOneTimeDescription(
-  shippingLabel: string,
-  bumpName: string | null
-): string {
-  if (bumpName) {
-    return `DungeonBox — ${shippingLabel} + ${bumpName} (1ª caixa)`;
-  }
-  return `DungeonBox — ${shippingLabel} (1ª caixa)`;
+function buildOneTimeDescription(bumpName: string): string {
+  return `DungeonBox — ${bumpName} (1ª caixa)`;
 }
 
 export async function POST(request: Request) {
@@ -262,11 +256,18 @@ export async function POST(request: Request) {
 
       let shippingQuote;
       try {
+        const promoSupabase = body.couponCode?.trim()
+          ? createAdminClient()
+          : undefined;
         shippingQuote = await resolveShippingForCheckout(
           supabase,
           user.id,
           planSlug,
-          body.addressId
+          body.addressId,
+          {
+            couponCode: body.couponCode,
+            promoSupabase,
+          }
         );
       } catch (error) {
         if (error instanceof ShippingQuoteError) {
@@ -280,7 +281,8 @@ export async function POST(request: Request) {
         includeBump && !bumpRecurring ? bump.priceCents : 0;
       const bumpMonthlyCents =
         includeBump && bumpRecurring ? bump.priceCents : 0;
-      const oneTimeCents = shippingQuote.cents + bumpOneTimeCents;
+      const freightMonthlyCents = shippingMonthlyCents(shippingQuote);
+      const oneTimeCents = bumpOneTimeCents;
 
       let chargePriceCents = plan.price_cents;
       let resolvedCoupon: Awaited<ReturnType<typeof resolvePromoCode>> | null =
@@ -309,7 +311,7 @@ export async function POST(request: Request) {
         }
       }
 
-      chargePriceCents += bumpMonthlyCents;
+      chargePriceCents += bumpMonthlyCents + freightMonthlyCents;
 
       const planDescription =
         bumpMonthlyCents > 0 && bump
@@ -338,13 +340,13 @@ export async function POST(request: Request) {
         creditCard,
         creditCardHolderInfo,
         retrySubscriptionId,
-        shippingCents: shippingQuote.cents,
+        shippingCents: freightMonthlyCents,
         shippingRegion: shippingQuote.region,
         oneTimeCents,
-        oneTimeDescription: buildOneTimeDescription(
-          shippingQuote.label,
-          includeBump && !bumpRecurring ? bump.name : null
-        ),
+        oneTimeDescription:
+          includeBump && !bumpRecurring && bump
+            ? buildOneTimeDescription(bump.name)
+            : null,
       });
 
       if (resolvedCoupon && !promoRecorded) {

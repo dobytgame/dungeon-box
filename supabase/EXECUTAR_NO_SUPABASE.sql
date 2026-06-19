@@ -55,8 +55,8 @@ INSERT INTO plans (
   freight_free, freight_regions, store_discount, has_vip_group, has_vote, accent_color, sort_order
 ) VALUES
   ('aventureiro', 'Aventureiro', 8900,  10, 12, 1, false, NULL,                    0,  false, false, '#a0aabb', 1),
-  ('heroi',       'Herói',       13900, 18, 22, 2, true,  ARRAY['sul','sudeste'], 5,  true,  false, '#ff6b2b', 2),
-  ('lendario',    'Lendário',    19900, 28, 35, 99, true,  ARRAY['all'],          10, true,  true,  '#00d4ff', 3)
+  ('heroi',       'Herói',       13900, 18, 22, 2, false, NULL,                    5,  true,  false, '#ff6b2b', 2),
+  ('lendario',    'Lendário',    19900, 28, 35, 99, false, NULL,                   10, true,  true,  '#00d4ff', 3)
 ON CONFLICT (slug) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS loyalty_levels (

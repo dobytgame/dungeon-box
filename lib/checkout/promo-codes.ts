@@ -4,8 +4,9 @@ import type { PlanSlug } from '@/lib/checkout/plans';
 export type PromoCodeRow = {
   id: string;
   code: string;
-  discount_type: 'percent' | 'fixed';
+  discount_type: 'percent' | 'fixed' | 'free_shipping';
   discount_value: number;
+  includes_free_shipping: boolean;
   max_redemptions: number | null;
   times_redeemed: number;
   expires_at: string | null;
@@ -18,6 +19,7 @@ export type ResolvedPromoCode = {
   summary: string;
   originalPriceCents: number;
   discountedPriceCents: number;
+  freeShipping: boolean;
 };
 
 const MIN_CHARGE_CENTS = 100;
@@ -26,22 +28,43 @@ export function normalizePromoCode(raw: string): string {
   return raw.trim().toUpperCase();
 }
 
+export function promoGrantsFreeShipping(
+  promo: Pick<PromoCodeRow, 'discount_type' | 'includes_free_shipping'>
+): boolean {
+  return promo.discount_type === 'free_shipping' || promo.includes_free_shipping;
+}
+
 export function formatPromoSummary(promo: PromoCodeRow): string {
-  if (promo.discount_type === 'percent') {
-    return `${promo.discount_value}% de desconto`;
+  if (promo.discount_type === 'free_shipping') {
+    return 'Frete grátis';
   }
 
-  const amount = (promo.discount_value / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
-  return `${amount} de desconto`;
+  let summary: string;
+  if (promo.discount_type === 'percent') {
+    summary = `${promo.discount_value}% de desconto`;
+  } else {
+    const amount = (promo.discount_value / 100).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    });
+    summary = `${amount} de desconto`;
+  }
+
+  if (promo.includes_free_shipping) {
+    return `${summary} + frete grátis`;
+  }
+
+  return summary;
 }
 
 export function applyPromoDiscount(
   priceCents: number,
   promo: Pick<PromoCodeRow, 'discount_type' | 'discount_value'>
 ): number {
+  if (promo.discount_type === 'free_shipping') {
+    return priceCents;
+  }
+
   let discounted =
     promo.discount_type === 'percent'
       ? Math.round(priceCents * (1 - promo.discount_value / 100))
@@ -80,7 +103,7 @@ export async function resolvePromoCode(
   const { data: promo, error } = await supabase
     .from('promo_codes')
     .select(
-      'id, code, discount_type, discount_value, max_redemptions, times_redeemed, expires_at, active, plan_slugs'
+      'id, code, discount_type, discount_value, includes_free_shipping, max_redemptions, times_redeemed, expires_at, active, plan_slugs'
     )
     .eq('code', code)
     .maybeSingle();
@@ -115,13 +138,19 @@ export async function resolvePromoCode(
     throw new Error('Você já utilizou este cupom.');
   }
 
+  const normalizedPromo: PromoCodeRow = {
+    ...(promo as PromoCodeRow),
+    includes_free_shipping: promo.includes_free_shipping ?? false,
+  };
+
   const discountedPriceCents = applyPromoDiscount(originalPriceCents, promo);
 
   return {
-    promo: promo as PromoCodeRow,
-    summary: formatPromoSummary(promo as PromoCodeRow),
+    promo: normalizedPromo,
+    summary: formatPromoSummary(normalizedPromo),
     originalPriceCents,
     discountedPriceCents,
+    freeShipping: promoGrantsFreeShipping(normalizedPromo),
   };
 }
 

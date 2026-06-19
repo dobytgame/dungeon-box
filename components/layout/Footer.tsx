@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { Instagram, MessageCircle } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import CTAButton from '@/components/ui/CTAButton';
 import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
+import { COMPANY } from '@/lib/legal/constants';
 
 const exploreLinks = [
   { href: '#planos', label: 'Planos' },
@@ -46,6 +48,7 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
                 label={isLoggedIn ? 'Minha conta' : 'Assinar agora'}
                 size="sm"
                 href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+                trackingLocation="footer"
                 className="w-full sm:w-auto"
               />
             </div>
@@ -116,6 +119,7 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
               label={isLoggedIn ? 'Minha conta' : 'Assinar'}
               size="sm"
               href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+              trackingLocation="footer_cta"
               className="w-full sm:w-auto lg:min-w-[9rem]"
             />
             <p className="text-xs leading-relaxed text-stone-600 lg:text-right">
@@ -124,19 +128,61 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-white/[0.06] pt-8 md:flex-row md:items-center md:justify-between">
-          <p className="text-xs text-stone-600">
-            © {year} DungeonBox. Todos os direitos reservados.
-          </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
-            <Link href="/privacidade" className="cursor-pointer hover:text-stone-400">
-              Privacidade
-            </Link>
-            <Link href="/termos" className="cursor-pointer hover:text-stone-400">
-              Termos
-            </Link>
-            <CookiePreferencesLink className="cursor-pointer text-xs text-stone-600 transition-colors hover:text-stone-400" />
-            <span>Feito para mesas de RPG em todo o Brasil.</span>
+        <div className="mt-12 space-y-6 border-t border-white/[0.06] pt-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="grid gap-4 text-xs leading-relaxed text-stone-500 sm:grid-cols-2 sm:gap-8">
+              <p>
+                <span className="font-display uppercase tracking-widest text-stone-600">
+                  CNPJ
+                </span>
+                <br />
+                {COMPANY.cnpj}
+              </p>
+              <p>
+                <span className="font-display uppercase tracking-widest text-stone-600">
+                  Endereço
+                </span>
+                <br />
+                {COMPANY.address}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-3 sm:ml-auto">
+              <a
+                href={COMPANY.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`WhatsApp ${COMPANY.whatsappDisplay}`}
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-400 transition-colors hover:border-ember/40 hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+              >
+                <MessageCircle className="h-5 w-5" aria-hidden="true" />
+              </a>
+              <a
+                href={COMPANY.instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Instagram ${COMPANY.instagramHandle}`}
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-400 transition-colors hover:border-ember/40 hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+              >
+                <Instagram className="h-5 w-5" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs text-stone-600">
+              © {year} DungeonBox. Todos os direitos reservados.
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
+              <Link href="/privacidade" className="cursor-pointer hover:text-stone-400">
+                Privacidade
+              </Link>
+              <Link href="/termos" className="cursor-pointer hover:text-stone-400">
+                Termos
+              </Link>
+              <CookiePreferencesLink className="cursor-pointer text-xs text-stone-600 transition-colors hover:text-stone-400" />
+              <span>Feito para mesas de RPG em todo o Brasil.</span>
+            </div>
           </div>
         </div>
       </div>

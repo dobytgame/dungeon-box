@@ -10,9 +10,24 @@ export function shouldLoadGtm(consent: CookieConsentState | null): boolean {
 export function pushGtmConsentUpdate(consent: CookieConsentState): void {
   if (typeof window === 'undefined') return;
   window.dataLayer = window.dataLayer ?? [];
+
+  const analytics = consent.analytics ? 'granted' : 'denied';
+  const marketing = consent.marketing ? 'granted' : 'denied';
+
+  window.dataLayer.push({
+    event: 'consent_update',
+    analytics_storage: analytics,
+    ad_storage: marketing,
+    ad_user_data: marketing,
+    ad_personalization: marketing,
+    functionality_storage: consent.functional ? 'granted' : 'denied',
+    personalization_storage: consent.functional ? 'granted' : 'denied',
+    security_storage: 'granted',
+  });
+
   window.dataLayer.push({
     event: 'dungeonbox_consent_update',
-    analytics_consent: consent.analytics ? 'granted' : 'denied',
-    marketing_consent: consent.marketing ? 'granted' : 'denied',
+    analytics_consent: analytics,
+    marketing_consent: marketing,
   });
 }

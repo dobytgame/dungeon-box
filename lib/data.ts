@@ -56,7 +56,7 @@ export const plans = [
     specs: [
       'Tudo do Aventureiro',
       '+ 20 tiles extras',
-      '+ 10 itens de decoração',
+      '+ itens de decoração',
     ],
     builds: 'Monta: 3–4 salas + rede de corredores',
     table: 'Mesa: 50×60cm',
@@ -66,7 +66,7 @@ export const plans = [
     deliveryItems: [
       'Tudo do plano Aventureiro',
       '+ 20 tiles extras',
-      '+ 10 itens de decoração (barris, baús, tochas)',
+      '+ itens de decoração (barris, baús, tochas)',
       'Bilhete do mestre + mapa expandido',
     ],
     perks: [
@@ -154,7 +154,7 @@ export const faqItems = [
   },
   {
     q: 'Quais formas de pagamento são aceitas?',
-    a: 'Cartão de crédito com cobrança recorrente automática todo mês, e Pix para o valor à vista do mês corrente.',
+    a: 'Cartão de crédito com cobrança recorrente automática todo mês.',
   },
   {
     q: 'As peças vêm pintadas?',

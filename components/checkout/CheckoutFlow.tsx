@@ -30,6 +30,7 @@ export default function CheckoutFlow({
     addresses.find((a) => a.is_default) ?? addresses[0] ?? null;
 
   const [step, setStep] = useState(1);
+  const [profileState, setProfileState] = useState(profile);
   const [data, setData] = useState<CheckoutData>({
     planSlugs,
     paintKitBump: null,
@@ -37,6 +38,10 @@ export default function CheckoutFlow({
     addressId: defaultAddress?.id ?? '',
     specialNotes: '',
   });
+
+  useEffect(() => {
+    setProfileState(profile);
+  }, [profile]);
 
   const planSlugsKey = planSlugs.join(',');
 
@@ -87,8 +92,14 @@ export default function CheckoutFlow({
         <StepPayment
           data={data}
           setData={setData}
-          profile={profile}
+          profile={profileState}
           userEmail={userEmail}
+          onProfileSaved={(updates) => {
+            setProfileState((current) =>
+              current ? { ...current, ...updates } : current
+            );
+            router.refresh();
+          }}
           onBack={() => setStep(2)}
         />
       ) : null}

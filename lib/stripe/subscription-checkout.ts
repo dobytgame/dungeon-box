@@ -26,6 +26,7 @@ export type PrepareStripeSubscriptionInput = {
   oneTimeCents: number;
   oneTimeDescription: string | null;
   recurringBump?: { name: string; priceCents: number } | null;
+  recurringShipping?: { label: string; priceCents: number } | null;
 };
 
 export type PrepareStripeSubscriptionResult = {
@@ -102,6 +103,19 @@ export async function prepareStripeSubscription(
       recurring: { interval: 'month' },
     });
     subscriptionItems.push({ price: bumpPrice.id });
+  }
+
+  if (input.recurringShipping) {
+    const product = await stripe.products.create({
+      name: input.recurringShipping.label,
+    });
+    const shippingPrice = await stripe.prices.create({
+      product: product.id,
+      currency: 'brl',
+      unit_amount: input.recurringShipping.priceCents,
+      recurring: { interval: 'month' },
+    });
+    subscriptionItems.push({ price: shippingPrice.id });
   }
 
   const stripeSubscription = await stripe.subscriptions.create({

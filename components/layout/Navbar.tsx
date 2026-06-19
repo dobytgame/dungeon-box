@@ -91,6 +91,7 @@ export default function Navbar({ isLoggedIn = false, userName }: NavbarProps) {
               label={isLoggedIn ? 'Conta' : 'Assinar'}
               size="sm"
               href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+              trackingLocation="navbar"
               className="hidden sm:inline-flex"
             />
             <MobileNavToggle open={menuOpen} onOpenChange={setMenuOpen} />

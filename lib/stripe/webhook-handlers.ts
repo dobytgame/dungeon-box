@@ -4,7 +4,7 @@ import { getStripe } from '@/lib/stripe/server';
 import { getInvoiceSubscriptionId } from '@/lib/stripe/invoice-subscription';
 import { getSubscriptionPeriodEnd } from '@/lib/stripe/subscription-period';
 import { activateSubscriptionFromStripe } from '@/lib/subscriptions/activate-stripe';
-import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
+import { ensureSubscriptionCycle, markCyclePreparing, resolvePaidCycleNumber } from '@/lib/subscriptions/cycles';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
 import {
@@ -133,6 +133,13 @@ export async function handleStripeInvoicePaid(
 
   if (local.status === 'pending') {
     await activateSubscriptionFromStripe(supabase, local.id, stripeSub);
+    if (payment) {
+      await markCyclePreparing(supabase, local.id, 1, {
+        id: payment.id,
+        amount_cents: payment.amount_cents,
+        paid_at: now,
+      });
+    }
     void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
       (err) => {
         console.error('[email] purchase completed notify failed:', err);
@@ -141,7 +148,7 @@ export async function handleStripeInvoicePaid(
     return 'processed';
   }
 
-  const paidCycleNumber = local.current_cycle ?? 1;
+  const paidCycleNumber = resolvePaidCycleNumber(local.current_cycle);
 
   await supabase
     .from('subscription_cycles')

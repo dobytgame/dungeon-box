@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
 import { ShippingQuoteError } from '@/lib/shipping/quote';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const bodySchema = z.object({
   planSlugs: z.array(z.enum(PLAN_SLUGS)).min(1).max(3),
   addressId: z.string().uuid(),
+  couponCode: z.string().max(64).optional().nullable(),
 });
 
 export async function POST(request: Request) {
@@ -31,13 +33,19 @@ export async function POST(request: Request) {
   const quotes: Partial<Record<PlanSlug, Awaited<ReturnType<typeof resolveShippingForCheckout>>>> =
     {};
 
+  const promoSupabase = body.couponCode?.trim() ? createAdminClient() : undefined;
+
   try {
     for (const planSlug of body.planSlugs) {
       quotes[planSlug] = await resolveShippingForCheckout(
         supabase,
         user.id,
         planSlug,
-        body.addressId
+        body.addressId,
+        {
+          couponCode: body.couponCode,
+          promoSupabase,
+        }
       );
     }
 

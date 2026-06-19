@@ -21,6 +21,11 @@ module.exports = {
           bright: '#ffe566',
         },
         silver: '#a0aabb',
+        console: {
+          DEFAULT: '#2dd4bf',
+          muted: '#14b8a6',
+          dim: '#0f766e',
+        },
       },
       fontFamily: {
         display: ['var(--font-display)', 'sans-serif'],

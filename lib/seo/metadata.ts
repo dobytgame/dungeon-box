@@ -82,7 +82,7 @@ export const homePageMetadata: Metadata = {
       'Assinatura de Cenários 3D para RPG | DungeonBox — D&D, Tormenta, Pathfinder',
   },
   description:
-    'Assinatura mensal de cenários 3D modulares para RPG no Brasil. Sistema OpenLOCK, escala 28mm. Tiles, paredes e props na sua porta todo mês. Entre na lista de fundadores.',
+    'Assinatura mensal de cenários 3D modulares para RPG no Brasil. Sistema OpenLOCK, escala 28mm. Tiles, paredes e props na sua porta todo mês.',
   keywords: [...SEO_KEYWORDS],
   alternates: {
     canonical: getCanonicalSiteUrl(),
@@ -91,13 +91,13 @@ export const homePageMetadata: Metadata = {
   openGraph: buildOpenGraph({
     title: 'DungeonBox — Cenários 3D Modulares para RPG Todo Mês',
     description:
-      'A primeira assinatura mensal de cenários 3D modulares do Brasil. OpenLOCK, 28mm, compatível com D&D, Tormenta e Pathfinder. Vagas de fundador abertas.',
+      'A primeira assinatura mensal de cenários 3D modulares do Brasil. OpenLOCK, 28mm, compatível com D&D, Tormenta e Pathfinder.',
     path: '/',
   }),
   twitter: buildTwitterCard({
     title: 'DungeonBox — Cenários 3D para RPG na sua porta',
     description:
-      'Assinatura mensal de dungeon tiles modulares. Sua dungeon cresce a cada caixa. Entre antes do lançamento.',
+      'Assinatura mensal de dungeon tiles modulares. Sua dungeon cresce a cada caixa.',
   }),
   category: 'games',
 };
@@ -108,30 +108,3 @@ export function privatePageMetadata(title: string): Metadata {
     robots: buildRobots(false),
   };
 }
-
-/** LP de vendas oficial — rota de validação (não indexar). */
-export const salesPageMetadata: Metadata = {
-  title: {
-    absolute:
-      'Assinatura de Cenários 3D para RPG | DungeonBox — D&D, Tormenta, Pathfinder',
-  },
-  description:
-    'Assinatura mensal de cenários 3D modulares para RPG no Brasil. Sistema OpenLOCK, escala 28mm. Tiles, paredes e props na sua porta todo mês.',
-  keywords: [...SEO_KEYWORDS],
-  alternates: {
-    canonical: absoluteUrl('/lp2'),
-  },
-  robots: buildRobots(false),
-  openGraph: buildOpenGraph({
-    title: 'DungeonBox — Cenários 3D Modulares para RPG Todo Mês',
-    description:
-      'A primeira assinatura mensal de cenários 3D modulares do Brasil. OpenLOCK, 28mm, compatível com D&D, Tormenta e Pathfinder.',
-    path: '/lp2',
-  }),
-  twitter: buildTwitterCard({
-    title: 'DungeonBox — Cenários 3D para RPG na sua porta',
-    description:
-      'Assinatura mensal de dungeon tiles modulares. Sua dungeon cresce a cada caixa.',
-  }),
-  category: 'games',
-};

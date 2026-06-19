@@ -1,16 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
-import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import {
-  MP_CONFIGURED,
-  updateMpPreapprovalStatus,
-  type MpPreapprovalStatus,
-} from '@/lib/mercadopago';
-import { getStripe, STRIPE_CONFIGURED } from '@/lib/stripe/server';
-import { createClient } from '@/lib/supabase/server';
+import type { PlanSlug } from '@/lib/checkout/plans';
 import { requireDashboardUser } from '@/lib/dashboard/queries';
+import { applySubscriptionStatusChange } from '@/lib/subscriptions/apply-status-change';
+import {
+  cancelPendingSubscriptionUpgrade,
+  scheduleSubscriptionUpgrade,
+} from '@/lib/subscriptions/upgrade';
+import { createClient } from '@/lib/supabase/server';
 
 function revalidateDashboard() {
   revalidatePath('/dashboard', 'layout');
@@ -116,103 +114,44 @@ export async function updateSubscriptionStatus(formData: FormData) {
 
   if (!id || !action) return { error: 'Dados inválidos' };
 
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('mp_subscription_id, stripe_subscription_id, asaas_subscription_id, status')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const result = await applySubscriptionStatusChange(supabase, id, action, {
+    reason,
+    userId: user.id,
+  });
 
-  if (!subscription) return { error: 'Assinatura não encontrada' };
-
-  const updates: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  let mpStatus: MpPreapprovalStatus | null = null;
-
-  if (action === 'pause') {
-    updates.status = 'paused';
-    mpStatus = 'paused';
-  } else if (action === 'resume') {
-    updates.status = 'active';
-    updates.cancelled_at = null;
-    updates.cancel_reason = null;
-    mpStatus = 'authorized';
-  } else if (action === 'cancel') {
-    updates.status = 'cancelled';
-    updates.cancelled_at = new Date().toISOString();
-    updates.cancel_reason =
-      reason ||
-      (subscription.status === 'pending'
-        ? 'Tentativa de checkout abandonada'
-        : null);
-    mpStatus = 'cancelled';
-  }
-
-  if (
-    subscription.asaas_subscription_id &&
-    ASAAS_CONFIGURED &&
-    action === 'cancel'
-  ) {
-    try {
-      await cancelAsaasSubscriptionBestEffort(
-        subscription.asaas_subscription_id
-      );
-    } catch (error) {
-      console.error('Asaas subscription cancel:', error);
-      return {
-        error:
-          'Não foi possível cancelar a assinatura no Asaas. Tente novamente.',
-      };
-    }
-  } else if (
-    subscription.stripe_subscription_id &&
-    STRIPE_CONFIGURED &&
-    (action === 'pause' || action === 'resume' || action === 'cancel')
-  ) {
-    try {
-      const stripe = getStripe();
-      if (action === 'cancel') {
-        await stripe.subscriptions.cancel(subscription.stripe_subscription_id);
-      } else if (action === 'pause') {
-        await stripe.subscriptions.update(subscription.stripe_subscription_id, {
-          pause_collection: { behavior: 'void' },
-        });
-      } else {
-        await stripe.subscriptions.update(subscription.stripe_subscription_id, {
-          pause_collection: null,
-        });
-      }
-    } catch (error) {
-      console.error('Stripe subscription update:', error);
-      return {
-        error:
-          'Não foi possível atualizar a assinatura no Stripe. Tente novamente.',
-      };
-    }
-  } else if (mpStatus && subscription.mp_subscription_id && MP_CONFIGURED) {
-    try {
-      await updateMpPreapprovalStatus(
-        subscription.mp_subscription_id,
-        mpStatus
-      );
-    } catch (error) {
-      console.error('MP preapproval update:', error);
-      return {
-        error:
-          'Não foi possível atualizar a assinatura no Mercado Pago. Tente novamente.',
-      };
-    }
-  }
-
-  const { error } = await supabase
-    .from('subscriptions')
-    .update(updates)
-    .eq('id', id)
-    .eq('user_id', user.id);
-
-  if (error) return { error: error.message };
+  if (result.error) return result;
   revalidateDashboard();
-  return { success: true };
+  return { success: true as const };
+}
+
+export async function scheduleSubscriptionUpgradeAction(
+  subscriptionId: string,
+  targetPlanSlug: PlanSlug
+) {
+  const { supabase, user } = await requireDashboardUser();
+
+  const result = await scheduleSubscriptionUpgrade(
+    supabase,
+    user.id,
+    subscriptionId,
+    targetPlanSlug
+  );
+
+  if ('error' in result) return result;
+  revalidateDashboard();
+  return { success: true as const };
+}
+
+export async function cancelPendingUpgradeAction(subscriptionId: string) {
+  const { supabase, user } = await requireDashboardUser();
+
+  const result = await cancelPendingSubscriptionUpgrade(
+    supabase,
+    user.id,
+    subscriptionId
+  );
+
+  if ('error' in result) return result;
+  revalidateDashboard();
+  return { success: true as const };
 }

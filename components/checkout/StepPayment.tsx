@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   useCallback,
@@ -10,9 +9,8 @@ import {
   type SetStateAction,
 } from 'react';
 import { CreditCard, Lock, Loader2, ShieldCheck, Tag } from 'lucide-react';
-import { checkoutHref } from '@/lib/checkout/plans';
 import type { CheckoutData } from '@/lib/checkout/types';
-import { sumMonthlyCents } from '@/lib/checkout/totals';
+import { sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import type { Profile } from '@/lib/dashboard/types';
 import {
   ASAAS_CHECKOUT_READY,
@@ -21,6 +19,7 @@ import {
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from './AsaasPaymentForm';
+import CheckoutProfileForm from './CheckoutProfileForm';
 import CheckoutSection from './CheckoutSection';
 import StripeCheckoutProvider from './StripeCheckoutProvider';
 import StripePaymentForm from './StripePaymentForm';
@@ -30,12 +29,16 @@ interface Props {
   setData: Dispatch<SetStateAction<CheckoutData>>;
   profile: Profile | null;
   userEmail: string;
+  onProfileSaved: (
+    updates: Pick<Profile, 'full_name' | 'phone' | 'cpf'>
+  ) => void;
   onBack: () => void;
 }
 
 export default function StepPayment({
   data,
   profile,
+  onProfileSaved,
   onBack,
 }: Props) {
   const router = useRouter();
@@ -47,12 +50,14 @@ export default function StepPayment({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(ASAAS_CHECKOUT_READY ? false : true);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [checkoutSubscriptionId, setCheckoutSubscriptionId] = useState<
+    string | null
+  >(null);
 
   const promotionCode = data.couponCode ?? null;
-  const monthlyTotalCents = sumMonthlyCents(data);
+  const monthlyTotalCents = sumRecurringCheckoutCents(data);
   const stripeSinglePlanOnly = data.planSlugs.length > 1;
 
-  const profileNext = encodeURIComponent(checkoutHref(data.planSlugs));
   const stripeReady =
     STRIPE_CHECKOUT_ACTIVE &&
     cpfReady &&
@@ -64,6 +69,7 @@ export default function StepPayment({
     phoneReady &&
     Boolean(data.addressId);
   const paymentConfigured = ASAAS_CHECKOUT_READY || STRIPE_CHECKOUT_ACTIVE;
+  const profileIncomplete = !cpfReady || (ASAAS_CHECKOUT_READY && !phoneReady);
 
   const prepareCheckout = useCallback(
     async (promoCode: string | null, cancelled: () => boolean) => {
@@ -82,6 +88,7 @@ export default function StepPayment({
             paintKitBump: data.paintKitBump,
             paintKitBumpRecurring: data.paintKitBumpRecurring,
             promotionCode: promoCode,
+            couponCode: data.couponCode ?? null,
           }),
         });
 
@@ -104,6 +111,13 @@ export default function StepPayment({
 
         if (!payload.clientSecret || typeof payload.clientSecret !== 'string') {
           throw new Error('Resposta inválida do servidor de pagamento.');
+        }
+
+        if (
+          typeof payload.subscriptionId === 'string' &&
+          payload.subscriptionId
+        ) {
+          setCheckoutSubscriptionId(payload.subscriptionId);
         }
 
         setClientSecret(payload.clientSecret);
@@ -139,10 +153,21 @@ export default function StepPayment({
     };
   }, [stripeReady, promotionCode, prepareCheckout]);
 
-  const handleSuccess = useCallback(() => {
-    router.push('/checkout/success');
-    router.refresh();
-  }, [router]);
+  const handleSuccess = useCallback(
+    (subscriptionIds: string[]) => {
+      const ids = subscriptionIds.filter(Boolean);
+      if (ids.length === 0) {
+        router.push('/checkout/success');
+        router.refresh();
+        return;
+      }
+      router.push(
+        `/checkout/success?ids=${encodeURIComponent(ids.join(','))}`
+      );
+      router.refresh();
+    },
+    [router]
+  );
 
   const handleAsaasSubmit = useCallback(
     async (creditCard: AsaasCardPayload) => {
@@ -175,7 +200,19 @@ export default function StepPayment({
         );
       }
 
-      handleSuccess();
+      const created = Array.isArray(payload.subscriptions)
+        ? payload.subscriptions
+        : payload.subscriptionId
+          ? [{ subscriptionId: payload.subscriptionId }]
+          : [];
+
+      handleSuccess(
+        created
+          .map(
+            (item: { subscriptionId?: string }) => item.subscriptionId ?? ''
+          )
+          .filter(Boolean)
+      );
     },
     [data, promotionCode, router, handleSuccess]
   );
@@ -199,42 +236,16 @@ export default function StepPayment({
         title="Pagamento"
         subtitle="Cobrança mensal automática. Você pode cancelar a qualquer momento."
       >
-        {!cpfReady ? (
-          <div
-            className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100/90"
-            role="status"
-          >
-            <p>
-              O CPF é obrigatório para assinaturas recorrentes. Cadastre o seu
-              CPF no perfil antes de pagar.
-            </p>
-            <Link
-              href={`/dashboard/profile?next=${profileNext}`}
-              className="mt-3 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
-            >
-              Completar perfil
-            </Link>
-          </div>
+        {profile ? (
+          <CheckoutProfileForm
+            profile={profile}
+            requirePhone={ASAAS_CHECKOUT_READY}
+            onSaved={onProfileSaved}
+          />
         ) : null}
 
-        {ASAAS_CHECKOUT_READY && cpfReady && !phoneReady ? (
-          <div
-            className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100/90"
-            role="status"
-          >
-            <p>
-              O telefone é obrigatório para pagamento com cartão. Cadastre seu
-              telefone no perfil antes de pagar.
-            </p>
-            <Link
-              href={`/dashboard/profile?next=${profileNext}`}
-              className="mt-3 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
-            >
-              Completar perfil
-            </Link>
-          </div>
-        ) : null}
-
+        {!profileIncomplete ? (
+          <>
         {data.couponCode && data.couponSummary ? (
           <p
             className="flex items-center gap-2 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100/90"
@@ -297,7 +308,12 @@ export default function StepPayment({
               >
                 <StripePaymentForm
                   disabled={!stripeReady}
-                  onSuccess={handleSuccess}
+                  subscriptionId={checkoutSubscriptionId}
+                  onSuccess={() =>
+                    handleSuccess(
+                      checkoutSubscriptionId ? [checkoutSubscriptionId] : []
+                    )
+                  }
                   onError={(message) => setError(message)}
                 />
               </StripeCheckoutProvider>
@@ -319,6 +335,8 @@ export default function StepPayment({
           <p className="text-sm text-red-400" role="alert">
             {error}
           </p>
+        ) : null}
+          </>
         ) : null}
       </CheckoutSection>
 

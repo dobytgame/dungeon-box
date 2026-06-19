@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Bebas_Neue, DM_Sans } from 'next/font/google';
 import GoogleTagManager from '@/components/analytics/GoogleTagManager';
+import GtmConsentDefaults from '@/components/analytics/GtmConsentDefaults';
 import AuthRecoveryRedirect from '@/components/auth/AuthRecoveryRedirect';
 import CookieConsentRoot from '@/components/legal/CookieConsentRoot';
 import {
@@ -76,6 +77,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${bebasNeue.variable} ${dmSans.variable}`}>
       <body className="bg-stone-950 font-body text-white antialiased">
+        <GtmConsentDefaults />
         <CookieConsentRoot>
           <GoogleTagManager />
           <AuthRecoveryRedirect />

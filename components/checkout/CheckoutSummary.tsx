@@ -4,7 +4,7 @@ import { Check, MapPin, Package, Paintbrush, Tag, Truck } from 'lucide-react';
 import { plans } from '@/lib/data';
 import {
   resolveBumpBilling,
-  sumMonthlyWithBumpCents,
+  sumRecurringCheckoutCents,
 } from '@/lib/checkout/bump-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
 import {
@@ -35,18 +35,20 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
   const { bump, monthlyExtraCents, oneTimeExtraCents } = resolveBumpBilling(data);
   const address = addresses.find((a) => a.id === data.addressId);
   const monthlyTotalCents = sumMonthlyCents(data);
-  const recurringTotalCents = sumMonthlyWithBumpCents(data);
+  const recurringTotalCents = sumRecurringCheckoutCents(data);
   const originalMonthlyTotalCents = data.planSlugs.reduce(
     (sum, slug) => sum + getPlanPriceCents(slug),
     0
   );
   const hasDiscount = monthlyTotalCents < originalMonthlyTotalCents;
   const shippingTotalCents = sumShippingCents(data);
-  const firstChargeCents =
-    monthlyTotalCents + oneTimeExtraCents + shippingTotalCents;
-  const hasFirstChargeExtras =
-    oneTimeExtraCents > 0 || shippingTotalCents > 0;
+  const firstChargeCents = recurringTotalCents + oneTimeExtraCents;
+  const hasFirstChargeExtras = oneTimeExtraCents > 0;
   const showRecurringBump = Boolean(bump) && data.paintKitBumpRecurring;
+  const originalRecurringTotalCents =
+    originalMonthlyTotalCents +
+    (showRecurringBump ? monthlyExtraCents : 0) +
+    shippingTotalCents;
 
   return (
     <aside className="lg:sticky lg:top-28 lg:self-start">
@@ -216,7 +218,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
               <div className="flex items-center gap-2 text-stone-500">
                 <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <p className="font-display text-[10px] uppercase tracking-[0.25em]">
-                  Frete da 1ª caixa
+                  Frete mensal
                 </p>
               </div>
               {data.planSlugs.map((slug) => {
@@ -234,6 +236,11 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                     </div>
                     <p className="shrink-0 font-display text-sm text-frost">
                       {quote.free ? 'Grátis' : formatBRL(quote.cents)}
+                      {!quote.free ? (
+                        <span className="block text-[10px] uppercase tracking-widest text-stone-600">
+                          /mês
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                 );
@@ -272,23 +279,17 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                 </div>
                 <p className="mt-1 text-right text-[10px] text-stone-600">
                   Depois,{' '}
-                  {hasDiscount ? (
+                  {hasDiscount || showRecurringBump || shippingTotalCents > 0 ? (
                     <>
                       <span className="text-stone-500 line-through">
-                        {formatBRL(
-                          originalMonthlyTotalCents +
-                            (showRecurringBump ? monthlyExtraCents : 0)
-                        )}
-                        /mês
+                        {formatBRL(originalRecurringTotalCents)}/mês
                       </span>{' '}
                       <span className="text-emerald-400/90">
                         {formatBRL(recurringTotalCents)}/mês
                       </span>
                     </>
-                  ) : showRecurringBump ? (
-                    <>{formatBRL(recurringTotalCents)}/mês</>
                   ) : (
-                    <>{formatBRL(monthlyTotalCents)}/mês</>
+                    <>{formatBRL(recurringTotalCents)}/mês</>
                   )}
                 </p>
               </>
@@ -296,20 +297,17 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs text-stone-500">Total recorrente</p>
                 <p className="font-display text-lg tabular-nums text-white">
-                  {hasDiscount || showRecurringBump ? (
+                  {hasDiscount || showRecurringBump || shippingTotalCents > 0 ? (
                     <>
                       <span className="mr-2 text-sm text-stone-500 line-through">
-                        {formatBRL(
-                          originalMonthlyTotalCents +
-                            (showRecurringBump ? monthlyExtraCents : 0)
-                        )}
+                        {formatBRL(originalRecurringTotalCents)}
                       </span>
                       <span className="text-emerald-300">
                         {formatBRL(recurringTotalCents)}
                       </span>
                     </>
                   ) : (
-                    formatBRL(monthlyTotalCents)
+                    formatBRL(recurringTotalCents)
                   )}
                   <span className="text-sm text-stone-500">/mês</span>
                 </p>

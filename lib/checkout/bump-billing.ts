@@ -1,5 +1,5 @@
 import { getPaintKitBump } from './order-bumps';
-import { sumMonthlyCents } from './totals';
+import { sumMonthlyCents, sumShippingCents } from './totals';
 import type { CheckoutData } from './types';
 
 export function resolveBumpBilling(data: Pick<
@@ -29,4 +29,9 @@ export function resolveBumpBilling(data: Pick<
 export function sumMonthlyWithBumpCents(data: CheckoutData): number {
   const { monthlyExtraCents } = resolveBumpBilling(data);
   return sumMonthlyCents(data) + monthlyExtraCents;
+}
+
+/** Plano + adicional recorrente + frete mensal (0 se cupom/promo de frete grátis). */
+export function sumRecurringCheckoutCents(data: CheckoutData): number {
+  return sumMonthlyWithBumpCents(data) + sumShippingCents(data);
 }

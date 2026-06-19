@@ -10,12 +10,14 @@ import { Loader2 } from 'lucide-react';
 
 type Props = {
   disabled?: boolean;
+  subscriptionId?: string | null;
   onSuccess: () => void;
   onError: (message: string) => void;
 };
 
 export default function StripePaymentForm({
   disabled,
+  subscriptionId,
   onSuccess,
   onError,
 }: Props) {
@@ -31,10 +33,14 @@ export default function StripePaymentForm({
       setSubmitting(true);
       onError('');
 
+      const returnUrl = subscriptionId
+        ? `${window.location.origin}/checkout/success?ids=${encodeURIComponent(subscriptionId)}`
+        : `${window.location.origin}/checkout/success`;
+
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/checkout/success`,
+          return_url: returnUrl,
         },
         redirect: 'if_required',
       });
@@ -56,7 +62,7 @@ export default function StripePaymentForm({
 
       setSubmitting(false);
     },
-    [stripe, elements, disabled, submitting, onSuccess, onError]
+    [stripe, elements, disabled, submitting, onSuccess, onError, subscriptionId]
   );
 
   return (

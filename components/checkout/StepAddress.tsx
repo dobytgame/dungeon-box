@@ -71,6 +71,7 @@ export default function StepAddress({
         body: JSON.stringify({
           planSlugs: data.planSlugs,
           addressId,
+          couponCode: data.couponCode ?? null,
         }),
       });
       const json = (await res.json()) as {
@@ -114,7 +115,7 @@ export default function StepAddress({
     if (!data.addressId) return;
     void refreshShippingQuote(data.addressId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recalcula ao mudar plano ou endereço
-  }, [data.addressId, data.planSlugs.join(',')]);
+  }, [data.addressId, data.planSlugs.join(','), data.couponCode]);
 
   async function handleCepChange(raw: string) {
     const masked = maskCep(raw);
@@ -249,7 +250,7 @@ export default function StepAddress({
                   className={inputClass}
                 />
               </label>
-              <label className="block">
+              <label className="block sm:col-span-2">
                 <span className={labelClass}>CEP</span>
                 <input
                   value={form.zip_code}
@@ -269,6 +270,14 @@ export default function StepAddress({
                   <span className="mt-1 block text-xs text-red-400">{cepError}</span>
                 ) : null}
               </label>
+              <label className="block sm:col-span-2">
+                <span className={labelClass}>Rua</span>
+                <input
+                  value={form.street}
+                  onChange={(e) => setForm({ ...form, street: e.target.value })}
+                  className={inputClass}
+                />
+              </label>
               <label className="block">
                 <span className={labelClass}>Número</span>
                 <input
@@ -277,11 +286,13 @@ export default function StepAddress({
                   className={inputClass}
                 />
               </label>
-              <label className="block sm:col-span-2">
-                <span className={labelClass}>Rua</span>
+              <label className="block">
+                <span className={labelClass}>Complemento</span>
                 <input
-                  value={form.street}
-                  onChange={(e) => setForm({ ...form, street: e.target.value })}
+                  value={form.complement}
+                  onChange={(e) =>
+                    setForm({ ...form, complement: e.target.value })
+                  }
                   className={inputClass}
                 />
               </label>
@@ -317,16 +328,6 @@ export default function StepAddress({
                   ))}
                 </select>
               </label>
-              <label className="block sm:col-span-2">
-                <span className={labelClass}>Complemento</span>
-                <input
-                  value={form.complement}
-                  onChange={(e) =>
-                    setForm({ ...form, complement: e.target.value })
-                  }
-                  className={inputClass}
-                />
-              </label>
             </div>
             <button
               type="button"
@@ -358,7 +359,7 @@ export default function StepAddress({
           <div className="flex items-center gap-2 text-stone-500">
             <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p className="font-display text-[10px] uppercase tracking-[0.25em]">
-              Frete da 1ª caixa
+              Frete mensal
             </p>
           </div>
           {shippingLoading ? (
@@ -377,7 +378,7 @@ export default function StepAddress({
                       {quote.label}
                     </p>
                     <p className="font-display text-sm tabular-nums text-white">
-                      {quote.free ? 'Grátis' : formatShippingBRL(quote.cents)}
+                      {quote.free ? 'Grátis' : `${formatShippingBRL(quote.cents)}/mês`}
                     </p>
                   </div>
                 );

@@ -21,6 +21,6 @@ export interface CheckoutData {
   discountedPlanCentsByPlan?: Partial<Record<PlanSlug, number>>;
   couponCode?: string | null;
   couponSummary?: string | null;
-  /** Frete da 1ª caixa por plano */
+  /** Frete mensal por plano (0 se cupom/promo de frete grátis) */
   shippingByPlan?: Partial<Record<PlanSlug, ShippingQuoteSnapshot>>;
 }

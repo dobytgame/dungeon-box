@@ -1,11 +1,15 @@
-import { launchFaqItems } from '@/lib/launch/data';
+import { faqItems, plans } from '@/lib/data';
 import { getCanonicalSiteUrl, SITE_NAME, SITE_TAGLINE } from '@/lib/seo/site';
 
 export function GET() {
   const siteUrl = getCanonicalSiteUrl();
-  const faqBlock = launchFaqItems
+  const faqBlock = faqItems
     .map((item) => `Q: ${item.q}\nA: ${item.a}`)
     .join('\n\n');
+
+  const plansBlock = plans
+    .map((plan) => `- ${plan.name}: R$ ${plan.price}/mês + frete (CEP) — ${plan.tagline}`)
+    .join('\n');
 
   const body = `# ${SITE_NAME}
 
@@ -15,9 +19,7 @@ export function GET() {
 ${SITE_NAME} é a primeira assinatura mensal de cenários 3D modulares para RPG do Brasil. Todo mês um kit com tiles, paredes e props chega na porta do assinante. Sistema OpenLOCK, escala 28mm. Compatível com D&D 5e, Tormenta RPG, Pathfinder, Old Dragon e qualquer sistema com grid 28mm.
 
 ## Planos
-- Aventureiro: R$ 89/mês + frete (CEP), 60 peças, monta 3–4 salas (mesa 40×40cm)
-- Herói: R$ 139/mês + frete (CEP), 93 peças, monta 3–4 salas + corredores (mais popular, mesa 50×60cm)
-- Lendário: R$ 199/mês + frete (CEP), 132 peças, monta 5–6 salas (mesa 70×80cm)
+${plansBlock}
 
 ## Links
 - Site: ${siteUrl}

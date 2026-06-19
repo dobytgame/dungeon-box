@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAsaasSubscriptionRef } from '@/lib/asaas/refs';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
-import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
+import { ensureSubscriptionCycle, markCyclePreparing, resolvePaidCycleNumber } from '@/lib/subscriptions/cycles';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
+import { applyPendingPlanUpgrade } from '@/lib/subscriptions/upgrade';
 import {
   notifyPurchaseCompleted,
   notifySubscriptionCancelled,
@@ -92,6 +93,13 @@ export async function handleAsaasPaymentConfirmed(
 
   if (local.status === 'pending') {
     await activateSubscriptionFromAsaas(supabase, local.id);
+    if (paymentRow) {
+      await markCyclePreparing(supabase, local.id, 1, {
+        id: paymentRow.id,
+        amount_cents: paymentRow.amount_cents,
+        paid_at: now,
+      });
+    }
     void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
       (err) => {
         console.error('[email] purchase completed notify failed:', err);
@@ -100,7 +108,9 @@ export async function handleAsaasPaymentConfirmed(
     return 'processed';
   }
 
-  const paidCycleNumber = local.current_cycle ?? 1;
+  const paidCycleNumber = resolvePaidCycleNumber(local.current_cycle);
+
+  await applyPendingPlanUpgrade(supabase, local.id);
 
   await supabase
     .from('subscription_cycles')

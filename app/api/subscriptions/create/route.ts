@@ -9,7 +9,7 @@ import { validateMpCredentialPair } from '@/lib/mercadopago/credentials';
 import { createSubscriptionPreapproval } from '@/lib/mercadopago/create-preapproval';
 import { userFacingMpError } from '@/lib/mercadopago/errors';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
-import { ShippingQuoteError } from '@/lib/shipping/quote';
+import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
@@ -167,10 +167,15 @@ export async function POST(request: Request) {
     bumpRecurring
   );
 
+  const freightMonthlyCents = shippingMonthlyCents(shippingQuote);
+
   const transactionAmount = Number(
-    ((plan.price_cents + (bumpRecurring && bump ? bump.priceCents : 0)) / 100).toFixed(
-      2
-    )
+    (
+      (plan.price_cents +
+        (bumpRecurring && bump ? bump.priceCents : 0) +
+        freightMonthlyCents) /
+      100
+    ).toFixed(2)
   );
 
   try {
@@ -197,7 +202,7 @@ export async function POST(request: Request) {
       mp_subscription_id: preApproval.id,
       mp_payer_id:
         preApproval.payer_id != null ? String(preApproval.payer_id) : null,
-      shipping_cents: shippingQuote.cents,
+      shipping_cents: freightMonthlyCents,
       shipping_region: shippingQuote.region,
       updated_at: new Date().toISOString(),
     };

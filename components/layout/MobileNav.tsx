@@ -128,6 +128,7 @@ export default function MobileNavPanel({
               size="md"
               href={primaryCtaHref}
               external={ctaExternal}
+              trackingLocation="mobile_nav"
               className="w-full"
             />
           </div>

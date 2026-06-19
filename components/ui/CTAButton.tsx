@@ -1,4 +1,8 @@
+'use client';
+
 import Link from 'next/link';
+import { parseCheckoutPlanSlug, trackBeginCheckout } from '@/lib/analytics/data-layer';
+import { plans } from '@/lib/data';
 
 interface Props {
   label: string;
@@ -7,6 +11,8 @@ interface Props {
   href?: string;
   className?: string;
   external?: boolean;
+  /** Origem do clique para eventos GTM (`begin_checkout`). */
+  trackingLocation?: string;
 }
 
 const variants = {
@@ -29,8 +35,21 @@ export default function CTAButton({
   href = '#planos',
   className = '',
   external = false,
+  trackingLocation,
 }: Props) {
   const classes = `inline-flex cursor-pointer items-center justify-center rounded-sm font-display uppercase tracking-widest transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember ${variants[variant]} ${sizes[size]} ${className}`;
+
+  const handleCheckoutTracking = () => {
+    if (!trackingLocation || !href.includes('/checkout')) return;
+    const planSlug = parseCheckoutPlanSlug(href);
+    const plan = plans.find((entry) => entry.id === planSlug);
+    trackBeginCheckout({
+      planSlug,
+      planName: plan ? `Plano ${plan.name}` : undefined,
+      value: plan?.price,
+      location: trackingLocation,
+    });
+  };
 
   if (external || href.startsWith('http')) {
     return (
@@ -46,7 +65,7 @@ export default function CTAButton({
   }
 
   return (
-    <Link href={href} className={classes}>
+    <Link href={href} className={classes} onClick={handleCheckoutTracking}>
       {label}
     </Link>
   );

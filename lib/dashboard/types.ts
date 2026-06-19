@@ -11,6 +11,7 @@ export type CycleStatus =
   | 'preparing'
   | 'shipped'
   | 'delivered'
+  | 'cancelled'
   | 'failed';
 
 export type PaymentStatus =
@@ -81,6 +82,8 @@ export interface Theme {
   lore: string | null;
   emoji: string | null;
   image_url: string | null;
+  is_active?: boolean;
+  is_revealed?: boolean;
 }
 
 export interface SubscriptionCycle {
@@ -100,9 +103,13 @@ export interface SubscriptionCycle {
   color_choices: string[] | null;
   bonus_pieces: number | null;
   bonus_notes: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  production_notes: string | null;
   created_at: string | null;
   updated_at: string | null;
   themes: Theme | Theme[] | null;
+  subscriptions?: Subscription | Subscription[] | null;
 }
 
 export interface Subscription {
@@ -130,11 +137,14 @@ export interface Subscription {
   loyalty_level: number | null;
   shipping_cents?: number | null;
   shipping_region?: string | null;
+  pending_plan_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
   plans: Plan | Plan[] | null;
+  pending_plan?: Plan | Plan[] | null;
   addresses: Address | Address[] | null;
   subscription_cycles?: SubscriptionCycle[];
+  profiles?: Pick<Profile, 'full_name' | 'display_name' | 'email' | 'phone' | 'cpf'> | Pick<Profile, 'full_name' | 'display_name' | 'email' | 'phone' | 'cpf'>[] | null;
 }
 
 export interface Payment {

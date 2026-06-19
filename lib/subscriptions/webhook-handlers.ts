@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchMpPayment, fetchMpPreapproval } from '@/lib/mercadopago/safe-fetch';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
-import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
+import { ensureSubscriptionCycle, resolvePaidCycleNumber } from '@/lib/subscriptions/cycles';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 import type { PaymentStatus, SubscriptionStatus } from '@/lib/dashboard/types';
 
@@ -158,7 +158,7 @@ export async function handlePaymentEvent(
     .single();
 
   if (mappedStatus === 'approved') {
-    const paidCycleNumber = subscription.current_cycle ?? 1;
+    const paidCycleNumber = resolvePaidCycleNumber(subscription.current_cycle);
 
     await supabase
       .from('subscription_cycles')

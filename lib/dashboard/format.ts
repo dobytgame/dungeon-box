@@ -11,11 +11,12 @@ const subscriptionLabels: Record<SubscriptionStatus, string> = {
 };
 
 const cycleLabels: Record<CycleStatus, string> = {
-  upcoming: 'Próximo',
-  preparing: 'Em produção',
+  upcoming: 'Aguardando',
+  preparing: 'Em preparo',
   shipped: 'Enviado',
   delivered: 'Entregue',
-  failed: 'Falhou',
+  cancelled: 'Cancelado',
+  failed: 'Falha pagamento',
 };
 
 const paymentLabels: Record<PaymentStatus, string> = {

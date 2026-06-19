@@ -32,7 +32,11 @@ export default function SubscriptionActions({ subscription }: Props) {
     if (reason) fd.set('reason', reason);
     startTransition(async () => {
       const result = await updateSubscriptionStatus(fd);
-      setMessage(result.error ?? 'Alteração registrada com sucesso.');
+      if ('error' in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+      setMessage('Alteração registrada com sucesso.');
     });
   }
 

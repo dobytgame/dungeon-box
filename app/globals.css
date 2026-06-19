@@ -7,6 +7,7 @@
     --color-ember: #ff6b2b;
     --color-frost: #00d4ff;
     --color-gold: #ffd600;
+    --color-console: #2dd4bf;
     --color-stone-deep: #09090b;
     /* Navbar fixa (top + padding + logo/CTA) */
     --site-header-offset: 4.5rem;
@@ -182,6 +183,26 @@
   .dashboard-nav-fade::after {
     right: 0;
     background: linear-gradient(to left, rgb(12 10 9), transparent);
+  }
+
+  .admin-dot-grid {
+    background-color: #09090b;
+    background-image: radial-gradient(rgba(45, 212, 191, 0.07) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .admin-panel {
+    border: 1px solid rgb(39 39 42 / 0.9);
+    background: rgb(9 9 11 / 0.6);
+  }
+
+  .admin-nav-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .admin-nav-scroll::-webkit-scrollbar {
+    display: none;
   }
 
   .noise::after {

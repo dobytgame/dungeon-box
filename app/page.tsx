@@ -1,20 +1,17 @@
-import LaunchNavbar from '@/components/layout/LaunchNavbar';
-import LaunchFooter from '@/components/layout/LaunchFooter';
-import LaunchHero from '@/components/launch/LaunchHero';
-import LaunchMarquee from '@/components/launch/LaunchMarquee';
-import LaunchProblem from '@/components/launch/LaunchProblem';
-import LaunchSolution from '@/components/launch/LaunchSolution';
-import LaunchPlans from '@/components/launch/LaunchPlans';
-import LaunchSocialProof from '@/components/launch/LaunchSocialProof';
-import LaunchCapture from '@/components/launch/LaunchCapture';
-import LaunchFAQ from '@/components/launch/LaunchFAQ';
-import LaunchFinalCTA from '@/components/launch/LaunchFinalCTA';
-import { displayName, getProfile } from '@/lib/dashboard/queries';
-import { getWaitlistCount } from '@/lib/launch/waitlist';
-import { createClient } from '@/lib/supabase/server';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import Hero from '@/components/sections/Hero';
+import Marquee from '@/components/sections/Marquee';
+import PlansStack from '@/components/sections/PlansStack';
+import Fidelidade from '@/components/sections/Fidelidade';
+import Temas from '@/components/sections/Temas';
+import FAQ from '@/components/sections/FAQ';
+import LandingPageAnalytics from '@/components/analytics/LandingPageAnalytics';
 import JsonLd from '@/components/seo/JsonLd';
+import { displayName, getProfile } from '@/lib/dashboard/queries';
 import { homePageMetadata } from '@/lib/seo/metadata';
 import { buildHomeJsonLd } from '@/lib/seo/structured-data';
+import { createClient } from '@/lib/supabase/server';
 
 export const metadata = homePageMetadata;
 
@@ -26,26 +23,23 @@ export default async function Home() {
   const profile = user ? await getProfile(user.id) : null;
   const userName = user ? displayName(profile, user.email) : null;
   const isLoggedIn = !!user;
-  const waitlistCount = await getWaitlistCount();
 
   const jsonLd = buildHomeJsonLd();
 
   return (
     <>
       <JsonLd data={jsonLd} />
-      <LaunchNavbar isLoggedIn={isLoggedIn} userName={userName} />
+      <LandingPageAnalytics />
+      <Navbar isLoggedIn={isLoggedIn} userName={userName} />
       <main id="conteudo-principal">
-        <LaunchHero waitlistCount={waitlistCount} />
-        <LaunchMarquee />
-        <LaunchProblem />
-        <LaunchSolution />
-        <LaunchPlans />
-        <LaunchSocialProof waitlistCount={waitlistCount} />
-        <LaunchCapture />
-        <LaunchFAQ />
-        <LaunchFinalCTA />
+        <Hero isLoggedIn={isLoggedIn} userName={userName} />
+        <Marquee />
+        <PlansStack />
+        <Fidelidade />
+        <Temas />
+        <FAQ />
       </main>
-      <LaunchFooter isLoggedIn={isLoggedIn} />
+      <Footer isLoggedIn={isLoggedIn} />
     </>
   );
 }

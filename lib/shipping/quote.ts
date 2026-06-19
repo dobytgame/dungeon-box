@@ -17,6 +17,18 @@ export class ShippingQuoteError extends Error {
   }
 }
 
+export function applyFreeShippingToQuote(
+  quote: ShippingQuote,
+  reason = 'promoção'
+): ShippingQuote {
+  return {
+    ...quote,
+    cents: 0,
+    free: true,
+    label: `Frete grátis (${reason})`,
+  };
+}
+
 export function quoteShipping(
   plan: PlanFreightRules,
   address: ShippingAddressInput
@@ -47,6 +59,13 @@ export function quoteShipping(
     etaDaysMin: eta.min,
     etaDaysMax: eta.max,
   };
+}
+
+/** Valor de frete recorrente na assinatura (0 se grátis por promo/cupom). */
+export function shippingMonthlyCents(
+  quote: Pick<ShippingQuote, 'cents' | 'free'>
+): number {
+  return quote.free ? 0 : quote.cents;
 }
 
 export function formatShippingBRL(cents: number): string {
