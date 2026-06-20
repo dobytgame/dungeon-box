@@ -36,6 +36,13 @@ export const DASHBOARD_NAV = [
     description: 'Ciclos mensais, temas, rastreio e histórico de envios.',
   },
   {
+    href: '/dashboard/loja',
+    label: 'Loja',
+    icon: 'shop',
+    eyebrow: 'Extras',
+    description: 'Kits de pintura e acessórios para complementar sua dungeon.',
+  },
+  {
     href: '/dashboard/payments',
     label: 'Pagamentos',
     icon: 'payment',

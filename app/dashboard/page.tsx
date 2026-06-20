@@ -39,6 +39,21 @@ export default async function DashboardPage() {
     <div className="space-y-8 md:space-y-10">
       {paintKitEligible.length > 0 ? (
         <section className="space-y-6">
+          <div className="rounded-sm border border-gold/25 bg-gold/5 p-4 md:p-5">
+            <p className="font-display text-xs uppercase tracking-[0.25em] text-gold">
+              Loja DungeonBox
+            </p>
+            <p className="mt-2 text-sm text-stone-300">
+              Kits de pintura a partir de R$ 49 — frete grátis na próxima caixa para
+              assinantes.
+            </p>
+            <Link
+              href="/dashboard/loja"
+              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center font-display text-xs uppercase tracking-widest text-gold hover:text-gold/80"
+            >
+              Ir para a loja →
+            </Link>
+          </div>
           {paintKitEligible.map((eligibleSubscription) => (
             <PaintKitAddon
               key={eligibleSubscription.id}
