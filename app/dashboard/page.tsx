@@ -11,6 +11,7 @@ import {
 } from '@/lib/dashboard/format';
 import {
   getSubscriptionWithCycles,
+  getManageableSubscriptions,
   getLoyaltyLevel,
   getProfile,
   requireDashboardUser,
@@ -20,6 +21,7 @@ import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-
 export default async function DashboardPage() {
   const { user } = await requireDashboardUser();
   const profile = await getProfile(user.id);
+  const manageable = await getManageableSubscriptions(user.id);
   const subscription = await getSubscriptionWithCycles(user.id);
   const plan = relOne(subscription?.plans);
   const loyalty = subscription?.loyalty_level
@@ -51,7 +53,14 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      {subscription ? (
+      {manageable.length === 0 ? (
+        <EmptyState
+          title="Sem assinatura ativa"
+          description="Assine um plano para receber cenários 3D todo mês na sua porta."
+          ctaLabel="Assinar agora"
+          ctaHref={checkoutHref('heroi')}
+        />
+      ) : subscription ? (
         <div className="grid gap-6 lg:grid-cols-3">
           <DashboardCard title="Assinatura" accent="ember">
             <dl>
@@ -144,14 +153,7 @@ export default async function DashboardPage() {
             </Link>
           </DashboardCard>
         </div>
-      ) : (
-        <EmptyState
-          title="Sem assinatura ativa"
-          description="Assine um plano para receber cenários 3D todo mês na sua porta."
-          ctaLabel="Assinar agora"
-          ctaHref={checkoutHref('heroi')}
-        />
-      )}
+      ) : null}
 
       <DashboardCard title="Explorar" accent="none">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

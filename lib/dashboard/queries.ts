@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import {
-  reconcilePendingSubscription,
   reconcilePendingSubscriptions,
 } from '@/lib/subscriptions/reconcile-pending';
 import type { PlanSlug } from '@/lib/checkout/plans';
@@ -47,103 +46,55 @@ export function displayName(profile: Profile | null, email?: string | null): str
   );
 }
 
+const SUBSCRIPTION_STATUS_PRIORITY = [
+  'active',
+  'past_due',
+  'paused',
+  'pending',
+] as const;
+
+/** Assinatura principal para exibir no dashboard (não a tentativa cancelada mais recente). */
+export function pickPrimarySubscription(
+  subscriptions: Subscription[]
+): Subscription | null {
+  if (subscriptions.length === 0) return null;
+
+  for (const status of SUBSCRIPTION_STATUS_PRIORITY) {
+    const match = subscriptions.find((sub) => sub.status === status);
+    if (match) return match;
+  }
+
+  return subscriptions[0] ?? null;
+}
+
 export async function getLatestSubscription(
   userId: string
 ): Promise<Subscription | null> {
-  const supabase = createClient();
-  const { data } = await supabase
-    .from('subscriptions')
-    .select(
-      `
-      *,
-      plans(*),
-      addresses(*)
-    `
-    )
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (data?.status === 'pending') {
-    await reconcilePendingSubscription(data);
-    const { data: refreshed } = await supabase
-      .from('subscriptions')
-      .select(
-        `
-        *,
-        plans(*),
-        addresses(*)
-      `
-      )
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return refreshed;
-  }
-
-  return data;
+  const subscriptions = await getAllSubscriptions(userId);
+  return pickPrimarySubscription(subscriptions);
 }
 
 export async function getSubscriptionWithCycles(
   userId: string
 ): Promise<Subscription | null> {
+  const primary = pickPrimarySubscription(await getAllSubscriptions(userId));
+  if (!primary) return null;
+
   const supabase = createClient();
-  const { data } = await supabase
-    .from('subscriptions')
-    .select(
-      `
-      *,
-      plans(*),
-      addresses(*),
-      subscription_cycles(
-        *,
-        themes(*)
-      )
-    `
-    )
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: cycles, error } = await supabase
+    .from('subscription_cycles')
+    .select(`*, themes(*)`)
+    .eq('subscription_id', primary.id)
+    .order('cycle_number', { ascending: false });
 
-  if (data?.subscription_cycles) {
-    data.subscription_cycles = (
-      data.subscription_cycles as SubscriptionCycle[]
-    ).sort((a, b) => b.cycle_number - a.cycle_number);
+  if (error) {
+    console.error('[dashboard] getSubscriptionWithCycles:', error.message);
   }
 
-  if (data?.status === 'pending') {
-    await reconcilePendingSubscription(data);
-    const { data: refreshed } = await supabase
-      .from('subscriptions')
-      .select(
-        `
-        *,
-        plans(*),
-        addresses(*),
-        subscription_cycles(
-          *,
-          themes(*)
-        )
-      `
-      )
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (refreshed?.subscription_cycles) {
-      refreshed.subscription_cycles = (
-        refreshed.subscription_cycles as SubscriptionCycle[]
-      ).sort((a, b) => b.cycle_number - a.cycle_number);
-    }
-
-    return refreshed;
-  }
-
-  return data;
+  return {
+    ...primary,
+    subscription_cycles: (cycles ?? []) as SubscriptionCycle[],
+  };
 }
 
 export async function getAllSubscriptions(userId: string): Promise<Subscription[]> {
