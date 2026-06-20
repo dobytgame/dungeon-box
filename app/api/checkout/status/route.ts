@@ -40,7 +40,9 @@ export async function GET(request: Request) {
 
   const { data: owned, error: ownedError } = await supabase
     .from('subscriptions')
-    .select('id, status, asaas_subscription_id, stripe_subscription_id, plan_id')
+    .select(
+      'id, status, asaas_subscription_id, stripe_subscription_id, plan_id, shipping_cents, special_notes'
+    )
     .eq('user_id', user.id)
     .in('id', ids);
 
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const { data: refreshed, error: refreshError } = await admin
     .from('subscriptions')
-    .select('id, status, plan_id, user_id')
+    .select('id, status, plan_id, user_id, shipping_cents, special_notes')
     .eq('user_id', user.id)
     .in('id', ids);
 
@@ -75,11 +77,35 @@ export async function GET(request: Request) {
 
   const rows = refreshed ?? [];
   const planIds = Array.from(new Set(rows.map((row) => row.plan_id).filter(Boolean)));
-  const { data: planRows } = planIds.length
-    ? await admin.from('plans').select('id, slug, name, price_cents').in('id', planIds)
-    : { data: [] as Array<{ id: string; slug: string; name: string; price_cents: number }> };
+
+  const [{ data: planRows }, { data: paymentRows }] = await Promise.all([
+    planIds.length
+      ? admin.from('plans').select('id, slug, name, price_cents').in('id', planIds)
+      : Promise.resolve({
+          data: [] as Array<{
+            id: string;
+            slug: string;
+            name: string;
+            price_cents: number;
+          }>,
+        }),
+    admin
+      .from('payments')
+      .select('subscription_id, amount_cents, status, paid_at')
+      .in('subscription_id', ids)
+      .eq('status', 'approved')
+      .order('paid_at', { ascending: true }),
+  ]);
 
   const planById = new Map((planRows ?? []).map((plan) => [plan.id, plan]));
+
+  const paidBySubscription = new Map<string, number>();
+  for (const payment of paymentRows ?? []) {
+    if (!payment.subscription_id || paidBySubscription.has(payment.subscription_id)) {
+      continue;
+    }
+    paidBySubscription.set(payment.subscription_id, payment.amount_cents ?? 0);
+  }
 
   const statuses = rows.map((row) => row.status);
   const allActive = statuses.every((status) => status === 'active');
@@ -107,6 +133,9 @@ export async function GET(request: Request) {
         planSlug: plan?.slug ?? null,
         planName: plan?.name ?? null,
         priceCents: plan?.price_cents ?? null,
+        shippingCents: row.shipping_cents ?? null,
+        specialNotes: row.special_notes ?? null,
+        paidAmountCents: paidBySubscription.get(row.id) ?? null,
       };
     }),
   });

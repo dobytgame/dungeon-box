@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -16,6 +17,11 @@ import {
   ASAAS_CHECKOUT_READY,
   STRIPE_CHECKOUT_ACTIVE,
 } from '@/lib/payments/public';
+import {
+  buildCheckoutEcommerceItems,
+  buildCheckoutEcommerceValue,
+} from '@/lib/analytics/checkout-items';
+import { trackAddPaymentInfo } from '@/lib/analytics/data-layer';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from './AsaasPaymentForm';
@@ -70,6 +76,19 @@ export default function StepPayment({
     Boolean(data.addressId);
   const paymentConfigured = ASAAS_CHECKOUT_READY || STRIPE_CHECKOUT_ACTIVE;
   const profileIncomplete = !cpfReady || (ASAAS_CHECKOUT_READY && !phoneReady);
+
+  const paymentInfoTracked = useRef(false);
+
+  useEffect(() => {
+    if (paymentInfoTracked.current || data.planSlugs.length === 0) return;
+    paymentInfoTracked.current = true;
+
+    const items = buildCheckoutEcommerceItems(data);
+    trackAddPaymentInfo({
+      items,
+      value: buildCheckoutEcommerceValue(data),
+    });
+  }, [data]);
 
   const prepareCheckout = useCallback(
     async (promoCode: string | null, cancelled: () => boolean) => {

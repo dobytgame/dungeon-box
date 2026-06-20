@@ -5,6 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { trackPurchase } from '@/lib/analytics/data-layer';
+import {
+  buildPurchaseEcommerceFromSubscriptions,
+  parseSubscriptionPurchaseDetail,
+} from '@/lib/analytics/purchase-details';
 import Logo from '@/components/ui/Logo';
 
 type CheckoutState = 'loading' | 'active' | 'pending' | 'failed' | 'invalid';
@@ -15,6 +19,9 @@ type SubscriptionStatusRow = {
   planSlug: string | null;
   planName: string | null;
   priceCents: number | null;
+  shippingCents?: number | null;
+  specialNotes?: string | null;
+  paidAmountCents?: number | null;
 };
 
 const POLL_MS = 2000;
@@ -121,20 +128,26 @@ export default function CheckoutSuccessStatus() {
       return;
     }
 
-    const items = subscriptionRows
-      .filter((row) => row.planSlug && row.priceCents != null)
-      .map((row) => ({
-        item_id: row.planSlug!,
-        item_name: row.planName ?? row.planSlug!,
-        price: row.priceCents! / 100,
-      }));
+    const details = subscriptionRows.map((row) =>
+      parseSubscriptionPurchaseDetail({
+        id: row.id,
+        status: row.status,
+        planSlug: row.planSlug,
+        planName: row.planName,
+        planPriceCents: row.priceCents,
+        shippingCents: row.shippingCents,
+        specialNotes: row.specialNotes,
+        paidAmountCents: row.paidAmountCents,
+      })
+    );
 
+    const { value, items } = buildPurchaseEcommerceFromSubscriptions(details);
     if (items.length === 0) return;
 
     purchaseTracked.current = true;
     trackPurchase({
       transactionId: subscriptionIds.join(','),
-      value: items.reduce((sum, item) => sum + item.price, 0),
+      value,
       items,
     });
   }, [state, subscriptionIds, subscriptionRows]);

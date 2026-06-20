@@ -1,4 +1,5 @@
 import type { PlanSlug } from '@/lib/checkout/plans';
+import type { AnalyticsEcommerceItem } from '@/lib/analytics/checkout-items';
 
 declare global {
   interface Window {
@@ -6,10 +7,32 @@ declare global {
   }
 }
 
+const BEGIN_CHECKOUT_SESSION_KEY = 'dbx_begin_checkout';
+
 export function pushDataLayer(payload: Record<string, unknown>): void {
   if (typeof window === 'undefined') return;
   window.dataLayer = window.dataLayer ?? [];
   window.dataLayer.push(payload);
+}
+
+function pushEcommerceEvent(
+  event: string,
+  extra: Record<string, unknown>,
+  items: AnalyticsEcommerceItem[],
+  value?: number
+): void {
+  pushDataLayer({
+    event,
+    ...extra,
+    ecommerce: {
+      currency: 'BRL',
+      ...(value != null ? { value } : {}),
+      items: items.map((item, index) => ({
+        ...item,
+        index,
+      })),
+    },
+  });
 }
 
 export function trackViewItemList(items: {
@@ -17,19 +40,18 @@ export function trackViewItemList(items: {
   item_name: string;
   price: number;
 }[]): void {
-  pushDataLayer({
-    event: 'view_item_list',
-    ecommerce: {
+  pushEcommerceEvent(
+    'view_item_list',
+    {
       item_list_id: 'planos',
       item_list_name: 'Planos DungeonBox',
-      items: items.map((item, index) => ({
-        ...item,
-        index,
-        item_category: 'Assinatura mensal',
-        quantity: 1,
-      })),
     },
-  });
+    items.map((item) => ({
+      ...item,
+      item_category: 'Assinatura mensal',
+      quantity: 1,
+    }))
+  );
 }
 
 export function trackBeginCheckout(input: {
@@ -37,26 +59,74 @@ export function trackBeginCheckout(input: {
   planName?: string;
   value?: number;
   location: string;
+  items?: AnalyticsEcommerceItem[];
 }): void {
+  if (typeof window !== 'undefined' && input.location !== 'checkout_entry') {
+    sessionStorage.setItem(BEGIN_CHECKOUT_SESSION_KEY, String(Date.now()));
+  }
+
+  const items =
+    input.items ??
+    (input.planSlug
+      ? [
+          {
+            item_id: input.planSlug,
+            item_name: input.planName ?? input.planSlug,
+            item_category: 'Assinatura mensal',
+            quantity: 1,
+            price: input.value ?? 0,
+          },
+        ]
+      : []);
+
   pushDataLayer({
     event: 'begin_checkout',
     cta_location: input.location,
     ecommerce: {
       currency: 'BRL',
       value: input.value,
-      items: input.planSlug
-        ? [
-            {
-              item_id: input.planSlug,
-              item_name: input.planName ?? input.planSlug,
-              item_category: 'Assinatura mensal',
-              quantity: 1,
-              price: input.value,
-            },
-          ]
-        : [],
+      items: items.map((item, index) => ({
+        ...item,
+        index,
+      })),
     },
   });
+}
+
+/** Entrada direta no checkout (ex.: anúncio) sem duplicar clique da home. */
+export function trackBeginCheckoutEntry(input: {
+  items: AnalyticsEcommerceItem[];
+  value?: number;
+}): void {
+  if (typeof window !== 'undefined') {
+    const recent = sessionStorage.getItem(BEGIN_CHECKOUT_SESSION_KEY);
+    if (recent) {
+      const age = Date.now() - Number(recent);
+      if (!Number.isNaN(age) && age < 30_000) {
+        return;
+      }
+    }
+  }
+
+  trackBeginCheckout({
+    location: 'checkout_entry',
+    items: input.items,
+    value: input.value,
+  });
+}
+
+export function trackAddShippingInfo(input: {
+  items: AnalyticsEcommerceItem[];
+  value?: number;
+}): void {
+  pushEcommerceEvent('add_shipping_info', {}, input.items, input.value);
+}
+
+export function trackAddPaymentInfo(input: {
+  items: AnalyticsEcommerceItem[];
+  value?: number;
+}): void {
+  pushEcommerceEvent('add_payment_info', {}, input.items, input.value);
 }
 
 export function trackPurchase(input: {
@@ -66,7 +136,9 @@ export function trackPurchase(input: {
     item_id: PlanSlug | string;
     item_name: string;
     price: number;
+    item_category?: string;
   }>;
+  coupon?: string | null;
 }): void {
   pushDataLayer({
     event: 'purchase',
@@ -74,10 +146,11 @@ export function trackPurchase(input: {
       transaction_id: input.transactionId,
       currency: 'BRL',
       value: input.value,
+      ...(input.coupon ? { coupon: input.coupon } : {}),
       items: input.items.map((item, index) => ({
         ...item,
         index,
-        item_category: 'Assinatura mensal',
+        item_category: item.item_category ?? 'Assinatura mensal',
         quantity: 1,
       })),
     },

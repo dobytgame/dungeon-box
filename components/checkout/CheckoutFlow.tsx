@@ -5,6 +5,12 @@ import { useEffect, useState } from 'react';
 import type { Address, Profile } from '@/lib/dashboard/types';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import type { CheckoutData } from '@/lib/checkout/types';
+import CheckoutPageAnalytics from '@/components/analytics/CheckoutPageAnalytics';
+import {
+  buildCheckoutEcommerceItems,
+  buildCheckoutEcommerceValue,
+} from '@/lib/analytics/checkout-items';
+import { trackAddShippingInfo } from '@/lib/analytics/data-layer';
 import CheckoutShell from './CheckoutShell';
 import StepAddress from './StepAddress';
 import StepPayment from './StepPayment';
@@ -76,7 +82,9 @@ export default function CheckoutFlow({
   }
 
   return (
-    <CheckoutShell step={step} data={data} addresses={addresses}>
+    <>
+      <CheckoutPageAnalytics planSlugs={planSlugs} />
+      <CheckoutShell step={step} data={data} addresses={addresses}>
       {step === 1 ? (
         <StepPlan
           data={data}
@@ -91,7 +99,14 @@ export default function CheckoutFlow({
           data={data}
           setData={setData}
           addresses={addresses}
-          onNext={() => setStep(3)}
+          onNext={() => {
+            const items = buildCheckoutEcommerceItems(data);
+            trackAddShippingInfo({
+              items,
+              value: buildCheckoutEcommerceValue(data),
+            });
+            setStep(3);
+          }}
           onBack={() => setStep(1)}
         />
       ) : null}
@@ -109,6 +124,7 @@ export default function CheckoutFlow({
           onBack={() => setStep(2)}
         />
       ) : null}
-    </CheckoutShell>
+      </CheckoutShell>
+    </>
   );
 }
