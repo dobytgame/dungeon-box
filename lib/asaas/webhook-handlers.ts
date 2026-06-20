@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeAsaasSubscriptionRef } from '@/lib/asaas/refs';
+import { resolveLocalAsaasSubscription } from '@/lib/asaas/resolve-local-subscription';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import { applyPendingPlanUpgrade } from '@/lib/subscriptions/upgrade';
@@ -17,47 +17,6 @@ export type AsaasWebhookPayment = {
   billingType?: string;
 };
 
-async function findSubscriptionByAsaasId(
-  supabase: SupabaseClient,
-  asaasSubscriptionId: string
-) {
-  const { data } = await supabase
-    .from('subscriptions')
-    .select('id, status, started_at, user_id, current_cycle, asaas_subscription_id')
-    .eq('asaas_subscription_id', asaasSubscriptionId)
-    .maybeSingle();
-  return data;
-}
-
-async function findSubscriptionByExternalReference(
-  supabase: SupabaseClient,
-  externalReference: string
-) {
-  const { data } = await supabase
-    .from('subscriptions')
-    .select('id, status, started_at, user_id, current_cycle, asaas_subscription_id')
-    .eq('id', externalReference)
-    .maybeSingle();
-  return data;
-}
-
-async function resolveLocalSubscription(
-  supabase: SupabaseClient,
-  payment: AsaasWebhookPayment
-) {
-  const asaasSubscriptionId = normalizeAsaasSubscriptionRef(payment.subscription);
-  if (asaasSubscriptionId) {
-    const byAsaas = await findSubscriptionByAsaasId(supabase, asaasSubscriptionId);
-    if (byAsaas) return byAsaas;
-  }
-
-  if (payment.externalReference) {
-    return findSubscriptionByExternalReference(supabase, payment.externalReference);
-  }
-
-  return null;
-}
-
 function paymentAmountCents(payment: AsaasWebhookPayment): number {
   const value = payment.value ?? 0;
   return Math.round(value * 100);
@@ -67,7 +26,7 @@ export async function handleAsaasPaymentConfirmed(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
 ): Promise<'processed' | 'skipped'> {
-  const local = await resolveLocalSubscription(supabase, payment);
+  const local = await resolveLocalAsaasSubscription(supabase, payment);
   if (!local) return 'skipped';
 
   const amountCents = paymentAmountCents(payment);
@@ -91,7 +50,11 @@ export async function handleAsaasPaymentConfirmed(
     .single();
 
   if (local.status === 'pending') {
-    await activateSubscriptionFromAsaas(supabase, local.id);
+    const activated = await activateSubscriptionFromAsaas(supabase, local.id);
+    if (!activated) {
+      console.error('[asaas] payment confirmed but activation failed:', local.id);
+      return 'skipped';
+    }
     if (paymentRow) {
       await markCyclePreparing(supabase, local.id, 1, {
         id: paymentRow.id,
@@ -133,7 +96,7 @@ export async function handleAsaasPaymentOverdue(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
 ): Promise<'processed' | 'skipped'> {
-  const local = await resolveLocalSubscription(supabase, payment);
+  const local = await resolveLocalAsaasSubscription(supabase, payment);
   if (!local || local.status === 'cancelled') return 'skipped';
 
   await supabase
@@ -151,7 +114,7 @@ export async function handleAsaasPaymentRefunded(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
 ): Promise<'processed' | 'skipped'> {
-  const local = await resolveLocalSubscription(supabase, payment);
+  const local = await resolveLocalAsaasSubscription(supabase, payment);
   if (!local) return 'skipped';
 
   const now = new Date().toISOString();

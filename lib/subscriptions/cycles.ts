@@ -196,11 +196,16 @@ export async function repairDuplicateSubscriptionCycles(
 
     for (const rows of Array.from(byNumber.values())) {
       if (!rows || rows.length <= 1) continue;
-      const sorted = [...rows].sort(
-        (a, b) =>
+      const sorted = [...rows].sort((a, b) => {
+        const statusDiff =
           (CYCLE_STATUS_RANK[b.status] ?? 0) -
-          (CYCLE_STATUS_RANK[a.status] ?? 0)
-      );
+          (CYCLE_STATUS_RANK[a.status] ?? 0);
+        if (statusDiff !== 0) return statusDiff;
+        const paymentDiff =
+          Number(Boolean(b.payment_id)) - Number(Boolean(a.payment_id));
+        if (paymentDiff !== 0) return paymentDiff;
+        return b.id.localeCompare(a.id);
+      });
       for (const dup of sorted.slice(1)) {
         await supabase.from('subscription_cycles').delete().eq('id', dup.id);
         removed++;

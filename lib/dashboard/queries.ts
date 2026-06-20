@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation';
-import { reconcilePendingAsaasSubscription } from '@/lib/asaas/payment-sync';
+import {
+  reconcilePendingSubscription,
+  reconcilePendingSubscriptions,
+} from '@/lib/subscriptions/reconcile-pending';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { BLOCKING_SUBSCRIPTION_STATUSES } from '@/lib/subscriptions/blocking-statuses';
 import { createClient } from '@/lib/supabase/server';
@@ -61,6 +64,25 @@ export async function getLatestSubscription(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (data?.status === 'pending') {
+    await reconcilePendingSubscription(data);
+    const { data: refreshed } = await supabase
+      .from('subscriptions')
+      .select(
+        `
+        *,
+        plans(*),
+        addresses(*)
+      `
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return refreshed;
+  }
+
   return data;
 }
 
@@ -92,8 +114,8 @@ export async function getSubscriptionWithCycles(
     ).sort((a, b) => b.cycle_number - a.cycle_number);
   }
 
-  if (data?.status === 'pending' && data.asaas_subscription_id) {
-    await reconcilePendingAsaasSubscription(data);
+  if (data?.status === 'pending') {
+    await reconcilePendingSubscription(data);
     const { data: refreshed } = await supabase
       .from('subscriptions')
       .select(
@@ -135,12 +157,10 @@ export async function getAllSubscriptions(userId: string): Promise<Subscription[
     .order('created_at', { ascending: false });
 
   const subscriptions = data ?? [];
-  const pendingAsaas = subscriptions.find(
-    (sub) => sub.status === 'pending' && sub.asaas_subscription_id
-  );
+  const pending = subscriptions.filter((sub) => sub.status === 'pending');
 
-  if (pendingAsaas) {
-    await reconcilePendingAsaasSubscription(pendingAsaas);
+  if (pending.length > 0) {
+    await reconcilePendingSubscriptions(pending);
     const { data: refreshed } = await supabase
       .from('subscriptions')
       .select(

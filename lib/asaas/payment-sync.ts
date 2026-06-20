@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { asaasRequest } from '@/lib/asaas/client';
 import { normalizeAsaasSubscriptionRef } from '@/lib/asaas/refs';
+import { findLocalSubscriptionByAsaasId } from '@/lib/asaas/resolve-local-subscription';
 import {
   handleAsaasPaymentConfirmed,
   type AsaasWebhookPayment,
@@ -75,13 +76,54 @@ async function findLocalByAsaasId(
   supabase: SupabaseClient,
   asaasSubscriptionId: string
 ) {
-  const { data } = await supabase
-    .from('subscriptions')
-    .select('id, status, user_id, current_cycle, asaas_subscription_id')
-    .eq('asaas_subscription_id', asaasSubscriptionId)
-    .maybeSingle();
+  return findLocalSubscriptionByAsaasId(supabase, asaasSubscriptionId);
+}
 
-  return data;
+async function activatePendingFromConfirmedPayment(
+  supabase: SupabaseClient,
+  local: NonNullable<Awaited<ReturnType<typeof findLocalByAsaasId>>>,
+  confirmed: AsaasPaymentListItem
+): Promise<boolean> {
+  const amountCents = Math.round((confirmed.value ?? 0) * 100);
+  const now = new Date().toISOString();
+
+  const { data: paymentRow } = await supabase
+    .from('payments')
+    .upsert(
+      {
+        user_id: local.user_id,
+        subscription_id: local.id,
+        asaas_payment_id: confirmed.id,
+        amount_cents: amountCents,
+        currency: 'BRL',
+        status: 'approved',
+        paid_at: now,
+      },
+      { onConflict: 'asaas_payment_id' }
+    )
+    .select('id, amount_cents')
+    .single();
+
+  const activated = await activateSubscriptionFromAsaas(supabase, local.id);
+  if (!activated) {
+    return false;
+  }
+
+  if (paymentRow) {
+    await markCyclePreparing(supabase, local.id, 1, {
+      id: paymentRow.id,
+      amount_cents: paymentRow.amount_cents,
+      paid_at: now,
+    });
+  }
+
+  void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
+    (err) => {
+      console.error('[email] purchase completed notify failed:', err);
+    }
+  );
+
+  return true;
 }
 
 async function activatePendingFromActiveAsaasSubscription(
@@ -104,18 +146,24 @@ async function activatePendingFromActiveAsaasSubscription(
   );
 
   if (confirmed) {
-    return (
-      (await handleAsaasPaymentConfirmed(
-        supabase,
-        toAsaasWebhookPayment(confirmed)
-      )) === 'processed'
+    const result = await handleAsaasPaymentConfirmed(
+      supabase,
+      toAsaasWebhookPayment(confirmed)
     );
+    if (result === 'processed') {
+      return true;
+    }
+
+    return activatePendingFromConfirmedPayment(supabase, local, confirmed);
   }
 
   const latest = payments[0];
   const amountCents = Math.round((latest?.value ?? 0) * 100);
 
-  await activateSubscriptionFromAsaas(supabase, local.id);
+  const activated = await activateSubscriptionFromAsaas(supabase, local.id);
+  if (!activated) {
+    return false;
+  }
 
   if (latest?.id) {
     const paidAt = isAsaasPaymentConfirmed(latest.status)
@@ -174,7 +222,21 @@ export async function syncAsaasSubscriptionPayments(
           supabase,
           toAsaasWebhookPayment(confirmed)
         );
-        if (result === 'processed') return true;
+        if (result === 'processed') {
+          return true;
+        }
+
+        const local = await findLocalByAsaasId(supabase, asaasSubscriptionId);
+        if (
+          local?.status === 'pending' &&
+          (await activatePendingFromConfirmedPayment(
+            supabase,
+            local,
+            confirmed
+          ))
+        ) {
+          return true;
+        }
       }
 
       if (await activatePendingFromActiveAsaasSubscription(supabase, asaasSubscriptionId)) {

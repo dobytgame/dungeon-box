@@ -11,7 +11,7 @@ export async function activateSubscriptionFromAsaas(
   periodEnd.setMonth(periodEnd.getMonth() + 1);
   const nowIso = now.toISOString();
 
-  const { error: updateError } = await supabase
+  const { data, error: updateError } = await supabase
     .from('subscriptions')
     .update({
       status: 'active',
@@ -23,14 +23,34 @@ export async function activateSubscriptionFromAsaas(
       updated_at: nowIso,
     })
     .eq('id', subscriptionId)
-    .in('status', ['pending', 'past_due']);
+    .in('status', ['pending', 'past_due'])
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     console.error('activateSubscriptionFromAsaas update:', updateError);
     return false;
   }
 
-  await ensureSubscriptionCycle(supabase, subscriptionId, 1);
+  if (!data) {
+    const { data: current } = await supabase
+      .from('subscriptions')
+      .select('status')
+      .eq('id', subscriptionId)
+      .maybeSingle();
 
+    if (current?.status === 'active') {
+      await ensureSubscriptionCycle(supabase, subscriptionId, 1);
+      return true;
+    }
+
+    console.error(
+      'activateSubscriptionFromAsaas: subscription not pending:',
+      subscriptionId
+    );
+    return false;
+  }
+
+  await ensureSubscriptionCycle(supabase, subscriptionId, 1);
   return true;
 }

@@ -28,7 +28,7 @@ export async function activateSubscriptionFromStripe(
 
   const nowIso = now.toISOString();
 
-  const { error: updateError } = await supabase
+  const { data, error: updateError } = await supabase
     .from('subscriptions')
     .update({
       status: 'active',
@@ -40,10 +40,31 @@ export async function activateSubscriptionFromStripe(
       updated_at: nowIso,
     })
     .eq('id', subscriptionId)
-    .in('status', ['pending', 'past_due']);
+    .in('status', ['pending', 'past_due'])
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     console.error('activateSubscriptionFromStripe update:', updateError);
+    return false;
+  }
+
+  if (!data) {
+    const { data: current } = await supabase
+      .from('subscriptions')
+      .select('status')
+      .eq('id', subscriptionId)
+      .maybeSingle();
+
+    if (current?.status === 'active') {
+      await ensureSubscriptionCycle(supabase, subscriptionId, 1);
+      return true;
+    }
+
+    console.error(
+      'activateSubscriptionFromStripe: subscription not pending:',
+      subscriptionId
+    );
     return false;
   }
 

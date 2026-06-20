@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { reconcilePendingAsaasSubscription } from '@/lib/asaas/payment-sync';
+import { reconcilePendingSubscription } from '@/lib/subscriptions/reconcile-pending';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
   const { data: owned, error: ownedError } = await supabase
     .from('subscriptions')
-    .select('id, status, asaas_subscription_id, plan_id')
+    .select('id, status, asaas_subscription_id, stripe_subscription_id, plan_id')
     .eq('user_id', user.id)
     .in('id', ids);
 
@@ -57,11 +57,8 @@ export async function GET(request: Request) {
   }
 
   for (const subscription of found) {
-    if (
-      subscription.status === 'pending' &&
-      subscription.asaas_subscription_id
-    ) {
-      await reconcilePendingAsaasSubscription(subscription);
+    if (subscription.status === 'pending') {
+      await reconcilePendingSubscription(subscription);
     }
   }
 
