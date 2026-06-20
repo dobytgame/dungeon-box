@@ -7,6 +7,7 @@ import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import PaintKitAddon from '@/components/dashboard/PaintKitAddon';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
+import { parseCustomerNotes } from '@/lib/checkout/special-notes';
 import {
   formatDate,
   formatDateTime,
@@ -26,6 +27,7 @@ function SubscriptionDetailCard({
 }) {
   const plan = relOne(subscription.plans);
   const address = relOne(subscription.addresses);
+  const customerNotes = parseCustomerNotes(subscription.special_notes);
   const isPending = subscription.status === 'pending';
   const resumeCheckoutHref = plan?.slug
     ? checkoutHref(plan.slug as PlanSlug)
@@ -51,6 +53,8 @@ function SubscriptionDetailCard({
         </div>
       ) : null}
 
+      {!isPending ? <PaintKitAddon subscription={subscription} /> : null}
+
       <DashboardCard
         title={plan?.name ?? 'Assinatura'}
         accent="ember"
@@ -72,8 +76,8 @@ function SubscriptionDetailCard({
               )
             }
           />
-          {subscription.special_notes ? (
-            <DataRow label="Observações" value={subscription.special_notes} />
+          {customerNotes ? (
+            <DataRow label="Observações" value={customerNotes} />
           ) : null}
           {(subscription.shipping_cents ?? 0) > 0 ? (
             <DataRow
@@ -141,8 +145,7 @@ function SubscriptionDetailCard({
 
       <DashboardCard title="Gerenciar assinatura" accent="none">
         {!isPending ? (
-          <div className="mb-6 space-y-6">
-            <PaintKitAddon subscription={subscription} />
+          <div className="mb-6">
             <SubscriptionUpgrade subscription={subscription} />
           </div>
         ) : null}

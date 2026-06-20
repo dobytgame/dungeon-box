@@ -52,3 +52,15 @@ export function setPaintKitBumpInNotes(
   const bumpLine = `${PAINT_KIT_PREFIX}${bumpId}${recurring ? ':recurring' : ''}`;
   return [...customerNotes, bumpLine].join('\n');
 }
+
+/** Observações visíveis ao cliente (sem metadados internos do kit). */
+export function parseCustomerNotes(
+  notes: string | null | undefined
+): string | null {
+  if (!notes) return null;
+  const lines = notes
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith(PAINT_KIT_PREFIX));
+  return lines.length > 0 ? lines.join('\n') : null;
+}

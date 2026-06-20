@@ -8,7 +8,7 @@ import {
   getManageableSubscriptions,
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
-import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon';
+import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
 
 interface Props {
   searchParams: Promise<{ subscription?: string }>;

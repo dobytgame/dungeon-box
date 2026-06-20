@@ -16,13 +16,15 @@ import {
   getProfile,
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
-import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon';
+import { filterPaintKitEligibleSubscriptions } from '@/lib/subscriptions/paint-kit-addon-shared';
+import PaintKitAddon from '@/components/dashboard/PaintKitAddon';
 
 export default async function DashboardPage() {
   const { user } = await requireDashboardUser();
   const profile = await getProfile(user.id);
   const manageable = await getManageableSubscriptions(user.id);
   const subscription = await getSubscriptionWithCycles(user.id);
+  const paintKitEligible = filterPaintKitEligibleSubscriptions(manageable);
   const plan = relOne(subscription?.plans);
   const loyalty = subscription?.loyalty_level
     ? await getLoyaltyLevel(subscription.loyalty_level)
@@ -35,22 +37,15 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 md:space-y-10">
-      {subscription && subscriptionEligibleForPaintKitAddon(subscription) ? (
-        <div className="rounded-sm border border-gold/25 bg-gold/5 p-4 md:p-5">
-          <p className="font-display text-xs uppercase tracking-[0.25em] text-gold">
-            Adicional disponível
-          </p>
-          <p className="mt-2 text-sm text-stone-300">
-            Adicione o kit de pintura profissional (R$ 99,99) à sua assinatura — frete
-            grátis na próxima caixa.
-          </p>
-          <Link
-            href={`/dashboard/addons/paint-kit?subscription=${subscription.id}`}
-            className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center font-display text-xs uppercase tracking-widest text-gold hover:text-gold/80"
-          >
-            Adicionar kit de pintura →
-          </Link>
-        </div>
+      {paintKitEligible.length > 0 ? (
+        <section className="space-y-6">
+          {paintKitEligible.map((eligibleSubscription) => (
+            <PaintKitAddon
+              key={eligibleSubscription.id}
+              subscription={eligibleSubscription}
+            />
+          ))}
+        </section>
       ) : null}
 
       {manageable.length === 0 ? (

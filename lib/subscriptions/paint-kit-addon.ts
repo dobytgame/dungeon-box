@@ -1,11 +1,8 @@
 import type { PaintKitBumpId } from '@/lib/checkout/order-bumps';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
-import {
-  hasPaintKitBump,
-  setPaintKitBumpInNotes,
-} from '@/lib/checkout/special-notes';
+import { setPaintKitBumpInNotes } from '@/lib/checkout/special-notes';
 import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
-import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-sync';
+import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
 import { updateAsaasSubscriptionDetails } from '@/lib/asaas/subscription-api';
 import type {
@@ -14,22 +11,7 @@ import type {
 } from '@/lib/asaas/subscription-checkout';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const PAINT_KIT_ADDON_DEFAULT: PaintKitBumpId = 'profissional';
-
-export function paintKitAddonHref(subscriptionId: string): string {
-  return `/dashboard/addons/paint-kit?subscription=${subscriptionId}`;
-}
-
-export function paintKitAddonAbsoluteUrl(
-  subscriptionId: string,
-  origin?: string | null
-): string {
-  const base =
-    origin?.replace(/\/$/, '') ??
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ??
-    'https://dungeonbox.com.br';
-  return `${base}${paintKitAddonHref(subscriptionId)}`;
-}
+import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
 
 type PlanRow = {
   id: string;
@@ -82,13 +64,6 @@ function computeRecurringCents(
   return plan.price_cents + shippingCents + bumpCents;
 }
 
-export function subscriptionEligibleForPaintKitAddon(subscription: {
-  status: string;
-  special_notes: string | null;
-}): boolean {
-  return subscription.status === 'active' && !hasPaintKitBump(subscription.special_notes);
-}
-
 export async function purchasePaintKitAddon(input: {
   supabase: SupabaseClient;
   userId: string;
@@ -130,7 +105,7 @@ export async function purchasePaintKitAddon(input: {
   const sub = subscription as SubscriptionRow;
 
   if (!subscriptionEligibleForPaintKitAddon(sub)) {
-    if (sub.status !== 'active') {
+    if (sub.status !== 'active' && sub.status !== 'past_due') {
       return { error: 'Só assinaturas ativas podem adicionar o kit de pintura.' };
     }
     return { error: 'Esta assinatura já possui kit de pintura.' };

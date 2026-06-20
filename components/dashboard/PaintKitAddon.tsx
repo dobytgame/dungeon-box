@@ -14,7 +14,7 @@ import {
 } from '@/lib/checkout/order-bumps';
 import { formatMoney, relOne } from '@/lib/dashboard/format';
 import type { Subscription } from '@/lib/dashboard/types';
-import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon';
+import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
 
 interface Props {
   subscription: Subscription;
@@ -84,7 +84,7 @@ export default function PaintKitAddon({ subscription }: Props) {
   }
 
   return (
-    <DashboardCard title="Adicionar kit de pintura" accent="gold">
+    <DashboardCard title="Kit de pintura avulso" accent="gold">
       <div className="space-y-5">
         <div className="flex items-start gap-3 rounded-sm border border-gold/20 bg-gold/5 p-4">
           <Palette className="mt-0.5 h-5 w-5 shrink-0 text-gold" aria-hidden="true" />

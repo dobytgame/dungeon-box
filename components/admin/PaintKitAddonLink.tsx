@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { paintKitAddonAbsoluteUrl } from '@/lib/subscriptions/paint-kit-addon';
+import { paintKitAddonAbsoluteUrl } from '@/lib/subscriptions/paint-kit-addon-shared';
 
 interface Props {
   subscriptionId: string;

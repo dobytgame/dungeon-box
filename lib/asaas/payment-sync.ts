@@ -11,12 +11,7 @@ import { markCyclePreparing } from '@/lib/subscriptions/cycles';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const CONFIRMED_STATUSES = new Set([
-  'CONFIRMED',
-  'RECEIVED',
-  'RECEIVED_IN_CASH',
-  'AUTHORIZED',
-]);
+import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 
 type AsaasPaymentListItem = {
   id: string;
@@ -36,11 +31,6 @@ type AsaasSubscriptionResponse = {
   status?: string;
   externalReference?: string | null;
 };
-
-export function isAsaasPaymentConfirmed(status?: string | null): boolean {
-  if (!status) return false;
-  return CONFIRMED_STATUSES.has(status.toUpperCase());
-}
 
 export function toAsaasWebhookPayment(
   payment: AsaasPaymentListItem
