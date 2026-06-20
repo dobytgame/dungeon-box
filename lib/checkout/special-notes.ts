@@ -36,3 +36,19 @@ export function parsePaintKitBumpRecurring(
   const line = notes.split('\n').find((l) => l.startsWith(PAINT_KIT_PREFIX));
   return line?.endsWith(':recurring') ?? false;
 }
+
+export function hasPaintKitBump(notes: string | null | undefined): boolean {
+  return parsePaintKitBump(notes) !== null;
+}
+
+export function setPaintKitBumpInNotes(
+  notes: string | null | undefined,
+  bumpId: PaintKitBumpId,
+  recurring: boolean
+): string {
+  const customerNotes = (notes ?? '')
+    .split('\n')
+    .filter((line) => line.trim() && !line.startsWith(PAINT_KIT_PREFIX));
+  const bumpLine = `${PAINT_KIT_PREFIX}${bumpId}${recurring ? ':recurring' : ''}`;
+  return [...customerNotes, bumpLine].join('\n');
+}

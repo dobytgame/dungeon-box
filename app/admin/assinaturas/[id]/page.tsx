@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import AdminSubscriptionActions from '@/components/admin/AdminSubscriptionActions';
 import AdminTable from '@/components/admin/AdminTable';
+import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
+import { hasPaintKitBump } from '@/lib/checkout/special-notes';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminSubscriptionDetail } from '@/lib/admin/queries';
 import {
@@ -36,6 +39,13 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
       | undefined
   );
   const cycles = subscription.subscription_cycles ?? [];
+  const showPaintKitLink =
+    subscription.status === 'active' &&
+    !hasPaintKitBump(subscription.special_notes);
+  const headerList = await headers();
+  const origin = headerList.get('x-forwarded-host')
+    ? `${headerList.get('x-forwarded-proto') ?? 'https'}://${headerList.get('x-forwarded-host')}`
+    : headerList.get('origin');
 
   return (
     <div className="space-y-8">
@@ -137,6 +147,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
           />
         </dl>
       </section>
+
+      {showPaintKitLink ? (
+        <PaintKitAddonLink subscriptionId={subscription.id} origin={origin} />
+      ) : null}
 
       <AdminSubscriptionActions subscription={subscription} />
 

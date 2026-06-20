@@ -5,6 +5,7 @@ import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
+import PaintKitAddon from '@/components/dashboard/PaintKitAddon';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import {
   formatDate,
@@ -140,7 +141,8 @@ function SubscriptionDetailCard({
 
       <DashboardCard title="Gerenciar assinatura" accent="none">
         {!isPending ? (
-          <div className="mb-6">
+          <div className="mb-6 space-y-6">
+            <PaintKitAddon subscription={subscription} />
             <SubscriptionUpgrade subscription={subscription} />
           </div>
         ) : null}

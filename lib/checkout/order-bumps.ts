@@ -14,8 +14,8 @@ export const PAINT_KIT_BUMPS = [
   {
     id: 'profissional',
     name: 'Kit de Pintura Profissional',
-    priceCents: 9900,
-    priceLabel: 'R$ 99',
+    priceCents: 9999,
+    priceLabel: 'R$ 99,99',
     tagline: 'Acabamento de mesa com qualidade de loja',
     includes: [
       '8 tintas + washes e efeitos',
