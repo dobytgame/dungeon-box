@@ -31,6 +31,13 @@ export function buildRobots(index: boolean): Metadata['robots'] {
   return INDEX_ROBOTS;
 }
 
+/** Campanhas de MKT: não indexar, mas seguir links (ex.: home, checkout). */
+export const campaignPageRobots: Metadata['robots'] = {
+  index: false,
+  follow: true,
+  googleBot: { index: false, follow: true },
+};
+
 export function buildOpenGraph({
   title,
   description,
@@ -108,3 +115,31 @@ export function privatePageMetadata(title: string): Metadata {
     robots: buildRobots(false),
   };
 }
+
+export const guildCampaignPageMetadata: Metadata = {
+  title: 'Entre para a Guilda | DungeonBox — Grupo exclusivo no WhatsApp',
+  description:
+    'Entre no Grupo da Guilda DungeonBox: bastidores da produção, previews exclusivos, votação de temas e novidades antes de todo mundo. Gratuito, sem spam.',
+  keywords: [
+    ...SEO_KEYWORDS,
+    'grupo WhatsApp RPG',
+    'comunidade DungeonBox',
+    'guilda RPG',
+  ],
+  alternates: {
+    canonical: absoluteUrl('/entre-para-guilda'),
+  },
+  robots: campaignPageRobots,
+  openGraph: buildOpenGraph({
+    title: 'Entre para a Guilda — DungeonBox',
+    description:
+      'Grupo exclusivo no WhatsApp para mestres de RPG. Previews, bastidores e acesso antecipado à comunidade DungeonBox.',
+    path: '/entre-para-guilda',
+  }),
+  twitter: buildTwitterCard({
+    title: 'Entre para a Guilda — DungeonBox',
+    description:
+      'Grupo exclusivo no WhatsApp. Bastidores, previews e comunidade para mestres de D&D, Tormenta e Pathfinder.',
+  }),
+  category: 'games',
+};
