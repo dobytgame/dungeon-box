@@ -3,8 +3,8 @@ import { hasPaintKitBump } from '@/lib/checkout/special-notes';
 
 export const PAINT_KIT_ADDON_DEFAULT: PaintKitBumpId = 'profissional';
 
-export function paintKitAddonHref(subscriptionId: string): string {
-  return `/dashboard/addons/paint-kit?subscription=${subscriptionId}`;
+export function paintKitAddonHref(_subscriptionId?: string): string {
+  return '/dashboard/loja';
 }
 
 export function paintKitAddonAbsoluteUrl(

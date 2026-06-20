@@ -16,11 +16,11 @@ export default function PaintKitAddonLink({ subscriptionId, origin }: Props) {
   return (
     <div className="rounded-sm border border-gold/20 bg-gold/5 p-4">
       <p className="font-display text-xs uppercase tracking-widest text-gold">
-        Link — kit de pintura
+        Link — loja
       </p>
       <p className="mt-2 text-sm text-stone-400">
-        Envie ao cliente para adicionar o kit profissional (R$ 99,99, frete grátis na
-        próxima caixa). O link exige login na conta dele.
+        Envie ao cliente para comprar kits de pintura na loja (frete grátis na próxima
+        caixa para assinantes). O link exige login na conta dele.
       </p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <code className="flex-1 truncate rounded-sm border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-300">

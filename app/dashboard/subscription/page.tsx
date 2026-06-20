@@ -5,7 +5,6 @@ import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
-import PaintKitAddon from '@/components/dashboard/PaintKitAddon';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { parseCustomerNotes } from '@/lib/checkout/special-notes';
 import {
@@ -52,8 +51,6 @@ function SubscriptionDetailCard({
           </Link>
         </div>
       ) : null}
-
-      {!isPending ? <PaintKitAddon subscription={subscription} /> : null}
 
       <DashboardCard
         title={plan?.name ?? 'Assinatura'}
