@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Layers,
   LayoutDashboard,
+  Mail,
   Package,
   Palette,
   Repeat,
@@ -19,6 +20,7 @@ import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   'layout-dashboard': LayoutDashboard,
+  mail: Mail,
   users: Users,
   repeat: Repeat,
   package: Package,

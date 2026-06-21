@@ -10,6 +10,10 @@ import {
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
 import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
+import {
+  handleComboPaymentConfirmed,
+  parseComboPaymentReference,
+} from '@/lib/asaas/combo-payment';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -29,6 +33,11 @@ export async function handleAsaasPaymentConfirmed(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
 ): Promise<'processed' | 'skipped'> {
+  const comboSubscriptionId = parseComboPaymentReference(payment.externalReference);
+  if (comboSubscriptionId) {
+    return handleComboPaymentConfirmed(supabase, payment, comboSubscriptionId);
+  }
+
   const local = await resolveLocalAsaasSubscription(supabase, payment);
   if (!local) return 'skipped';
 

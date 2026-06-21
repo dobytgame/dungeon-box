@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { checkoutHref } from '@/lib/checkout/plans';
+import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
@@ -42,7 +43,9 @@ export default async function DashboardPage() {
           ctaHref={checkoutHref('heroi')}
         />
       ) : subscription ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6">
+          <ComboSubscriptionCallout subscription={subscription} />
+          <div className="grid gap-6 lg:grid-cols-3">
           <DashboardCard title="Assinatura" accent="ember">
             <dl>
               <DataRow
@@ -133,6 +136,7 @@ export default async function DashboardPage() {
               Ver progressão →
             </Link>
           </DashboardCard>
+        </div>
         </div>
       ) : null}
 

@@ -10,6 +10,7 @@ import {
 import { notifyOrderShipped } from '@/lib/email/ship-notify';
 import { logAdminAction } from '@/lib/admin/audit';
 import { requireAdmin } from '@/lib/admin/auth';
+import type { MarketingAudience } from '@/lib/admin/types';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
 import { relOne } from '@/lib/dashboard/format';
 import type { CycleStatus } from '@/lib/dashboard/types';
@@ -611,4 +612,131 @@ export async function updatePlanCommercialAction(planId: string, formData: FormD
   revalidateAdmin();
   revalidatePath('/checkout');
   return { success: true as const };
+}
+
+export async function previewMarketingCampaignAction(input: {
+  subject: string;
+  title: string;
+  body: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}) {
+  await requireAdmin();
+
+  const subject = input.subject.trim();
+  const title = input.title.trim();
+  const body = input.body.trim();
+
+  if (!subject || !title || !body) {
+    return { error: 'Preencha assunto, título e conteúdo.' };
+  }
+
+  const { marketingBroadcastHtml } = await import(
+    '@/lib/email/templates/marketing-broadcast'
+  );
+
+  return {
+    html: marketingBroadcastHtml({
+      subject,
+      title,
+      body,
+      ctaLabel: input.ctaLabel?.trim() || undefined,
+      ctaHref: input.ctaHref?.trim() || undefined,
+    }),
+  };
+}
+
+export async function getMarketingAudienceCountAction(audience: MarketingAudience) {
+  const { user, admin, profile } = await requireAdmin();
+  const { resolveMarketingAudienceEmails } = await import(
+    '@/lib/admin/marketing-audience'
+  );
+
+  const emails = await resolveMarketingAudienceEmails(
+    admin,
+    audience,
+    profile.email
+  );
+
+  return { count: emails.length };
+}
+
+export async function sendMarketingCampaignAction(input: {
+  subject: string;
+  title: string;
+  body: string;
+  audience: MarketingAudience;
+  ctaLabel?: string;
+  ctaHref?: string;
+  confirm: boolean;
+}) {
+  const { user, admin, profile } = await requireAdmin();
+
+  if (!input.confirm) {
+    return { error: 'Confirme o envio antes de disparar a campanha.' };
+  }
+
+  const subject = input.subject.trim();
+  const title = input.title.trim();
+  const body = input.body.trim();
+
+  if (!subject || !title || !body) {
+    return { error: 'Preencha assunto, título e conteúdo.' };
+  }
+
+  const { resolveMarketingAudienceEmails } = await import(
+    '@/lib/admin/marketing-audience'
+  );
+  const { sendMarketingBroadcast } = await import(
+    '@/lib/email/send-marketing-broadcast'
+  );
+
+  const emails = await resolveMarketingAudienceEmails(
+    admin,
+    input.audience,
+    profile.email
+  );
+
+  if (!emails.length) {
+    return { error: 'Nenhum destinatário encontrado para este público.' };
+  }
+
+  const result = await sendMarketingBroadcast(emails, {
+    subject,
+    title,
+    body,
+    ctaLabel: input.ctaLabel?.trim() || undefined,
+    ctaHref: input.ctaHref?.trim() || undefined,
+  });
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'marketing.send',
+    entityType: 'marketing_campaign',
+    metadata: {
+      audience: input.audience,
+      subject,
+      title,
+      total: result.total,
+      sent: result.sent,
+      failed: result.failed,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  if (result.sent === 0) {
+    return {
+      error:
+        result.errors[0] ??
+        'Nenhum e-mail foi enviado. Verifique RESEND_API_KEY e remetente marketing.',
+    };
+  }
+
+  return {
+    success: true as const,
+    total: result.total,
+    sent: result.sent,
+    failed: result.failed,
+    errors: result.errors,
+  };
 }

@@ -23,6 +23,30 @@ export interface AdminDashboardStats {
   mrrByPlan: { planName: string; subscribers: number; mrrCents: number }[];
   recentPayments: Payment[];
   shipQueue: AdminCycleRow[];
+  userPlanStats: AdminUserPlanStats;
+}
+
+export interface AdminUserPlanStats {
+  totalProfiles: number;
+  withActivePlan: number;
+  withoutActivePlan: number;
+}
+
+export type MarketingAudience =
+  | 'all_profiles'
+  | 'active_subscribers'
+  | 'inactive_users'
+  | 'newsletter_leads'
+  | 'admin_test';
+
+export interface MarketingCopyPreset {
+  id: string;
+  label: string;
+  subject: string;
+  title: string;
+  body: string;
+  ctaLabel?: string;
+  ctaHref?: string;
 }
 
 export interface AdminCustomerRow {

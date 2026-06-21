@@ -64,6 +64,14 @@ export const ADMIN_NAV = [
     group: 'catalogo',
   },
   {
+    href: '/admin/marketing',
+    label: 'Marketing',
+    eyebrow: 'Comunicação',
+    description: 'Campanhas por e-mail para a base via Resend.',
+    icon: 'mail',
+    group: 'comunicacao',
+  },
+  {
     href: '/admin/auditoria',
     label: 'Auditoria',
     eyebrow: 'Trilha',
@@ -76,5 +84,6 @@ export const ADMIN_NAV = [
 export const ADMIN_NAV_GROUPS = [
   { id: 'operacao' as const, label: 'Operação' },
   { id: 'catalogo' as const, label: 'Catálogo' },
+  { id: 'comunicacao' as const, label: 'Comunicação' },
   { id: 'sistema' as const, label: 'Sistema' },
 ] as const;

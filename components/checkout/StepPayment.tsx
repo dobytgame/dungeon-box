@@ -22,11 +22,17 @@ import {
   buildCheckoutEcommerceValue,
 } from '@/lib/analytics/checkout-items';
 import { trackAddPaymentInfo } from '@/lib/analytics/data-layer';
+import {
+  calculateComboTotalCents,
+  COMBO_BILLING_ENABLED,
+  isComboTerm,
+} from '@/lib/checkout/combo-billing';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from './AsaasPaymentForm';
 import CheckoutProfileForm from './CheckoutProfileForm';
 import CheckoutSection from './CheckoutSection';
+import InstallmentSelector from './InstallmentSelector';
 import StripeCheckoutProvider from './StripeCheckoutProvider';
 import StripePaymentForm from './StripePaymentForm';
 
@@ -43,6 +49,7 @@ interface Props {
 
 export default function StepPayment({
   data,
+  setData,
   profile,
   onProfileSaved,
   onBack,
@@ -62,6 +69,14 @@ export default function StepPayment({
 
   const promotionCode = data.couponCode ?? null;
   const monthlyTotalCents = sumRecurringCheckoutCents(data);
+  const comboTerm =
+    COMBO_BILLING_ENABLED && isComboTerm(data.billingTerm)
+      ? data.billingTerm
+      : null;
+  const isCombo = comboTerm !== null;
+  const comboTotalCents = comboTerm
+    ? calculateComboTotalCents(data, comboTerm)
+    : 0;
   const stripeSinglePlanOnly = data.planSlugs.length > 1;
 
   const stripeReady =
@@ -199,6 +214,8 @@ export default function StepPayment({
           specialNotes: data.specialNotes,
           paintKitBump: data.paintKitBump,
           paintKitBumpRecurring: data.paintKitBumpRecurring,
+          billingTerm: data.billingTerm,
+          installmentCount: data.installmentCount,
           creditCard,
           couponCode: promotionCode,
         }),
@@ -242,7 +259,9 @@ export default function StepPayment({
   });
 
   const paymentDescription = paymentConfigured
-    ? data.couponCode
+    ? isCombo
+      ? `Combo ${data.billingTerm === 'combo_3' ? '3' : data.billingTerm === 'combo_6' ? '6' : '12'} meses — R$ ${(comboTotalCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${data.installmentCount > 1 ? ` em ${data.installmentCount}x` : ''}.`
+      : data.couponCode
       ? `R$ ${displayPrice}/mês no total com cupom aplicado. Renovação automática.`
       : data.planSlugs.length > 1
         ? `R$ ${displayPrice}/mês no total (${data.planSlugs.length} assinaturas). Pagamento seguro, sem sair do site.`
@@ -253,7 +272,11 @@ export default function StepPayment({
     <div className="space-y-8">
       <CheckoutSection
         title="Pagamento"
-        subtitle="Cobrança mensal automática. Você pode cancelar a qualquer momento."
+        subtitle={
+          isCombo
+            ? 'Pagamento único do combo. Renovação mensal após o período.'
+            : 'Cobrança mensal automática. Você pode cancelar a qualquer momento.'
+        }
       >
         {profile ? (
           <CheckoutProfileForm
@@ -286,6 +309,21 @@ export default function StepPayment({
             Múltiplos planos no mesmo pedido estão disponíveis apenas com o
             provedor Asaas.
           </p>
+        ) : null}
+
+        {isCombo && asaasReady ? (
+          <CheckoutSection
+            title="Parcelamento"
+            subtitle="Disponível apenas para combos."
+          >
+            <InstallmentSelector
+              value={data.installmentCount}
+              onChange={(count) =>
+                setData((prev) => ({ ...prev, installmentCount: count }))
+              }
+              totalCents={comboTotalCents}
+            />
+          </CheckoutSection>
         ) : null}
 
         <div className="rounded-sm border border-white/[0.06] bg-stone-950/40 p-5">

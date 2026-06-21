@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { planSupportCopy, plans } from '@/lib/data';
 import { getPlanTheme } from '@/lib/plan-theme';
+import ComboPlansPromo from '@/components/sections/ComboPlansPromo';
 import PlanPanel from '@/components/sections/PlanPanel';
+import { COMBO_BILLING_ENABLED } from '@/lib/checkout/combo-billing';
 
 function PlansIntro() {
   return (
@@ -113,6 +115,8 @@ export default function PlansStack() {
       </div>
 
       <PlansTierNav />
+
+      {COMBO_BILLING_ENABLED ? <ComboPlansPromo /> : null}
 
       <div className="divide-y divide-white/[0.06]">
         {plans.map((plan, index) => (

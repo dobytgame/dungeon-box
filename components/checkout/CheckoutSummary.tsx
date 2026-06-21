@@ -3,9 +3,13 @@
 import { Check, MapPin, Package, Paintbrush, Tag, Truck } from 'lucide-react';
 import { plans } from '@/lib/data';
 import {
-  resolveBumpBilling,
-  sumRecurringCheckoutCents,
-} from '@/lib/checkout/bump-billing';
+  calculateComboSavingsCents,
+  calculateComboTotalCents,
+  COMBO_BILLING_ENABLED,
+  comboInstallmentLabel,
+  isComboTerm,
+} from '@/lib/checkout/combo-billing';
+import { resolveBumpBilling, sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
 import {
   getEffectivePlanCents,
@@ -36,6 +40,17 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
   const address = addresses.find((a) => a.id === data.addressId);
   const monthlyTotalCents = sumMonthlyCents(data);
   const recurringTotalCents = sumRecurringCheckoutCents(data);
+  const comboTerm =
+    COMBO_BILLING_ENABLED && isComboTerm(data.billingTerm)
+      ? data.billingTerm
+      : null;
+  const isCombo = comboTerm !== null;
+  const comboTotalCents = comboTerm
+    ? calculateComboTotalCents(data, comboTerm)
+    : 0;
+  const comboSavingsCents = comboTerm
+    ? calculateComboSavingsCents(data, comboTerm)
+    : 0;
   const originalMonthlyTotalCents = data.planSlugs.reduce(
     (sum, slug) => sum + getPlanPriceCents(slug),
     0
@@ -80,7 +95,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                       {plan.name}
                     </p>
                     <p className="mt-0.5 text-xs text-stone-500">
-                      Assinatura mensal
+                      {isCombo ? 'Incluso no combo' : 'Assinatura mensal'}
                     </p>
                   </div>
                   <p className="shrink-0 text-right">
@@ -268,8 +283,47 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
             </div>
           ) : null}
 
+          {isCombo ? (
+            <div className="border-b border-white/[0.06] py-4">
+              <p className="font-display text-[10px] uppercase tracking-[0.25em] text-gold">
+                Pacote combo
+              </p>
+              <div className="mt-3 flex items-baseline justify-between gap-2">
+                <p className="text-xs text-stone-500">Total do combo</p>
+                <p className="font-display text-lg tabular-nums text-gold">
+                  {formatBRL(comboTotalCents)}
+                </p>
+              </div>
+              {comboSavingsCents > 0 ? (
+                <p className="mt-1 text-right text-xs text-emerald-400/90">
+                  Economia de {formatBRL(comboSavingsCents)}
+                </p>
+              ) : null}
+              {data.installmentCount > 1 ? (
+                <p className="mt-2 text-right text-[11px] text-stone-500">
+                  {comboInstallmentLabel(data.installmentCount)}
+                </p>
+              ) : null}
+              <p className="mt-2 text-[11px] text-stone-600">
+                Depois, {formatBRL(recurringTotalCents)}/mês
+              </p>
+            </div>
+          ) : null}
+
           <div className="pt-4">
-            {hasFirstChargeExtras ? (
+            {isCombo ? (
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs text-stone-500">Cobrança agora</p>
+                <p className="font-display text-lg tabular-nums text-white">
+                  {formatBRL(comboTotalCents)}
+                  {data.installmentCount > 1 ? (
+                    <span className="ml-2 text-sm text-stone-500">
+                      ({comboInstallmentLabel(data.installmentCount)})
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+            ) : hasFirstChargeExtras ? (
               <>
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-xs text-stone-500">1ª cobrança</p>

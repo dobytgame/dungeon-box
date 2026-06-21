@@ -7,6 +7,8 @@ import { plans } from '@/lib/data';
 import type { CheckoutData } from '@/lib/checkout/types';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import CheckoutSection from './CheckoutSection';
+import { COMBO_BILLING_ENABLED } from '@/lib/checkout/combo-billing';
+import ComboBillingSelector from './ComboBillingSelector';
 import CouponField from './CouponField';
 import OrderBumpCard from './OrderBumpCard';
 import PlanSelector from './PlanSelector';
@@ -63,6 +65,19 @@ export default function StepPlan({
           </a>
           .
         </p>
+      ) : null}
+
+      {COMBO_BILLING_ENABLED ? (
+        <CheckoutSection
+          title="Forma de cobrança"
+          subtitle="Escolha mensal ou economize com um pacote antecipado."
+        >
+          <ComboBillingSelector
+            data={data}
+            setData={setData}
+            singlePlanOnly={data.planSlugs.length === 1}
+          />
+        </CheckoutSection>
       ) : null}
 
       <CheckoutSection

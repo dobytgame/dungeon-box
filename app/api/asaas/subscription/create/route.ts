@@ -12,6 +12,7 @@ import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { userFacingAsaasError } from '@/lib/asaas/errors';
 import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
+import { syncComboPaymentIfPending } from '@/lib/asaas/combo-payment';
 import { createAsaasSubscription } from '@/lib/asaas/subscription-checkout';
 import { isAsaasCheckout } from '@/lib/payments/provider';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
@@ -23,6 +24,14 @@ import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkou
 import { cookies } from 'next/headers';
 import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
 import { registerReferralAtCheckout } from '@/lib/referral/referrals';
+import {
+  BILLING_TERMS,
+  calculateComboTotalCents,
+  COMBO_MAX_INSTALLMENTS,
+  isComboTerm,
+  type BillingTerm,
+} from '@/lib/checkout/combo-billing';
+import type { CheckoutData } from '@/lib/checkout/types';
 
 const cardSchema = z.object({
   holderName: z.string().min(2).max(120),
@@ -42,6 +51,8 @@ const bodySchema = z
     paintKitBumpRecurring: z.boolean().optional().default(false),
     creditCard: cardSchema,
     couponCode: z.string().max(64).optional().nullable(),
+    billingTerm: z.enum(BILLING_TERMS).optional().default('monthly'),
+    installmentCount: z.number().int().min(1).max(COMBO_MAX_INSTALLMENTS).optional().default(1),
   })
   .refine((value) => value.planSlug || (value.planSlugs?.length ?? 0) > 0, {
     message: 'Informe ao menos um plano.',
@@ -110,6 +121,18 @@ export async function POST(request: Request) {
   if (planSlugs.length === 0) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
+
+  const billingTerm = (body.billingTerm ?? 'monthly') as BillingTerm;
+  if (isComboTerm(billingTerm) && planSlugs.length > 1) {
+    return NextResponse.json(
+      { error: 'Combos disponíveis apenas para um plano por vez.' },
+      { status: 400 }
+    );
+  }
+
+  const installmentCount = isComboTerm(billingTerm)
+    ? body.installmentCount ?? 1
+    : 1;
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -323,12 +346,42 @@ export async function POST(request: Request) {
           ? `${plan.name} + ${bump.name}`
           : plan.name;
 
+      let comboTotalCents: number | undefined;
+      if (isComboTerm(billingTerm) && index === 0) {
+        const checkoutSnapshot: CheckoutData = {
+          planSlugs: [planSlug],
+          billingTerm,
+          installmentCount,
+          paintKitBump: body.paintKitBump ?? null,
+          paintKitBumpRecurring: bumpRecurring,
+          addressId: body.addressId,
+          specialNotes: body.specialNotes ?? '',
+          discountedPlanCentsByPlan: resolvedCoupon
+            ? { [planSlug]: chargePriceCents - bumpMonthlyCents - freightMonthlyCents }
+            : undefined,
+          shippingByPlan: {
+            [planSlug]: {
+              cents: freightMonthlyCents,
+              free: freightMonthlyCents === 0,
+              region: shippingQuote.region,
+              label: shippingQuote.label ?? shippingQuote.region,
+              etaDaysMin: shippingQuote.etaDaysMin,
+              etaDaysMax: shippingQuote.etaDaysMax,
+            },
+          },
+        };
+        comboTotalCents = calculateComboTotalCents(checkoutSnapshot, billingTerm);
+      }
+
       const result = await createAsaasSubscription(supabase, {
         userId: user.id,
         planSlug,
         planId: plan.id,
         planName: planDescription,
         priceCents: chargePriceCents,
+        billingTerm,
+        installmentCount,
+        comboTotalCents,
         promoCode: resolvedCoupon?.promo.code ?? null,
         addressId: body.addressId,
         specialNotes: specialNotes ?? '',
@@ -366,15 +419,23 @@ export async function POST(request: Request) {
         promoRecorded = true;
       }
 
-      await syncAsaasSubscriptionPayments(result.asaasSubscriptionId).catch(
+      await syncAsaasSubscriptionPayments(result.asaasSubscriptionId ?? '').catch(
         (err) => {
           console.error('[asaas] post-create sync failed:', err);
         }
       );
 
+      if (result.comboPaymentId) {
+        await syncComboPaymentIfPending(
+          supabase,
+          result.subscriptionId,
+          result.comboPaymentId
+        );
+      }
+
       created.push({
         subscriptionId: result.subscriptionId,
-        asaasSubscriptionId: result.asaasSubscriptionId,
+        asaasSubscriptionId: result.asaasSubscriptionId ?? '',
         planSlug,
       });
 

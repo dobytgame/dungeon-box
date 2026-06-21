@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Address, Profile } from '@/lib/dashboard/types';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { COMBO_BILLING_ENABLED, isComboTerm } from '@/lib/checkout/combo-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
 import CheckoutPageAnalytics from '@/components/analytics/CheckoutPageAnalytics';
 import {
@@ -18,6 +20,7 @@ import StepPlan from './StepPlan';
 
 interface Props {
   planSlugs: PlanSlug[];
+  initialBillingTerm?: BillingTerm;
   addresses: Address[];
   profile: Profile | null;
   userEmail: string;
@@ -26,6 +29,7 @@ interface Props {
 
 export default function CheckoutFlow({
   planSlugs,
+  initialBillingTerm = 'monthly',
   addresses,
   profile,
   userEmail,
@@ -39,6 +43,13 @@ export default function CheckoutFlow({
   const [profileState, setProfileState] = useState(profile);
   const [data, setData] = useState<CheckoutData>({
     planSlugs,
+    billingTerm:
+      COMBO_BILLING_ENABLED &&
+      planSlugs.length === 1 &&
+      isComboTerm(initialBillingTerm)
+        ? initialBillingTerm
+        : 'monthly',
+    installmentCount: 1,
     paintKitBump: null,
     paintKitBumpRecurring: false,
     addressId: defaultAddress?.id ?? '',
@@ -61,6 +72,9 @@ export default function CheckoutFlow({
       return {
         ...prev,
         planSlugs,
+        billingTerm:
+          !COMBO_BILLING_ENABLED || planSlugs.length > 1 ? 'monthly' : prev.billingTerm,
+        installmentCount: planSlugs.length > 1 ? 1 : prev.installmentCount,
         discountedPlanCentsByPlan: undefined,
         couponCode: null,
         couponSummary: null,
@@ -70,15 +84,36 @@ export default function CheckoutFlow({
   }, [planSlugsKey, planSlugs]);
 
   function handlePlanSlugsChange(nextSlugs: PlanSlug[]) {
-    setData((prev) => ({
-      ...prev,
-      planSlugs: nextSlugs,
-      discountedPlanCentsByPlan: undefined,
-      couponCode: null,
-      couponSummary: null,
-      shippingByPlan: undefined,
-    }));
-    router.replace(checkoutHref(nextSlugs), { scroll: false });
+    let comboForUrl: Exclude<BillingTerm, 'monthly'> | undefined;
+
+    setData((prev) => {
+      const nextBillingTerm =
+        !COMBO_BILLING_ENABLED || nextSlugs.length > 1
+          ? 'monthly'
+          : isComboTerm(prev.billingTerm)
+            ? prev.billingTerm
+            : 'monthly';
+
+      comboForUrl =
+        COMBO_BILLING_ENABLED &&
+        nextSlugs.length === 1 &&
+        isComboTerm(nextBillingTerm)
+          ? nextBillingTerm
+          : undefined;
+
+      return {
+        ...prev,
+        planSlugs: nextSlugs,
+        billingTerm: nextBillingTerm,
+        installmentCount: nextSlugs.length > 1 ? 1 : prev.installmentCount,
+        discountedPlanCentsByPlan: undefined,
+        couponCode: null,
+        couponSummary: null,
+        shippingByPlan: undefined,
+      };
+    });
+
+    router.replace(checkoutHref(nextSlugs, comboForUrl), { scroll: false });
   }
 
   return (

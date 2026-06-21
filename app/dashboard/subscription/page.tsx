@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
@@ -51,6 +52,8 @@ function SubscriptionDetailCard({
           </Link>
         </div>
       ) : null}
+
+      <ComboSubscriptionCallout subscription={subscription} />
 
       <DashboardCard
         title={plan?.name ?? 'Assinatura'}

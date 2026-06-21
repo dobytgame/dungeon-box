@@ -138,6 +138,11 @@ export interface Subscription {
   shipping_cents?: number | null;
   shipping_region?: string | null;
   pending_plan_id?: string | null;
+  billing_term?: string | null;
+  prepaid_months?: number | null;
+  prepaid_until?: string | null;
+  combo_total_cents?: number | null;
+  combo_installments?: number | null;
   created_at: string | null;
   updated_at: string | null;
   plans: Plan | Plan[] | null;

@@ -13,12 +13,30 @@ import type {
   AdminAuditRow,
   AdminPromoRedemptionRow,
   AdminSubscriptionRow,
+  AdminUserPlanStats,
 } from './types';
 
 function daysAgoIso(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);
   return date.toISOString();
+}
+
+export async function getAdminUserPlanStats(
+  admin: SupabaseClient
+): Promise<AdminUserPlanStats> {
+  const [profilesRes, activeSubsRes] = await Promise.all([
+    admin.from('profiles').select('id', { count: 'exact', head: true }),
+    admin.from('subscriptions').select('user_id').eq('status', 'active'),
+  ]);
+
+  const totalProfiles = profilesRes.count ?? 0;
+  const withActivePlan = new Set(
+    (activeSubsRes.data ?? []).map((row) => row.user_id as string)
+  ).size;
+  const withoutActivePlan = Math.max(0, totalProfiles - withActivePlan);
+
+  return { totalProfiles, withActivePlan, withoutActivePlan };
 }
 
 const ADMIN_CYCLE_LIST_SELECT = `
@@ -92,6 +110,7 @@ export async function getAdminDashboardStats(
     payments30Res,
     recentPaymentsRes,
     shipQueueRes,
+    userPlanStats,
   ] = await Promise.all([
     admin.from('mrr').select('*'),
     admin
@@ -157,6 +176,7 @@ export async function getAdminDashboardStats(
       .eq('status', 'preparing')
       .order('created_at', { ascending: true })
       .limit(10),
+    getAdminUserPlanStats(admin),
   ]);
 
   const mrrRows = mrrRes.data ?? [];
@@ -189,6 +209,7 @@ export async function getAdminDashboardStats(
     shipQueue: (shipQueueRes.data ?? []).map((row) =>
       mapCycleRow(row as Record<string, unknown>)
     ),
+    userPlanStats,
   };
 }
 

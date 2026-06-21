@@ -7,6 +7,9 @@ import { getPlanTheme } from '@/lib/plan-theme';
 import CTAButton from '@/components/ui/CTAButton';
 import { checkoutHref } from '@/lib/checkout/plans';
 import PlanBadge from '@/components/ui/PlanBadge';
+import { COMBO_BILLING_ENABLED } from '@/lib/checkout/combo-billing';
+import PlanComboCallout from '@/components/sections/PlanComboCallout';
+import type { PlanSlug } from '@/lib/checkout/plans';
 
 type PlanId = (typeof plans)[number]['id'];
 
@@ -181,6 +184,9 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
                 ) : null}
                 {plan.billingNote ? (
                   <p className="mt-1 text-xs text-stone-500">{plan.billingNote}</p>
+                ) : null}
+                {COMBO_BILLING_ENABLED ? (
+                  <PlanComboCallout planId={plan.id as PlanSlug} />
                 ) : null}
               </div>
               <CTAButton

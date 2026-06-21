@@ -1,3 +1,4 @@
+import type { BillingTerm } from './combo-billing';
 import type { PaintKitBumpId } from './order-bumps';
 import type { PlanSlug } from './plans';
 
@@ -12,6 +13,10 @@ export type ShippingQuoteSnapshot = {
 
 export interface CheckoutData {
   planSlugs: PlanSlug[];
+  /** Mensal (padrão) ou pacote antecipado 3/6/12 meses */
+  billingTerm: BillingTerm;
+  /** Parcelas no cartão — apenas combo (Asaas) */
+  installmentCount: number;
   paintKitBump: PaintKitBumpId | null;
   /** Kit de pintura incluso todo mês (cobrança recorrente) */
   paintKitBumpRecurring: boolean;

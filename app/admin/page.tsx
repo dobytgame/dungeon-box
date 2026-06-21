@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AdminSection from '@/components/admin/AdminSection';
 import AdminTable from '@/components/admin/AdminTable';
+import AdminUserPlanChart from '@/components/admin/AdminUserPlanChart';
 import KpiCard from '@/components/admin/KpiCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
@@ -53,6 +54,17 @@ export default async function AdminDashboardPage() {
           accent="warn"
         />
       </section>
+
+      <AdminSection
+        title="Base de usuários"
+        action={{ href: '/admin/marketing', label: 'Enviar campanha' }}
+      >
+        <AdminUserPlanChart
+          withActivePlan={stats.userPlanStats.withActivePlan}
+          withoutActivePlan={stats.userPlanStats.withoutActivePlan}
+          totalProfiles={stats.userPlanStats.totalProfiles}
+        />
+      </AdminSection>
 
       {stats.mrrByPlan.length > 0 ? (
         <AdminSection title="MRR por plano">

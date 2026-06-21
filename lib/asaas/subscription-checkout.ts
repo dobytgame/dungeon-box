@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlanSlug } from '@/lib/checkout/plans';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import {
+  calculateComboTotalCents,
+  isComboTerm,
+  prepaidMonthsForTerm,
+} from '@/lib/checkout/combo-billing';
 import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
 import { asaasRequest } from '@/lib/asaas/client';
 import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
@@ -29,6 +35,9 @@ export type CreateAsaasSubscriptionInput = {
   planId: string;
   planName: string;
   priceCents: number;
+  billingTerm: BillingTerm;
+  installmentCount: number;
+  comboTotalCents?: number;
   promoCode?: string | null;
   addressId: string;
   specialNotes: string | null;
@@ -62,8 +71,9 @@ export type CreateAsaasSubscriptionInput = {
 
 export type CreateAsaasSubscriptionResult = {
   subscriptionId: string;
-  asaasSubscriptionId: string;
+  asaasSubscriptionId: string | null;
   asaasCustomerId: string;
+  comboPaymentId?: string | null;
 };
 
 type AsaasSubscriptionResponse = {
@@ -80,10 +90,19 @@ function centsToReais(cents: number): number {
   return Math.round(cents) / 100;
 }
 
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
 export async function createAsaasSubscription(
   supabase: SupabaseClient,
   input: CreateAsaasSubscriptionInput
 ): Promise<CreateAsaasSubscriptionResult> {
+  const isCombo = isComboTerm(input.billingTerm);
+  const prepaidMonths = prepaidMonthsForTerm(input.billingTerm);
+
   const asaasCustomerId = await getOrCreateAsaasCustomer(
     supabase,
     input.profile,
@@ -103,6 +122,10 @@ export async function createAsaasSubscription(
     }
   }
 
+  const now = new Date();
+  const prepaidUntil =
+    isCombo && prepaidMonths ? addMonths(now, prepaidMonths) : null;
+
   const row = {
     plan_id: input.planId,
     address_id: input.addressId,
@@ -115,7 +138,12 @@ export async function createAsaasSubscription(
     promo_code: input.promoCode ?? null,
     shipping_cents: input.shippingCents,
     shipping_region: input.shippingRegion,
-    updated_at: new Date().toISOString(),
+    billing_term: input.billingTerm,
+    prepaid_months: prepaidMonths,
+    prepaid_until: prepaidUntil?.toISOString() ?? null,
+    combo_total_cents: isCombo ? input.comboTotalCents ?? null : null,
+    combo_installments: isCombo ? input.installmentCount : null,
+    updated_at: now.toISOString(),
   };
 
   let subscriptionId: string;
@@ -148,6 +176,73 @@ export async function createAsaasSubscription(
       throw new Error('Não foi possível salvar a assinatura.');
     }
     subscriptionId = data.id;
+  }
+
+  if (isCombo) {
+    const comboTotal = input.comboTotalCents ?? 0;
+    if (comboTotal <= 0) {
+      throw new Error('Valor do combo inválido.');
+    }
+
+    const comboLabel =
+      input.billingTerm === 'combo_3'
+        ? '3 meses'
+        : input.billingTerm === 'combo_6'
+          ? '6 meses'
+          : '12 meses';
+
+    const comboPayment = await chargeAsaasOneTimePayment({
+      customerId: asaasCustomerId,
+      valueCents: comboTotal,
+      description: `DungeonBox — Combo ${comboLabel} (${input.planName})`,
+      remoteIp: input.remoteIp,
+      creditCard: input.creditCard,
+      creditCardHolderInfo: input.creditCardHolderInfo,
+      externalReference: `${subscriptionId}:combo`,
+      installmentCount: input.installmentCount,
+    });
+
+    const renewalStart = prepaidUntil ?? addMonths(now, 1);
+
+    const asaasSubscription = await asaasRequest<AsaasSubscriptionResponse>(
+      '/subscriptions/',
+      {
+        method: 'POST',
+        body: {
+          customer: asaasCustomerId,
+          billingType: 'CREDIT_CARD',
+          cycle: 'MONTHLY',
+          value: centsToReais(input.priceCents),
+          nextDueDate: formatAsaasDate(renewalStart),
+          description: `DungeonBox — ${input.planName} (renovação mensal)`,
+          externalReference: subscriptionId,
+          creditCard: input.creditCard,
+          creditCardHolderInfo: input.creditCardHolderInfo,
+          remoteIp: input.remoteIp,
+        },
+      }
+    );
+
+    const { error: linkError } = await supabase
+      .from('subscriptions')
+      .update({
+        asaas_subscription_id: asaasSubscription.id,
+        asaas_customer_id: asaasCustomerId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', subscriptionId);
+
+    if (linkError) {
+      await cancelAsaasSubscriptionBestEffort(asaasSubscription.id);
+      throw new Error('Não foi possível vincular a assinatura.');
+    }
+
+    return {
+      subscriptionId,
+      asaasSubscriptionId: asaasSubscription.id,
+      asaasCustomerId,
+      comboPaymentId: comboPayment.id,
+    };
   }
 
   const asaasSubscription = await asaasRequest<AsaasSubscriptionResponse>(
@@ -194,6 +289,7 @@ export async function createAsaasSubscription(
         creditCard: input.creditCard,
         creditCardHolderInfo: input.creditCardHolderInfo,
         externalReference: `${subscriptionId}:one-time`,
+        installmentCount: 1,
       });
     } catch (error) {
       await cancelAsaasSubscriptionBestEffort(asaasSubscription.id);
