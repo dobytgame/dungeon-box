@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { DASHBOARD_NAV } from '@/lib/dashboard/constants';
+import type { DashboardNavItem } from '@/lib/dashboard/constants';
 import DashboardHeader from './DashboardHeader';
 import DashboardNav from './DashboardNav';
 import DashboardPageIntro from './DashboardPageIntro';
@@ -10,6 +10,7 @@ interface Props {
   displayName: string;
   email: string;
   avatarUrl?: string | null;
+  navItems: DashboardNavItem[];
   children: React.ReactNode;
 }
 
@@ -17,15 +18,16 @@ export default function DashboardShell({
   displayName,
   email,
   avatarUrl,
+  navItems,
   children,
 }: Props) {
   const pathname = usePathname();
   const navItem =
-    DASHBOARD_NAV.find((item) =>
+    navItems.find((item) =>
       item.href === '/dashboard'
         ? pathname === '/dashboard'
         : pathname.startsWith(item.href)
-    ) ?? DASHBOARD_NAV[0];
+    ) ?? navItems[0];
 
   const isOverview = pathname === '/dashboard';
   const title = isOverview ? (
@@ -61,7 +63,7 @@ export default function DashboardShell({
         />
 
         <div className="mt-8 md:mt-10">
-          <DashboardNav />
+          <DashboardNav items={navItems} />
         </div>
 
         <main className="mt-10 md:mt-12">{children}</main>

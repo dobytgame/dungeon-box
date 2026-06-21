@@ -20,6 +20,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
+import { cookies } from 'next/headers';
+import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
+import { registerReferralAtCheckout } from '@/lib/referral/referrals';
 
 const cardSchema = z.object({
   holderName: z.string().min(2).max(120),
@@ -208,6 +211,8 @@ export async function POST(request: Request) {
     planSlug: PlanSlug;
   }> = [];
   let promoRecorded = false;
+  const referralCookie = cookies().get(REFERRAL_COOKIE_NAME)?.value ?? null;
+  let referralRegistered = false;
 
   try {
     for (let index = 0; index < planSlugs.length; index += 1) {
@@ -372,14 +377,34 @@ export async function POST(request: Request) {
         asaasSubscriptionId: result.asaasSubscriptionId,
         planSlug,
       });
+
+      if (!referralRegistered && referralCookie) {
+        const admin = createAdminClient();
+        await registerReferralAtCheckout(admin, {
+          referredUserId: user.id,
+          subscriptionId: result.subscriptionId,
+          referralCode: referralCookie,
+          usedPromoCode: Boolean(resolvedCoupon || body.couponCode?.trim()),
+        });
+        referralRegistered = true;
+      }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       subscriptions: created,
       subscriptionId: created[0]?.subscriptionId,
       asaasSubscriptionId: created[0]?.asaasSubscriptionId,
     });
+
+    if (referralRegistered) {
+      response.cookies.set(REFERRAL_COOKIE_NAME, '', {
+        maxAge: 0,
+        path: '/',
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error('[asaas] create subscription:', error);
     return NextResponse.json(

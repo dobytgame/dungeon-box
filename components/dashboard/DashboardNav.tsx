@@ -1,11 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { DASHBOARD_NAV } from '@/lib/dashboard/constants';
+import type { DashboardNavItem } from '@/lib/dashboard/constants';
 
-export default function DashboardNav() {
+interface Props {
+  items: DashboardNavItem[];
+}
+
+export default function DashboardNav({ items }: Props) {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
 
@@ -21,7 +25,7 @@ export default function DashboardNav() {
         className="dashboard-nav-scroll flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 px-4 pb-1 sm:scroll-px-6 sm:px-6"
         aria-label="Seções da minha conta"
       >
-        {DASHBOARD_NAV.map((item) => {
+        {items.map((item) => {
           const active =
             item.href === '/dashboard'
               ? pathname === '/dashboard'

@@ -1,5 +1,25 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  REFERRAL_COOKIE_MAX_AGE_SECONDS,
+  REFERRAL_COOKIE_NAME,
+  normalizeReferralCode,
+} from '@/lib/referral/cookie';
+
+function applyReferralCookie(request: NextRequest, response: NextResponse) {
+  const refParam = request.nextUrl.searchParams.get('ref');
+  const code = normalizeReferralCode(refParam);
+  if (!code) return response;
+
+  response.cookies.set(REFERRAL_COOKIE_NAME, code, {
+    maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS,
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+
+  return response;
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -62,8 +82,8 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = next.startsWith('/') ? next : '/dashboard';
     redirectUrl.search = '';
-    return NextResponse.redirect(redirectUrl);
+    return applyReferralCookie(request, NextResponse.redirect(redirectUrl));
   }
 
-  return supabaseResponse;
+  return applyReferralCookie(request, supabaseResponse);
 }

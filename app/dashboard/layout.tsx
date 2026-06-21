@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import DashboardShell from '@/components/dashboard/DashboardShell';
 import { privatePageMetadata } from '@/lib/seo/metadata';
+import { buildDashboardNav } from '@/lib/dashboard/constants';
+import { userHasActiveReferralAccess } from '@/lib/referral/access';
 
 export const metadata: Metadata = privatePageMetadata('Minha conta');
 import {
@@ -14,15 +16,18 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = await requireDashboardUser();
+  const { user, supabase } = await requireDashboardUser();
   const profile = await getProfile(user.id);
   const name = displayName(profile, user.email);
+  const showReferral = await userHasActiveReferralAccess(supabase, user.id);
+  const navItems = buildDashboardNav(showReferral);
 
   return (
     <DashboardShell
       displayName={name}
       email={profile?.email ?? user.email ?? ''}
       avatarUrl={profile?.avatar_url}
+      navItems={navItems}
     >
       {children}
     </DashboardShell>

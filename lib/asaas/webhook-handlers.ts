@@ -7,6 +7,9 @@ import {
   notifyPurchaseCompleted,
   notifySubscriptionCancelled,
 } from '@/lib/email/subscription-notify';
+import { cancelReferralForSubscription } from '@/lib/referral/referrals';
+import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
+import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -67,6 +70,9 @@ export async function handleAsaasPaymentConfirmed(
         console.error('[email] purchase completed notify failed:', err);
       }
     );
+    void notifyReferrerOnReferralConverted(supabase, local.id).catch((err) => {
+      console.error('[email] referral converted notify failed:', err);
+    });
     return 'processed';
   }
 
@@ -136,6 +142,9 @@ export async function handleAsaasPaymentRefunded(
         updated_at: now,
       })
       .eq('id', local.id);
+
+    await cancelReferralForSubscription(supabase, local.id);
+    await cancelPendingRedemptionsForUser(supabase, local.user_id);
 
     void notifySubscriptionCancelled(supabase, local.id).catch((err) => {
       console.error('[email] subscription cancelled notify failed:', err);

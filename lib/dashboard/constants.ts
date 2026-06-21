@@ -71,3 +71,20 @@ export const DASHBOARD_NAV = [
     description: 'Níveis, bônus e benefícios por permanência na assinatura.',
   },
 ] as const;
+
+export const REFERRAL_NAV_ITEM = {
+  href: '/dashboard/indique',
+  label: 'Indique e Ganhe',
+  icon: 'gift',
+  eyebrow: 'Indicações',
+  description: 'Compartilhe seu link, acumule pontos e resgate recompensas da loja.',
+} as const;
+
+export type DashboardNavItem = (typeof DASHBOARD_NAV)[number] | typeof REFERRAL_NAV_ITEM;
+
+export function buildDashboardNav(showReferral: boolean): DashboardNavItem[] {
+  if (!showReferral) return [...DASHBOARD_NAV];
+  const items: DashboardNavItem[] = [...DASHBOARD_NAV];
+  items.splice(items.length - 2, 0, REFERRAL_NAV_ITEM);
+  return items;
+}

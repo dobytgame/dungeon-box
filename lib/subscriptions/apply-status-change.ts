@@ -11,6 +11,8 @@ import {
   type MpPreapprovalStatus,
 } from '@/lib/mercadopago';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
+import { cancelReferralForSubscription } from '@/lib/referral/referrals';
+import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
 
 export type SubscriptionStatusAction = 'pause' | 'cancel' | 'resume';
 
@@ -147,6 +149,11 @@ export async function applySubscriptionStatusChange(
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (action === 'cancel') {
+    await cancelReferralForSubscription(supabase, subscriptionId);
+    await cancelPendingRedemptionsForUser(supabase, row.user_id);
   }
 
   return {};

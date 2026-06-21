@@ -31,6 +31,16 @@ import {
   supportConfirmationHtml,
   supportConfirmationText,
 } from '@/lib/email/templates/support-confirmation';
+import {
+  REFERRAL_CONVERTED_SUBJECT,
+  referralConvertedHtml,
+  referralConvertedText,
+} from '@/lib/email/templates/referral-converted';
+import {
+  REFERRAL_POINTS_EARNED_SUBJECT,
+  referralPointsEarnedHtml,
+  referralPointsEarnedText,
+} from '@/lib/email/templates/referral-points-earned';
 import { getRoleEmailAddress } from '@/lib/email/config';
 import { escapeHtml } from '@/lib/email/layout';
 
@@ -114,6 +124,42 @@ export async function sendSubscriptionCancelledEmail(input: {
     text: subscriptionCancelledText(input),
     replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'subscription_cancelled' }],
+  });
+}
+
+export async function sendReferralConvertedEmail(input: {
+  to: string;
+  name?: string | null;
+  referredName: string;
+  projectedPoints: number;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to: input.to,
+    subject: REFERRAL_CONVERTED_SUBJECT,
+    html: referralConvertedHtml(input),
+    text: referralConvertedText(input),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'referral_converted' }],
+  });
+}
+
+export async function sendReferralPointsEarnedEmail(input: {
+  to: string;
+  name?: string | null;
+  referredName: string;
+  pointsEarned: number;
+  newBalance: number;
+  rankName?: string | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to: input.to,
+    subject: REFERRAL_POINTS_EARNED_SUBJECT,
+    html: referralPointsEarnedHtml(input),
+    text: referralPointsEarnedText(input),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'referral_points_earned' }],
   });
 }
 

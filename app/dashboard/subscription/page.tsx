@@ -165,24 +165,49 @@ function SubscriptionDetailCard({
   );
 }
 
-export default async function SubscriptionPage() {
+export default async function SubscriptionPage({
+  searchParams,
+}: {
+  searchParams?: { referral?: string };
+}) {
   const { user } = await requireDashboardUser();
   const subscriptions = await getManageableSubscriptions(user.id);
   const isDev = process.env.NODE_ENV === 'development';
+  const referralBlocked = searchParams?.referral === 'inactive';
 
   if (subscriptions.length === 0) {
     return (
-      <EmptyState
-        title="Nenhuma assinatura ativa"
-        description="Escolha um plano e complete o checkout para começar a receber suas dungeons todo mês. Você pode assinar mais de um plano ao mesmo tempo."
-        ctaLabel="Escolher plano"
-        ctaHref={checkoutHref('heroi')}
-      />
+      <div className="space-y-8">
+        {referralBlocked ? (
+          <p
+            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
+            role="status"
+          >
+            O programa Indique e Ganhe está disponível apenas para assinantes com
+            assinatura ativa.
+          </p>
+        ) : null}
+        <EmptyState
+          title="Nenhuma assinatura ativa"
+          description="Escolha um plano e complete o checkout para começar a receber suas dungeons todo mês. Você pode assinar mais de um plano ao mesmo tempo."
+          ctaLabel="Escolher plano"
+          ctaHref={checkoutHref('heroi')}
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-10 md:space-y-12">
+      {referralBlocked ? (
+        <p
+          className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
+          role="status"
+        >
+          O programa Indique e Ganhe está disponível apenas para assinantes com
+          assinatura ativa.
+        </p>
+      ) : null}
       {subscriptions.length > 1 ? (
         <p className="text-sm text-stone-400">
           Você tem {subscriptions.length} assinaturas ativas. Cada plano é cobrado e
