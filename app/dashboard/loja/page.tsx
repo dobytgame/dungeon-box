@@ -9,9 +9,9 @@ import {
 import { getMonthlyKitProductsForUser } from '@/lib/store/monthly-kits';
 
 export default async function StorePage() {
-  const { supabase, user } = await requireDashboardUser();
+  const { user } = await requireDashboardUser();
   const subscriptions = await getManageableSubscriptions(user.id);
-  const monthlyKits = await getMonthlyKitProductsForUser(supabase, subscriptions);
+  const monthlyKits = await getMonthlyKitProductsForUser(subscriptions);
   const hasActiveSubscription = subscriptions.some(
     (sub) => sub.status === 'active' || sub.status === 'past_due'
   );
@@ -49,7 +49,8 @@ export default async function StorePage() {
       ) : hasActiveSubscription ? (
         <section className="mb-12 rounded-sm border border-white/[0.06] bg-stone-950/40 p-5">
           <p className="text-sm text-stone-400">
-            Nenhum tema do mês está disponível para compra extra no momento.
+            Não foi possível carregar o kit do mês para sua assinatura. Se o
+            problema persistir, entre em contato com o suporte.
           </p>
         </section>
       ) : (

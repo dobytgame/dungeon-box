@@ -11,9 +11,9 @@ export default async function StoreLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { supabase, user } = await requireDashboardUser();
+  const { user } = await requireDashboardUser();
   const subscriptions = await getManageableSubscriptions(user.id);
-  const monthlyKits = await getMonthlyKitProductsForUser(supabase, subscriptions);
+  const monthlyKits = await getMonthlyKitProductsForUser(subscriptions);
 
   return (
     <StoreCatalogProvider monthlyKits={monthlyKits}>

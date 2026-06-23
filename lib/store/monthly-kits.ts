@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { relOne } from '@/lib/dashboard/format';
 import type { Subscription, Theme } from '@/lib/dashboard/types';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { StoreProduct } from '@/lib/store/catalog';
 
 export const MONTHLY_KIT_PRODUCT_PREFIX = 'monthly-kit:';
@@ -32,19 +33,66 @@ function formatPriceLabel(cents: number): string {
   });
 }
 
-export async function getCurrentMonthlyTheme(
-  supabase: SupabaseClient
+async function getThemeFromUpcomingCycle(
+  admin: SupabaseClient,
+  subscriptionId: string
 ): Promise<Theme | null> {
-  const { data } = await supabase
-    .from('themes')
-    .select('*')
-    .eq('is_active', true)
+  const { data: cycle } = await admin
+    .from('subscription_cycles')
+    .select('theme_id, themes(*)')
+    .eq('subscription_id', subscriptionId)
+    .in('status', ['upcoming', 'preparing'])
+    .not('theme_id', 'is', null)
+    .order('cycle_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return relOne(cycle?.themes as Theme | Theme[] | null);
+}
+
+async function queryLatestTheme(
+  admin: SupabaseClient,
+  filter?: { column: 'is_active' | 'is_revealed'; value: boolean }
+): Promise<Theme | null> {
+  let query = admin.from('themes').select('*');
+
+  if (filter) {
+    query = query.eq(filter.column, filter.value);
+  }
+
+  const { data } = await query
     .order('year', { ascending: false })
     .order('month_number', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   return (data as Theme | null) ?? null;
+}
+
+/**
+ * Tema usado na loja para kit extra do mês.
+ * Usa service role (RLS de themes só expõe is_revealed ao cliente).
+ */
+export async function getCurrentMonthlyTheme(
+  subscriptions: Subscription[] = []
+): Promise<Theme | null> {
+  const admin = createAdminClient();
+
+  for (const subscription of subscriptions.filter(subscriptionEligibleForMonthlyKit)) {
+    const fromCycle = await getThemeFromUpcomingCycle(admin, subscription.id);
+    if (fromCycle) return fromCycle;
+  }
+
+  const active = await queryLatestTheme(admin, { column: 'is_active', value: true });
+  if (active) return active;
+
+  const revealed = await queryLatestTheme(admin, {
+    column: 'is_revealed',
+    value: true,
+  });
+  if (revealed) return revealed;
+
+  return queryLatestTheme(admin);
 }
 
 export function buildMonthlyKitProduct(
@@ -83,10 +131,9 @@ export function buildMonthlyKitProduct(
 }
 
 export async function getMonthlyKitProductsForUser(
-  supabase: SupabaseClient,
   subscriptions: Subscription[]
 ): Promise<StoreProduct[]> {
-  const theme = await getCurrentMonthlyTheme(supabase);
+  const theme = await getCurrentMonthlyTheme(subscriptions);
   if (!theme) return [];
 
   return subscriptions
@@ -110,21 +157,19 @@ export async function resolveMonthlyKitOrderItem(
   supabase: SupabaseClient,
   userId: string,
   productId: string,
-  quantity: number
+  quantity: number,
+  subscriptions?: Subscription[]
 ): Promise<MonthlyKitOrderItem | { error: string }> {
   const subscriptionId = parseMonthlyKitSubscriptionId(productId);
   if (!subscriptionId) {
     return { error: 'Kit do mês inválido.' };
   }
 
-  const theme = await getCurrentMonthlyTheme(supabase);
-  if (!theme) {
-    return { error: 'Nenhum tema do mês disponível para compra no momento.' };
-  }
-
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('id, status, user_id, plans!plan_id(name, slug, price_cents, pieces_min, pieces_max)')
+    .select(
+      'id, status, user_id, plans!plan_id(name, slug, price_cents, pieces_min, pieces_max)'
+    )
     .eq('id', subscriptionId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -133,6 +178,13 @@ export async function resolveMonthlyKitOrderItem(
     return {
       error: 'Assinatura inválida ou inativa para compra do kit do mês.',
     };
+  }
+
+  const theme = await getCurrentMonthlyTheme(
+    subscriptions ?? ([subscription] as Subscription[])
+  );
+  if (!theme) {
+    return { error: 'Nenhum tema do mês disponível para compra no momento.' };
   }
 
   const product = buildMonthlyKitProduct(subscription as Subscription, theme);
