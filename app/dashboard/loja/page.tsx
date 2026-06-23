@@ -72,12 +72,13 @@ export default async function StorePage() {
               Kit do mês
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-stone-400">
-              Quer outra cópia do tema deste mês? Compre quantas precisar — todas
-              vão na mesma entrega da sua assinatura, sem custo de frete.
+              Assinantes podem comprar cópias extras de qualquer plano (Aventureiro,
+              Herói ou Lendário) do tema do mês — enviadas junto com a próxima caixa,
+              sem frete.
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {monthlyKitStore.products.map((product) => (
               <StoreProductCard key={product.id} product={product} />
             ))}

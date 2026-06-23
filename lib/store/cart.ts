@@ -1,6 +1,6 @@
 import type { StoreProduct } from '@/lib/store/catalog';
 import { getStoreProduct } from '@/lib/store/catalog';
-import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
+import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
 
 export type CartLine = {
   productId: string;
@@ -16,7 +16,7 @@ export type CartLineResolved = CartLine & {
   themeName?: string;
 };
 
-export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v1';
+export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v2';
 
 function maxQuantityForProduct(
   product: StoreProduct | undefined,
@@ -38,7 +38,15 @@ export function normalizeCartLines(
       getStoreProduct(line.productId) ??
       catalog.find((entry) => entry.id === line.productId);
 
-    if (!product && !isMonthlyKitProductId(line.productId)) continue;
+    if (!product) {
+      if (
+        isMonthlyKitProductId(line.productId) &&
+        !parseMonthlyKitPlanSlug(line.productId)
+      ) {
+        continue;
+      }
+      if (!isMonthlyKitProductId(line.productId)) continue;
+    }
 
     const maxQty = maxQuantityForProduct(product, line.productId);
     const qty = Math.min(Math.max(Math.floor(line.quantity), 0), maxQty);

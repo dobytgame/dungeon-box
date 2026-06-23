@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Loader2 } from 'lucide-react';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
@@ -13,13 +13,13 @@ import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney, formatZip, relOne } from '@/lib/dashboard/format';
 import type { Address, Subscription } from '@/lib/dashboard/types';
 import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
+import { subscriptionEligibleForMonthlyKit } from '@/lib/store/monthly-kits';
 import {
   cartHasMonthlyKits,
   normalizeCartLines,
   resolveCartLines,
 } from '@/lib/store/cart';
 import { getStoreProduct } from '@/lib/store/catalog';
-import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
 
 interface Props {
   addresses: Address[];
@@ -33,20 +33,33 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? '');
-  const [bundleSubscriptionId, setBundleSubscriptionId] = useState<string>('');
+
+  const eligibleMonthlyKitSubs = useMemo(
+    () => subscriptions.filter(subscriptionEligibleForMonthlyKit),
+    [subscriptions]
+  );
+
+  const [monthlyKitBundleSubscriptionId, setMonthlyKitBundleSubscriptionId] =
+    useState(eligibleMonthlyKitSubs[0]?.id ?? '');
+
+  const [paintKitBundleSubscriptionId, setPaintKitBundleSubscriptionId] =
+    useState('');
+
+  useEffect(() => {
+    if (
+      eligibleMonthlyKitSubs.length > 0 &&
+      !eligibleMonthlyKitSubs.some(
+        (sub) => sub.id === monthlyKitBundleSubscriptionId
+      )
+    ) {
+      setMonthlyKitBundleSubscriptionId(eligibleMonthlyKitSubs[0]!.id);
+    }
+  }, [eligibleMonthlyKitSubs, monthlyKitBundleSubscriptionId]);
 
   const resolved = resolveCartLines(lines, allProducts);
   const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);
-  const eligibleBundleSubs = subscriptions.filter(
+  const eligiblePaintKitSubs = subscriptions.filter(
     subscriptionEligibleForPaintKitAddon
-  );
-
-  const monthlyKitSubscriptionIds = useMemo(
-    () =>
-      normalizeCartLines(lines, allProducts)
-        .filter((line) => isMonthlyKitProductId(line.productId))
-        .map((line) => line.productId.replace('monthly-kit:', '')),
-    [lines, allProducts]
   );
 
   const canBundlePaintKit = useMemo(() => {
@@ -58,7 +71,8 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   }, [lines, allProducts, hasMonthlyKit]);
 
   const shippingMode =
-    hasMonthlyKit || (bundleSubscriptionId && canBundlePaintKit)
+    hasMonthlyKit ||
+    (paintKitBundleSubscriptionId && canBundlePaintKit)
       ? 'with_subscription'
       : 'standalone';
 
@@ -85,6 +99,11 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   }
 
   async function handlePay(card: AsaasCardPayload) {
+    if (hasMonthlyKit && !monthlyKitBundleSubscriptionId) {
+      setError('Selecione com qual assinatura enviar os kits do mês.');
+      return;
+    }
+
     if (!hasMonthlyKit && !addressId) {
       setError('Selecione um endereço de entrega.');
       return;
@@ -99,9 +118,10 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           body: JSON.stringify({
             items: lines,
             addressId: addressId || addresses[0]?.id,
-            bundleSubscriptionId:
-              shippingMode === 'with_subscription' && canBundlePaintKit
-                ? bundleSubscriptionId
+            bundleSubscriptionId: hasMonthlyKit
+              ? monthlyKitBundleSubscriptionId
+              : canBundlePaintKit && paintKitBundleSubscriptionId
+                ? paintKitBundleSubscriptionId
                 : null,
             creditCard: card,
           }),
@@ -128,6 +148,10 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     });
   }
 
+  const selectedMonthlySub = subscriptions.find(
+    (sub) => sub.id === monthlyKitBundleSubscriptionId
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-5">
       <div className="space-y-6 lg:col-span-3">
@@ -135,37 +159,64 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           <DashboardCard
             title="Envio com sua assinatura"
             accent="gold"
-            description="Kits do mês são enviados junto com a próxima caixa — sem frete."
+            description="Escolha a assinatura cujo próximo envio receberá os kits extras — sem frete."
           >
-            <ul className="space-y-3 text-sm text-stone-300">
-              {monthlyKitSubscriptionIds.map((subscriptionId) => {
-                const subscription = subscriptions.find(
-                  (sub) => sub.id === subscriptionId
-                );
-                const plan = relOne(subscription?.plans);
-                const linesForSub = resolved.filter(
-                  (line) => line.subscriptionId === subscriptionId
-                );
-                const totalQty = linesForSub.reduce(
-                  (sum, line) => sum + line.quantity,
-                  0
-                );
+            {eligibleMonthlyKitSubs.length === 0 ? (
+              <p className="text-sm text-stone-400">
+                Nenhuma assinatura ativa encontrada.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {eligibleMonthlyKitSubs.map((subscription) => {
+                  const plan = relOne(subscription.plans);
+                  return (
+                    <label
+                      key={subscription.id}
+                      className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
+                        monthlyKitBundleSubscriptionId === subscription.id
+                          ? 'border-gold/40 bg-gold/5'
+                          : 'border-white/[0.06] hover:border-white/15'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="monthly-kit-bundle"
+                        checked={monthlyKitBundleSubscriptionId === subscription.id}
+                        onChange={() =>
+                          setMonthlyKitBundleSubscriptionId(subscription.id)
+                        }
+                        className="mt-1"
+                      />
+                      <span className="text-sm text-stone-300">
+                        <span className="text-white">
+                          Próxima caixa — {plan?.name ?? 'Assinatura'}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-gold">
+                          Frete grátis · kits extras vão neste envio
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
 
-                return (
-                  <li
-                    key={subscriptionId}
-                    className="rounded-sm border border-gold/25 bg-gold/5 px-4 py-3"
-                  >
-                    <p className="text-white">
-                      {totalQty}x kit do mês — {plan?.name ?? 'Assinatura'}
-                    </p>
-                    <p className="mt-1 text-xs text-gold">
-                      Frete grátis na próxima entrega desta assinatura
-                    </p>
+            <ul className="mt-4 space-y-2 border-t border-white/[0.06] pt-4 text-sm text-stone-400">
+              {resolved
+                .filter((line) => line.category === 'monthly-kit')
+                .map((line) => (
+                  <li key={line.productId}>
+                    {line.quantity}x {line.name}
                   </li>
-                );
-              })}
+                ))}
             </ul>
+
+            {selectedMonthlySub ? (
+              <p className="mt-3 text-xs text-stone-500">
+                Os kits podem ser de qualquer plano — o envio usa o endereço da
+                assinatura {relOne(selectedMonthlySub.plans)?.name ?? 'selecionada'}.
+              </p>
+            ) : null}
           </DashboardCard>
         ) : (
           <DashboardCard title="Entrega" accent="frost">
@@ -211,7 +262,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           </DashboardCard>
         )}
 
-        {canBundlePaintKit && eligibleBundleSubs.length > 0 ? (
+        {canBundlePaintKit && eligiblePaintKitSubs.length > 0 ? (
           <DashboardCard
             title="Envio com sua assinatura"
             accent="gold"
@@ -221,9 +272,9 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
               <label className="flex cursor-pointer gap-3 rounded-sm border border-white/[0.06] p-4">
                 <input
                   type="radio"
-                  name="bundle-mode"
-                  checked={!bundleSubscriptionId}
-                  onChange={() => setBundleSubscriptionId('')}
+                  name="paint-kit-bundle"
+                  checked={!paintKitBundleSubscriptionId}
+                  onChange={() => setPaintKitBundleSubscriptionId('')}
                   className="mt-1"
                 />
                 <span className="text-sm text-stone-300">
@@ -234,22 +285,24 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
                 </span>
               </label>
 
-              {eligibleBundleSubs.map((subscription) => {
+              {eligiblePaintKitSubs.map((subscription) => {
                 const plan = relOne(subscription.plans);
                 return (
                   <label
                     key={subscription.id}
                     className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
-                      bundleSubscriptionId === subscription.id
+                      paintKitBundleSubscriptionId === subscription.id
                         ? 'border-gold/40 bg-gold/5'
                         : 'border-white/[0.06] hover:border-white/15'
                     }`}
                   >
                     <input
                       type="radio"
-                      name="bundle-mode"
-                      checked={bundleSubscriptionId === subscription.id}
-                      onChange={() => setBundleSubscriptionId(subscription.id)}
+                      name="paint-kit-bundle"
+                      checked={paintKitBundleSubscriptionId === subscription.id}
+                      onChange={() =>
+                        setPaintKitBundleSubscriptionId(subscription.id)
+                      }
                       className="mt-1"
                     />
                     <span className="text-sm text-stone-300">
@@ -269,7 +322,11 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
 
         <DashboardCard title="Pagamento" accent="ember">
           <AsaasPaymentForm
-            disabled={pending || (!hasMonthlyKit && addresses.length === 0)}
+            disabled={
+              pending ||
+              (!hasMonthlyKit && addresses.length === 0) ||
+              (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
+            }
             onError={setError}
             onSubmit={handlePay}
           />

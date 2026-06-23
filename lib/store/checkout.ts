@@ -51,7 +51,7 @@ type ResolvedStoreLine =
       quantity: number;
       name: string;
       lineTotalCents: number;
-      subscriptionId: string;
+      planSlug: string;
       themeId: string;
       themeName: string;
       planName: string;
@@ -112,6 +112,23 @@ async function resolveStoreLines(
     return { error: 'Seu carrinho está vazio.' };
   }
 
+  let monthlyBundleSubscriptionId = bundleSubscriptionId;
+  const hasMonthlyKitInCart = normalized.some((line) =>
+    isMonthlyKitProductId(line.productId)
+  );
+
+  if (hasMonthlyKitInCart && !monthlyBundleSubscriptionId) {
+    const { data: subs } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .in('status', ['active', 'past_due']);
+
+    if ((subs?.length ?? 0) === 1) {
+      monthlyBundleSubscriptionId = subs![0]!.id;
+    }
+  }
+
   const resolved: ResolvedStoreLine[] = [];
 
   for (const line of normalized) {
@@ -120,7 +137,9 @@ async function resolveStoreLines(
         supabase,
         userId,
         line.productId,
-        line.quantity
+        line.quantity,
+        monthlyBundleSubscriptionId,
+        supabase
       );
       if ('error' in monthly) return monthly;
 
@@ -130,12 +149,12 @@ async function resolveStoreLines(
         quantity: monthly.quantity,
         name: `Kit do mês — ${monthly.planName} (${monthly.themeName})`,
         lineTotalCents: monthly.lineTotalCents,
-        subscriptionId: monthly.subscriptionId,
+        planSlug: monthly.planSlug,
         themeId: monthly.themeId,
         themeName: monthly.themeName,
         planName: monthly.planName,
         priceCents: monthly.priceCents,
-        bundleSubscriptionId: monthly.subscriptionId,
+        bundleSubscriptionId: monthly.bundleSubscriptionId,
       });
       continue;
     }
@@ -308,7 +327,7 @@ export async function purchaseStoreOrder(
               quantity: line.quantity,
               name: line.name,
               lineTotalCents: line.lineTotalCents,
-              subscriptionId: line.subscriptionId,
+              planSlug: line.planSlug,
               themeId: line.themeId,
               themeName: line.themeName,
               planName: line.planName,
