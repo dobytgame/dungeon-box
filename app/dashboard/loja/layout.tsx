@@ -1,9 +1,6 @@
 import { StoreCartProvider } from '@/components/store/StoreCartProvider';
 import { StoreCatalogProvider } from '@/components/store/StoreCatalogProvider';
-import {
-  getManageableSubscriptions,
-  requireDashboardUser,
-} from '@/lib/dashboard/queries';
+import { requireDashboardUser } from '@/lib/dashboard/queries';
 import { getMonthlyKitProductsForUser } from '@/lib/store/monthly-kits';
 
 export default async function StoreLayout({
@@ -11,9 +8,8 @@ export default async function StoreLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = await requireDashboardUser();
-  const subscriptions = await getManageableSubscriptions(user.id);
-  const monthlyKits = await getMonthlyKitProductsForUser(subscriptions);
+  const { user, supabase } = await requireDashboardUser();
+  const monthlyKits = await getMonthlyKitProductsForUser(user.id, supabase);
 
   return (
     <StoreCatalogProvider monthlyKits={monthlyKits}>
