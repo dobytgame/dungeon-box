@@ -84,7 +84,7 @@ export async function markCyclePreparing(
     })
     .eq('subscription_id', subscriptionId)
     .eq('cycle_number', cycleNumber)
-    .in('status', ['upcoming', 'preparing', 'failed']);
+    .in('status', ['upcoming', 'production', 'preparing', 'failed']);
 
   if (error) {
     console.error('markCyclePreparing:', error);

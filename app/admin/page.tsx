@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import AdminSection from '@/components/admin/AdminSection';
+import AdminActivePlansChart from '@/components/admin/AdminActivePlansChart';
 import AdminTable from '@/components/admin/AdminTable';
 import AdminUserPlanChart from '@/components/admin/AdminUserPlanChart';
 import KpiCard from '@/components/admin/KpiCard';
@@ -63,6 +64,13 @@ export default async function AdminDashboardPage() {
           withActivePlan={stats.userPlanStats.withActivePlan}
           withoutActivePlan={stats.userPlanStats.withoutActivePlan}
           totalProfiles={stats.userPlanStats.totalProfiles}
+        />
+      </AdminSection>
+
+      <AdminSection title="Planos assinados">
+        <AdminActivePlansChart
+          plans={stats.activePlanCounts}
+          totalActive={stats.activeSubscribers}
         />
       </AdminSection>
 

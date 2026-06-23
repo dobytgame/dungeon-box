@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
-import AdminSection from '@/components/admin/AdminSection';
 import ArchiveCyclesTable from '@/components/admin/ArchiveCyclesTable';
-import CycleDetailSheet from '@/components/admin/CycleDetailSheet';
+import AdminSection from '@/components/admin/AdminSection';
+import CycleDetailModalView from '@/components/admin/CycleDetailModalView';
 import CycleShipModal from '@/components/admin/CycleShipModal';
 import ProductionKanban from '@/components/admin/ProductionKanban';
 
@@ -93,7 +93,7 @@ export default function ProductionWorkspace({
         </AdminSection>
       ) : null}
 
-      <CycleDetailSheet
+      <CycleDetailModalView
         cycleId={detailCycleId}
         open={detailCycleId !== null}
         onClose={() => setDetailCycleId(null)}

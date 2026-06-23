@@ -12,10 +12,13 @@ import {
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import type { CycleStatus } from '@/lib/dashboard/types';
+import { formatDate } from '@/lib/dashboard/format';
+import CycleBundledTags from '@/components/admin/CycleBundledTags';
 
 const KANBAN_COLUMNS = PRODUCTION_PIPELINE.filter(
   (status): status is keyof ProductionKanbanBoard =>
     status === 'upcoming' ||
+    status === 'production' ||
     status === 'preparing' ||
     status === 'shipped' ||
     status === 'delivered'
@@ -27,7 +30,11 @@ const COLUMN_META: Record<
 > = {
   upcoming: {
     label: 'Aguardando',
-    hint: 'Pagamento confirmado, aguardando montagem',
+    hint: 'Pagamento confirmado — fila por ordem de compra',
+  },
+  production: {
+    label: 'Produção',
+    hint: 'Peças sendo impressas e preparadas',
   },
   preparing: {
     label: 'Em preparo',
@@ -58,8 +65,14 @@ function nextQuickAction(
 ): { target: CycleStatus; label: string } | null {
   if (status === 'upcoming') {
     return {
+      target: 'production',
+      label: productionActionLabel('upcoming', 'production') ?? 'Iniciar produção',
+    };
+  }
+  if (status === 'production') {
+    return {
       target: 'preparing',
-      label: productionActionLabel('upcoming', 'preparing') ?? 'Iniciar preparo',
+      label: productionActionLabel('production', 'preparing') ?? 'Iniciar preparo',
     };
   }
   if (status === 'shipped') {
@@ -107,6 +120,12 @@ function KanbanCard({
           </p>
         ) : null}
         <dl className="grid gap-1 text-[11px] text-zinc-500">
+          {row.paid_at ? (
+            <div className="flex justify-between gap-2">
+              <dt>Compra</dt>
+              <dd className="text-zinc-400">{formatDate(row.paid_at)}</dd>
+            </div>
+          ) : null}
           {row.planName ? (
             <div className="flex justify-between gap-2">
               <dt>Plano</dt>
@@ -134,6 +153,9 @@ function KanbanCard({
             </div>
           ) : null}
         </dl>
+        {row.hasBundledItems ? (
+          <CycleBundledTags tags={row.bundledItemTags} items={[]} compact />
+        ) : null}
       </button>
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-800/80 pt-3">
@@ -201,7 +223,7 @@ export default function ProductionKanban({
         </p>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-5">
         {KANBAN_COLUMNS.map((status) => {
           const meta = COLUMN_META[status];
           const cards = board[status];

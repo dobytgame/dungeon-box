@@ -30,7 +30,12 @@ export default async function DashboardPage() {
 
   const cycles = subscription?.subscription_cycles;
   const nextCycle = Array.isArray(cycles)
-    ? cycles.find((c) => c.status === 'upcoming' || c.status === 'preparing')
+    ? cycles.find(
+        (c) =>
+          c.status === 'upcoming' ||
+          c.status === 'production' ||
+          c.status === 'preparing'
+      )
     : null;
 
   return (

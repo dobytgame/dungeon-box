@@ -12,6 +12,7 @@ const subscriptionLabels: Record<SubscriptionStatus, string> = {
 
 const cycleLabels: Record<CycleStatus, string> = {
   upcoming: 'Aguardando',
+  production: 'Produção',
   preparing: 'Em preparo',
   shipped: 'Enviado',
   delivered: 'Entregue',

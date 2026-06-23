@@ -13,6 +13,7 @@ const styles: Record<string, string> = {
   delivered: 'text-emerald-300',
   pending: 'text-amber-300',
   upcoming: 'text-sky-300',
+  production: 'text-amber-300',
   preparing: 'text-console',
   shipped: 'text-violet-300',
   paused: 'text-stone-400',

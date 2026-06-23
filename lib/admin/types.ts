@@ -1,3 +1,4 @@
+import type { CycleShipmentItemKind } from '@/lib/admin/cycle-shipment-items';
 import type {
   Address,
   CycleStatus,
@@ -8,6 +9,12 @@ import type {
   SubscriptionCycle,
   SubscriptionStatus,
 } from '@/lib/dashboard/types';
+
+export interface AdminActivePlanCount {
+  planName: string;
+  planSlug: string;
+  subscribers: number;
+}
 
 export interface AdminDashboardStats {
   mrrCents: number;
@@ -21,6 +28,7 @@ export interface AdminDashboardStats {
   paymentsApproved30d: number;
   revenueApproved30dCents: number;
   mrrByPlan: { planName: string; subscribers: number; mrrCents: number }[];
+  activePlanCounts: AdminActivePlanCount[];
   recentPayments: Payment[];
   shipQueue: AdminCycleRow[];
   userPlanStats: AdminUserPlanStats;
@@ -77,6 +85,11 @@ export interface AdminSubscriptionRow {
   planSlug: string | null;
 }
 
+export interface AdminCycleBundledTag {
+  tag: string;
+  kind: CycleShipmentItemKind;
+}
+
 export interface AdminCycleRow {
   id: string;
   subscription_id: string;
@@ -85,12 +98,16 @@ export interface AdminCycleRow {
   tracking_code: string | null;
   carrier: string | null;
   shipped_at: string | null;
+  paid_at: string | null;
+  created_at: string | null;
   customerName: string | null;
   customerEmail: string | null;
   planName: string | null;
   themeName: string | null;
   city: string | null;
   state: string | null;
+  hasBundledItems: boolean;
+  bundledItemTags: AdminCycleBundledTag[];
 }
 
 export interface AdminPaymentRow extends Payment {

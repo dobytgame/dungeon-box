@@ -1,0 +1,305 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getPaintKitBump } from '@/lib/checkout/order-bumps';
+import {
+  parsePaintKitBump,
+  parsePaintKitBumpRecurring,
+} from '@/lib/checkout/special-notes';
+import {
+  parseStoreOrderMeta,
+  type StoreOrderMeta,
+} from '@/lib/asaas/store-order-payment';
+import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
+import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
+
+export type CycleShipmentItemKind = 'paint-kit' | 'monthly-kit' | 'store';
+
+export interface CycleShipmentItem {
+  id: string;
+  kind: CycleShipmentItemKind;
+  name: string;
+  tag: string;
+  quantity: number;
+  detail: string | null;
+  source: 'subscription' | 'store_order';
+}
+
+export interface CycleShipmentContext {
+  cycleId: string;
+  cycleNumber: number;
+  subscriptionId: string;
+  paidAt: string | null;
+  createdAt: string | null;
+}
+
+interface StoreOrderPaymentRow {
+  id: string;
+  paid_at: string | null;
+  created_at: string | null;
+  meta: StoreOrderMeta;
+}
+
+const KIND_TAG: Record<CycleShipmentItemKind, string> = {
+  'paint-kit': 'Kit pintura',
+  'monthly-kit': 'Kit do mês',
+  store: 'Loja',
+};
+
+function itemTag(kind: CycleShipmentItemKind, quantity: number): string {
+  const base = KIND_TAG[kind];
+  return quantity > 1 ? `${base} ×${quantity}` : base;
+}
+
+function paintKitItemFromNotes(
+  specialNotes: string | null | undefined,
+  cycleNumber: number
+): CycleShipmentItem | null {
+  const bumpId = parsePaintKitBump(specialNotes);
+  if (!bumpId) return null;
+
+  const recurring = parsePaintKitBumpRecurring(specialNotes);
+  if (!recurring && cycleNumber !== 1) return null;
+
+  const bump = getPaintKitBump(bumpId);
+  if (!bump) return null;
+
+  return {
+    id: `paint-kit:${bumpId}`,
+    kind: 'paint-kit',
+    name: bump.name,
+    tag: itemTag('paint-kit', 1),
+    quantity: 1,
+    detail: recurring ? 'Recorrente todo mês' : 'Cobrança única na 1ª caixa',
+    source: 'subscription',
+  };
+}
+
+function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
+  const items: CycleShipmentItem[] = [];
+
+  for (const line of meta.items) {
+    if (!line.bundleSubscriptionId) continue;
+
+    if (line.kind === 'monthly-kit') {
+      const planName =
+        typeof line.planName === 'string' ? line.planName : null;
+      const themeName =
+        typeof line.themeName === 'string' ? line.themeName : null;
+      const detail = [planName, themeName].filter(Boolean).join(' · ') || null;
+
+      items.push({
+        id: `monthly-kit:${line.productId}`,
+        kind: 'monthly-kit',
+        name: line.name,
+        tag: itemTag('monthly-kit', line.quantity),
+        quantity: line.quantity,
+        detail,
+        source: 'store_order',
+      });
+      continue;
+    }
+
+    const product = getStoreProduct(line.productId as StoreCatalogProductId);
+    const kind: CycleShipmentItemKind = product?.paintKitBumpId
+      ? 'paint-kit'
+      : isMonthlyKitProductId(line.productId)
+        ? 'monthly-kit'
+        : 'store';
+
+    items.push({
+      id: `store:${line.productId}`,
+      kind,
+      name: line.name,
+      tag: itemTag(kind, line.quantity),
+      quantity: line.quantity,
+      detail: null,
+      source: 'store_order',
+    });
+  }
+
+  return items;
+}
+
+function orderTimestamp(row: StoreOrderPaymentRow): number {
+  const raw = row.paid_at ?? row.created_at;
+  return raw ? Date.parse(raw) : 0;
+}
+
+function cycleTimestamp(cycle: CycleShipmentContext): number {
+  const raw = cycle.paidAt ?? cycle.createdAt;
+  return raw ? Date.parse(raw) : 0;
+}
+
+function assignStoreOrderToCycle(
+  order: StoreOrderPaymentRow,
+  siblingCycles: CycleShipmentContext[]
+): CycleShipmentContext | null {
+  const sortedCycles = [...siblingCycles].sort(
+    (a, b) => a.cycleNumber - b.cycleNumber
+  );
+  if (sortedCycles.length === 0) return null;
+
+  const orderTs = orderTimestamp(order);
+  for (const cycle of sortedCycles) {
+    const cycleTs = cycleTimestamp(cycle);
+    if (cycleTs <= 0 || orderTs <= 0) continue;
+    if (cycleTs >= orderTs) return cycle;
+  }
+
+  return sortedCycles[sortedCycles.length - 1] ?? null;
+}
+
+/** Atribui pedidos da loja ao ciclo de envio correspondente. */
+export function storeOrdersForCycle(
+  cycle: CycleShipmentContext,
+  siblingCycles: CycleShipmentContext[],
+  storeOrders: StoreOrderPaymentRow[]
+): CycleShipmentItem[] {
+  const matched = storeOrders.filter((order) => {
+    const assigned = assignStoreOrderToCycle(order, siblingCycles);
+    return assigned?.cycleId === cycle.cycleId;
+  });
+
+  const items: CycleShipmentItem[] = [];
+  for (const order of matched) {
+    items.push(...itemsFromStoreOrderMeta(order.meta));
+  }
+  return items;
+}
+
+export function buildCycleShipmentItems(input: {
+  cycle: CycleShipmentContext;
+  siblingCycles: CycleShipmentContext[];
+  specialNotes: string | null | undefined;
+  storeOrders: StoreOrderPaymentRow[];
+}): CycleShipmentItem[] {
+  const fromStore = storeOrdersForCycle(
+    input.cycle,
+    input.siblingCycles,
+    input.storeOrders
+  );
+
+  const fromNotes = paintKitItemFromNotes(
+    input.specialNotes,
+    input.cycle.cycleNumber
+  );
+
+  const merged = [...fromStore];
+  if (fromNotes) {
+    const storePaintKit = fromStore.some(
+      (item) => item.kind === 'paint-kit' && item.source === 'store_order'
+    );
+    if (!storePaintKit) {
+      merged.unshift(fromNotes);
+    }
+  }
+
+  return merged;
+}
+
+export function shipmentItemTags(
+  items: CycleShipmentItem[]
+): { tag: string; kind: CycleShipmentItemKind }[] {
+  const seen = new Set<string>();
+  const tags: { tag: string; kind: CycleShipmentItemKind }[] = [];
+  for (const item of items) {
+    if (seen.has(item.tag)) continue;
+    seen.add(item.tag);
+    tags.push({ tag: item.tag, kind: item.kind });
+  }
+  return tags;
+}
+
+export async function loadSiblingCyclesBySubscription(
+  admin: SupabaseClient,
+  subscriptionIds: string[]
+): Promise<Map<string, CycleShipmentContext[]>> {
+  const result = new Map<string, CycleShipmentContext[]>();
+  if (subscriptionIds.length === 0) return result;
+
+  await Promise.all(
+    subscriptionIds.map(async (subscriptionId) => {
+      const siblings = await listSiblingCyclesForShipment(admin, subscriptionId);
+      result.set(subscriptionId, siblings);
+    })
+  );
+
+  return result;
+}
+
+export async function listBundledStoreOrdersBySubscription(
+  admin: SupabaseClient,
+  subscriptionIds: string[]
+): Promise<Map<string, StoreOrderPaymentRow[]>> {
+  const result = new Map<string, StoreOrderPaymentRow[]>();
+  if (subscriptionIds.length === 0) return result;
+
+  for (const id of subscriptionIds) {
+    result.set(id, []);
+  }
+
+  const { data: subscriptions } = await admin
+    .from('subscriptions')
+    .select('id, user_id')
+    .in('id', subscriptionIds);
+
+  const userIds = Array.from(
+    new Set((subscriptions ?? []).map((row) => row.user_id as string))
+  );
+
+  if (userIds.length === 0) return result;
+
+  const { data, error } = await admin
+    .from('payments')
+    .select('id, paid_at, created_at, status_detail, user_id')
+    .eq('status', 'approved')
+    .in('user_id', userIds)
+    .order('paid_at', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[admin] listBundledStoreOrders:', error.message);
+    return result;
+  }
+
+  for (const row of data ?? []) {
+    const meta = parseStoreOrderMeta(row.status_detail);
+    if (!meta?.bundleSubscriptionId) continue;
+    if (meta.shippingMode !== 'with_subscription') continue;
+    if (!subscriptionIds.includes(meta.bundleSubscriptionId)) continue;
+
+    const bucket = result.get(meta.bundleSubscriptionId) ?? [];
+    bucket.push({
+      id: row.id as string,
+      paid_at: (row.paid_at as string | null) ?? null,
+      created_at: (row.created_at as string | null) ?? null,
+      meta,
+    });
+    result.set(meta.bundleSubscriptionId, bucket);
+  }
+
+  return result;
+}
+
+export async function listSiblingCyclesForShipment(
+  admin: SupabaseClient,
+  subscriptionId: string
+): Promise<CycleShipmentContext[]> {
+  const { data, error } = await admin
+    .from('subscription_cycles')
+    .select('id, cycle_number, subscription_id, paid_at, created_at')
+    .eq('subscription_id', subscriptionId)
+    .order('cycle_number', { ascending: true });
+
+  if (error) {
+    console.error('[admin] listSiblingCycles:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    cycleId: row.id as string,
+    cycleNumber: row.cycle_number as number,
+    subscriptionId: row.subscription_id as string,
+    paidAt: (row.paid_at as string | null) ?? null,
+    createdAt: (row.created_at as string | null) ?? null,
+  }));
+}

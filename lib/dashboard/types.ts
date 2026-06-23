@@ -8,6 +8,7 @@ export type SubscriptionStatus =
 
 export type CycleStatus =
   | 'upcoming'
+  | 'production'
   | 'preparing'
   | 'shipped'
   | 'delivered'

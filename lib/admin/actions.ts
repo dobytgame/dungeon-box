@@ -7,7 +7,7 @@ import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import {
   normalizePromoCode,
 } from '@/lib/checkout/promo-codes';
-import { notifyOrderShipped } from '@/lib/email/ship-notify';
+import { notifyCycleStatusFromRecord } from '@/lib/email/cycle-status-notify';
 import { logAdminAction } from '@/lib/admin/audit';
 import { requireAdmin } from '@/lib/admin/auth';
 import type { MarketingAudience } from '@/lib/admin/types';
@@ -63,7 +63,6 @@ export async function shipSubscriptionCycleAction(
       | null
       | undefined
   );
-  const theme = relOne(cycle.themes);
   const now = new Date().toISOString();
 
   const { error } = await admin
@@ -81,15 +80,15 @@ export async function shipSubscriptionCycleAction(
     return { error: error.message };
   }
 
-  const userId = subscription?.user_id;
-  if (userId) {
-    void notifyOrderShipped(admin, {
-      userId,
-      cycleNumber: cycle.cycle_number,
-      trackingCode,
+  if (subscription?.user_id) {
+    void notifyCycleStatusFromRecord(admin, {
+      cycle_number: cycle.cycle_number,
+      status: 'shipped',
+      tracking_code: trackingCode,
       carrier,
-      themeName: theme?.name ?? null,
-      estimatedDelivery: cycle.estimated_delivery ?? null,
+      estimated_delivery: cycle.estimated_delivery,
+      themes: cycle.themes,
+      subscriptions: cycle.subscriptions,
     }).catch((err) => {
       console.error('[admin] ship notify failed:', err);
     });
@@ -217,6 +216,29 @@ export async function advanceCycleProductionAction(
 
   if (error) {
     return { error: error.message };
+  }
+
+  const { data: refreshed } = await admin
+    .from('subscription_cycles')
+    .select(
+      `
+      cycle_number,
+      status,
+      tracking_code,
+      carrier,
+      estimated_delivery,
+      cancel_reason,
+      themes(name),
+      subscriptions(user_id, plans!plan_id(name))
+    `
+    )
+    .eq('id', cycleId)
+    .maybeSingle();
+
+  if (refreshed) {
+    void notifyCycleStatusFromRecord(admin, refreshed).catch((err) => {
+      console.error('[admin] cycle status notify failed:', err);
+    });
   }
 
   await logAdminAction(admin, {

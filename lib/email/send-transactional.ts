@@ -22,6 +22,12 @@ import {
   type OrderShippedTemplateData,
 } from '@/lib/email/templates/order-shipped';
 import {
+  cycleStatusUpdateHtml,
+  cycleStatusUpdateSubject,
+  cycleStatusUpdateText,
+  type CycleStatusEmailContext,
+} from '@/lib/email/templates/cycle-status-update';
+import {
   SUBSCRIPTION_CANCELLED_SUBJECT,
   subscriptionCancelledHtml,
   subscriptionCancelledText,
@@ -106,6 +112,24 @@ export async function sendOrderShippedEmail(
     text: orderShippedText(data),
     replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'order_shipped' }],
+  });
+}
+
+export async function sendCycleStatusUpdateEmail(
+  to: string,
+  data: CycleStatusEmailContext
+): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'shipping',
+    to,
+    subject: cycleStatusUpdateSubject(data),
+    html: cycleStatusUpdateHtml(data),
+    text: cycleStatusUpdateText(data),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [
+      { name: 'category', value: 'cycle_status_update' },
+      { name: 'status', value: data.status },
+    ],
   });
 }
 

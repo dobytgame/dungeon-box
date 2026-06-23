@@ -1,7 +1,7 @@
 'use client';
 
-import AdminSheet from '@/components/admin/AdminSheet';
 import CycleDetailContent from '@/components/admin/CycleDetailContent';
+import CycleDetailModal from '@/components/admin/CycleDetailModal';
 import {
   cycleDetailSubtitle,
   cycleDetailTitle,
@@ -18,8 +18,7 @@ interface Props {
   disableEscape?: boolean;
 }
 
-/** Painel lateral — mantido para consulta rápida junto ao modal principal. */
-export default function CycleDetailSheet({
+export default function CycleDetailModalView({
   cycleId,
   open,
   onClose,
@@ -30,11 +29,11 @@ export default function CycleDetailSheet({
   const { detail, loading, error, loadDetail } = useAdminCycleDetail(cycleId, open);
 
   return (
-    <AdminSheet
+    <CycleDetailModal
       open={open}
       onClose={onClose}
       title={cycleDetailTitle(detail, loading)}
-      subtitle={cycleDetailSubtitle(detail)}
+      description={cycleDetailSubtitle(detail)}
       disableEscape={disableEscape}
     >
       <CycleDetailContent
@@ -47,6 +46,6 @@ export default function CycleDetailSheet({
         onUpdated={onUpdated}
         onReload={(id) => void loadDetail(id)}
       />
-    </AdminSheet>
+    </CycleDetailModal>
   );
 }

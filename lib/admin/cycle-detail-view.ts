@@ -1,3 +1,4 @@
+import type { CycleShipmentItem } from '@/lib/admin/cycle-shipment-items';
 import type { Address, SubscriptionCycle } from '@/lib/dashboard/types';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import {
@@ -67,6 +68,8 @@ export interface AdminCycleDetailView {
   orderShippingRegion: string | null;
   orderCustomerNotes: string | null;
   orderMonthlyTotalCents: number | null;
+  shipmentItems: CycleShipmentItem[];
+  hasBundledItems: boolean;
 }
 
 const REGION_LABELS: Record<ShippingRegion, string> = {
@@ -146,7 +149,8 @@ function buildOrderAddons(
 }
 
 export function toAdminCycleDetailView(
-  cycle: SubscriptionCycle
+  cycle: SubscriptionCycle,
+  shipmentItems: CycleShipmentItem[] = []
 ): AdminCycleDetailView {
   const subscription = relOne(cycle.subscriptions);
   const plan = subscription ? relOne(subscription.plans) : null;
@@ -230,5 +234,7 @@ export function toAdminCycleDetailView(
     orderShippingRegion: formatShippingRegion(subscription?.shipping_region),
     orderCustomerNotes: parseCustomerNotes(subscription?.special_notes),
     orderMonthlyTotalCents,
+    shipmentItems,
+    hasBundledItems: shipmentItems.length > 0,
   };
 }

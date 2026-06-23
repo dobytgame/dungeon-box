@@ -1,7 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { relOne } from '@/lib/dashboard/format';
+import {
+  buildCycleShipmentItems,
+  listBundledStoreOrdersBySubscription,
+  loadSiblingCyclesBySubscription,
+  shipmentItemTags,
+  type CycleShipmentContext,
+} from '@/lib/admin/cycle-shipment-items';
+import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
 import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/lib/dashboard/types';
 import type {
+  AdminActivePlanCount,
   AdminCustomerDetail,
   AdminCustomerRow,
   AdminCycleRow,
@@ -39,6 +48,34 @@ export async function getAdminUserPlanStats(
   return { totalProfiles, withActivePlan, withoutActivePlan };
 }
 
+export async function getAdminActivePlanCounts(
+  admin: SupabaseClient
+): Promise<AdminActivePlanCount[]> {
+  const { data: plans } = await admin
+    .from('plans')
+    .select('id, name, slug, sort_order')
+    .order('sort_order', { ascending: true });
+
+  if (!plans?.length) return [];
+
+  const { data: subscriptions } = await admin
+    .from('subscriptions')
+    .select('plan_id')
+    .eq('status', 'active');
+
+  const counts = new Map<string, number>();
+  for (const sub of subscriptions ?? []) {
+    const planId = sub.plan_id as string;
+    counts.set(planId, (counts.get(planId) ?? 0) + 1);
+  }
+
+  return plans.map((plan) => ({
+    planName: plan.name as string,
+    planSlug: plan.slug as string,
+    subscribers: counts.get(plan.id as string) ?? 0,
+  }));
+}
+
 const ADMIN_CYCLE_LIST_SELECT = `
   id,
   subscription_id,
@@ -47,9 +84,11 @@ const ADMIN_CYCLE_LIST_SELECT = `
   tracking_code,
   carrier,
   shipped_at,
+  paid_at,
   created_at,
   themes(name),
   subscriptions(
+    special_notes,
     profiles(full_name, display_name, email),
     plans!plan_id(name),
     addresses(city, state)
@@ -81,6 +120,8 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     tracking_code: (row.tracking_code as string | null) ?? null,
     carrier: (row.carrier as string | null) ?? null,
     shipped_at: (row.shipped_at as string | null) ?? null,
+    paid_at: (row.paid_at as string | null) ?? null,
+    created_at: (row.created_at as string | null) ?? null,
     customerName:
       (profile?.full_name as string | null) ??
       (profile?.display_name as string | null) ??
@@ -90,7 +131,80 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     themeName: (theme?.name as string | null) ?? null,
     city: (address?.city as string | null) ?? null,
     state: (address?.state as string | null) ?? null,
+    hasBundledItems: false,
+    bundledItemTags: [],
   };
+}
+
+function toShipmentContext(row: AdminCycleRow): CycleShipmentContext {
+  return {
+    cycleId: row.id,
+    cycleNumber: row.cycle_number,
+    subscriptionId: row.subscription_id,
+    paidAt: row.paid_at,
+    createdAt: row.created_at,
+  };
+}
+
+async function enrichCycleRowsWithShipmentItems(
+  admin: SupabaseClient,
+  rows: AdminCycleRow[],
+  rawRows: Record<string, unknown>[],
+  siblingCyclesBySub?: Map<string, CycleShipmentContext[]>
+): Promise<AdminCycleRow[]> {
+  if (rows.length === 0) return rows;
+
+  const subscriptionIds = Array.from(
+    new Set(rows.map((row) => row.subscription_id))
+  );
+  const storeOrdersBySub = await listBundledStoreOrdersBySubscription(
+    admin,
+    subscriptionIds
+  );
+
+  let siblingsBySub = siblingCyclesBySub;
+  if (!siblingsBySub) {
+    siblingsBySub = new Map<string, CycleShipmentContext[]>();
+    for (const row of rows) {
+      if (!siblingsBySub.has(row.subscription_id)) {
+        siblingsBySub.set(
+          row.subscription_id,
+          rows
+            .filter((candidate) => candidate.subscription_id === row.subscription_id)
+            .map(toShipmentContext)
+            .sort((a, b) => a.cycleNumber - b.cycleNumber)
+        );
+      }
+    }
+  }
+
+  const rawById = new Map(
+    rawRows.map((row) => [row.id as string, row])
+  );
+
+  return rows.map((row) => {
+    const raw = rawById.get(row.id);
+    const subscription = relOne(
+      raw?.subscriptions as Record<string, unknown> | Record<string, unknown>[] | null
+    );
+    const specialNotes = (subscription?.special_notes as string | null) ?? null;
+    const storeOrders = storeOrdersBySub.get(row.subscription_id) ?? [];
+    const siblingCycles =
+      siblingsBySub?.get(row.subscription_id) ?? [toShipmentContext(row)];
+
+    const shipmentItems = buildCycleShipmentItems({
+      cycle: toShipmentContext(row),
+      siblingCycles,
+      specialNotes,
+      storeOrders,
+    });
+
+    return {
+      ...row,
+      hasBundledItems: shipmentItems.length > 0,
+      bundledItemTags: shipmentItemTags(shipmentItems),
+    };
+  });
 }
 
 export async function getAdminDashboardStats(
@@ -111,6 +225,7 @@ export async function getAdminDashboardStats(
     recentPaymentsRes,
     shipQueueRes,
     userPlanStats,
+    activePlanCounts,
   ] = await Promise.all([
     admin.from('mrr').select('*'),
     admin
@@ -129,7 +244,7 @@ export async function getAdminDashboardStats(
     admin
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'preparing'),
+      .in('status', ['production', 'preparing']),
     admin
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
@@ -177,6 +292,7 @@ export async function getAdminDashboardStats(
       .order('created_at', { ascending: true })
       .limit(10),
     getAdminUserPlanStats(admin),
+    getAdminActivePlanCounts(admin),
   ]);
 
   const mrrRows = mrrRes.data ?? [];
@@ -205,6 +321,7 @@ export async function getAdminDashboardStats(
     paymentsApproved30d: approvedPayments.length,
     revenueApproved30dCents,
     mrrByPlan,
+    activePlanCounts,
     recentPayments: (recentPaymentsRes.data ?? []) as Payment[],
     shipQueue: (shipQueueRes.data ?? []).map((row) =>
       mapCycleRow(row as Record<string, unknown>)
@@ -433,13 +550,19 @@ export async function listAdminCycles(
     return [];
   }
 
-  return (data ?? []).map((row) =>
-    mapCycleRow(row as Record<string, unknown>)
+  const rawRows = (data ?? []) as Record<string, unknown>[];
+  const mapped = rawRows.map((row) => mapCycleRow(row));
+
+  const subscriptionIds = Array.from(
+    new Set(mapped.map((row) => row.subscription_id))
   );
+  const siblingsBySub = await loadSiblingCyclesBySubscription(admin, subscriptionIds);
+
+  return enrichCycleRowsWithShipmentItems(admin, mapped, rawRows, siblingsBySub);
 }
 
 export type ProductionKanbanBoard = Record<
-  'upcoming' | 'preparing' | 'shipped' | 'delivered',
+  'upcoming' | 'production' | 'preparing' | 'shipped' | 'delivered',
   AdminCycleRow[]
 >;
 
@@ -448,6 +571,7 @@ export async function listAdminProductionKanban(
 ): Promise<ProductionKanbanBoard> {
   const empty: ProductionKanbanBoard = {
     upcoming: [],
+    production: [],
     preparing: [],
     shipped: [],
     delivered: [],
@@ -456,7 +580,8 @@ export async function listAdminProductionKanban(
   const { data, error } = await admin
     .from('subscription_cycles')
     .select(ADMIN_CYCLE_LIST_SELECT)
-    .in('status', ['upcoming', 'preparing', 'shipped', 'delivered'])
+    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered'])
+    .order('paid_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -464,18 +589,43 @@ export async function listAdminProductionKanban(
     return empty;
   }
 
-  for (const row of data ?? []) {
-    const mapped = mapCycleRow(row as Record<string, unknown>);
-    if (mapped.status in empty) {
-      empty[mapped.status as keyof ProductionKanbanBoard].push(mapped);
+  const rawRows = (data ?? []) as Record<string, unknown>[];
+  const mapped = rawRows.map((row) => mapCycleRow(row));
+
+  const subscriptionIds = Array.from(
+    new Set(mapped.map((row) => row.subscription_id))
+  );
+  const siblingsBySub = await loadSiblingCyclesBySubscription(admin, subscriptionIds);
+
+  const enriched = await enrichCycleRowsWithShipmentItems(
+    admin,
+    mapped,
+    rawRows,
+    siblingsBySub
+  );
+
+  for (const row of enriched) {
+    if (row.status in empty) {
+      empty[row.status as keyof ProductionKanbanBoard].push(row);
     }
+  }
+
+  for (const status of Object.keys(empty) as Array<keyof ProductionKanbanBoard>) {
+    empty[status].sort(compareCyclesByPurchaseOrder);
   }
 
   return empty;
 }
 
 export type CycleStatusCounts = Record<
-  'upcoming' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'failed' | 'all',
+  | 'upcoming'
+  | 'production'
+  | 'preparing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'failed'
+  | 'all',
   number
 >;
 
@@ -484,6 +634,7 @@ export async function getAdminCycleStatusCounts(
 ): Promise<CycleStatusCounts> {
   const statuses = [
     'upcoming',
+    'production',
     'preparing',
     'shipped',
     'delivered',

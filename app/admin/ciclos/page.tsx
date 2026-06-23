@@ -32,9 +32,10 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="admin-panel flex flex-wrap items-center justify-between gap-3 rounded p-4">
         <p className="max-w-2xl text-sm text-zinc-500">
-          Quadro Kanban da produção. Clique no cartão para abrir o painel lateral
-          com detalhes; use <strong className="text-zinc-300">Registrar envio</strong>{' '}
-          para informar o rastreio sem sair da página.
+          Quadro Kanban da produção, ordenado pela data de compra (quem pagou
+          primeiro entra primeiro). Clique no cartão para abrir o pedido em modal;
+          use <strong className="text-zinc-300">Registrar envio</strong> para
+          informar o rastreio. Cada mudança de status dispara e-mail ao cliente.
         </p>
         <SyncCyclesButton />
       </div>
