@@ -54,8 +54,24 @@ export default function StoreCartView() {
                   <p className="mt-1 text-xs text-gold">Tema: {line.themeName}</p>
                 ) : null}
                 <p className="mt-1 text-sm text-stone-500">
-                  {formatMoney(line.priceCents)} cada
+                  {line.originalPriceCents &&
+                  line.originalPriceCents > line.priceCents ? (
+                    <>
+                      <span className="line-through">
+                        {formatMoney(line.originalPriceCents)}
+                      </span>{' '}
+                      {formatMoney(line.priceCents)} cada
+                    </>
+                  ) : (
+                    <>{formatMoney(line.priceCents)} cada</>
+                  )}
                 </p>
+                {line.promoCode ? (
+                  <p className="mt-1 text-xs text-gold/80">
+                    Cupom {line.promoCode}
+                    {line.promoSummary ? ` — ${line.promoSummary}` : ''}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap items-center gap-4">

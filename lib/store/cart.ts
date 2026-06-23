@@ -14,6 +14,9 @@ export type CartLineResolved = CartLine & {
   category?: StoreProduct['category'];
   subscriptionId?: string;
   themeName?: string;
+  originalPriceCents?: number;
+  promoCode?: string;
+  promoSummary?: string;
 };
 
 export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v2';
@@ -80,6 +83,9 @@ export function resolveCartLines(
         category: product.category,
         subscriptionId: product.subscriptionId,
         themeName: product.themeName,
+        originalPriceCents: product.originalPriceCents,
+        promoCode: product.promoCode,
+        promoSummary: product.promoSummary,
       },
     ];
   });

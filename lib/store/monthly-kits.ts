@@ -6,6 +6,7 @@ import { relOne } from '@/lib/dashboard/format';
 import type { Plan, Subscription, Theme } from '@/lib/dashboard/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { StoreProduct } from '@/lib/store/catalog';
+import { resolveBestSubscriptionPromoForStorePlan } from '@/lib/store/subscription-promo';
 
 /** UUID fixo só para metadados quando o tema vem do calendário editorial. */
 const CALENDAR_FALLBACK_THEME_ID = '00000000-0000-4000-8000-000000000001';
@@ -261,6 +262,48 @@ function buildMonthlyKitProduct(plan: Plan, theme: Theme): StoreProduct {
   };
 }
 
+async function applySubscriptionPromoToProduct(
+  admin: SupabaseClient,
+  product: StoreProduct,
+  subscriptions: Subscription[]
+): Promise<StoreProduct> {
+  const planSlug = product.planSlug as PlanSlug | undefined;
+  if (!planSlug) return product;
+
+  const promo = await resolveBestSubscriptionPromoForStorePlan(
+    admin,
+    planSlug,
+    product.priceCents,
+    subscriptions.map((subscription) => ({
+      id: subscription.id,
+      promo_code: subscription.promo_code ?? null,
+    }))
+  );
+
+  if (!promo) return product;
+
+  return {
+    ...product,
+    originalPriceCents: product.priceCents,
+    priceCents: promo.discountedPriceCents,
+    priceLabel: formatPriceLabel(promo.discountedPriceCents),
+    promoCode: promo.promoCode,
+    promoSummary: promo.summary,
+  };
+}
+
+async function applySubscriptionPromosToProducts(
+  admin: SupabaseClient,
+  products: StoreProduct[],
+  subscriptions: Subscription[]
+): Promise<StoreProduct[]> {
+  return Promise.all(
+    products.map((product) =>
+      applySubscriptionPromoToProduct(admin, product, subscriptions)
+    )
+  );
+}
+
 export async function getMonthlyKitStoreAvailability(
   userId: string,
   userSupabase?: SupabaseClient
@@ -292,7 +335,12 @@ export async function getMonthlyKitStoreAvailability(
   }
 
   const plans = await fetchAllSellablePlans(admin);
-  const products = plans.map((plan) => buildMonthlyKitProduct(plan, theme));
+  const baseProducts = plans.map((plan) => buildMonthlyKitProduct(plan, theme));
+  const products = await applySubscriptionPromosToProducts(
+    admin,
+    baseProducts,
+    subscriptions
+  );
 
   if (products.length === 0) {
     return {
@@ -327,7 +375,10 @@ export type MonthlyKitOrderItem = {
   themeName: string;
   planName: string;
   priceCents: number;
+  originalPriceCents: number;
   lineTotalCents: number;
+  promoCode?: string;
+  promoSummary?: string;
 };
 
 async function resolveMonthlyKitBundleSubscription(
@@ -402,6 +453,12 @@ export async function resolveMonthlyKitOrderItem(
 
   const product = buildMonthlyKitProduct(plan, theme);
   const qty = Math.min(Math.max(Math.floor(quantity), 1), product.maxQuantity ?? 9);
+  const pricedProduct = await applySubscriptionPromoToProduct(
+    admin,
+    product,
+    subscriptions
+  );
+  const unitPrice = pricedProduct.priceCents;
 
   return {
     productId,
@@ -410,8 +467,11 @@ export async function resolveMonthlyKitOrderItem(
     bundleSubscriptionId: bundleResult,
     themeId: theme.id,
     themeName: theme.name,
-    planName: product.planName ?? plan.name,
-    priceCents: product.priceCents,
-    lineTotalCents: product.priceCents * qty,
+    planName: pricedProduct.planName ?? plan.name,
+    priceCents: unitPrice,
+    originalPriceCents: pricedProduct.originalPriceCents ?? unitPrice,
+    lineTotalCents: unitPrice * qty,
+    promoCode: pricedProduct.promoCode,
+    promoSummary: pricedProduct.promoSummary,
   };
 }

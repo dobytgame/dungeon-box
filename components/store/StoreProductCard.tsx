@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import type { StoreProduct } from '@/lib/store/catalog';
+import { formatMoney } from '@/lib/dashboard/format';
 
 interface Props {
   product: StoreProduct;
@@ -60,7 +61,24 @@ export default function StoreProductCard({ product }: Props) {
         {product.name}
       </h3>
       <p className="mt-2 text-sm text-stone-400">{product.tagline}</p>
-      <p className="mt-4 font-display text-2xl text-gold">{product.priceLabel}</p>
+      <div className="mt-4">
+        {product.originalPriceCents &&
+        product.originalPriceCents > product.priceCents ? (
+          <div className="flex flex-wrap items-baseline gap-2">
+            <p className="font-display text-lg text-stone-500 line-through">
+              {formatMoney(product.originalPriceCents)}
+            </p>
+            <p className="font-display text-2xl text-gold">{product.priceLabel}</p>
+          </div>
+        ) : (
+          <p className="font-display text-2xl text-gold">{product.priceLabel}</p>
+        )}
+        {product.promoCode ? (
+          <p className="mt-1 text-xs text-gold/80">
+            Cupom {product.promoCode} — {product.promoSummary}
+          </p>
+        ) : null}
+      </div>
 
       <ul className="mt-4 flex-1 space-y-2 text-sm text-stone-400">
         {product.includes.map((item) => (

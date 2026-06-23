@@ -73,6 +73,57 @@ export function applyPromoDiscount(
   return Math.max(discounted, MIN_CHARGE_CENTS);
 }
 
+/** Cupom já vinculado à assinatura — não revalida resgate único. */
+export async function resolveStoredPromoForStorePrice(
+  supabase: SupabaseClient,
+  rawCode: string,
+  planSlug: PlanSlug,
+  originalPriceCents: number
+): Promise<ResolvedPromoCode | null> {
+  const code = normalizePromoCode(rawCode);
+  if (!code) return null;
+
+  const { data: promo, error } = await supabase
+    .from('promo_codes')
+    .select(
+      'id, code, discount_type, discount_value, includes_free_shipping, max_redemptions, times_redeemed, expires_at, active, plan_slugs'
+    )
+    .eq('code', code)
+    .maybeSingle();
+
+  if (error || !promo || !promo.active) return null;
+
+  if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {
+    return null;
+  }
+
+  if (promo.plan_slugs?.length && !promo.plan_slugs.includes(planSlug)) {
+    return null;
+  }
+
+  if (promo.discount_type === 'free_shipping') {
+    return null;
+  }
+
+  const normalizedPromo: PromoCodeRow = {
+    ...(promo as PromoCodeRow),
+    includes_free_shipping: promo.includes_free_shipping ?? false,
+  };
+
+  const discountedPriceCents = applyPromoDiscount(originalPriceCents, promo);
+  if (discountedPriceCents >= originalPriceCents) {
+    return null;
+  }
+
+  return {
+    promo: normalizedPromo,
+    summary: formatPromoSummary(normalizedPromo),
+    originalPriceCents,
+    discountedPriceCents,
+    freeShipping: promoGrantsFreeShipping(normalizedPromo),
+  };
+}
+
 async function userAlreadyRedeemed(
   supabase: SupabaseClient,
   promoCodeId: string,

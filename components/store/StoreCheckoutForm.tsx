@@ -58,6 +58,19 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
 
   const resolved = resolveCartLines(lines, allProducts);
   const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);
+  const appliedPromoCodes = Array.from(
+    new Set(
+      resolved
+        .map((line) => line.promoCode)
+        .filter((code): code is string => Boolean(code))
+    )
+  );
+  const originalSubtotalCents = resolved.reduce(
+    (sum, line) =>
+      sum + (line.originalPriceCents ?? line.priceCents) * line.quantity,
+    0
+  );
+  const hasPromoDiscount = originalSubtotalCents > subtotalCents;
   const eligiblePaintKitSubs = subscriptions.filter(
     subscriptionEligibleForPaintKitAddon
   );
@@ -357,12 +370,25 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
             ))}
           </ul>
           <div className="mt-6 border-t border-white/[0.06] pt-4">
+            {hasPromoDiscount ? (
+              <div className="mb-4 flex justify-between text-sm text-stone-500">
+                <span>Subtotal sem cupom</span>
+                <span className="line-through">
+                  {formatMoney(originalSubtotalCents)}
+                </span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-sm">
               <span className="text-stone-500">Subtotal</span>
               <span className="font-display text-lg text-white">
                 {formatMoney(subtotalCents)}
               </span>
             </div>
+            {appliedPromoCodes.length > 0 ? (
+              <p className="mt-2 text-xs text-gold/80">
+                Cupom da assinatura aplicado: {appliedPromoCodes.join(', ')}
+              </p>
+            ) : null}
             <p className="mt-2 text-xs text-stone-600">
               {hasMonthlyKit || shippingMode === 'with_subscription'
                 ? 'Frete grátis — enviado com a próxima caixa da assinatura.'

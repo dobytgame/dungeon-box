@@ -27,6 +27,9 @@ export type StoreProduct = {
   planName?: string;
   planSlug?: string;
   maxQuantity?: number;
+  originalPriceCents?: number;
+  promoCode?: string;
+  promoSummary?: string;
 };
 
 export const STORE_PRODUCTS: StoreProduct[] = [

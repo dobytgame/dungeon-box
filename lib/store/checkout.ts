@@ -56,7 +56,10 @@ type ResolvedStoreLine =
       themeName: string;
       planName: string;
       priceCents: number;
+      originalPriceCents: number;
       bundleSubscriptionId: string;
+      promoCode?: string;
+      promoSummary?: string;
     };
 
 export type StoreCheckoutInput = {
@@ -154,7 +157,10 @@ async function resolveStoreLines(
         themeName: monthly.themeName,
         planName: monthly.planName,
         priceCents: monthly.priceCents,
+        originalPriceCents: monthly.originalPriceCents,
         bundleSubscriptionId: monthly.bundleSubscriptionId,
+        promoCode: monthly.promoCode,
+        promoSummary: monthly.promoSummary,
       });
       continue;
     }
@@ -332,7 +338,10 @@ export async function purchaseStoreOrder(
               themeName: line.themeName,
               planName: line.planName,
               priceCents: line.priceCents,
+              originalPriceCents: line.originalPriceCents,
               bundleSubscriptionId: line.bundleSubscriptionId,
+              promoCode: line.promoCode ?? null,
+              promoSummary: line.promoSummary ?? null,
             }
           : {
               productId: line.productId,
