@@ -9,11 +9,17 @@ import AsaasPaymentForm, {
 } from '@/components/checkout/AsaasPaymentForm';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney, formatZip, relOne } from '@/lib/dashboard/format';
 import type { Address, Subscription } from '@/lib/dashboard/types';
 import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
-import { normalizeCartLines, resolveCartLines } from '@/lib/store/cart';
+import {
+  cartHasMonthlyKits,
+  normalizeCartLines,
+  resolveCartLines,
+} from '@/lib/store/cart';
 import { getStoreProduct } from '@/lib/store/catalog';
+import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
 
 interface Props {
   addresses: Address[];
@@ -22,26 +28,37 @@ interface Props {
 
 export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   const router = useRouter();
+  const { allProducts } = useStoreCatalog();
   const { lines, subtotalCents, clearCart, hydrated } = useStoreCart();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? '');
   const [bundleSubscriptionId, setBundleSubscriptionId] = useState<string>('');
 
-  const resolved = resolveCartLines(lines);
+  const resolved = resolveCartLines(lines, allProducts);
+  const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);
   const eligibleBundleSubs = subscriptions.filter(
     subscriptionEligibleForPaintKitAddon
   );
 
-  const canBundleWithSubscription = useMemo(() => {
-    const normalized = normalizeCartLines(lines);
+  const monthlyKitSubscriptionIds = useMemo(
+    () =>
+      normalizeCartLines(lines, allProducts)
+        .filter((line) => isMonthlyKitProductId(line.productId))
+        .map((line) => line.productId.replace('monthly-kit:', '')),
+    [lines, allProducts]
+  );
+
+  const canBundlePaintKit = useMemo(() => {
+    if (hasMonthlyKit) return false;
+    const normalized = normalizeCartLines(lines, allProducts);
     if (normalized.length !== 1 || normalized[0]?.quantity !== 1) return false;
     const product = getStoreProduct(normalized[0].productId);
     return Boolean(product?.paintKitBumpId);
-  }, [lines]);
+  }, [lines, allProducts, hasMonthlyKit]);
 
   const shippingMode =
-    bundleSubscriptionId && canBundleWithSubscription
+    hasMonthlyKit || (bundleSubscriptionId && canBundlePaintKit)
       ? 'with_subscription'
       : 'standalone';
 
@@ -68,7 +85,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   }
 
   async function handlePay(card: AsaasCardPayload) {
-    if (!addressId) {
+    if (!hasMonthlyKit && !addressId) {
       setError('Selecione um endereço de entrega.');
       return;
     }
@@ -81,9 +98,11 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             items: lines,
-            addressId,
+            addressId: addressId || addresses[0]?.id,
             bundleSubscriptionId:
-              shippingMode === 'with_subscription' ? bundleSubscriptionId : null,
+              shippingMode === 'with_subscription' && canBundlePaintKit
+                ? bundleSubscriptionId
+                : null,
             creditCard: card,
           }),
         });
@@ -112,49 +131,87 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   return (
     <div className="grid gap-6 lg:grid-cols-5">
       <div className="space-y-6 lg:col-span-3">
-        <DashboardCard title="Entrega" accent="frost">
-          {addresses.length === 0 ? (
-            <p className="text-sm text-stone-400">
-              Cadastre um endereço em{' '}
-              <Link href="/dashboard/addresses" className="text-ember hover:underline">
-                Endereços
-              </Link>{' '}
-              antes de finalizar.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {addresses.map((address) => (
-                <label
-                  key={address.id}
-                  className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
-                    addressId === address.id
-                      ? 'border-frost/40 bg-frost/5'
-                      : 'border-white/[0.06] hover:border-white/15'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="store-address"
-                    checked={addressId === address.id}
-                    onChange={() => setAddressId(address.id)}
-                    className="mt-1"
-                  />
-                  <span className="text-sm text-stone-300">
-                    <span className="text-white">{address.recipient}</span>
-                    <br />
-                    {address.street}, {address.number}
-                    {address.complement ? ` — ${address.complement}` : ''}
-                    <br />
-                    {address.neighborhood}, {address.city}/{address.state} ·{' '}
-                    {formatZip(address.zip_code)}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-        </DashboardCard>
+        {hasMonthlyKit ? (
+          <DashboardCard
+            title="Envio com sua assinatura"
+            accent="gold"
+            description="Kits do mês são enviados junto com a próxima caixa — sem frete."
+          >
+            <ul className="space-y-3 text-sm text-stone-300">
+              {monthlyKitSubscriptionIds.map((subscriptionId) => {
+                const subscription = subscriptions.find(
+                  (sub) => sub.id === subscriptionId
+                );
+                const plan = relOne(subscription?.plans);
+                const linesForSub = resolved.filter(
+                  (line) => line.subscriptionId === subscriptionId
+                );
+                const totalQty = linesForSub.reduce(
+                  (sum, line) => sum + line.quantity,
+                  0
+                );
 
-        {canBundleWithSubscription && eligibleBundleSubs.length > 0 ? (
+                return (
+                  <li
+                    key={subscriptionId}
+                    className="rounded-sm border border-gold/25 bg-gold/5 px-4 py-3"
+                  >
+                    <p className="text-white">
+                      {totalQty}x kit do mês — {plan?.name ?? 'Assinatura'}
+                    </p>
+                    <p className="mt-1 text-xs text-gold">
+                      Frete grátis na próxima entrega desta assinatura
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </DashboardCard>
+        ) : (
+          <DashboardCard title="Entrega" accent="frost">
+            {addresses.length === 0 ? (
+              <p className="text-sm text-stone-400">
+                Cadastre um endereço em{' '}
+                <Link href="/dashboard/addresses" className="text-ember hover:underline">
+                  Endereços
+                </Link>{' '}
+                antes de finalizar.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {addresses.map((address) => (
+                  <label
+                    key={address.id}
+                    className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
+                      addressId === address.id
+                        ? 'border-frost/40 bg-frost/5'
+                        : 'border-white/[0.06] hover:border-white/15'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="store-address"
+                      checked={addressId === address.id}
+                      onChange={() => setAddressId(address.id)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm text-stone-300">
+                      <span className="text-white">{address.recipient}</span>
+                      <br />
+                      {address.street}, {address.number}
+                      {address.complement ? ` — ${address.complement}` : ''}
+                      <br />
+                      {address.neighborhood}, {address.city}/{address.state} ·{' '}
+                      {formatZip(address.zip_code)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </DashboardCard>
+        )}
+
+        {canBundlePaintKit && eligibleBundleSubs.length > 0 ? (
           <DashboardCard
             title="Envio com sua assinatura"
             accent="gold"
@@ -212,7 +269,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
 
         <DashboardCard title="Pagamento" accent="ember">
           <AsaasPaymentForm
-            disabled={pending || addresses.length === 0}
+            disabled={pending || (!hasMonthlyKit && addresses.length === 0)}
             onError={setError}
             onSubmit={handlePay}
           />
@@ -250,8 +307,8 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
               </span>
             </div>
             <p className="mt-2 text-xs text-stone-600">
-              {shippingMode === 'with_subscription'
-                ? 'Frete grátis na próxima caixa.'
+              {hasMonthlyKit || shippingMode === 'with_subscription'
+                ? 'Frete grátis — enviado com a próxima caixa da assinatura.'
                 : 'Frete calculado conforme política de envio avulso.'}
             </p>
           </div>

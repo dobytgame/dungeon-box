@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import {
   cartItemCount,
   cartSubtotalCents,
@@ -16,15 +17,14 @@ import {
   STORE_CART_STORAGE_KEY,
   type CartLine,
 } from '@/lib/store/cart';
-import type { StoreProductId } from '@/lib/store/catalog';
 
 type StoreCartContextValue = {
   lines: CartLine[];
   itemCount: number;
   subtotalCents: number;
-  addItem: (productId: StoreProductId, quantity?: number) => void;
-  setQuantity: (productId: StoreProductId, quantity: number) => void;
-  removeItem: (productId: StoreProductId) => void;
+  addItem: (productId: string, quantity?: number) => void;
+  setQuantity: (productId: string, quantity: number) => void;
+  removeItem: (productId: string) => void;
   clearCart: () => void;
   hydrated: boolean;
 };
@@ -37,13 +37,14 @@ function readStoredCart(): CartLine[] {
     const raw = window.localStorage.getItem(STORE_CART_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as CartLine[];
-    return normalizeCartLines(Array.isArray(parsed) ? parsed : []);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 export function StoreCartProvider({ children }: { children: ReactNode }) {
+  const { allProducts } = useStoreCatalog();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
@@ -54,41 +55,60 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
+    setLines((current) => normalizeCartLines(current, allProducts));
+  }, [allProducts, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     window.localStorage.setItem(STORE_CART_STORAGE_KEY, JSON.stringify(lines));
   }, [lines, hydrated]);
 
-  const addItem = useCallback((productId: StoreProductId, quantity = 1) => {
-    setLines((current) => {
-      const normalized = normalizeCartLines(current);
-      const existing = normalized.find((line) => line.productId === productId);
-      if (existing) {
+  const addItem = useCallback(
+    (productId: string, quantity = 1) => {
+      setLines((current) => {
+        const normalized = normalizeCartLines(current, allProducts);
+        const existing = normalized.find((line) => line.productId === productId);
+        if (existing) {
+          return normalizeCartLines(
+            normalized.map((line) =>
+              line.productId === productId
+                ? { ...line, quantity: line.quantity + quantity }
+                : line
+            ),
+            allProducts
+          );
+        }
         return normalizeCartLines(
-          normalized.map((line) =>
-            line.productId === productId
-              ? { ...line, quantity: line.quantity + quantity }
-              : line
-          )
+          [...normalized, { productId, quantity }],
+          allProducts
         );
-      }
-      return normalizeCartLines([...normalized, { productId, quantity }]);
-    });
-  }, []);
+      });
+    },
+    [allProducts]
+  );
 
-  const setQuantity = useCallback((productId: StoreProductId, quantity: number) => {
+  const setQuantity = useCallback(
+    (productId: string, quantity: number) => {
+      setLines((current) =>
+        normalizeCartLines(
+          current.map((line) =>
+            line.productId === productId ? { ...line, quantity } : line
+          ),
+          allProducts
+        )
+      );
+    },
+    [allProducts]
+  );
+
+  const removeItem = useCallback((productId: string) => {
     setLines((current) =>
       normalizeCartLines(
-        current.map((line) =>
-          line.productId === productId ? { ...line, quantity } : line
-        )
+        current.filter((line) => line.productId !== productId),
+        allProducts
       )
     );
-  }, []);
-
-  const removeItem = useCallback((productId: StoreProductId) => {
-    setLines((current) =>
-      normalizeCartLines(current.filter((line) => line.productId !== productId))
-    );
-  }, []);
+  }, [allProducts]);
 
   const clearCart = useCallback(() => {
     setLines([]);
@@ -97,15 +117,15 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       lines,
-      itemCount: cartItemCount(lines),
-      subtotalCents: cartSubtotalCents(lines),
+      itemCount: cartItemCount(lines, allProducts),
+      subtotalCents: cartSubtotalCents(lines, allProducts),
       addItem,
       setQuantity,
       removeItem,
       clearCart,
       hydrated,
     }),
-    [lines, addItem, setQuantity, removeItem, clearCart, hydrated]
+    [lines, allProducts, addItem, setQuantity, removeItem, clearCart, hydrated]
   );
 
   return (

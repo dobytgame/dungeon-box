@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney } from '@/lib/dashboard/format';
-import { resolveCartLines } from '@/lib/store/cart';
+import { cartHasMonthlyKits, resolveCartLines } from '@/lib/store/cart';
 
 export default function StoreCartView() {
+  const { allProducts } = useStoreCatalog();
   const { lines, subtotalCents, setQuantity, removeItem, hydrated } = useStoreCart();
-  const resolved = resolveCartLines(lines);
+  const resolved = resolveCartLines(lines, allProducts);
+  const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);
 
   if (!hydrated) {
     return (
@@ -23,7 +26,8 @@ export default function StoreCartView() {
     return (
       <DashboardCard title="Carrinho vazio" accent="gold">
         <p className="text-sm text-stone-400">
-          Você ainda não adicionou produtos. Explore os kits de pintura na loja.
+          Você ainda não adicionou produtos. Explore a loja para kits do mês e
+          acessórios.
         </p>
         <Link
           href="/dashboard/loja"
@@ -40,58 +44,61 @@ export default function StoreCartView() {
       <DashboardCard title="Seu carrinho" accent="gold">
         <ul className="divide-y divide-white/[0.06]">
           {resolved.map((line) => (
-              <li
-                key={line.productId}
-                className="flex flex-col gap-4 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium text-white">{line.name}</p>
-                  <p className="mt-1 text-sm text-stone-500">
-                    {formatMoney(line.priceCents)} cada
-                  </p>
-                </div>
+            <li
+              key={line.productId}
+              className="flex flex-col gap-4 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-medium text-white">{line.name}</p>
+                {line.themeName ? (
+                  <p className="mt-1 text-xs text-gold">Tema: {line.themeName}</p>
+                ) : null}
+                <p className="mt-1 text-sm text-stone-500">
+                  {formatMoney(line.priceCents)} cada
+                </p>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center rounded-sm border border-white/10">
-                    <button
-                      type="button"
-                      aria-label="Diminuir quantidade"
-                      onClick={() =>
-                        setQuantity(line.productId, Math.max(1, line.quantity - 1))
-                      }
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="min-w-[2rem] text-center text-sm text-white">
-                      {line.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label="Aumentar quantidade"
-                      onClick={() =>
-                        setQuantity(line.productId, Math.min(9, line.quantity + 1))
-                      }
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <p className="min-w-[5rem] text-right font-display text-sm text-gold">
-                    {formatMoney(line.lineTotalCents)}
-                  </p>
-
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center rounded-sm border border-white/10">
                   <button
                     type="button"
-                    aria-label={`Remover ${line.name}`}
-                    onClick={() => removeItem(line.productId)}
-                    className="cursor-pointer text-stone-500 transition hover:text-red-300"
+                    aria-label="Diminuir quantidade"
+                    onClick={() =>
+                      setQuantity(line.productId, Math.max(1, line.quantity - 1))
+                    }
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="min-w-[2rem] text-center text-sm text-white">
+                    {line.quantity}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Aumentar quantidade"
+                    onClick={() =>
+                      setQuantity(line.productId, Math.min(9, line.quantity + 1))
+                    }
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
+                  >
+                    <Plus className="h-4 w-4" />
                   </button>
                 </div>
-              </li>
+
+                <p className="min-w-[5rem] text-right font-display text-sm text-gold">
+                  {formatMoney(line.lineTotalCents)}
+                </p>
+
+                <button
+                  type="button"
+                  aria-label={`Remover ${line.name}`}
+                  onClick={() => removeItem(line.productId)}
+                  className="cursor-pointer text-stone-500 transition hover:text-red-300"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </li>
           ))}
         </ul>
 
@@ -102,7 +109,9 @@ export default function StoreCartView() {
               {formatMoney(subtotalCents)}
             </p>
             <p className="mt-1 text-xs text-stone-600">
-              Frete grátis ao enviar com a próxima caixa da assinatura.
+              {hasMonthlyKit
+                ? 'Kits do mês: frete grátis na próxima caixa da assinatura.'
+                : 'Frete grátis ao enviar com a próxima caixa da assinatura.'}
             </p>
           </div>
           <Link

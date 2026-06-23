@@ -4,7 +4,6 @@ import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
 import { isAsaasCheckout } from '@/lib/payments/provider';
 import { purchaseStoreOrder } from '@/lib/store/checkout';
-import type { StoreProductId } from '@/lib/store/catalog';
 import { createClient } from '@/lib/supabase/server';
 
 const cardSchema = z.object({
@@ -19,7 +18,7 @@ const bodySchema = z.object({
   items: z
     .array(
       z.object({
-        productId: z.enum(['paint-kit-amador', 'paint-kit-profissional']),
+        productId: z.string().min(1),
         quantity: z.number().int().min(1).max(9),
       })
     )
@@ -154,7 +153,7 @@ export async function POST(request: Request) {
     supabase,
     userId: user.id,
     items: body.items.map((item) => ({
-      productId: item.productId as StoreProductId,
+      productId: item.productId,
       quantity: item.quantity,
     })),
     addressId: body.addressId,

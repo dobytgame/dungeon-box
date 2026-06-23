@@ -9,8 +9,12 @@ import type {
 } from '@/lib/asaas/subscription-checkout';
 import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
 import type { CartLine } from '@/lib/store/cart';
-import { cartSubtotalCents, normalizeCartLines, resolveCartLines } from '@/lib/store/cart';
-import { getStoreProduct, type StoreProductId } from '@/lib/store/catalog';
+import { normalizeCartLines } from '@/lib/store/cart';
+import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
+import {
+  isMonthlyKitProductId,
+  resolveMonthlyKitOrderItem,
+} from '@/lib/store/monthly-kits';
 
 type AddressRow = {
   recipient: string;
@@ -32,6 +36,29 @@ type ProfileRow = {
   asaas_customer_id: string | null;
 };
 
+type ResolvedStoreLine =
+  | {
+      kind: 'catalog';
+      productId: StoreCatalogProductId;
+      quantity: number;
+      name: string;
+      lineTotalCents: number;
+      bundleSubscriptionId: string | null;
+    }
+  | {
+      kind: 'monthly-kit';
+      productId: string;
+      quantity: number;
+      name: string;
+      lineTotalCents: number;
+      subscriptionId: string;
+      themeId: string;
+      themeName: string;
+      planName: string;
+      priceCents: number;
+      bundleSubscriptionId: string;
+    };
+
 export type StoreCheckoutInput = {
   supabase: SupabaseClient;
   userId: string;
@@ -47,23 +74,23 @@ export type StoreCheckoutResult =
   | { success: true; paymentId: string; orderId: string }
   | { error: string };
 
-function buildOrderDescription(lines: ReturnType<typeof resolveCartLines>): string {
+function buildOrderDescription(lines: ResolvedStoreLine[]): string {
   const summary = lines.map((line) => `${line.quantity}x ${line.name}`).join(', ');
   return `DungeonBox Loja — ${summary}`;
 }
 
 function findPaintKitForBundle(
   items: CartLine[]
-): { productId: StoreProductId; bumpId: 'amador' | 'profissional' } | null {
+): { productId: StoreCatalogProductId; bumpId: 'amador' | 'profissional' } | null {
   const normalized = normalizeCartLines(items);
   const paintKits = normalized
     .map((line) => {
       const product = getStoreProduct(line.productId);
       if (!product?.paintKitBumpId || line.quantity !== 1) return null;
-      return { productId: line.productId, bumpId: product.paintKitBumpId };
+      return { productId: line.productId as StoreCatalogProductId, bumpId: product.paintKitBumpId };
     })
     .filter(Boolean) as Array<{
-    productId: StoreProductId;
+    productId: StoreCatalogProductId;
     bumpId: 'amador' | 'profissional';
   }>;
 
@@ -74,18 +101,102 @@ function findPaintKitForBundle(
   return paintKits[0] ?? null;
 }
 
-export async function purchaseStoreOrder(
-  input: StoreCheckoutInput
-): Promise<StoreCheckoutResult> {
-  const lines = resolveCartLines(input.items);
-  if (lines.length === 0) {
+async function resolveStoreLines(
+  supabase: SupabaseClient,
+  userId: string,
+  items: CartLine[],
+  bundleSubscriptionId: string | null
+): Promise<ResolvedStoreLine[] | { error: string }> {
+  const normalized = normalizeCartLines(items);
+  if (normalized.length === 0) {
     return { error: 'Seu carrinho está vazio.' };
   }
 
-  const totalCents = cartSubtotalCents(input.items);
+  const resolved: ResolvedStoreLine[] = [];
+
+  for (const line of normalized) {
+    if (isMonthlyKitProductId(line.productId)) {
+      const monthly = await resolveMonthlyKitOrderItem(
+        supabase,
+        userId,
+        line.productId,
+        line.quantity
+      );
+      if ('error' in monthly) return monthly;
+
+      resolved.push({
+        kind: 'monthly-kit',
+        productId: monthly.productId,
+        quantity: monthly.quantity,
+        name: `Kit do mês — ${monthly.planName} (${monthly.themeName})`,
+        lineTotalCents: monthly.lineTotalCents,
+        subscriptionId: monthly.subscriptionId,
+        themeId: monthly.themeId,
+        themeName: monthly.themeName,
+        planName: monthly.planName,
+        priceCents: monthly.priceCents,
+        bundleSubscriptionId: monthly.subscriptionId,
+      });
+      continue;
+    }
+
+    const product = getStoreProduct(line.productId);
+    if (!product) {
+      return { error: 'Produto inválido no carrinho.' };
+    }
+
+    resolved.push({
+      kind: 'catalog',
+      productId: line.productId as StoreCatalogProductId,
+      quantity: line.quantity,
+      name: product.name,
+      lineTotalCents: product.priceCents * line.quantity,
+      bundleSubscriptionId:
+        product.paintKitBumpId && bundleSubscriptionId ? bundleSubscriptionId : null,
+    });
+  }
+
+  const hasMonthlyKit = resolved.some((line) => line.kind === 'monthly-kit');
+  const hasStandaloneCatalog = resolved.some(
+    (line) => line.kind === 'catalog' && !line.bundleSubscriptionId
+  );
+
+  if (hasMonthlyKit && hasStandaloneCatalog) {
+    return {
+      error:
+        'Kits do mês são enviados junto com a assinatura. Remova itens avulsos ou finalize separadamente.',
+    };
+  }
+
+  return resolved;
+}
+
+export async function purchaseStoreOrder(
+  input: StoreCheckoutInput
+): Promise<StoreCheckoutResult> {
+  const resolvedResult = await resolveStoreLines(
+    input.supabase,
+    input.userId,
+    input.items,
+    input.bundleSubscriptionId ?? null
+  );
+
+  if ('error' in resolvedResult) {
+    return { error: resolvedResult.error };
+  }
+
+  const lines = resolvedResult;
+  const totalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
   if (totalCents <= 0) {
     return { error: 'Total inválido.' };
   }
+
+  const hasMonthlyKit = lines.some((line) => line.kind === 'monthly-kit');
+  const primaryBundleSubscriptionId =
+    lines.find((line) => line.kind === 'monthly-kit')?.bundleSubscriptionId ??
+    lines.find((line) => line.kind === 'catalog' && line.bundleSubscriptionId)
+      ?.bundleSubscriptionId ??
+    null;
 
   const { data: profile } = await input.supabase
     .from('profiles')
@@ -97,12 +208,31 @@ export async function purchaseStoreOrder(
     return { error: 'Complete seu perfil antes de comprar.' };
   }
 
+  let addressId = input.addressId;
+
+  if (hasMonthlyKit && primaryBundleSubscriptionId) {
+    const { data: subscription } = await input.supabase
+      .from('subscriptions')
+      .select('id, status, address_id')
+      .eq('id', primaryBundleSubscriptionId)
+      .eq('user_id', input.userId)
+      .maybeSingle();
+
+    if (!subscription) {
+      return { error: 'Assinatura inválida para envio do kit do mês.' };
+    }
+
+    if (subscription.address_id) {
+      addressId = subscription.address_id;
+    }
+  }
+
   const { data: address } = await input.supabase
     .from('addresses')
     .select(
       'recipient, zip_code, street, number, complement, neighborhood, city, state'
     )
-    .eq('id', input.addressId)
+    .eq('id', addressId)
     .eq('user_id', input.userId)
     .maybeSingle();
 
@@ -116,7 +246,7 @@ export async function purchaseStoreOrder(
     special_notes: string | null;
   } | null = null;
 
-  if (input.bundleSubscriptionId) {
+  if (input.bundleSubscriptionId && !hasMonthlyKit) {
     const paintKitBundle = findPaintKitForBundle(input.items);
     if (!paintKitBundle) {
       return {
@@ -170,15 +300,35 @@ export async function purchaseStoreOrder(
     const orderMeta = {
       type: 'store_order',
       orderId,
-      items: lines.map((line) => ({
-        productId: line.productId,
-        quantity: line.quantity,
-        name: line.name,
-        lineTotalCents: line.lineTotalCents,
-      })),
-      addressId: input.addressId,
-      bundleSubscriptionId: input.bundleSubscriptionId ?? null,
-      shippingMode: input.bundleSubscriptionId ? 'with_subscription' : 'standalone',
+      items: lines.map((line) =>
+        line.kind === 'monthly-kit'
+          ? {
+              productId: line.productId,
+              kind: 'monthly-kit',
+              quantity: line.quantity,
+              name: line.name,
+              lineTotalCents: line.lineTotalCents,
+              subscriptionId: line.subscriptionId,
+              themeId: line.themeId,
+              themeName: line.themeName,
+              planName: line.planName,
+              priceCents: line.priceCents,
+              bundleSubscriptionId: line.bundleSubscriptionId,
+            }
+          : {
+              productId: line.productId,
+              kind: 'catalog',
+              quantity: line.quantity,
+              name: line.name,
+              lineTotalCents: line.lineTotalCents,
+              bundleSubscriptionId: line.bundleSubscriptionId,
+            }
+      ),
+      addressId,
+      bundleSubscriptionId: primaryBundleSubscriptionId,
+      shippingMode: hasMonthlyKit || primaryBundleSubscriptionId
+        ? 'with_subscription'
+        : 'standalone',
     };
 
     const { data: paymentRow, error: paymentError } = await input.supabase
@@ -186,7 +336,7 @@ export async function purchaseStoreOrder(
       .upsert(
         {
           user_id: input.userId,
-          subscription_id: input.bundleSubscriptionId ?? null,
+          subscription_id: primaryBundleSubscriptionId,
           asaas_payment_id: payment.id,
           amount_cents: totalCents,
           currency: 'BRL',

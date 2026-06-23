@@ -1,8 +1,9 @@
-import type { StoreProductId } from '@/lib/store/catalog';
+import type { StoreProduct } from '@/lib/store/catalog';
 import { getStoreProduct } from '@/lib/store/catalog';
+import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
 
 export type CartLine = {
-  productId: StoreProductId;
+  productId: string;
   quantity: number;
 };
 
@@ -10,16 +11,37 @@ export type CartLineResolved = CartLine & {
   name: string;
   priceCents: number;
   lineTotalCents: number;
+  category?: StoreProduct['category'];
+  subscriptionId?: string;
+  themeName?: string;
 };
 
 export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v1';
 
-export function normalizeCartLines(lines: CartLine[]): CartLine[] {
-  const merged = new Map<StoreProductId, number>();
+function maxQuantityForProduct(
+  product: StoreProduct | undefined,
+  productId: string
+): number {
+  if (product?.maxQuantity) return product.maxQuantity;
+  if (isMonthlyKitProductId(productId)) return 9;
+  return 9;
+}
+
+export function normalizeCartLines(
+  lines: CartLine[],
+  catalog: StoreProduct[] = []
+): CartLine[] {
+  const merged = new Map<string, number>();
 
   for (const line of lines) {
-    if (!getStoreProduct(line.productId)) continue;
-    const qty = Math.min(Math.max(Math.floor(line.quantity), 0), 9);
+    const product =
+      getStoreProduct(line.productId) ??
+      catalog.find((entry) => entry.id === line.productId);
+
+    if (!product && !isMonthlyKitProductId(line.productId)) continue;
+
+    const maxQty = maxQuantityForProduct(product, line.productId);
+    const qty = Math.min(Math.max(Math.floor(line.quantity), 0), maxQty);
     if (qty === 0) continue;
     merged.set(line.productId, (merged.get(line.productId) ?? 0) + qty);
   }
@@ -30,28 +52,56 @@ export function normalizeCartLines(lines: CartLine[]): CartLine[] {
   }));
 }
 
-export function resolveCartLines(lines: CartLine[]): CartLineResolved[] {
-  return normalizeCartLines(lines).flatMap((line) => {
-    const product = getStoreProduct(line.productId);
+export function resolveCartLines(
+  lines: CartLine[],
+  catalog: StoreProduct[] = []
+): CartLineResolved[] {
+  return normalizeCartLines(lines, catalog).flatMap((line) => {
+    const product =
+      getStoreProduct(line.productId) ??
+      catalog.find((entry) => entry.id === line.productId);
+
     if (!product) return [];
+
     return [
       {
         ...line,
         name: product.name,
         priceCents: product.priceCents,
         lineTotalCents: product.priceCents * line.quantity,
+        category: product.category,
+        subscriptionId: product.subscriptionId,
+        themeName: product.themeName,
       },
     ];
   });
 }
 
-export function cartSubtotalCents(lines: CartLine[]): number {
-  return resolveCartLines(lines).reduce(
+export function cartSubtotalCents(
+  lines: CartLine[],
+  catalog: StoreProduct[] = []
+): number {
+  return resolveCartLines(lines, catalog).reduce(
     (sum, line) => sum + line.lineTotalCents,
     0
   );
 }
 
-export function cartItemCount(lines: CartLine[]): number {
-  return normalizeCartLines(lines).reduce((sum, line) => sum + line.quantity, 0);
+export function cartItemCount(
+  lines: CartLine[],
+  catalog: StoreProduct[] = []
+): number {
+  return normalizeCartLines(lines, catalog).reduce(
+    (sum, line) => sum + line.quantity,
+    0
+  );
+}
+
+export function cartHasMonthlyKits(
+  lines: CartLine[],
+  catalog: StoreProduct[] = []
+): boolean {
+  return normalizeCartLines(lines, catalog).some((line) =>
+    isMonthlyKitProductId(line.productId)
+  );
 }

@@ -1,6 +1,10 @@
 import { PAINT_KIT_BUMPS } from '@/lib/checkout/order-bumps';
 
-export type StoreProductId = 'paint-kit-amador' | 'paint-kit-profissional';
+export type StoreCatalogProductId = 'paint-kit-amador' | 'paint-kit-profissional';
+
+export type StoreProductId = StoreCatalogProductId | string;
+
+export type StoreProductCategory = 'paint-kit' | 'monthly-kit';
 
 export type StoreProduct = {
   id: StoreProductId;
@@ -11,9 +15,18 @@ export type StoreProduct = {
   priceLabel: string;
   includes: readonly string[];
   featured?: boolean;
-  category: 'paint-kit';
+  category: StoreProductCategory;
   /** ID interno usado em special_notes da assinatura */
   paintKitBumpId?: 'amador' | 'profissional';
+  subscriberOnly?: boolean;
+  requiresSubscriptionBundle?: boolean;
+  subscriptionId?: string;
+  themeId?: string;
+  themeName?: string;
+  themeEmoji?: string | null;
+  planName?: string;
+  planSlug?: string;
+  maxQuantity?: number;
 };
 
 export const STORE_PRODUCTS: StoreProduct[] = [
@@ -27,6 +40,7 @@ export const STORE_PRODUCTS: StoreProduct[] = [
     includes: PAINT_KIT_BUMPS[0].includes,
     category: 'paint-kit',
     paintKitBumpId: 'amador',
+    maxQuantity: 9,
   },
   {
     id: 'paint-kit-profissional',
@@ -39,8 +53,15 @@ export const STORE_PRODUCTS: StoreProduct[] = [
     featured: true,
     category: 'paint-kit',
     paintKitBumpId: 'profissional',
+    maxQuantity: 9,
   },
 ];
+
+export function isStoreCatalogProductId(
+  id: string
+): id is StoreCatalogProductId {
+  return STORE_PRODUCTS.some((product) => product.id === id);
+}
 
 export function getStoreProduct(id: StoreProductId): StoreProduct | undefined {
   return STORE_PRODUCTS.find((product) => product.id === id);
