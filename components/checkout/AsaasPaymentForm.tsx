@@ -13,6 +13,7 @@ export type AsaasCardPayload = {
 
 interface Props {
   disabled?: boolean;
+  submitLabel?: string;
   onSubmit: (card: AsaasCardPayload) => Promise<void>;
   onError: (message: string) => void;
 }
@@ -45,7 +46,12 @@ function parseExpiry(expiry: string): { month: string; year: string } | null {
 const inputClassName =
   'w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:border-ember/50 focus:outline-none focus:ring-1 focus:ring-ember/30 disabled:opacity-50';
 
-export default function AsaasPaymentForm({ disabled, onSubmit, onError }: Props) {
+export default function AsaasPaymentForm({
+  disabled,
+  submitLabel = 'Assinar agora',
+  onSubmit,
+  onError,
+}: Props) {
   const [holderName, setHolderName] = useState('');
   const [number, setNumber] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -179,7 +185,7 @@ export default function AsaasPaymentForm({ disabled, onSubmit, onError }: Props)
             Processando…
           </>
         ) : (
-          'Assinar agora'
+          submitLabel
         )}
       </button>
     </form>

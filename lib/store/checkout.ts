@@ -1,8 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
+import {
+  chargeAsaasOneTimePayment,
+  createAsaasPixPayment,
+  type AsaasPixQrCode,
+} from '@/lib/asaas/one-time-payment';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
-import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
-import { setPaintKitBumpInNotes } from '@/lib/checkout/special-notes';
+import {
+  buildStoreOrderExternalReference,
+  fulfillApprovedStoreOrder,
+  type StoreOrderMeta,
+} from '@/lib/asaas/store-order-payment';
 import type {
   AsaasCreditCardHolderInput,
   AsaasCreditCardInput,
@@ -62,19 +70,28 @@ type ResolvedStoreLine =
       promoSummary?: string;
     };
 
+export type StorePaymentMethod = 'credit_card' | 'pix';
+
 export type StoreCheckoutInput = {
   supabase: SupabaseClient;
   userId: string;
   items: CartLine[];
   addressId: string;
   bundleSubscriptionId?: string | null;
-  creditCard: AsaasCreditCardInput;
-  creditCardHolderInfo: AsaasCreditCardHolderInput;
-  remoteIp: string;
+  paymentMethod: StorePaymentMethod;
+  creditCard?: AsaasCreditCardInput;
+  creditCardHolderInfo?: AsaasCreditCardHolderInput;
+  remoteIp?: string;
 };
 
 export type StoreCheckoutResult =
   | { success: true; paymentId: string; orderId: string }
+  | {
+      pending: true;
+      paymentId: string;
+      orderId: string;
+      pix: AsaasPixQrCode;
+    }
   | { error: string };
 
 function buildOrderDescription(lines: ResolvedStoreLine[]): string {
@@ -265,12 +282,6 @@ export async function purchaseStoreOrder(
     return { error: 'Endereço de entrega inválido.' };
   }
 
-  let bundleSubscription: {
-    id: string;
-    status: string;
-    special_notes: string | null;
-  } | null = null;
-
   if (input.bundleSubscriptionId && !hasMonthlyKit) {
     const paintKitBundle = findPaintKitForBundle(input.items);
     if (!paintKitBundle) {
@@ -293,8 +304,6 @@ export async function purchaseStoreOrder(
           'Não foi possível vincular à assinatura. Verifique se ela está ativa e ainda não possui kit de pintura.',
       };
     }
-
-    bundleSubscription = subscription;
   }
 
   const profileRow = profile as ProfileRow;
@@ -308,56 +317,110 @@ export async function purchaseStoreOrder(
     addressRow
   );
 
+  const externalReference = buildStoreOrderExternalReference(
+    input.userId,
+    orderId
+  );
+  const description = buildOrderDescription(lines);
+
+  const orderMeta: StoreOrderMeta = {
+    type: 'store_order',
+    orderId,
+    paymentMethod: input.paymentMethod,
+    items: lines.map((line) =>
+      line.kind === 'monthly-kit'
+        ? {
+            productId: line.productId,
+            kind: 'monthly-kit',
+            quantity: line.quantity,
+            name: line.name,
+            lineTotalCents: line.lineTotalCents,
+            planSlug: line.planSlug,
+            themeId: line.themeId,
+            themeName: line.themeName,
+            planName: line.planName,
+            priceCents: line.priceCents,
+            originalPriceCents: line.originalPriceCents,
+            bundleSubscriptionId: line.bundleSubscriptionId,
+            promoCode: line.promoCode ?? null,
+            promoSummary: line.promoSummary ?? null,
+          }
+        : {
+            productId: line.productId,
+            kind: 'catalog',
+            quantity: line.quantity,
+            name: line.name,
+            lineTotalCents: line.lineTotalCents,
+            bundleSubscriptionId: line.bundleSubscriptionId,
+          }
+    ),
+    addressId,
+    bundleSubscriptionId: primaryBundleSubscriptionId,
+    shippingMode:
+      hasMonthlyKit || primaryBundleSubscriptionId
+        ? 'with_subscription'
+        : 'standalone',
+  };
+
   try {
+    if (input.paymentMethod === 'pix') {
+      const payment = await createAsaasPixPayment({
+        customerId: asaasCustomerId,
+        valueCents: totalCents,
+        description,
+        externalReference,
+      });
+
+      const { data: paymentRow, error: paymentError } = await input.supabase
+        .from('payments')
+        .upsert(
+          {
+            user_id: input.userId,
+            subscription_id: primaryBundleSubscriptionId,
+            asaas_payment_id: payment.id,
+            amount_cents: totalCents,
+            currency: 'BRL',
+            status: 'pending',
+            status_detail: JSON.stringify(orderMeta),
+            paid_at: null,
+          },
+          { onConflict: 'asaas_payment_id' }
+        )
+        .select('id')
+        .single();
+
+      if (paymentError) {
+        console.error('[store] payment record:', paymentError);
+      }
+
+      return {
+        pending: true,
+        paymentId: paymentRow?.id ?? payment.id,
+        orderId,
+        pix: payment.pix,
+      };
+    }
+
+    if (
+      !input.creditCard ||
+      !input.creditCardHolderInfo ||
+      !input.remoteIp
+    ) {
+      return { error: 'Dados do cartão incompletos.' };
+    }
+
     const payment = await chargeAsaasOneTimePayment({
       customerId: asaasCustomerId,
       valueCents: totalCents,
-      description: buildOrderDescription(lines),
+      description,
       remoteIp: input.remoteIp,
       creditCard: input.creditCard,
       creditCardHolderInfo: input.creditCardHolderInfo,
-      externalReference: `store:${input.userId}:${orderId}`,
+      externalReference,
     });
 
     const approved = isAsaasPaymentConfirmed(payment.status);
     const paidAt = approved ? now : null;
-
-    const orderMeta = {
-      type: 'store_order',
-      orderId,
-      items: lines.map((line) =>
-        line.kind === 'monthly-kit'
-          ? {
-              productId: line.productId,
-              kind: 'monthly-kit',
-              quantity: line.quantity,
-              name: line.name,
-              lineTotalCents: line.lineTotalCents,
-              planSlug: line.planSlug,
-              themeId: line.themeId,
-              themeName: line.themeName,
-              planName: line.planName,
-              priceCents: line.priceCents,
-              originalPriceCents: line.originalPriceCents,
-              bundleSubscriptionId: line.bundleSubscriptionId,
-              promoCode: line.promoCode ?? null,
-              promoSummary: line.promoSummary ?? null,
-            }
-          : {
-              productId: line.productId,
-              kind: 'catalog',
-              quantity: line.quantity,
-              name: line.name,
-              lineTotalCents: line.lineTotalCents,
-              bundleSubscriptionId: line.bundleSubscriptionId,
-            }
-      ),
-      addressId,
-      bundleSubscriptionId: primaryBundleSubscriptionId,
-      shippingMode: hasMonthlyKit || primaryBundleSubscriptionId
-        ? 'with_subscription'
-        : 'standalone',
-    };
 
     const { data: paymentRow, error: paymentError } = await input.supabase
       .from('payments')
@@ -388,23 +451,7 @@ export async function purchaseStoreOrder(
       };
     }
 
-    if (bundleSubscription) {
-      const paintKitBundle = findPaintKitForBundle(input.items);
-      if (paintKitBundle) {
-        await input.supabase
-          .from('subscriptions')
-          .update({
-            special_notes: setPaintKitBumpInNotes(
-              bundleSubscription.special_notes,
-              paintKitBundle.bumpId,
-              false
-            ),
-            updated_at: now,
-          })
-          .eq('id', bundleSubscription.id)
-          .eq('user_id', input.userId);
-      }
-    }
+    await fulfillApprovedStoreOrder(input.supabase, input.userId, orderMeta);
 
     return {
       success: true,

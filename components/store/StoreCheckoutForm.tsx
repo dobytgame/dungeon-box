@@ -8,6 +8,9 @@ import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from '@/components/checkout/AsaasPaymentForm';
 import DashboardCard from '@/components/dashboard/DashboardCard';
+import StorePixPaymentPanel, {
+  type StorePixDetails,
+} from '@/components/store/StorePixPaymentPanel';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney, formatZip, relOne } from '@/lib/dashboard/format';
@@ -18,12 +21,31 @@ import {
   cartHasMonthlyKits,
   normalizeCartLines,
   resolveCartLines,
+  type CartLine,
 } from '@/lib/store/cart';
 import { getStoreProduct } from '@/lib/store/catalog';
 
 interface Props {
   addresses: Address[];
   subscriptions: Subscription[];
+}
+
+type StorePaymentMethod = 'credit_card' | 'pix';
+
+function buildCheckoutPayload(
+  paymentMethod: StorePaymentMethod,
+  lines: CartLine[],
+  checkoutAddressId: string,
+  bundleSubscriptionId: string | null,
+  card?: AsaasCardPayload
+) {
+  return {
+    paymentMethod,
+    items: lines,
+    addressId: checkoutAddressId,
+    bundleSubscriptionId,
+    ...(paymentMethod === 'credit_card' && card ? { creditCard: card } : {}),
+  };
 }
 
 export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
@@ -44,6 +66,13 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
 
   const [paintKitBundleSubscriptionId, setPaintKitBundleSubscriptionId] =
     useState('');
+
+  const [paymentMethod, setPaymentMethod] =
+    useState<StorePaymentMethod>('credit_card');
+  const [pixCheckout, setPixCheckout] = useState<{
+    orderId: string;
+    pix: StorePixDetails;
+  } | null>(null);
 
   useEffect(() => {
     if (
@@ -111,14 +140,32 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     );
   }
 
-  async function handlePay(card: AsaasCardPayload) {
+  const selectedMonthlySub = subscriptions.find(
+    (sub) => sub.id === monthlyKitBundleSubscriptionId
+  );
+  const checkoutAddressId =
+    hasMonthlyKit && selectedMonthlySub?.address_id
+      ? selectedMonthlySub.address_id
+      : addressId || addresses[0]?.id || '';
+
+  async function submitCheckout(
+    method: StorePaymentMethod,
+    card?: AsaasCardPayload
+  ) {
     if (hasMonthlyKit && !monthlyKitBundleSubscriptionId) {
       setError('Selecione com qual assinatura enviar os kits do mês.');
       return;
     }
 
-    if (!hasMonthlyKit && !addressId) {
+    if (!hasMonthlyKit && !checkoutAddressId) {
       setError('Selecione um endereço de entrega.');
+      return;
+    }
+
+    if (hasMonthlyKit && !checkoutAddressId) {
+      setError(
+        'Sua assinatura não possui endereço de entrega. Atualize em Minha assinatura.'
+      );
       return;
     }
 
@@ -128,16 +175,19 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
         const res = await fetch('/api/store/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: lines,
-            addressId: addressId || addresses[0]?.id,
-            bundleSubscriptionId: hasMonthlyKit
-              ? monthlyKitBundleSubscriptionId
-              : canBundlePaintKit && paintKitBundleSubscriptionId
-                ? paintKitBundleSubscriptionId
-                : null,
-            creditCard: card,
-          }),
+          body: JSON.stringify(
+            buildCheckoutPayload(
+              method,
+              lines,
+              checkoutAddressId,
+              hasMonthlyKit
+                ? monthlyKitBundleSubscriptionId
+                : canBundlePaintKit && paintKitBundleSubscriptionId
+                  ? paintKitBundleSubscriptionId
+                  : null,
+              card
+            )
+          ),
         });
         const payload = await res.json().catch(() => ({}));
 
@@ -147,6 +197,14 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
               ? payload.error
               : 'Não foi possível concluir a compra.'
           );
+          return;
+        }
+
+        if (payload.pending && payload.pix && payload.orderId) {
+          setPixCheckout({
+            orderId: payload.orderId,
+            pix: payload.pix as StorePixDetails,
+          });
           return;
         }
 
@@ -161,9 +219,21 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     });
   }
 
-  const selectedMonthlySub = subscriptions.find(
-    (sub) => sub.id === monthlyKitBundleSubscriptionId
-  );
+  async function handlePay(card: AsaasCardPayload) {
+    await submitCheckout('credit_card', card);
+  }
+
+  async function handlePixPay() {
+    await submitCheckout('pix');
+  }
+
+  function handlePixConfirmed() {
+    clearCart();
+    if (pixCheckout?.orderId) {
+      router.push(`/dashboard/loja/sucesso?order=${pixCheckout.orderId}`);
+      router.refresh();
+    }
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-5">
@@ -334,15 +404,80 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
         ) : null}
 
         <DashboardCard title="Pagamento" accent="ember">
-          <AsaasPaymentForm
-            disabled={
-              pending ||
-              (!hasMonthlyKit && addresses.length === 0) ||
-              (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
-            }
-            onError={setError}
-            onSubmit={handlePay}
-          />
+          {pixCheckout ? (
+            <StorePixPaymentPanel
+              orderId={pixCheckout.orderId}
+              amountCents={subtotalCents}
+              pix={pixCheckout.pix}
+              onConfirmed={handlePixConfirmed}
+            />
+          ) : (
+            <>
+              <div className="mb-5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('credit_card')}
+                  className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
+                    paymentMethod === 'credit_card'
+                      ? 'border-ember/40 bg-ember/10 text-ember'
+                      : 'border-white/[0.08] text-stone-400 hover:border-white/15'
+                  }`}
+                >
+                  Cartão
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('pix')}
+                  className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
+                    paymentMethod === 'pix'
+                      ? 'border-ember/40 bg-ember/10 text-ember'
+                      : 'border-white/[0.08] text-stone-400 hover:border-white/15'
+                  }`}
+                >
+                  PIX
+                </button>
+              </div>
+
+              {paymentMethod === 'credit_card' ? (
+                <AsaasPaymentForm
+                  disabled={
+                    pending ||
+                    (!hasMonthlyKit && addresses.length === 0) ||
+                    (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
+                  }
+                  submitLabel="Pagar com cartão"
+                  onError={setError}
+                  onSubmit={handlePay}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-stone-400">
+                    Gere o QR Code PIX e pague pelo app do seu banco. A confirmação
+                    é automática após o pagamento.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={
+                      pending ||
+                      (!hasMonthlyKit && addresses.length === 0) ||
+                      (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
+                    }
+                    onClick={() => void handlePixPay()}
+                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Gerando PIX…
+                      </>
+                    ) : (
+                      'Gerar PIX'
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
           {pending ? (
             <p className="mt-4 flex items-center gap-2 text-sm text-stone-400">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
