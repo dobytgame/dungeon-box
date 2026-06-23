@@ -147,7 +147,7 @@ async function resolveStoreLines(
         kind: 'monthly-kit',
         productId: monthly.productId,
         quantity: monthly.quantity,
-        name: `Kit do mês — ${monthly.planName} (${monthly.themeName})`,
+        name: `Kit do mês — ${monthly.planName}`,
         lineTotalCents: monthly.lineTotalCents,
         planSlug: monthly.planSlug,
         themeId: monthly.themeId,

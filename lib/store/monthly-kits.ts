@@ -228,21 +228,26 @@ export async function getCurrentMonthlyTheme(
 }
 
 function buildMonthlyKitProduct(plan: Plan, theme: Theme): StoreProduct {
-  const planName = plan.name;
-  const themeLabel = theme.emoji ? `${theme.emoji} ${theme.name}` : theme.name;
+  const staticPlan = staticPlans.find((entry) => entry.id === plan.slug);
+  const planName = staticPlan?.name ?? plan.name;
 
   return {
     id: monthlyKitProductId(plan.slug as PlanSlug),
     slug: `kit-mes-${plan.slug}-${theme.slug}`,
-    name: `Kit do mês — ${planName}`,
-    tagline: `${themeLabel} · cópia extra do tema ${theme.name}`,
+    name: planName,
+    tagline: staticPlan?.tagline ?? plan.description ?? '',
     priceCents: plan.price_cents,
     priceLabel: formatPriceLabel(plan.price_cents),
-    includes: [
-      `Conteúdo completo do plano ${planName}`,
-      `${plan.pieces_min}–${plan.pieces_max} peças do tema ${theme.name}`,
-      'Enviado junto com sua próxima caixa — sem frete',
-    ],
+    includes: staticPlan
+      ? [
+          staticPlan.pieces,
+          ...staticPlan.perks,
+          'Enviado junto com sua próxima caixa — sem frete',
+        ]
+      : [
+          `Conteúdo completo do plano ${planName}`,
+          'Enviado junto com sua próxima caixa — sem frete',
+        ],
     category: 'monthly-kit',
     subscriberOnly: true,
     requiresSubscriptionBundle: true,
@@ -251,7 +256,7 @@ function buildMonthlyKitProduct(plan: Plan, theme: Theme): StoreProduct {
     themeEmoji: theme.emoji,
     planName,
     planSlug: plan.slug,
-    featured: plan.slug === 'heroi',
+    featured: staticPlan?.featured ?? plan.slug === 'heroi',
     maxQuantity: 9,
   };
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import StoreProductCard from '@/components/store/StoreProductCard';
 import StoreSubNav from '@/components/store/StoreSubNav';
+import { planSupportCopy } from '@/lib/data';
 import { STORE_PRODUCTS } from '@/lib/store/catalog';
 import { requireDashboardUser } from '@/lib/dashboard/queries';
 import { getMonthlyKitStoreAvailability } from '@/lib/store/monthly-kits';
@@ -72,9 +73,8 @@ export default async function StorePage() {
               Kit do mês
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-stone-400">
-              Assinantes podem comprar cópias extras de qualquer plano (Aventureiro,
-              Herói ou Lendário) do tema do mês — enviadas junto com a próxima caixa,
-              sem frete.
+              {planSupportCopy.heroSubtitle} Compre cópias extras de qualquer plano —
+              enviadas junto com a próxima caixa, sem frete.
             </p>
           </div>
 
