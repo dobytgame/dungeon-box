@@ -38,7 +38,7 @@ export async function createSubscriptionPreapproval(
       reason: input.reason,
       external_reference: input.externalReference,
       payer_email: input.payerEmail,
-      back_url: mpBackUrl('/checkout/success'),
+      back_url: mpBackUrl('/assinatura-confirmada'),
       auto_recurring,
       status: 'authorized',
       card_token_id: input.cardTokenId,

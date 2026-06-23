@@ -7,6 +7,10 @@ import {
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { setPaintKitBumpInNotes } from '@/lib/checkout/special-notes';
+import {
+  buildStoreOrderPurchaseAnalytics,
+  type StoreOrderPurchaseAnalytics,
+} from '@/lib/analytics/store-purchase';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 
 export type StoreOrderMeta = {
@@ -177,17 +181,34 @@ export async function handleStoreOrderPaymentConfirmed(
   return approveStoreOrderPayment(supabase, payment.id, payment);
 }
 
+export type StoreOrderStatusResult = {
+  state: 'approved' | 'pending' | 'not_found';
+  pix?: AsaasPixQrCode;
+  order?: StoreOrderPurchaseAnalytics;
+};
+
+function buildOrderStatusResult(
+  meta: StoreOrderMeta | null,
+  state: StoreOrderStatusResult['state'],
+  amountCents?: number | null,
+  pix?: AsaasPixQrCode
+): StoreOrderStatusResult {
+  const order = meta ? buildStoreOrderPurchaseAnalytics(meta, amountCents) : null;
+  return {
+    state,
+    ...(pix ? { pix } : {}),
+    ...(order ? { order } : {}),
+  };
+}
+
 export async function syncStoreOrderPaymentByOrderId(
   supabase: SupabaseClient,
   userId: string,
   orderId: string
-): Promise<{
-  state: 'approved' | 'pending' | 'not_found';
-  pix?: AsaasPixQrCode;
-}> {
+): Promise<StoreOrderStatusResult> {
   const { data: rows } = await supabase
     .from('payments')
-    .select('id, status, status_detail, asaas_payment_id')
+    .select('id, status, status_detail, asaas_payment_id, amount_cents')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50);
@@ -201,11 +222,16 @@ export async function syncStoreOrderPaymentByOrderId(
     return { state: 'not_found' };
   }
 
+  const meta = parseStoreOrderMeta(paymentRow.status_detail);
+
   if (paymentRow.status === 'approved') {
-    return { state: 'approved' };
+    return buildOrderStatusResult(
+      meta,
+      'approved',
+      paymentRow.amount_cents
+    );
   }
 
-  const meta = parseStoreOrderMeta(paymentRow.status_detail);
   let remoteStatus: string | undefined;
 
   try {
@@ -214,7 +240,7 @@ export async function syncStoreOrderPaymentByOrderId(
 
     if (isAsaasPaymentConfirmed(remote.status)) {
       await approveStoreOrderPayment(supabase, paymentRow.asaas_payment_id, remote);
-      return { state: 'approved' };
+      return buildOrderStatusResult(meta, 'approved', paymentRow.amount_cents);
     }
   } catch (error) {
     console.error('[store] sync payment status:', error);
@@ -223,14 +249,16 @@ export async function syncStoreOrderPaymentByOrderId(
   if (meta?.paymentMethod === 'pix') {
     try {
       const pix = await fetchAsaasPixQrCode(paymentRow.asaas_payment_id);
-      return {
-        state: isAsaasPaymentConfirmed(remoteStatus) ? 'approved' : 'pending',
-        pix,
-      };
+      return buildOrderStatusResult(
+        meta,
+        isAsaasPaymentConfirmed(remoteStatus) ? 'approved' : 'pending',
+        paymentRow.amount_cents,
+        pix
+      );
     } catch (error) {
       console.error('[store] fetch pix qr code:', error);
     }
   }
 
-  return { state: 'pending' };
+  return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
 }

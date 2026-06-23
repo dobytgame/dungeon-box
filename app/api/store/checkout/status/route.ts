@@ -33,5 +33,6 @@ export async function GET(request: Request) {
   return NextResponse.json({
     state: result.state,
     pix: result.pix ?? null,
+    order: result.order ?? null,
   });
 }

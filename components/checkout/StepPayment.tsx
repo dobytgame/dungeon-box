@@ -191,12 +191,12 @@ export default function StepPayment({
     (subscriptionIds: string[]) => {
       const ids = subscriptionIds.filter(Boolean);
       if (ids.length === 0) {
-        router.push('/checkout/success');
+        router.push('/assinatura-confirmada');
         router.refresh();
         return;
       }
       router.push(
-        `/checkout/success?ids=${encodeURIComponent(ids.join(','))}`
+        `/assinatura-confirmada?ids=${encodeURIComponent(ids.join(','))}`
       );
       router.refresh();
     },

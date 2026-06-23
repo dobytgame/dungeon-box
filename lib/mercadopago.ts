@@ -70,7 +70,7 @@ function tryMpPublicOrigin(raw?: string): string | null {
 /**
  * HTTPS URL for Mercado Pago redirects (back_url). MP rejects localhost.
  */
-export function mpBackUrl(path = '/checkout/success'): string {
+export function mpBackUrl(path = '/assinatura-confirmada'): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
   const explicit = tryMpPublicOrigin(process.env.MP_BACK_URL);

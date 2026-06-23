@@ -34,8 +34,8 @@ export default function StripePaymentForm({
       onError('');
 
       const returnUrl = subscriptionId
-        ? `${window.location.origin}/checkout/success?ids=${encodeURIComponent(subscriptionId)}`
-        : `${window.location.origin}/checkout/success`;
+        ? `${window.location.origin}/assinatura-confirmada?ids=${encodeURIComponent(subscriptionId)}`
+        : `${window.location.origin}/assinatura-confirmada`;
 
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,

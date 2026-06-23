@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import DashboardCard from '@/components/dashboard/DashboardCard';
+import StoreOrderSuccessAnalytics from '@/components/store/StoreOrderSuccessAnalytics';
 import StoreSubNav from '@/components/store/StoreSubNav';
 
 interface Props {
@@ -11,6 +13,10 @@ export default async function StoreSuccessPage({ searchParams }: Props) {
 
   return (
     <div>
+      <Suspense fallback={null}>
+        <StoreOrderSuccessAnalytics />
+      </Suspense>
+
       <StoreSubNav />
 
       <DashboardCard title="Pedido confirmado" accent="gold">

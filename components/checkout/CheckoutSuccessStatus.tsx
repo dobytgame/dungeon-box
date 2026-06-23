@@ -6,6 +6,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { trackPurchase } from '@/lib/analytics/data-layer';
 import {
+  buildMetaPurchaseFromSubscriptions,
+  trackMetaPurchase,
+} from '@/lib/analytics/meta-pixel';
+import {
   buildPurchaseEcommerceFromSubscriptions,
   parseSubscriptionPurchaseDetail,
 } from '@/lib/analytics/purchase-details';
@@ -50,6 +54,7 @@ export default function CheckoutSuccessStatus() {
     []
   );
   const purchaseTracked = useRef(false);
+  const metaPurchaseTracked = useRef(false);
 
   useEffect(() => {
     if (subscriptionIds.length === 0) return;
@@ -151,6 +156,22 @@ export default function CheckoutSuccessStatus() {
       items,
     });
   }, [state, subscriptionIds, subscriptionRows]);
+
+  useEffect(() => {
+    if (
+      state !== 'active' ||
+      metaPurchaseTracked.current ||
+      subscriptionRows.length === 0
+    ) {
+      return;
+    }
+
+    const metaPurchase = buildMetaPurchaseFromSubscriptions(subscriptionRows);
+    if (!metaPurchase) return;
+
+    metaPurchaseTracked.current = true;
+    trackMetaPurchase(metaPurchase);
+  }, [state, subscriptionRows]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">

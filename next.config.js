@@ -6,8 +6,8 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: '/lp2',
-        destination: '/',
+        source: '/checkout/success',
+        destination: '/assinatura-confirmada',
         permanent: true,
       },
     ];
