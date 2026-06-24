@@ -153,8 +153,31 @@ function KanbanCard({
             </div>
           ) : null}
         </dl>
-        {row.hasBundledItems ? (
-          <CycleBundledTags tags={row.bundledItemTags} items={[]} compact />
+        {row.extraItems.length > 0 ? (
+          <div className="rounded border border-violet-500/25 bg-violet-500/5 px-2 py-2">
+            <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-violet-300/90">
+              + Pedido da loja neste envio
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {row.extraItems.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-start justify-between gap-2 text-[11px] text-zinc-300"
+                >
+                  <span className="min-w-0 truncate">
+                    {item.name}
+                    {item.quantity > 1 ? (
+                      <span className="ml-1 font-mono text-zinc-500">×{item.quantity}</span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-zinc-500">
+                    {item.source === 'store_order' ? 'Loja' : 'Add-on'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <CycleBundledTags tags={row.bundledItemTags} items={[]} compact />
+          </div>
         ) : null}
       </button>
 

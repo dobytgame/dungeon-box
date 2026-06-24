@@ -107,23 +107,26 @@ function paintKitItemFromNotes(
 
 function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
   const items: CycleShipmentItem[] = [];
+  const bundled =
+    meta.shippingMode === 'with_subscription' || Boolean(meta.bundleSubscriptionId);
 
   for (const line of meta.items) {
-    if (!line.bundleSubscriptionId && meta.shippingMode !== 'with_subscription') {
-      continue;
-    }
+    if (!line.bundleSubscriptionId && !bundled) continue;
 
-    if (line.kind === 'monthly-kit') {
+    if (line.kind === 'monthly-kit' || isMonthlyKitProductId(line.productId)) {
       const planName =
         typeof line.planName === 'string' ? line.planName : null;
       const themeName =
         typeof line.themeName === 'string' ? line.themeName : null;
       const detail = [planName, themeName].filter(Boolean).join(' · ') || null;
+      const name =
+        line.name ||
+        (planName ? `Kit do mês — ${planName}` : 'Kit do mês adicional');
 
       items.push({
         id: `monthly-kit:${line.productId}:${line.quantity}`,
         kind: 'monthly-kit',
-        name: line.name,
+        name,
         tag: itemTag('monthly-kit', line.quantity),
         quantity: line.quantity,
         detail,
@@ -158,11 +161,6 @@ function orderTimestamp(row: StoreOrderPaymentRow): number {
   return raw ? Date.parse(raw) : 0;
 }
 
-function cycleTimestamp(cycle: CycleShipmentContext): number {
-  const raw = cycle.paidAt ?? cycle.createdAt;
-  return raw ? Date.parse(raw) : 0;
-}
-
 function firstOpenCycle(
   siblingCycles: CycleShipmentContext[]
 ): CycleShipmentContext | null {
@@ -172,31 +170,26 @@ function firstOpenCycle(
   return open[0] ?? null;
 }
 
+function isBundledStoreOrderMeta(
+  meta: StoreOrderMeta,
+  paymentSubscriptionId: string | null
+): boolean {
+  if (meta.shippingMode === 'with_subscription') return true;
+  if (meta.bundleSubscriptionId) return true;
+  if (meta.items.some((line) => Boolean(line.bundleSubscriptionId))) return true;
+  if (paymentSubscriptionId) return true;
+  return meta.items.some(
+    (line) =>
+      line.kind === 'monthly-kit' || isMonthlyKitProductId(line.productId)
+  );
+}
+
 function assignStoreOrderToCycle(
-  order: StoreOrderPaymentRow,
+  _order: StoreOrderPaymentRow,
   siblingCycles: CycleShipmentContext[]
 ): CycleShipmentContext | null {
-  const sortedCycles = [...siblingCycles].sort(
-    (a, b) => a.cycleNumber - b.cycleNumber
-  );
-  const openCycles = sortedCycles.filter((cycle) =>
-    OPEN_CYCLE_STATUSES.has(cycle.status)
-  );
-  if (openCycles.length === 0) return null;
-
-  const orderTs = orderTimestamp(order);
-  if (orderTs <= 0) {
-    return openCycles[0] ?? null;
-  }
-
-  for (const cycle of openCycles) {
-    const cycleTs = cycleTimestamp(cycle);
-    if (cycleTs <= 0 || cycleTs >= orderTs) {
-      return cycle;
-    }
-  }
-
-  return openCycles[openCycles.length - 1] ?? null;
+  // Kits avulsos bundled vão sempre na próxima caixa da fila (menor ciclo aberto).
+  return firstOpenCycle(siblingCycles);
 }
 
 /** Atribui pedidos da loja ao ciclo de envio correspondente. */
@@ -339,36 +332,79 @@ export async function listBundledStoreOrdersBySubscription(
     result.set(id, []);
   }
 
-  const { data, error } = await admin
-    .from('payments')
-    .select('id, paid_at, created_at, status_detail, subscription_id')
-    .eq('status', 'approved')
-    .in('subscription_id', subscriptionIds)
-    .order('paid_at', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true });
+  const { data: subscriptions } = await admin
+    .from('subscriptions')
+    .select('id, user_id')
+    .in('id', subscriptionIds);
 
-  if (error) {
-    console.error('[admin] listBundledStoreOrders:', error.message);
-    return result;
+  const userIds = Array.from(
+    new Set((subscriptions ?? []).map((row) => row.user_id as string))
+  );
+
+  const paymentSelect =
+    'id, paid_at, created_at, status_detail, subscription_id, user_id';
+
+  const queries = [
+    admin
+      .from('payments')
+      .select(paymentSelect)
+      .eq('status', 'approved')
+      .in('subscription_id', subscriptionIds),
+  ];
+
+  if (userIds.length > 0) {
+    queries.push(
+      admin
+        .from('payments')
+        .select(paymentSelect)
+        .eq('status', 'approved')
+        .in('user_id', userIds)
+    );
   }
 
-  for (const row of data ?? []) {
-    const meta = parseStoreOrderMeta(row.status_detail);
-    if (!meta) continue;
+  const responses = await Promise.all(queries);
+  const seenPaymentIds = new Set<string>();
 
-    const bundledSubId =
-      resolveBundledSubscriptionId(meta) ??
-      (row.subscription_id as string | null);
-    if (!bundledSubId || !subscriptionIds.includes(bundledSubId)) continue;
+  for (const response of responses) {
+    if (response.error) {
+      console.error('[admin] listBundledStoreOrders:', response.error.message);
+      continue;
+    }
 
-    const bucket = result.get(bundledSubId) ?? [];
-    bucket.push({
-      id: row.id as string,
-      paid_at: (row.paid_at as string | null) ?? null,
-      created_at: (row.created_at as string | null) ?? null,
-      meta,
-    });
-    result.set(bundledSubId, bucket);
+    for (const row of response.data ?? []) {
+      const paymentId = row.id as string;
+      if (seenPaymentIds.has(paymentId)) continue;
+      seenPaymentIds.add(paymentId);
+
+      const meta = parseStoreOrderMeta(row.status_detail);
+      if (!meta) continue;
+
+      const paymentSubId = row.subscription_id as string | null;
+      if (!isBundledStoreOrderMeta(meta, paymentSubId)) continue;
+
+      const bundledSubId =
+        resolveBundledSubscriptionId(meta) ?? paymentSubId;
+      if (!bundledSubId || !subscriptionIds.includes(bundledSubId)) continue;
+
+      if (meta.shippingMode === 'standalone' && !paymentSubId && !meta.bundleSubscriptionId) {
+        continue;
+      }
+
+      const bucket = result.get(bundledSubId) ?? [];
+      bucket.push({
+        id: paymentId,
+        paid_at: (row.paid_at as string | null) ?? null,
+        created_at: (row.created_at as string | null) ?? null,
+        meta,
+      });
+      result.set(bundledSubId, bucket);
+    }
+  }
+
+  for (const subId of Array.from(result.keys())) {
+    const orders = result.get(subId) ?? [];
+    orders.sort((a, b) => orderTimestamp(a) - orderTimestamp(b));
+    result.set(subId, orders);
   }
 
   return result;

@@ -133,6 +133,7 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     state: (address?.state as string | null) ?? null,
     hasBundledItems: false,
     bundledItemTags: [],
+    extraItems: [],
   };
 }
 
@@ -163,21 +164,9 @@ async function enrichCycleRowsWithShipmentItems(
     subscriptionIds
   );
 
-  let siblingsBySub = siblingCyclesBySub;
-  if (!siblingsBySub) {
-    siblingsBySub = new Map<string, CycleShipmentContext[]>();
-    for (const row of rows) {
-      if (!siblingsBySub.has(row.subscription_id)) {
-        siblingsBySub.set(
-          row.subscription_id,
-          rows
-            .filter((candidate) => candidate.subscription_id === row.subscription_id)
-            .map(toShipmentContext)
-            .sort((a, b) => a.cycleNumber - b.cycleNumber)
-        );
-      }
-    }
-  }
+  const siblingsBySub =
+    siblingCyclesBySub ??
+    (await loadSiblingCyclesBySubscription(admin, subscriptionIds));
 
   const rawById = new Map(
     rawRows.map((row) => [row.id as string, row])
@@ -191,7 +180,7 @@ async function enrichCycleRowsWithShipmentItems(
     const specialNotes = (subscription?.special_notes as string | null) ?? null;
     const storeOrders = storeOrdersBySub.get(row.subscription_id) ?? [];
     const siblingCycles =
-      siblingsBySub?.get(row.subscription_id) ?? [toShipmentContext(row)];
+      siblingsBySub.get(row.subscription_id) ?? [toShipmentContext(row)];
 
     const shipmentItems = buildCycleShipmentItems({
       cycle: toShipmentContext(row),
@@ -200,10 +189,20 @@ async function enrichCycleRowsWithShipmentItems(
       storeOrders,
     });
 
+    const extraItems = shipmentItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      tag: item.tag,
+      kind: item.kind,
+      source: item.source,
+    }));
+
     return {
       ...row,
-      hasBundledItems: shipmentItems.length > 0,
+      hasBundledItems: extraItems.length > 0,
       bundledItemTags: shipmentItemTags(shipmentItems),
+      extraItems,
     };
   });
 }

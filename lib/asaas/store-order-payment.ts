@@ -58,9 +58,10 @@ export function parseStoreOrderMeta(raw: unknown): StoreOrderMeta | null {
   if (!raw) return null;
 
   let parsed: unknown = raw;
-  if (typeof raw === 'string') {
+  for (let depth = 0; depth < 2; depth += 1) {
+    if (typeof parsed !== 'string') break;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(parsed);
     } catch {
       return null;
     }
@@ -74,7 +75,12 @@ export function parseStoreOrderMeta(raw: unknown): StoreOrderMeta | null {
     return null;
   }
 
-  return parsed as StoreOrderMeta;
+  const meta = parsed as StoreOrderMeta;
+  if (!Array.isArray(meta.items)) {
+    meta.items = [];
+  }
+
+  return meta;
 }
 
 function findPaintKitBumpInOrderMeta(

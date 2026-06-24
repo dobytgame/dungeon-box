@@ -90,6 +90,15 @@ export interface AdminCycleBundledTag {
   kind: CycleShipmentItemKind;
 }
 
+export interface AdminCycleExtraItem {
+  id: string;
+  name: string;
+  quantity: number;
+  tag: string;
+  kind: CycleShipmentItemKind;
+  source: 'subscription' | 'store_order';
+}
+
 export interface AdminCycleRow {
   id: string;
   subscription_id: string;
@@ -108,6 +117,8 @@ export interface AdminCycleRow {
   state: string | null;
   hasBundledItems: boolean;
   bundledItemTags: AdminCycleBundledTag[];
+  /** Itens da loja + add-ons para montar junto com a caixa */
+  extraItems: AdminCycleExtraItem[];
 }
 
 export interface AdminPaymentRow extends Payment {
