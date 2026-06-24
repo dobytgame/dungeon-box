@@ -2,8 +2,8 @@ import type { CheckoutData } from '@/lib/checkout/types';
 import { sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import { resolveBumpBilling } from '@/lib/checkout/bump-billing';
 
-/** Oculta pacotes combo na landing e checkout. Backend permanece ativo. */
-export const COMBO_BILLING_ENABLED = false;
+/** Pacotes combo na landing e checkout (3/6/12 meses). */
+export const COMBO_BILLING_ENABLED = true;
 
 export const BILLING_TERMS = ['monthly', 'combo_3', 'combo_6', 'combo_12'] as const;
 export type BillingTerm = (typeof BILLING_TERMS)[number];
