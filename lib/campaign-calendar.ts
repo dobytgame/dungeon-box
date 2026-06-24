@@ -31,7 +31,7 @@ export const campaignCalendarCopy = {
   titleLine1: '12 meses ·',
   titleLine2: '12 aventuras',
   subtitle:
-    'Cada mês um cenário novo para sua mesa. Passe o mouse ou toque em um mês para ver a lore — os três primeiros já estão revelados.',
+    'Cada mês um cenário novo para sua mesa. Passe o mouse ou toque em um mês para ver a lore — os dois primeiros já estão revelados.',
   lockedLore: 'Tema surpresa. Revelado mês a mês para quem assina.',
   lockedLabel: 'Em breve',
   footerNote: 'Kit temático exclusivo · Peças modulares · Compatível com meses anteriores',
@@ -56,8 +56,8 @@ export const campaignMonths: CampaignMonth[] = [
     month: '03',
     icon: 'scifi',
     name: 'Sci-Fi',
-    lore: 'Corredores metálicos, painéis holográficos e salas de comando. Dungeon futurista com grid 28mm — D&D no espaço ou one-shot cyberpunk.',
-    revealed: true,
+    lore: campaignCalendarCopy.lockedLore,
+    revealed: false,
   },
   {
     month: '04',
