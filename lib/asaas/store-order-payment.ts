@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { asaasRequest } from '@/lib/asaas/client';
 import {
   fetchAsaasPayment,
   fetchAsaasPixQrCode,
@@ -83,6 +84,166 @@ export function parseStoreOrderMeta(raw: unknown): StoreOrderMeta | null {
   return meta;
 }
 
+type AsaasCustomerPayment = {
+  id: string;
+  externalReference?: string | null;
+  description?: string | null;
+  value?: number;
+  status?: string;
+  paymentDate?: string | null;
+  billingType?: string;
+};
+
+export async function listAsaasCustomerPayments(
+  customerId: string
+): Promise<AsaasCustomerPayment[]> {
+  const response = await asaasRequest<{ data?: AsaasCustomerPayment[] }>(
+    `/payments?customer=${encodeURIComponent(customerId)}&limit=100`
+  );
+  return response.data ?? [];
+}
+
+function parseStoreItemFromAsaasDescription(description: string): {
+  name: string;
+  quantity: number;
+  kind: 'monthly-kit' | 'catalog';
+  productId: string;
+} {
+  const qtyMatch = description.match(/(\d+)x\s/i);
+  const quantity = qtyMatch ? Number.parseInt(qtyMatch[1], 10) : 1;
+  const lower = description.toLowerCase();
+  const isMonthlyKit = lower.includes('kit do mês') || lower.includes('kit do mes');
+  const name = description
+    .replace(/^DungeonBox\s+Loja\s*[—-]\s*/i, '')
+    .trim();
+
+  return {
+    name: name || description,
+    quantity: Number.isFinite(quantity) ? quantity : 1,
+    kind: isMonthlyKit ? 'monthly-kit' : 'catalog',
+    productId: isMonthlyKit ? 'monthly-kit:imported' : 'catalog:imported',
+  };
+}
+
+export function buildStoreOrderMetaFromAsaasPayment(
+  payment: AsaasCustomerPayment,
+  bundleSubscriptionId: string
+): StoreOrderMeta | null {
+  const reference = parseStoreOrderExternalReference(payment.externalReference);
+  if (!reference) return null;
+
+  const parsed = parseStoreItemFromAsaasDescription(
+    payment.description ?? 'Pedido da loja'
+  );
+  const lineTotalCents = Math.round((payment.value ?? 0) * 100);
+
+  return {
+    type: 'store_order',
+    orderId: reference.orderId,
+    paymentMethod: payment.billingType === 'PIX' ? 'pix' : 'credit_card',
+    items: [
+      {
+        productId: parsed.productId,
+        kind: parsed.kind,
+        quantity: parsed.quantity,
+        name: parsed.name,
+        lineTotalCents: lineTotalCents,
+        bundleSubscriptionId,
+      },
+    ],
+    addressId: '',
+    bundleSubscriptionId,
+    shippingMode: 'with_subscription',
+  };
+}
+
+/** Importa/atualiza pedidos da loja a partir do Asaas (fallback quando o banco está incompleto). */
+export async function syncStoreOrdersFromAsaasForSubscriptions(
+  supabase: SupabaseClient,
+  subscriptionIds: string[]
+): Promise<void> {
+  if (subscriptionIds.length === 0) return;
+
+  const { data: subscriptions } = await supabase
+    .from('subscriptions')
+    .select('id, user_id, profiles(asaas_customer_id)')
+    .in('id', subscriptionIds);
+
+  for (const subscription of subscriptions ?? []) {
+    const userId = subscription.user_id as string;
+    const subscriptionId = subscription.id as string;
+    const profile = Array.isArray(subscription.profiles)
+      ? subscription.profiles[0]
+      : subscription.profiles;
+    const customerId = profile?.asaas_customer_id as string | null | undefined;
+    if (!customerId) continue;
+
+    let remotePayments: AsaasCustomerPayment[] = [];
+    try {
+      remotePayments = await listAsaasCustomerPayments(customerId);
+    } catch (error) {
+      console.error('[store] list asaas payments:', customerId, error);
+      continue;
+    }
+
+    const storePayments = remotePayments.filter((payment) =>
+      Boolean(parseStoreOrderExternalReference(payment.externalReference))
+    );
+
+    for (const remote of storePayments) {
+      const reference = parseStoreOrderExternalReference(remote.externalReference);
+      if (!reference || reference.userId !== userId) continue;
+
+      const rebuiltMeta = buildStoreOrderMetaFromAsaasPayment(
+        remote,
+        subscriptionId
+      );
+      if (!rebuiltMeta) continue;
+
+      const confirmed = isAsaasPaymentConfirmed(remote.status);
+      const paidAt = confirmed
+        ? remote.paymentDate ?? new Date().toISOString()
+        : null;
+
+      const { data: existing } = await supabase
+        .from('payments')
+        .select('id, status, status_detail')
+        .eq('asaas_payment_id', remote.id)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('payments').insert({
+          user_id: userId,
+          subscription_id: subscriptionId,
+          asaas_payment_id: remote.id,
+          amount_cents: Math.round((remote.value ?? 0) * 100),
+          currency: 'BRL',
+          status: confirmed ? 'approved' : 'pending',
+          status_detail: JSON.stringify(rebuiltMeta),
+          paid_at: paidAt,
+          payment_method: remote.billingType?.toLowerCase() ?? null,
+        });
+        continue;
+      }
+
+      const existingMeta = parseStoreOrderMeta(existing.status_detail);
+      if (!existingMeta) {
+        await supabase
+          .from('payments')
+          .update({
+            status_detail: JSON.stringify(rebuiltMeta),
+            subscription_id: subscriptionId,
+          })
+          .eq('id', existing.id);
+      }
+
+      if (existing.status !== 'approved' && confirmed) {
+        await approveStoreOrderPayment(supabase, remote.id, remote);
+      }
+    }
+  }
+}
+
 function findPaintKitBumpInOrderMeta(
   meta: StoreOrderMeta
 ): { bumpId: 'amador' | 'profissional'; bundleSubscriptionId: string } | null {
@@ -131,6 +292,45 @@ export async function fulfillApprovedStoreOrder(
     })
     .eq('id', subscription.id)
     .eq('user_id', userId);
+}
+
+export async function syncPendingBundledStoreOrders(
+  supabase: SupabaseClient,
+  userIds: string[]
+): Promise<void> {
+  if (userIds.length === 0) return;
+
+  const { data: rows } = await supabase
+    .from('payments')
+    .select('id, asaas_payment_id, status_detail, status')
+    .in('user_id', userIds)
+    .eq('status', 'pending')
+    .not('asaas_payment_id', 'is', null)
+    .ilike('status_detail', '%store_order%');
+
+  await Promise.all(
+    (rows ?? []).map(async (row) => {
+      const meta = parseStoreOrderMeta(row.status_detail);
+      if (!meta) return;
+      if (
+        meta.shippingMode !== 'with_subscription' &&
+        !meta.bundleSubscriptionId &&
+        !meta.items.some((line) => line.bundleSubscriptionId)
+      ) {
+        return;
+      }
+
+      const asaasId = row.asaas_payment_id as string;
+      try {
+        const remote = await fetchAsaasPayment(asaasId);
+        if (isAsaasPaymentConfirmed(remote.status)) {
+          await approveStoreOrderPayment(supabase, asaasId, remote);
+        }
+      } catch (error) {
+        console.error('[store] sync pending bundled order:', asaasId, error);
+      }
+    })
+  );
 }
 
 export async function approveStoreOrderPayment(

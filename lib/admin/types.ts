@@ -97,6 +97,7 @@ export interface AdminCycleExtraItem {
   tag: string;
   kind: CycleShipmentItemKind;
   source: 'subscription' | 'store_order';
+  paymentPending?: boolean;
 }
 
 export interface AdminCycleRow {

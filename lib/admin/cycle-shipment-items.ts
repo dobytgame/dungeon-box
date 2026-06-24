@@ -6,6 +6,8 @@ import {
 } from '@/lib/checkout/special-notes';
 import {
   parseStoreOrderMeta,
+  syncPendingBundledStoreOrders,
+  syncStoreOrdersFromAsaasForSubscriptions,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
@@ -23,6 +25,7 @@ export interface CycleShipmentItem {
   quantity: number;
   detail: string | null;
   source: 'subscription' | 'store_order';
+  paymentPending?: boolean;
 }
 
 export interface ProductionChecklistItem {
@@ -32,6 +35,7 @@ export interface ProductionChecklistItem {
   tag: string;
   quantity: number;
   detail: string | null;
+  paymentPending?: boolean;
 }
 
 export interface CycleShipmentContext {
@@ -48,6 +52,7 @@ interface StoreOrderPaymentRow {
   paid_at: string | null;
   created_at: string | null;
   meta: StoreOrderMeta;
+  paymentStatus: 'approved' | 'pending';
 }
 
 const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
@@ -105,7 +110,10 @@ function paintKitItemFromNotes(
   };
 }
 
-function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
+function itemsFromStoreOrderMeta(
+  meta: StoreOrderMeta,
+  paymentPending = false
+): CycleShipmentItem[] {
   const items: CycleShipmentItem[] = [];
   const bundled =
     meta.shippingMode === 'with_subscription' || Boolean(meta.bundleSubscriptionId);
@@ -131,6 +139,7 @@ function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
         quantity: line.quantity,
         detail,
         source: 'store_order',
+        paymentPending,
       });
       continue;
     }
@@ -150,6 +159,7 @@ function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
       quantity: line.quantity,
       detail: null,
       source: 'store_order',
+      paymentPending,
     });
   }
 
@@ -188,7 +198,6 @@ function assignStoreOrderToCycle(
   _order: StoreOrderPaymentRow,
   siblingCycles: CycleShipmentContext[]
 ): CycleShipmentContext | null {
-  // Kits avulsos bundled vão sempre na próxima caixa da fila (menor ciclo aberto).
   return firstOpenCycle(siblingCycles);
 }
 
@@ -209,7 +218,12 @@ export function storeOrdersForCycle(
 
   const items: CycleShipmentItem[] = [];
   for (const order of matched) {
-    items.push(...itemsFromStoreOrderMeta(order.meta));
+    items.push(
+      ...itemsFromStoreOrderMeta(
+        order.meta,
+        order.paymentStatus === 'pending'
+      )
+    );
   }
   return items;
 }
@@ -285,6 +299,7 @@ export function buildProductionChecklist(input: {
       tag: item.tag,
       quantity: item.quantity,
       detail: item.detail,
+      paymentPending: item.paymentPending,
     });
   }
 
@@ -341,64 +356,69 @@ export async function listBundledStoreOrdersBySubscription(
     new Set((subscriptions ?? []).map((row) => row.user_id as string))
   );
 
+  await syncStoreOrdersFromAsaasForSubscriptions(admin, subscriptionIds);
+  await syncPendingBundledStoreOrders(admin, userIds);
+
   const paymentSelect =
-    'id, paid_at, created_at, status_detail, subscription_id, user_id';
+    'id, paid_at, created_at, status_detail, subscription_id, user_id, status';
 
-  const queries = [
-    admin
-      .from('payments')
-      .select(paymentSelect)
-      .eq('status', 'approved')
-      .in('subscription_id', subscriptionIds),
-  ];
+  const { data: paymentRows, error } = await admin
+    .from('payments')
+    .select(paymentSelect)
+    .in('user_id', userIds)
+    .in('status', ['approved', 'pending'])
+    .ilike('status_detail', '%store_order%');
 
-  if (userIds.length > 0) {
-    queries.push(
-      admin
-        .from('payments')
-        .select(paymentSelect)
-        .eq('status', 'approved')
-        .in('user_id', userIds)
-    );
+  if (error) {
+    console.error('[admin] listBundledStoreOrders:', error.message);
+    return result;
   }
 
-  const responses = await Promise.all(queries);
   const seenPaymentIds = new Set<string>();
+  const seenStoreOrderIds = new Set<string>();
 
-  for (const response of responses) {
-    if (response.error) {
-      console.error('[admin] listBundledStoreOrders:', response.error.message);
+  for (const row of paymentRows ?? []) {
+    const paymentId = row.id as string;
+    if (seenPaymentIds.has(paymentId)) continue;
+
+    const meta = parseStoreOrderMeta(row.status_detail);
+    if (!meta) continue;
+
+    const paymentSubId = row.subscription_id as string | null;
+    if (!isBundledStoreOrderMeta(meta, paymentSubId)) continue;
+
+    const bundledSubId =
+      resolveBundledSubscriptionId(meta) ?? paymentSubId;
+    if (!bundledSubId || !subscriptionIds.includes(bundledSubId)) continue;
+
+    if (
+      meta.shippingMode === 'standalone' &&
+      !paymentSubId &&
+      !meta.bundleSubscriptionId
+    ) {
       continue;
     }
 
-    for (const row of response.data ?? []) {
-      const paymentId = row.id as string;
-      if (seenPaymentIds.has(paymentId)) continue;
-      seenPaymentIds.add(paymentId);
-
-      const meta = parseStoreOrderMeta(row.status_detail);
-      if (!meta) continue;
-
-      const paymentSubId = row.subscription_id as string | null;
-      if (!isBundledStoreOrderMeta(meta, paymentSubId)) continue;
-
-      const bundledSubId =
-        resolveBundledSubscriptionId(meta) ?? paymentSubId;
-      if (!bundledSubId || !subscriptionIds.includes(bundledSubId)) continue;
-
-      if (meta.shippingMode === 'standalone' && !paymentSubId && !meta.bundleSubscriptionId) {
-        continue;
-      }
-
-      const bucket = result.get(bundledSubId) ?? [];
-      bucket.push({
-        id: paymentId,
-        paid_at: (row.paid_at as string | null) ?? null,
-        created_at: (row.created_at as string | null) ?? null,
-        meta,
-      });
-      result.set(bundledSubId, bucket);
+    if (meta.orderId) {
+      const dedupeKey = `${bundledSubId}:${meta.orderId}`;
+      if (seenStoreOrderIds.has(dedupeKey)) continue;
+      seenStoreOrderIds.add(dedupeKey);
     }
+
+    seenPaymentIds.add(paymentId);
+
+    const bucket = result.get(bundledSubId) ?? [];
+    bucket.push({
+      id: paymentId,
+      paid_at: (row.paid_at as string | null) ?? null,
+      created_at: (row.created_at as string | null) ?? null,
+      meta,
+      paymentStatus:
+        row.status === 'approved'
+          ? 'approved'
+          : 'pending',
+    });
+    result.set(bundledSubId, bucket);
   }
 
   for (const subId of Array.from(result.keys())) {

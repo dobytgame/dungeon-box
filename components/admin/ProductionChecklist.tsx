@@ -43,6 +43,11 @@ export default function ProductionChecklist({ items }: Props) {
                 {item.detail ? (
                   <p className="mt-1 text-xs text-zinc-500">{item.detail}</p>
                 ) : null}
+                {item.paymentPending ? (
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-amber-400/90">
+                    Pagamento pendente no Asaas
+                  </p>
+                ) : null}
               </div>
               <span
                 className={`inline-flex shrink-0 rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ${KIND_STYLES[item.kind]}`}

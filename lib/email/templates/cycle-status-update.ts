@@ -48,37 +48,39 @@ function statusCopy(ctx: CycleStatusEmailContext): StatusCopy | null {
   switch (ctx.status) {
     case 'production':
       return {
-        subject: 'Seu kit entrou em produção — DungeonBox',
-        preheader: `${cycleLabel} na fila da forja`,
+        subject: 'Seu pedido entrou em produção — DungeonBox',
+        preheader: `${cycleLabel} — impressão e preparo das peças`,
         eyebrow: 'Produção',
-        headline: 'Sua dungeon está sendo forjada.',
-        headlineAccent: 'forjada',
+        headline: 'Começamos a forjar seu kit.',
+        headlineAccent: 'forjar',
         paragraphs: [
-          `${name}, o pedido do <strong style="color:#fff;">${cycleLabel}</strong> entrou na etapa de produção.`,
+          `${name}, boa notícia: o <strong style="color:#fff;">${cycleLabel}</strong> entrou em <strong style="color:#fff;">produção</strong>.`,
           plan,
-          'Nossa equipe está imprimindo e preparando as peças do seu kit. Assim que a caixa estiver pronta para embalar, você recebe outra atualização.',
+          'Neste momento estamos imprimindo e preparando as miniaturas do seu pedido — incluindo itens adicionais da loja, quando houver.',
+          'Assim que tudo estiver pronto para embalar, avisamos que sua caixa entrou em preparo.',
         ].filter(Boolean) as string[],
         callout: {
-          title: 'O que vem a seguir',
-          body: 'Após a produção, montamos sua caixa e registramos o envio com código de rastreio.',
+          title: 'Próximas etapas',
+          body: 'Produção → preparo da caixa → envio com código de rastreio.',
         },
       };
 
     case 'preparing':
       return {
-        subject: 'Estamos preparando sua caixa — DungeonBox',
-        preheader: `${cycleLabel} em preparo para envio`,
-        eyebrow: 'Preparo',
-        headline: 'Sua caixa está sendo montada.',
-        headlineAccent: 'montada',
+        subject: 'Sua caixa está sendo preparada — DungeonBox',
+        preheader: `${cycleLabel} em preparo para despacho`,
+        eyebrow: 'Em preparo',
+        headline: 'Estamos montando sua caixa.',
+        headlineAccent: 'montando',
         paragraphs: [
-          `${name}, o <strong style="color:#fff;">${cycleLabel}</strong> saiu da produção e está em preparo no estoque.`,
+          `${name}, o <strong style="color:#fff;">${cycleLabel}</strong> saiu da produção e já está <strong style="color:#fff;">em preparo</strong> no nosso estoque.`,
           plan,
-          'Estamos conferindo peças, embalando com cuidado e preparando tudo para o despacho.',
+          'Conferimos peças, separamos add-ons e embalamos tudo com cuidado para o envio.',
+          'Falta pouco: em seguida registramos o despacho e você recebe o rastreio por e-mail.',
         ].filter(Boolean) as string[],
         callout: {
-          title: 'Próximo passo',
-          body: 'Em breve você recebe o e-mail com o código de rastreio.',
+          title: 'Fique de olho',
+          body: 'O próximo e-mail trará o código de rastreio assim que a transportadora receber o pacote.',
         },
       };
 

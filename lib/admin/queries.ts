@@ -196,6 +196,7 @@ async function enrichCycleRowsWithShipmentItems(
       tag: item.tag,
       kind: item.kind,
       source: item.source,
+      paymentPending: item.paymentPending,
     }));
 
     return {

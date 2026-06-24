@@ -12,10 +12,6 @@ const NOTIFY_STATUSES = new Set<CycleStatus>([
   'cancelled',
 ]);
 
-/** E-mails de status desligados por padrão. Defina CYCLE_STATUS_EMAILS_ENABLED=true para ativar. */
-const CYCLE_STATUS_EMAILS_ENABLED =
-  process.env.CYCLE_STATUS_EMAILS_ENABLED === 'true';
-
 export async function notifyCycleStatusChange(
   supabase: SupabaseClient,
   input: {
@@ -29,18 +25,22 @@ export async function notifyCycleStatusChange(
     estimatedDelivery?: string | null;
     cancelReason?: string | null;
   }
-): Promise<void> {
-  if (!CYCLE_STATUS_EMAILS_ENABLED) return;
-  if (!NOTIFY_STATUSES.has(input.status)) return;
+): Promise<{ sent: boolean; reason?: string }> {
+  if (!NOTIFY_STATUSES.has(input.status)) {
+    return { sent: false, reason: 'status_not_notifiable' };
+  }
 
   if (input.status === 'shipped' && !input.trackingCode?.trim()) {
-    return;
+    return { sent: false, reason: 'missing_tracking_code' };
   }
 
   const profile = await getUserEmailProfile(supabase, input.userId);
-  if (!profile?.email) return;
+  if (!profile?.email) {
+    console.warn('[email] cycle status: cliente sem e-mail', input.userId);
+    return { sent: false, reason: 'missing_email' };
+  }
 
-  await sendCycleStatusUpdateEmail(profile.email, {
+  const result = await sendCycleStatusUpdateEmail(profile.email, {
     name: profile.name,
     cycleNumber: input.cycleNumber,
     planName: input.planName,
@@ -51,6 +51,13 @@ export async function notifyCycleStatusChange(
     estimatedDelivery: input.estimatedDelivery,
     cancelReason: input.cancelReason,
   });
+
+  if (!result.sent) {
+    console.error('[email] cycle status failed:', input.status, result);
+    return { sent: false, reason: result.reason };
+  }
+
+  return { sent: true };
 }
 
 export async function notifyCycleStatusFromRecord(
@@ -73,21 +80,26 @@ export async function notifyCycleStatusFromRecord(
           plans?: { name?: string } | { name?: string }[] | null;
         }[]
       | null;
-  }
-): Promise<void> {
+  },
+  options?: { status?: CycleStatus }
+): Promise<{ sent: boolean; reason?: string }> {
   const subscription = relOne(cycle.subscriptions);
   const plan = relOne(subscription?.plans);
   const theme = relOne(cycle.themes);
   const userId = subscription?.user_id;
+  const status = options?.status ?? cycle.status;
 
-  if (!userId) return;
+  if (!userId) {
+    console.warn('[email] cycle status: ciclo sem user_id na assinatura');
+    return { sent: false, reason: 'missing_user' };
+  }
 
-  await notifyCycleStatusChange(supabase, {
+  return notifyCycleStatusChange(supabase, {
     userId,
     cycleNumber: cycle.cycle_number,
     planName: plan?.name ?? null,
     themeName: theme?.name ?? null,
-    status: cycle.status,
+    status,
     trackingCode: cycle.tracking_code,
     carrier: cycle.carrier,
     estimatedDelivery: cycle.estimated_delivery ?? null,

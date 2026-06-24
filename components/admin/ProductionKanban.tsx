@@ -169,6 +169,11 @@ function KanbanCard({
                     {item.quantity > 1 ? (
                       <span className="ml-1 font-mono text-zinc-500">×{item.quantity}</span>
                     ) : null}
+                    {item.paymentPending ? (
+                      <span className="ml-1 font-mono text-[9px] uppercase tracking-wider text-amber-400/90">
+                        · pag. pendente
+                      </span>
+                    ) : null}
                   </span>
                   <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-zinc-500">
                     {item.source === 'store_order' ? 'Loja' : 'Add-on'}

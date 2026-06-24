@@ -47,8 +47,27 @@ import {
   referralPointsEarnedHtml,
   referralPointsEarnedText,
 } from '@/lib/email/templates/referral-points-earned';
-import { getRoleEmailAddress } from '@/lib/email/config';
+import {
+  getRoleEmailAddress,
+  isEmailConfigured,
+  type EmailSenderRole,
+} from '@/lib/email/config';
+import type { CycleStatus } from '@/lib/dashboard/types';
 import { escapeHtml } from '@/lib/email/layout';
+
+function cycleStatusEmailRole(status: CycleStatus): EmailSenderRole {
+  if (status === 'production' || status === 'preparing') return 'production';
+  if (status === 'shipped' || status === 'delivered') return 'shipping';
+  return 'guild';
+}
+
+function resolveCycleStatusSender(status: CycleStatus): EmailSenderRole {
+  const preferred = cycleStatusEmailRole(status);
+  if (isEmailConfigured(preferred)) return preferred;
+  if (isEmailConfigured('shipping')) return 'shipping';
+  if (isEmailConfigured('guild')) return 'guild';
+  return preferred;
+}
 
 export async function sendAccountCreatedEmail(input: {
   to: string;
@@ -119,8 +138,10 @@ export async function sendCycleStatusUpdateEmail(
   to: string,
   data: CycleStatusEmailContext
 ): Promise<SendEmailResult> {
+  const role = resolveCycleStatusSender(data.status);
+
   return sendEmail({
-    role: 'shipping',
+    role,
     to,
     subject: cycleStatusUpdateSubject(data),
     html: cycleStatusUpdateHtml(data),

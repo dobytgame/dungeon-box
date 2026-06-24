@@ -81,17 +81,22 @@ export async function shipSubscriptionCycleAction(
   }
 
   if (subscription?.user_id) {
-    void notifyCycleStatusFromRecord(admin, {
-      cycle_number: cycle.cycle_number,
-      status: 'shipped',
-      tracking_code: trackingCode,
-      carrier,
-      estimated_delivery: cycle.estimated_delivery,
-      themes: cycle.themes,
-      subscriptions: cycle.subscriptions,
-    }).catch((err) => {
-      console.error('[admin] ship notify failed:', err);
-    });
+    const notify = await notifyCycleStatusFromRecord(
+      admin,
+      {
+        cycle_number: cycle.cycle_number,
+        status: 'shipped',
+        tracking_code: trackingCode,
+        carrier,
+        estimated_delivery: cycle.estimated_delivery,
+        themes: cycle.themes,
+        subscriptions: cycle.subscriptions,
+      },
+      { status: 'shipped' }
+    );
+    if (!notify.sent) {
+      console.warn('[admin] ship email not sent:', notify.reason);
+    }
   }
 
   await logAdminAction(admin, {
@@ -236,9 +241,12 @@ export async function advanceCycleProductionAction(
     .maybeSingle();
 
   if (refreshed) {
-    void notifyCycleStatusFromRecord(admin, refreshed).catch((err) => {
-      console.error('[admin] cycle status notify failed:', err);
+    const notify = await notifyCycleStatusFromRecord(admin, refreshed, {
+      status: targetStatus,
     });
+    if (!notify.sent) {
+      console.warn('[admin] cycle status email not sent:', targetStatus, notify.reason);
+    }
   }
 
   await logAdminAction(admin, {
