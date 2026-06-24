@@ -12,6 +12,10 @@ const NOTIFY_STATUSES = new Set<CycleStatus>([
   'cancelled',
 ]);
 
+/** E-mails de status desligados por padrão. Defina CYCLE_STATUS_EMAILS_ENABLED=true para ativar. */
+const CYCLE_STATUS_EMAILS_ENABLED =
+  process.env.CYCLE_STATUS_EMAILS_ENABLED === 'true';
+
 export async function notifyCycleStatusChange(
   supabase: SupabaseClient,
   input: {
@@ -26,6 +30,7 @@ export async function notifyCycleStatusChange(
     cancelReason?: string | null;
   }
 ): Promise<void> {
+  if (!CYCLE_STATUS_EMAILS_ENABLED) return;
   if (!NOTIFY_STATUSES.has(input.status)) return;
 
   if (input.status === 'shipped' && !input.trackingCode?.trim()) {

@@ -2,10 +2,9 @@
 
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
-import CycleBundledTags, {
-  CycleBundledItemsList,
-} from '@/components/admin/CycleBundledTags';
+import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
+import ProductionChecklist from '@/components/admin/ProductionChecklist';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
@@ -63,14 +62,47 @@ export default function CycleDetailContent({
 
   if (!detail) return null;
 
+  const extraCount = Math.max(0, detail.productionChecklist.length - 1);
+
   return (
     <div className="space-y-6">
       <ProductionPipeline status={detail.status} />
 
+      <section className="admin-panel rounded p-4 md:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+              Resumo de produção
+            </p>
+            <h3 className="mt-1 text-base font-medium text-zinc-100">
+              Ciclo #{detail.cycle_number}
+              {detail.themeName ? ` · ${detail.themeName}` : ''}
+            </h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              {detail.customerName ?? 'Cliente sem nome'}
+              {extraCount > 0
+                ? ` · ${detail.productionChecklist.length} itens para montar`
+                : ' · somente caixa do plano'}
+            </p>
+          </div>
+          <StatusBadge kind="cycle" status={detail.status} />
+        </div>
+
+        <div className="mt-4">
+          <ProductionChecklist items={detail.productionChecklist} />
+        </div>
+
+        {detail.shipmentItems.length > 0 ? (
+          <div className="mt-4 border-t border-zinc-800/80 pt-4">
+            <CycleBundledTags items={detail.shipmentItems} compact />
+          </div>
+        ) : null}
+      </section>
+
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="admin-panel rounded p-4">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-            Pedido
+            Assinatura
           </p>
 
           <dl className="mt-4">
@@ -109,7 +141,7 @@ export default function CycleDetailContent({
             />
             {detail.orderAddons.length > 0 ? (
               <DataRow
-                label="Adicionais (assinatura)"
+                label="Add-on na assinatura"
                 value={
                   <ul className="space-y-2">
                     {detail.orderAddons.map((addon) => (
@@ -119,24 +151,14 @@ export default function CycleDetailContent({
                           {addon.priceLabel}
                           {addon.billing === 'recurring'
                             ? ' · recorrente todo mês'
-                            : ' · cobrança única na 1ª caixa'}
+                            : ' · cobrança única'}
                         </span>
                       </li>
                     ))}
                   </ul>
                 }
               />
-            ) : (
-              <DataRow label="Adicionais (assinatura)" value="Nenhum" />
-            )}
-            {detail.shipmentItems.length > 0 ? (
-              <DataRow
-                label="Itens neste envio"
-                value={<CycleBundledItemsList items={detail.shipmentItems} />}
-              />
-            ) : (
-              <DataRow label="Itens neste envio" value="Somente o plano" />
-            )}
+            ) : null}
             {detail.orderMonthlyTotalCents != null ? (
               <DataRow
                 label="Total recorrente"
@@ -181,20 +203,9 @@ export default function CycleDetailContent({
       </div>
 
       <section className="admin-panel rounded p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-              Resumo
-            </p>
-            <p className="mt-1 text-sm text-zinc-300">
-              {detail.customerName ?? 'Cliente sem nome'}
-            </p>
-          </div>
-          <StatusBadge kind="cycle" status={detail.status} />
-        </div>
-        {detail.hasBundledItems ? (
-          <CycleBundledTags items={detail.shipmentItems} compact />
-        ) : null}
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+          Dados do pedido
+        </p>
 
         <dl className="mt-4 grid gap-0 md:grid-cols-2 md:gap-x-6">
           <DataRow
@@ -239,9 +250,6 @@ export default function CycleDetailContent({
           <DataRow label="Motivo cancelamento" value={detail.cancel_reason} />
           <DataRow label="Notas de produção" value={detail.production_notes} />
           <DataRow label="Previsão entrega" value={formatDate(detail.estimated_delivery)} />
-          {detail.themeName ? (
-            <DataRow label="Tema do ciclo" value={detail.themeName} />
-          ) : null}
         </dl>
       </section>
 

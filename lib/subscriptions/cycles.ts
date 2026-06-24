@@ -64,7 +64,7 @@ interface CyclePaymentLink {
   paid_at: string | null;
 }
 
-/** Marca o ciclo pago como em produção e vincula o pagamento. */
+/** Pagamento confirmado: ciclo entra na fila como Aguardando. */
 export async function markCyclePreparing(
   supabase: SupabaseClient,
   subscriptionId: string,
@@ -76,7 +76,7 @@ export async function markCyclePreparing(
   const { error } = await supabase
     .from('subscription_cycles')
     .update({
-      status: 'preparing',
+      status: 'upcoming',
       payment_id: payment.id,
       paid_at: payment.paid_at,
       amount_cents: payment.amount_cents,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/auth';
-import { buildCycleShipmentItems, listBundledStoreOrdersBySubscription, listSiblingCyclesForShipment, type CycleShipmentItem } from '@/lib/admin/cycle-shipment-items';
+import { resolveCycleProductionData, type CycleShipmentItem, type ProductionChecklistItem } from '@/lib/admin/cycle-shipment-items';
 import { toAdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
 import { relOne } from '@/lib/dashboard/format';
@@ -20,30 +20,36 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     const subscription = relOne(cycle.subscriptions);
+    const plan = subscription ? relOne(subscription.plans) : null;
+    const theme = relOne(cycle.themes);
     const subscriptionId = subscription?.id;
+
     let shipmentItems: CycleShipmentItem[] = [];
+    let productionChecklist: ProductionChecklistItem[] = [];
 
     if (subscriptionId) {
-      const [siblingCycles, storeOrdersBySub] = await Promise.all([
-        listSiblingCyclesForShipment(admin, subscriptionId),
-        listBundledStoreOrdersBySubscription(admin, [subscriptionId]),
-      ]);
-
-      shipmentItems = buildCycleShipmentItems({
-        cycle: {
-          cycleId: cycle.id,
-          cycleNumber: cycle.cycle_number,
-          subscriptionId,
-          paidAt: cycle.paid_at,
-          createdAt: cycle.created_at,
-        },
-        siblingCycles,
+      const resolved = await resolveCycleProductionData(admin, {
+        cycleId: cycle.id,
+        cycleNumber: cycle.cycle_number,
+        subscriptionId,
+        status: cycle.status,
+        paidAt: cycle.paid_at,
+        createdAt: cycle.created_at,
         specialNotes: subscription?.special_notes,
-        storeOrders: storeOrdersBySub.get(subscriptionId) ?? [],
+        planName: plan?.name ?? null,
+        themeName: theme?.name ?? null,
+        piecesLabel:
+          plan?.pieces_min && plan?.pieces_max
+            ? `${plan.pieces_min}–${plan.pieces_max} peças`
+            : null,
       });
+      shipmentItems = resolved.shipmentItems;
+      productionChecklist = resolved.productionChecklist;
     }
 
-    return NextResponse.json(toAdminCycleDetailView(cycle, shipmentItems));
+    return NextResponse.json(
+      toAdminCycleDetailView(cycle, shipmentItems, productionChecklist)
+    );
   } catch {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
   }

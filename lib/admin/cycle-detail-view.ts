@@ -1,4 +1,7 @@
-import type { CycleShipmentItem } from '@/lib/admin/cycle-shipment-items';
+import type {
+  CycleShipmentItem,
+  ProductionChecklistItem,
+} from '@/lib/admin/cycle-shipment-items';
 import type { Address, SubscriptionCycle } from '@/lib/dashboard/types';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import {
@@ -69,6 +72,7 @@ export interface AdminCycleDetailView {
   orderCustomerNotes: string | null;
   orderMonthlyTotalCents: number | null;
   shipmentItems: CycleShipmentItem[];
+  productionChecklist: ProductionChecklistItem[];
   hasBundledItems: boolean;
 }
 
@@ -150,7 +154,8 @@ function buildOrderAddons(
 
 export function toAdminCycleDetailView(
   cycle: SubscriptionCycle,
-  shipmentItems: CycleShipmentItem[] = []
+  shipmentItems: CycleShipmentItem[] = [],
+  productionChecklist: ProductionChecklistItem[] = []
 ): AdminCycleDetailView {
   const subscription = relOne(cycle.subscriptions);
   const plan = subscription ? relOne(subscription.plans) : null;
@@ -235,6 +240,7 @@ export function toAdminCycleDetailView(
     orderCustomerNotes: parseCustomerNotes(subscription?.special_notes),
     orderMonthlyTotalCents,
     shipmentItems,
-    hasBundledItems: shipmentItems.length > 0,
+    productionChecklist,
+    hasBundledItems: productionChecklist.length > 1 || shipmentItems.length > 0,
   };
 }

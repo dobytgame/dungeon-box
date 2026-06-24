@@ -10,8 +10,10 @@ import {
 } from '@/lib/asaas/store-order-payment';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
+import type { CycleStatus } from '@/lib/dashboard/types';
 
 export type CycleShipmentItemKind = 'paint-kit' | 'monthly-kit' | 'store';
+export type ProductionItemKind = 'subscription' | CycleShipmentItemKind;
 
 export interface CycleShipmentItem {
   id: string;
@@ -23,10 +25,20 @@ export interface CycleShipmentItem {
   source: 'subscription' | 'store_order';
 }
 
+export interface ProductionChecklistItem {
+  id: string;
+  kind: ProductionItemKind;
+  name: string;
+  tag: string;
+  quantity: number;
+  detail: string | null;
+}
+
 export interface CycleShipmentContext {
   cycleId: string;
   cycleNumber: number;
   subscriptionId: string;
+  status: CycleStatus;
   paidAt: string | null;
   createdAt: string | null;
 }
@@ -37,6 +49,12 @@ interface StoreOrderPaymentRow {
   created_at: string | null;
   meta: StoreOrderMeta;
 }
+
+const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
+  'upcoming',
+  'production',
+  'preparing',
+]);
 
 const KIND_TAG: Record<CycleShipmentItemKind, string> = {
   'paint-kit': 'Kit pintura',
@@ -49,15 +67,29 @@ function itemTag(kind: CycleShipmentItemKind, quantity: number): string {
   return quantity > 1 ? `${base} ×${quantity}` : base;
 }
 
+function resolveBundledSubscriptionId(meta: StoreOrderMeta): string | null {
+  if (meta.bundleSubscriptionId) return meta.bundleSubscriptionId;
+  for (const line of meta.items) {
+    if (line.bundleSubscriptionId) return line.bundleSubscriptionId;
+  }
+  return null;
+}
+
 function paintKitItemFromNotes(
   specialNotes: string | null | undefined,
-  cycleNumber: number
+  cycle: CycleShipmentContext,
+  siblingCycles: CycleShipmentContext[]
 ): CycleShipmentItem | null {
   const bumpId = parsePaintKitBump(specialNotes);
   if (!bumpId) return null;
 
   const recurring = parsePaintKitBumpRecurring(specialNotes);
-  if (!recurring && cycleNumber !== 1) return null;
+  if (!recurring) {
+    const firstOpen = firstOpenCycle(siblingCycles);
+    if (!firstOpen || firstOpen.cycleId !== cycle.cycleId) return null;
+  } else if (!OPEN_CYCLE_STATUSES.has(cycle.status)) {
+    return null;
+  }
 
   const bump = getPaintKitBump(bumpId);
   if (!bump) return null;
@@ -68,7 +100,7 @@ function paintKitItemFromNotes(
     name: bump.name,
     tag: itemTag('paint-kit', 1),
     quantity: 1,
-    detail: recurring ? 'Recorrente todo mês' : 'Cobrança única na 1ª caixa',
+    detail: recurring ? 'Recorrente todo mês' : 'Cobrança única neste envio',
     source: 'subscription',
   };
 }
@@ -77,7 +109,9 @@ function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
   const items: CycleShipmentItem[] = [];
 
   for (const line of meta.items) {
-    if (!line.bundleSubscriptionId) continue;
+    if (!line.bundleSubscriptionId && meta.shippingMode !== 'with_subscription') {
+      continue;
+    }
 
     if (line.kind === 'monthly-kit') {
       const planName =
@@ -87,7 +121,7 @@ function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
       const detail = [planName, themeName].filter(Boolean).join(' · ') || null;
 
       items.push({
-        id: `monthly-kit:${line.productId}`,
+        id: `monthly-kit:${line.productId}:${line.quantity}`,
         kind: 'monthly-kit',
         name: line.name,
         tag: itemTag('monthly-kit', line.quantity),
@@ -106,7 +140,7 @@ function itemsFromStoreOrderMeta(meta: StoreOrderMeta): CycleShipmentItem[] {
         : 'store';
 
     items.push({
-      id: `store:${line.productId}`,
+      id: `store:${line.productId}:${line.quantity}`,
       kind,
       name: line.name,
       tag: itemTag(kind, line.quantity),
@@ -129,6 +163,15 @@ function cycleTimestamp(cycle: CycleShipmentContext): number {
   return raw ? Date.parse(raw) : 0;
 }
 
+function firstOpenCycle(
+  siblingCycles: CycleShipmentContext[]
+): CycleShipmentContext | null {
+  const open = siblingCycles
+    .filter((cycle) => OPEN_CYCLE_STATUSES.has(cycle.status))
+    .sort((a, b) => a.cycleNumber - b.cycleNumber);
+  return open[0] ?? null;
+}
+
 function assignStoreOrderToCycle(
   order: StoreOrderPaymentRow,
   siblingCycles: CycleShipmentContext[]
@@ -136,16 +179,24 @@ function assignStoreOrderToCycle(
   const sortedCycles = [...siblingCycles].sort(
     (a, b) => a.cycleNumber - b.cycleNumber
   );
-  if (sortedCycles.length === 0) return null;
+  const openCycles = sortedCycles.filter((cycle) =>
+    OPEN_CYCLE_STATUSES.has(cycle.status)
+  );
+  if (openCycles.length === 0) return null;
 
   const orderTs = orderTimestamp(order);
-  for (const cycle of sortedCycles) {
-    const cycleTs = cycleTimestamp(cycle);
-    if (cycleTs <= 0 || orderTs <= 0) continue;
-    if (cycleTs >= orderTs) return cycle;
+  if (orderTs <= 0) {
+    return openCycles[0] ?? null;
   }
 
-  return sortedCycles[sortedCycles.length - 1] ?? null;
+  for (const cycle of openCycles) {
+    const cycleTs = cycleTimestamp(cycle);
+    if (cycleTs <= 0 || cycleTs >= orderTs) {
+      return cycle;
+    }
+  }
+
+  return openCycles[openCycles.length - 1] ?? null;
 }
 
 /** Atribui pedidos da loja ao ciclo de envio correspondente. */
@@ -154,6 +205,10 @@ export function storeOrdersForCycle(
   siblingCycles: CycleShipmentContext[],
   storeOrders: StoreOrderPaymentRow[]
 ): CycleShipmentItem[] {
+  if (!OPEN_CYCLE_STATUSES.has(cycle.status)) {
+    return [];
+  }
+
   const matched = storeOrders.filter((order) => {
     const assigned = assignStoreOrderToCycle(order, siblingCycles);
     return assigned?.cycleId === cycle.cycleId;
@@ -180,7 +235,8 @@ export function buildCycleShipmentItems(input: {
 
   const fromNotes = paintKitItemFromNotes(
     input.specialNotes,
-    input.cycle.cycleNumber
+    input.cycle,
+    input.siblingCycles
   );
 
   const merged = [...fromStore];
@@ -194,6 +250,52 @@ export function buildCycleShipmentItems(input: {
   }
 
   return merged;
+}
+
+export function buildProductionChecklist(input: {
+  cycle: CycleShipmentContext;
+  siblingCycles: CycleShipmentContext[];
+  specialNotes: string | null | undefined;
+  storeOrders: StoreOrderPaymentRow[];
+  planName: string | null;
+  themeName: string | null;
+  piecesLabel: string | null;
+}): ProductionChecklistItem[] {
+  const checklist: ProductionChecklistItem[] = [];
+
+  if (input.planName) {
+    const themeDetail = input.themeName ? `Tema: ${input.themeName}` : null;
+    const detail = [themeDetail, input.piecesLabel].filter(Boolean).join(' · ') || null;
+
+    checklist.push({
+      id: 'subscription-box',
+      kind: 'subscription',
+      name: `Caixa ${input.planName}`,
+      tag: 'Assinatura',
+      quantity: 1,
+      detail,
+    });
+  }
+
+  const extras = buildCycleShipmentItems({
+    cycle: input.cycle,
+    siblingCycles: input.siblingCycles,
+    specialNotes: input.specialNotes,
+    storeOrders: input.storeOrders,
+  });
+
+  for (const item of extras) {
+    checklist.push({
+      id: item.id,
+      kind: item.kind,
+      name: item.name,
+      tag: item.tag,
+      quantity: item.quantity,
+      detail: item.detail,
+    });
+  }
+
+  return checklist;
 }
 
 export function shipmentItemTags(
@@ -237,22 +339,11 @@ export async function listBundledStoreOrdersBySubscription(
     result.set(id, []);
   }
 
-  const { data: subscriptions } = await admin
-    .from('subscriptions')
-    .select('id, user_id')
-    .in('id', subscriptionIds);
-
-  const userIds = Array.from(
-    new Set((subscriptions ?? []).map((row) => row.user_id as string))
-  );
-
-  if (userIds.length === 0) return result;
-
   const { data, error } = await admin
     .from('payments')
-    .select('id, paid_at, created_at, status_detail, user_id')
+    .select('id, paid_at, created_at, status_detail, subscription_id')
     .eq('status', 'approved')
-    .in('user_id', userIds)
+    .in('subscription_id', subscriptionIds)
     .order('paid_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });
 
@@ -263,18 +354,21 @@ export async function listBundledStoreOrdersBySubscription(
 
   for (const row of data ?? []) {
     const meta = parseStoreOrderMeta(row.status_detail);
-    if (!meta?.bundleSubscriptionId) continue;
-    if (meta.shippingMode !== 'with_subscription') continue;
-    if (!subscriptionIds.includes(meta.bundleSubscriptionId)) continue;
+    if (!meta) continue;
 
-    const bucket = result.get(meta.bundleSubscriptionId) ?? [];
+    const bundledSubId =
+      resolveBundledSubscriptionId(meta) ??
+      (row.subscription_id as string | null);
+    if (!bundledSubId || !subscriptionIds.includes(bundledSubId)) continue;
+
+    const bucket = result.get(bundledSubId) ?? [];
     bucket.push({
       id: row.id as string,
       paid_at: (row.paid_at as string | null) ?? null,
       created_at: (row.created_at as string | null) ?? null,
       meta,
     });
-    result.set(meta.bundleSubscriptionId, bucket);
+    result.set(bundledSubId, bucket);
   }
 
   return result;
@@ -286,7 +380,7 @@ export async function listSiblingCyclesForShipment(
 ): Promise<CycleShipmentContext[]> {
   const { data, error } = await admin
     .from('subscription_cycles')
-    .select('id, cycle_number, subscription_id, paid_at, created_at')
+    .select('id, cycle_number, subscription_id, status, paid_at, created_at')
     .eq('subscription_id', subscriptionId)
     .order('cycle_number', { ascending: true });
 
@@ -299,7 +393,59 @@ export async function listSiblingCyclesForShipment(
     cycleId: row.id as string,
     cycleNumber: row.cycle_number as number,
     subscriptionId: row.subscription_id as string,
+    status: row.status as CycleStatus,
     paidAt: (row.paid_at as string | null) ?? null,
     createdAt: (row.created_at as string | null) ?? null,
   }));
+}
+
+export async function resolveCycleProductionData(
+  admin: SupabaseClient,
+  input: {
+    cycleId: string;
+    cycleNumber: number;
+    subscriptionId: string;
+    status: CycleStatus;
+    paidAt: string | null;
+    createdAt: string | null;
+    specialNotes: string | null | undefined;
+    planName: string | null;
+    themeName: string | null;
+    piecesLabel: string | null;
+  }
+) {
+  const [siblingCycles, storeOrdersBySub] = await Promise.all([
+    listSiblingCyclesForShipment(admin, input.subscriptionId),
+    listBundledStoreOrdersBySubscription(admin, [input.subscriptionId]),
+  ]);
+
+  const cycle: CycleShipmentContext = {
+    cycleId: input.cycleId,
+    cycleNumber: input.cycleNumber,
+    subscriptionId: input.subscriptionId,
+    status: input.status,
+    paidAt: input.paidAt,
+    createdAt: input.createdAt,
+  };
+
+  const storeOrders = storeOrdersBySub.get(input.subscriptionId) ?? [];
+
+  const shipmentItems = buildCycleShipmentItems({
+    cycle,
+    siblingCycles,
+    specialNotes: input.specialNotes,
+    storeOrders,
+  });
+
+  const productionChecklist = buildProductionChecklist({
+    cycle,
+    siblingCycles,
+    specialNotes: input.specialNotes,
+    storeOrders,
+    planName: input.planName,
+    themeName: input.themeName,
+    piecesLabel: input.piecesLabel,
+  });
+
+  return { shipmentItems, productionChecklist };
 }

@@ -32,6 +32,14 @@ export const ADMIN_NAV = [
     group: 'operacao',
   },
   {
+    href: '/admin/vendas',
+    label: 'Vendas',
+    eyebrow: 'Receita',
+    description: 'Todas as vendas: assinaturas, loja avulsa e pedidos bundled.',
+    icon: 'receipt',
+    group: 'operacao',
+  },
+  {
     href: '/admin/pagamentos',
     label: 'Pagamentos',
     eyebrow: 'Cofre',

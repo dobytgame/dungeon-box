@@ -141,6 +141,7 @@ function toShipmentContext(row: AdminCycleRow): CycleShipmentContext {
     cycleId: row.id,
     cycleNumber: row.cycle_number,
     subscriptionId: row.subscription_id,
+    status: row.status,
     paidAt: row.paid_at,
     createdAt: row.created_at,
   };
