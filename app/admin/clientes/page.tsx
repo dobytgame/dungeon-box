@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
+import PartnerBadge from '@/components/admin/PartnerBadge';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminCustomers } from '@/lib/admin/queries';
@@ -31,7 +32,10 @@ export default async function AdminCustomersPage({ searchParams }: Props) {
             header: 'Cliente',
             cell: (row) => (
               <div>
-                <p>{row.full_name ?? row.display_name ?? '—'}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p>{row.full_name ?? row.display_name ?? '—'}</p>
+                  {row.isPartner ? <PartnerBadge compact /> : null}
+                </div>
                 <p className="text-xs text-stone-500">{row.email}</p>
               </div>
             ),

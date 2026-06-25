@@ -16,6 +16,7 @@ import type {
   AdminCycleRow,
   AdminDashboardStats,
   AdminListFilters,
+  AdminPartnerRow,
   AdminPaymentRow,
   AdminPlanRow,
   AdminPromoCodeRow,
@@ -357,7 +358,7 @@ export async function listAdminCustomers(
   const ids = profiles.map((p) => p.id);
   const { data: subscriptions } = await admin
     .from('subscriptions')
-    .select('user_id, status')
+    .select('user_id, status, is_partner')
     .in('user_id', ids);
 
   return profiles.map((profile) => {
@@ -371,6 +372,9 @@ export async function listAdminCustomers(
       userSubs.find((sub) => sub.status === 'active')?.status ??
       userSubs[0]?.status ??
       null;
+    const isPartner = userSubs.some(
+      (sub) => sub.is_partner && sub.status === 'active'
+    );
 
     return {
       id: profile.id,
@@ -382,8 +386,73 @@ export async function listAdminCustomers(
       created_at: profile.created_at,
       activeSubscriptions,
       latestStatus,
+      isPartner,
     };
   });
+}
+
+export async function listAdminPartnerSubscriptions(
+  admin: SupabaseClient,
+  filters: AdminListFilters = {}
+): Promise<AdminPartnerRow[]> {
+  const limit = filters.limit ?? 100;
+  const { data, error } = await admin
+    .from('subscriptions')
+    .select(
+      `
+      id,
+      user_id,
+      status,
+      current_cycle,
+      started_at,
+      profiles(full_name, display_name, email),
+      plans!plan_id(name, slug)
+    `
+    )
+    .eq('is_partner', true)
+    .order('started_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[admin] listAdminPartnerSubscriptions:', error.message);
+    return [];
+  }
+
+  const q = filters.q?.trim().toLowerCase();
+
+  return (data ?? [])
+    .map((row) => {
+      const profileData = Array.isArray(row.profiles)
+        ? row.profiles[0]
+        : row.profiles;
+      const planData = Array.isArray(row.plans) ? row.plans[0] : row.plans;
+
+      return {
+        id: row.id as string,
+        user_id: row.user_id as string,
+        status: row.status as AdminPartnerRow['status'],
+        current_cycle: row.current_cycle as number | null,
+        started_at: row.started_at as string | null,
+        customerName:
+          profileData?.full_name ?? profileData?.display_name ?? null,
+        customerEmail: profileData?.email ?? null,
+        planName: planData?.name ?? null,
+        planSlug: planData?.slug ?? null,
+      };
+    })
+    .filter((row) => {
+      if (!q) return true;
+      const haystack = [
+        row.customerName,
+        row.customerEmail,
+        row.planName,
+        row.planSlug,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
 }
 
 export async function getAdminCustomerDetail(

@@ -8,6 +8,14 @@ export const ADMIN_NAV = [
     group: 'operacao',
   },
   {
+    href: '/admin/parceiros',
+    label: 'Parceiros',
+    eyebrow: 'Guilda',
+    description: 'Assinaturas isentas de cobrança e gestão de parceiros.',
+    icon: 'handshake',
+    group: 'operacao',
+  },
+  {
     href: '/admin/clientes',
     label: 'Clientes',
     eyebrow: 'Guilda',

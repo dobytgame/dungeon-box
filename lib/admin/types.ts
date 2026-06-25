@@ -67,6 +67,19 @@ export interface AdminCustomerRow {
   created_at: string | null;
   activeSubscriptions: number;
   latestStatus: SubscriptionStatus | null;
+  isPartner: boolean;
+}
+
+export interface AdminPartnerRow {
+  id: string;
+  user_id: string;
+  status: SubscriptionStatus;
+  current_cycle: number | null;
+  started_at: string | null;
+  customerName: string | null;
+  customerEmail: string | null;
+  planName: string | null;
+  planSlug: string | null;
 }
 
 export interface AdminSubscriptionRow {

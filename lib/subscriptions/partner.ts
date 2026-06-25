@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PlanSlug } from '@/lib/checkout/plans';
+import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import {
   ensureSubscriptionCycle,
   markCyclePreparing,
@@ -145,4 +147,67 @@ export async function clearSubscriptionPartnerFlag(
   }
 
   return { success: true };
+}
+
+/** Cria ou reativa assinatura de parceiro para um plano específico. */
+export async function grantPartnerPlanForUser(
+  supabase: SupabaseClient,
+  userId: string,
+  planSlug: PlanSlug
+): Promise<{ success: boolean; subscriptionId?: string; error?: string }> {
+  const { data: plan } = await supabase
+    .from('plans')
+    .select('id, slug, name')
+    .eq('slug', planSlug)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!plan) {
+    return { success: false, error: 'Plano não encontrado.' };
+  }
+
+  const existing = await findBlockingSubscriptionForPlan(
+    supabase,
+    userId,
+    plan.id
+  );
+
+  if (existing) {
+    const result = await activatePartnerSubscription(supabase, existing.id);
+    if (!result.success) return result;
+    return { success: true, subscriptionId: existing.id };
+  }
+
+  const { data: address } = await supabase
+    .from('addresses')
+    .select('id')
+    .eq('user_id', userId)
+    .order('is_default', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: created, error: insertError } = await supabase
+    .from('subscriptions')
+    .insert({
+      user_id: userId,
+      plan_id: plan.id,
+      address_id: address?.id ?? null,
+      status: 'pending',
+      is_partner: true,
+      special_notes: '[Parceiro — concedido pelo admin]',
+    })
+    .select('id')
+    .single();
+
+  if (insertError || !created) {
+    return {
+      success: false,
+      error: insertError?.message ?? 'Erro ao criar assinatura.',
+    };
+  }
+
+  const result = await activatePartnerSubscription(supabase, created.id);
+  if (!result.success) return result;
+
+  return { success: true, subscriptionId: created.id };
 }

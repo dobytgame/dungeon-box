@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import AdminTable from '@/components/admin/AdminTable';
+import CustomerPartnerPanel from '@/components/admin/CustomerPartnerPanel';
+import PartnerBadge from '@/components/admin/PartnerBadge';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminCustomerDetail } from '@/lib/admin/queries';
+import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import {
   formatCpf,
   formatDate,
@@ -26,6 +29,29 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
 
   const { profile, addresses, subscriptions, payments, cycles } = detail;
   const name = profile.full_name ?? profile.display_name ?? profile.email;
+  const isPartner = subscriptions.some(
+    (sub) => sub.is_partner && sub.status === 'active'
+  );
+
+  const { data: planRows } = await admin
+    .from('plans')
+    .select('slug, name')
+    .in('slug', [...PLAN_SLUGS])
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+
+  const planOptions = (planRows ?? []).map((plan) => ({
+    slug: plan.slug as (typeof PLAN_SLUGS)[number],
+    name: plan.name as string,
+  }));
+
+  const partnerSubscriptions = subscriptions.map((sub) => ({
+    id: sub.id,
+    planName: relOne(sub.plans)?.name ?? null,
+    planSlug: relOne(sub.plans)?.slug ?? null,
+    status: sub.status,
+    isPartner: Boolean(sub.is_partner),
+  }));
 
   return (
     <div className="space-y-8">
@@ -37,9 +63,12 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
       </Link>
 
       <section className="rounded-sm border border-white/[0.06] p-5 md:p-6">
-        <h2 className="font-display text-lg uppercase tracking-wide text-white">
-          {name}
-        </h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="font-display text-lg uppercase tracking-wide text-white">
+            {name}
+          </h2>
+          {isPartner ? <PartnerBadge /> : null}
+        </div>
         <dl className="mt-4">
           <DataRow label="E-mail" value={profile.email} />
           <DataRow label="Telefone" value={formatPhone(profile.phone)} />
@@ -47,6 +76,12 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
           <DataRow label="Cadastro" value={formatDate(profile.created_at)} />
         </dl>
       </section>
+
+      <CustomerPartnerPanel
+        userId={profile.id}
+        subscriptions={partnerSubscriptions}
+        planOptions={planOptions}
+      />
 
       {addresses.length > 0 ? (
         <section>
@@ -96,7 +131,10 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
                 key: 'status',
                 header: 'Status',
                 cell: (row) => (
-                  <StatusBadge kind="subscription" status={row.status} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge kind="subscription" status={row.status} />
+                    {row.is_partner ? <PartnerBadge compact /> : null}
+                  </div>
                 ),
               },
               {
@@ -108,7 +146,10 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
               {
                 key: 'next',
                 header: 'Próxima cobrança',
-                cell: (row) => formatDate(row.next_billing_date),
+                cell: (row) =>
+                  row.is_partner
+                    ? '— (parceiro)'
+                    : formatDate(row.next_billing_date),
               },
             ]}
             emptyMessage="Nenhuma assinatura."

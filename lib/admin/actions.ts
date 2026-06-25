@@ -23,6 +23,7 @@ import { canTransitionCycle } from '@/lib/subscriptions/cycle-production';
 import {
   activatePartnerSubscription,
   clearSubscriptionPartnerFlag,
+  grantPartnerPlanForUser,
 } from '@/lib/subscriptions/partner';
 
 function revalidateAdmin() {
@@ -382,6 +383,30 @@ export async function setSubscriptionPartnerAction(
 
   revalidateAdmin();
   return { success: true as const };
+}
+
+export async function grantPartnerPlanAction(
+  userId: string,
+  planSlug: PlanSlug
+) {
+  const { user, admin } = await requireAdmin();
+
+  const result = await grantPartnerPlanForUser(admin, userId, planSlug);
+  if (!result.success) {
+    return { error: result.error ?? 'Não foi possível conceder o plano parceiro.' };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.partner_grant',
+    entityType: 'subscription',
+    entityId: result.subscriptionId ?? userId,
+    metadata: { user_id: userId, plan_slug: planSlug },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const, subscriptionId: result.subscriptionId };
 }
 
 export async function saveThemeAction(themeId: string | null, formData: FormData) {

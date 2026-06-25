@@ -13,6 +13,7 @@ import {
   ScrollText,
   Terminal,
   Ticket,
+  Handshake,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   'layout-dashboard': LayoutDashboard,
   mail: Mail,
+  handshake: Handshake,
   users: Users,
   repeat: Repeat,
   package: Package,
