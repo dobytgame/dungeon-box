@@ -826,3 +826,143 @@ export async function sendMarketingCampaignAction(input: {
     errors: result.errors,
   };
 }
+
+function parseMoneyField(value: FormDataEntryValue | null, label: string) {
+  const raw = String(value ?? '').trim().replace(',', '.');
+  const parsed = Number.parseFloat(raw);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return { error: `${label} inválido.` } as const;
+  }
+  return { cents: Math.round(parsed * 100) } as const;
+}
+
+function parseDateField(value: FormDataEntryValue | null, label: string) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return { error: `${label} é obrigatória.` } as const;
+  const date = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return { error: `${label} inválida.` } as const;
+  }
+  return { value: raw } as const;
+}
+
+export async function saveFinancialExpenseAction(
+  expenseId: string | null,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const categoryId = (formData.get('category_id') as string)?.trim();
+  if (!categoryId) {
+    return { error: 'Selecione uma categoria.' };
+  }
+
+  const description = (formData.get('description') as string)?.trim();
+  if (!description) {
+    return { error: 'Informe a descrição.' };
+  }
+
+  const amount = parseMoneyField(formData.get('amount'), 'Valor');
+  if ('error' in amount) return amount;
+
+  const expenseDate = parseDateField(formData.get('expense_date'), 'Data do gasto');
+  if ('error' in expenseDate) return expenseDate;
+
+  const status = formData.get('status') as 'pending' | 'paid' | 'cancelled';
+  if (status !== 'pending' && status !== 'paid' && status !== 'cancelled') {
+    return { error: 'Status inválido.' };
+  }
+
+  const paidAtRaw = (formData.get('paid_at') as string)?.trim();
+  let paidAt: string | null = null;
+  if (status === 'paid') {
+    if (paidAtRaw) {
+      const parsed = parseDateField(paidAtRaw, 'Data do pagamento');
+      if ('error' in parsed) return parsed;
+      paidAt = parsed.value;
+    } else {
+      paidAt = expenseDate.value;
+    }
+  }
+
+  const vendor = (formData.get('vendor') as string)?.trim() || null;
+  const notes = (formData.get('notes') as string)?.trim() || null;
+
+  const payload = {
+    category_id: categoryId,
+    description,
+    amount_cents: amount.cents,
+    expense_date: expenseDate.value,
+    paid_at: paidAt,
+    status,
+    vendor,
+    notes,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (expenseId) {
+    const { error } = await admin
+      .from('financial_expenses')
+      .update(payload)
+      .eq('id', expenseId);
+
+    if (error) return { error: error.message };
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'finance.expense.update',
+      entityType: 'financial_expense',
+      entityId: expenseId,
+      metadata: { description, amount_cents: amount.cents, category_id: categoryId },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    return { success: true as const, id: expenseId };
+  }
+
+  const { data, error } = await admin
+    .from('financial_expenses')
+    .insert({ ...payload, created_by: user.id })
+    .select('id')
+    .single();
+
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'finance.expense.create',
+    entityType: 'financial_expense',
+    entityId: data.id,
+    metadata: { description, amount_cents: amount.cents, category_id: categoryId },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const, id: data.id as string };
+}
+
+export async function cancelFinancialExpenseAction(expenseId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { error } = await admin
+    .from('financial_expenses')
+    .update({
+      status: 'cancelled',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', expenseId);
+
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'finance.expense.cancel',
+    entityType: 'financial_expense',
+    entityId: expenseId,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const };
+}

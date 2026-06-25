@@ -197,3 +197,81 @@ export interface AdminAuditRow {
   actorName: string | null;
   actorEmail: string | null;
 }
+
+export type AdminFinancialPeriod = '30d' | '90d' | 'year' | 'all';
+
+export type FinancialExpenseStatus = 'pending' | 'paid' | 'cancelled';
+
+export interface AdminFinancialCategoryRow {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface AdminFinancialExpenseRow {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  description: string;
+  amount_cents: number;
+  expense_date: string;
+  paid_at: string | null;
+  status: FinancialExpenseStatus;
+  vendor: string | null;
+  notes: string | null;
+  payment_id: string | null;
+  cycle_id: string | null;
+  created_at: string | null;
+}
+
+export interface AdminFinancialSummary {
+  period: AdminFinancialPeriod;
+  from: string;
+  to: string;
+  revenueCents: number;
+  revenueCount: number;
+  refundCents: number;
+  refundCount: number;
+  expenseCents: number;
+  expenseCount: number;
+  pendingExpenseCents: number;
+  pendingExpenseCount: number;
+  netCents: number;
+  expensesByCategory: {
+    id: string;
+    name: string;
+    cents: number;
+    count: number;
+  }[];
+}
+
+export type AdminFinancialMovementKind =
+  | 'income'
+  | 'expense'
+  | 'expense_pending'
+  | 'refund';
+
+export interface AdminFinancialMovementRow {
+  id: string;
+  kind: AdminFinancialMovementKind;
+  label: string;
+  counterparty: string | null;
+  amount_cents: number;
+  date: string;
+  source: 'payment' | 'expense';
+  categoryName?: string;
+}
+
+export interface AdminFinancialDashboard {
+  summary: AdminFinancialSummary;
+  cashFlow: {
+    month: string;
+    label: string;
+    inflowCents: number;
+    outflowCents: number;
+    netCents: number;
+  }[];
+  movements: AdminFinancialMovementRow[];
+  categories: AdminFinancialCategoryRow[];
+}

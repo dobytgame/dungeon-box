@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Handshake,
+  Landmark,
   Layers,
   LayoutDashboard,
   Mail,
@@ -13,7 +15,6 @@ import {
   ScrollText,
   Terminal,
   Ticket,
-  Handshake,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   repeat: Repeat,
   package: Package,
   receipt: Receipt,
+  landmark: Landmark,
   wallet: Wallet,
   layers: Layers,
   palette: Palette,

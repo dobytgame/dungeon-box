@@ -48,6 +48,14 @@ export const ADMIN_NAV = [
     group: 'operacao',
   },
   {
+    href: '/admin/financeiro',
+    label: 'Financeiro',
+    eyebrow: 'Fluxo de caixa',
+    description: 'Entradas de pedidos, gastos operacionais e saldo líquido.',
+    icon: 'landmark',
+    group: 'operacao',
+  },
+  {
     href: '/admin/pagamentos',
     label: 'Pagamentos',
     eyebrow: 'Cofre',
