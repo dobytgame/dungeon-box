@@ -71,6 +71,7 @@ export interface AdminCycleDetailView {
   orderShippingRegion: string | null;
   orderCustomerNotes: string | null;
   orderMonthlyTotalCents: number | null;
+  isPartner: boolean;
   shipmentItems: CycleShipmentItem[];
   productionChecklist: ProductionChecklistItem[];
   hasBundledItems: boolean;
@@ -239,6 +240,7 @@ export function toAdminCycleDetailView(
     orderShippingRegion: formatShippingRegion(subscription?.shipping_region),
     orderCustomerNotes: parseCustomerNotes(subscription?.special_notes),
     orderMonthlyTotalCents,
+    isPartner: Boolean(subscription?.is_partner),
     shipmentItems,
     productionChecklist,
     hasBundledItems: productionChecklist.length > 1 || shipmentItems.length > 0,

@@ -110,9 +110,16 @@ function KanbanCard({
           <p className="text-sm font-medium text-zinc-200">
             {row.customerName ?? 'Cliente sem nome'}
           </p>
-          <span className="shrink-0 rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
-            #{row.cycle_number}
-          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {row.isPartner ? (
+              <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet-300">
+                Parceiro
+              </span>
+            ) : null}
+            <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+              #{row.cycle_number}
+            </span>
+          </div>
         </div>
         {row.customerEmail ? (
           <p className="truncate font-mono text-[10px] text-zinc-600">

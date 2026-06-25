@@ -116,6 +116,7 @@ export interface AdminCycleRow {
   themeName: string | null;
   city: string | null;
   state: string | null;
+  isPartner: boolean;
   hasBundledItems: boolean;
   bundledItemTags: AdminCycleBundledTag[];
   /** Itens da loja + add-ons para montar junto com a caixa */

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import AdminSubscriptionActions from '@/components/admin/AdminSubscriptionActions';
+import PartnerSubscriptionPanel from '@/components/admin/PartnerSubscriptionPanel';
 import AdminTable from '@/components/admin/AdminTable';
 import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
@@ -56,13 +57,13 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
         >
           ← Voltar para assinaturas
         </Link>
-        {subscription.asaas_subscription_id ? (
+        {subscription.asaas_subscription_id && !subscription.is_partner ? (
           <SyncAsaasButton subscriptionId={subscription.id} />
         ) : null}
       </div>
 
       <section className="rounded-sm border border-white/[0.06] p-5 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-display text-lg uppercase tracking-wide text-white">
               {plan?.name ?? 'Assinatura'}
@@ -71,7 +72,14 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
               {profile?.full_name ?? profile?.display_name ?? profile?.email}
             </p>
           </div>
-          <StatusBadge kind="subscription" status={subscription.status} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge kind="subscription" status={subscription.status} />
+            {subscription.is_partner ? (
+              <span className="rounded-sm border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-violet-200">
+                Parceiro
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <dl className="mt-6">
@@ -99,7 +107,11 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
           />
           <DataRow
             label="Próxima cobrança"
-            value={formatDate(subscription.next_billing_date)}
+            value={
+              subscription.is_partner
+                ? '— (parceiro, sem cobrança)'
+                : formatDate(subscription.next_billing_date)
+            }
           />
           <DataRow
             label="Membro desde"
@@ -110,6 +122,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
             value={formatMoney(subscription.shipping_cents ?? 0)}
           />
           <DataRow label="Cupom" value={subscription.promo_code} />
+          <DataRow
+            label="Parceiro"
+            value={subscription.is_partner ? 'Sim — sem cobrança' : 'Não'}
+          />
           <DataRow
             label="Asaas"
             value={subscription.asaas_subscription_id}
@@ -151,6 +167,8 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
       {showPaintKitLink ? (
         <PaintKitAddonLink subscriptionId={subscription.id} origin={origin} />
       ) : null}
+
+      <PartnerSubscriptionPanel subscription={subscription} />
 
       <AdminSubscriptionActions subscription={subscription} />
 

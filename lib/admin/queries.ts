@@ -89,6 +89,7 @@ const ADMIN_CYCLE_LIST_SELECT = `
   themes(name),
   subscriptions(
     special_notes,
+    is_partner,
     profiles(full_name, display_name, email),
     plans!plan_id(name),
     addresses(city, state)
@@ -131,6 +132,7 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     themeName: (theme?.name as string | null) ?? null,
     city: (address?.city as string | null) ?? null,
     state: (address?.state as string | null) ?? null,
+    isPartner: Boolean(subscription?.is_partner),
     hasBundledItems: false,
     bundledItemTags: [],
     extraItems: [],

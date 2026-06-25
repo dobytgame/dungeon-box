@@ -240,8 +240,21 @@ export default function CycleDetailContent({
               )
             }
           />
-          <DataRow label="Valor do ciclo" value={formatMoney(detail.amount_cents ?? 0)} />
-          <DataRow label="Pago em" value={formatDate(detail.paid_at)} />
+          <DataRow label="Valor do ciclo" value={
+            detail.isPartner
+              ? 'Parceiro — sem cobrança'
+              : formatMoney(detail.amount_cents ?? 0)
+          } />
+          <DataRow
+            label="Pago em"
+            value={
+              detail.isPartner
+                ? detail.paid_at
+                  ? `${formatDate(detail.paid_at)} (parceiro)`
+                  : 'Parceiro — isento'
+                : formatDate(detail.paid_at)
+            }
+          />
           <DataRow label="Transportadora" value={detail.carrier} />
           <DataRow label="Rastreio" value={detail.tracking_code} mono />
           <DataRow label="Enviado em" value={formatDateTime(detail.shipped_at)} />

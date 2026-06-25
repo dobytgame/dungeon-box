@@ -20,6 +20,10 @@ import {
 } from '@/lib/subscriptions/apply-status-change';
 import { backfillActiveSubscriptionCycles } from '@/lib/subscriptions/cycles';
 import { canTransitionCycle } from '@/lib/subscriptions/cycle-production';
+import {
+  activatePartnerSubscription,
+  clearSubscriptionPartnerFlag,
+} from '@/lib/subscriptions/partner';
 
 function revalidateAdmin() {
   revalidatePath('/admin', 'layout');
@@ -346,6 +350,33 @@ export async function adminUpdateSubscriptionStatusAction(
     entityType: 'subscription',
     entityId: subscriptionId,
     metadata: reason ? { reason } : {},
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const };
+}
+
+export async function setSubscriptionPartnerAction(
+  subscriptionId: string,
+  isPartner: boolean
+) {
+  const { user, admin } = await requireAdmin();
+
+  const result = isPartner
+    ? await activatePartnerSubscription(admin, subscriptionId)
+    : await clearSubscriptionPartnerFlag(admin, subscriptionId);
+
+  if (!result.success) {
+    return { error: result.error ?? 'Não foi possível atualizar o parceiro.' };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: isPartner ? 'subscription.partner_enable' : 'subscription.partner_disable',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: { is_partner: isPartner },
     ipAddress: await clientIp(),
   });
 
