@@ -71,7 +71,7 @@ Entre com sua conta para ver descontos de fidelidade aplicados automaticamente n
     label: 'Lead não convertido',
     subject: 'Sua dungeon ainda está esperando, Mestre ⚔️',
     title: 'Sua dungeon ainda está esperando.',
-    body: 'Campanha estruturada para usuários cadastrados sem plano ativo. Inclui planos, cupom FUNDADOR10 e CTAs para /planos e /como-funciona. O nome do destinatário é personalizado automaticamente.',
+    body: 'Campanha estruturada para usuários cadastrados sem plano ativo. Inclui planos, cupom FUNDADOR10 e CTAs para /#planos e /como-funciona. O nome do destinatário é personalizado automaticamente.',
     template: 'unconverted_lead',
     defaultAudience: 'inactive_users',
   },

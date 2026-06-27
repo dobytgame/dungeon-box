@@ -33,7 +33,7 @@ export function unconvertedLeadHtml(data: UnconvertedLeadTemplateData): string {
       '⚔️ Herói — 93 peças · 5–7 salas · R$139/mês + decoração',
       '👑 Lendário — 132 peças · 8–10 salas · R$199/mês · frete grátis + 3 minis',
     ],
-    cta: { label: 'Escolher meu plano', href: `${siteUrl}/planos` },
+    cta: { label: 'Escolher meu plano', href: `${siteUrl}/#planos` },
     secondaryCta: { label: 'Ver como funciona', href: `${siteUrl}/como-funciona` },
     callout: {
       title: 'Condição de fundador ativa',
@@ -56,7 +56,7 @@ export function unconvertedLeadText(data: UnconvertedLeadTemplateData): string {
     '⚔️ Herói — 93 peças · 5–7 salas · R$139/mês',
     '👑 Lendário — 132 peças · 8–10 salas · R$199/mês · frete grátis',
     'Cupom de fundador: FUNDADOR10 (10% off no primeiro mês)',
-    `Escolha seu plano: ${siteUrl}/planos`,
+    `Escolha seu plano: ${siteUrl}/#planos`,
     `Como funciona: ${siteUrl}/como-funciona`,
   ]);
 }
