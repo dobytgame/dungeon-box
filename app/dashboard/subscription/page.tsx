@@ -5,9 +5,11 @@ import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
+import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { parseCustomerNotes } from '@/lib/checkout/special-notes';
+import type { CustomerSubscriptionPaymentLink } from '@/lib/dashboard/pending-payment';
 import {
   formatDate,
   formatDateTime,
@@ -21,21 +23,35 @@ import type { Subscription } from '@/lib/dashboard/types';
 function SubscriptionDetailCard({
   subscription,
   showDevMeta,
+  paymentLink,
 }: {
   subscription: Subscription;
   showDevMeta: boolean;
+  paymentLink?: CustomerSubscriptionPaymentLink | null;
 }) {
   const plan = relOne(subscription.plans);
   const address = relOne(subscription.addresses);
   const customerNotes = parseCustomerNotes(subscription.special_notes);
   const isPending = subscription.status === 'pending';
+  const isPastDue = subscription.status === 'past_due';
+  const needsPayment = isPending || isPastDue;
   const resumeCheckoutHref = plan?.slug
     ? checkoutHref(plan.slug as PlanSlug)
     : checkoutHref('heroi');
 
   return (
     <div className="space-y-8">
-      {isPending ? (
+      {needsPayment && paymentLink ? (
+        <SubscriptionPaymentCallout
+          status={isPastDue ? 'past_due' : 'pending'}
+          planName={plan?.name ?? null}
+          paymentUrl={paymentLink.url}
+          paymentSource={paymentLink.source}
+          amountCents={paymentLink.amountCents}
+          dueDate={paymentLink.dueDate}
+          resumeCheckoutHref={isPending ? resumeCheckoutHref : undefined}
+        />
+      ) : isPending ? (
         <div
           className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100/90"
           role="status"
@@ -144,7 +160,7 @@ function SubscriptionDetailCard({
       </DashboardCard>
 
       <DashboardCard title="Gerenciar assinatura" accent="none">
-        {!isPending ? (
+        {!isPending && !isPastDue ? (
           <div className="mb-6">
             <SubscriptionUpgrade subscription={subscription} />
           </div>
@@ -177,6 +193,15 @@ export default async function SubscriptionPage({
   const subscriptions = await getManageableSubscriptions(user.id);
   const isDev = process.env.NODE_ENV === 'development';
   const referralBlocked = searchParams?.referral === 'inactive';
+
+  const payableIds = subscriptions
+    .filter((sub) => sub.status === 'pending' || sub.status === 'past_due')
+    .map((sub) => sub.id);
+  const { getCustomerPaymentLinks } = await import('@/lib/dashboard/pending-payment');
+  const paymentLinks = await getCustomerPaymentLinks(user.id, payableIds);
+  const paymentLinkBySubscription = new Map(
+    paymentLinks.map((link) => [link.subscriptionId, link])
+  );
 
   if (subscriptions.length === 0) {
     return (
@@ -228,6 +253,7 @@ export default async function SubscriptionPage({
           <SubscriptionDetailCard
             subscription={subscription}
             showDevMeta={isDev && index === 0}
+            paymentLink={paymentLinkBySubscription.get(subscription.id) ?? null}
           />
         </section>
       ))}

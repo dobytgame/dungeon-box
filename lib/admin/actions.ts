@@ -732,17 +732,25 @@ export async function previewMarketingCampaignAction(input: {
   };
 }
 
+export async function previewUnconvertedLeadCampaignAction() {
+  await requireAdmin();
+
+  const { unconvertedLeadHtml } = await import(
+    '@/lib/email/templates/unconverted-lead'
+  );
+
+  return {
+    html: unconvertedLeadHtml({ name: 'Mestre' }),
+  };
+}
+
 export async function getMarketingAudienceCountAction(audience: MarketingAudience) {
   const { user, admin, profile } = await requireAdmin();
   const { resolveMarketingAudienceEmails } = await import(
     '@/lib/admin/marketing-audience'
   );
 
-  const emails = await resolveMarketingAudienceEmails(
-    admin,
-    audience,
-    profile.email
-  );
+  const emails = await resolveMarketingAudienceEmails(admin, audience, profile);
 
   return { count: emails.length };
 }
@@ -780,7 +788,7 @@ export async function sendMarketingCampaignAction(input: {
   const emails = await resolveMarketingAudienceEmails(
     admin,
     input.audience,
-    profile.email
+    profile
   );
 
   if (!emails.length) {
@@ -825,6 +833,170 @@ export async function sendMarketingCampaignAction(input: {
     failed: result.failed,
     errors: result.errors,
   };
+}
+
+export async function sendUnconvertedLeadCampaignAction(input: {
+  audience: MarketingAudience;
+  confirm: boolean;
+}) {
+  const { user, admin, profile } = await requireAdmin();
+
+  if (!input.confirm) {
+    return { error: 'Confirme o envio antes de disparar a campanha.' };
+  }
+
+  const { resolveMarketingAudienceRecipients } = await import(
+    '@/lib/admin/marketing-audience'
+  );
+  const { sendUnconvertedLeadCampaign } = await import(
+    '@/lib/email/send-unconverted-lead'
+  );
+  const { UNCONVERTED_LEAD_SUBJECT } = await import(
+    '@/lib/email/templates/unconverted-lead'
+  );
+
+  const recipients = await resolveMarketingAudienceRecipients(
+    admin,
+    input.audience,
+    profile
+  );
+
+  if (!recipients.length) {
+    return { error: 'Nenhum destinatário encontrado para este público.' };
+  }
+
+  const result = await sendUnconvertedLeadCampaign(recipients);
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'marketing.send',
+    entityType: 'marketing_campaign',
+    metadata: {
+      template: 'unconverted_lead',
+      audience: input.audience,
+      subject: UNCONVERTED_LEAD_SUBJECT,
+      total: result.total,
+      sent: result.sent,
+      failed: result.failed,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  if (result.sent === 0) {
+    return {
+      error:
+        result.errors[0] ??
+        'Nenhum e-mail foi enviado. Verifique RESEND_API_KEY e remetente marketing.',
+    };
+  }
+
+  return {
+    success: true as const,
+    total: result.total,
+    sent: result.sent,
+    failed: result.failed,
+    errors: result.errors,
+  };
+}
+
+export async function sendPendingPaymentLinkEmailAction(input: {
+  subscriptionId?: string;
+  paymentId?: string;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId && !input.paymentId) {
+    return { error: 'Informe a assinatura ou o pagamento.' };
+  }
+
+  const {
+    resolvePendingPaymentLinkForPayment,
+    resolvePendingPaymentLinkForSubscription,
+  } = await import('@/lib/payments/pending-payment-link');
+  const { notifyPendingPaymentLink } = await import(
+    '@/lib/email/pending-payment-notify'
+  );
+  const { relOne } = await import('@/lib/dashboard/format');
+
+  let userId: string | null = null;
+  let planName: string | null = null;
+
+  const linkResult = input.paymentId
+    ? await resolvePendingPaymentLinkForPayment(admin, input.paymentId)
+    : await resolvePendingPaymentLinkForSubscription(
+        admin,
+        input.subscriptionId!
+      );
+
+  if (!linkResult.ok) {
+    return { error: linkResult.error.message };
+  }
+
+  if (input.paymentId) {
+    const { data: payment } = await admin
+      .from('payments')
+      .select(
+        'user_id, subscription_id, subscriptions(plans!plan_id(name))'
+      )
+      .eq('id', input.paymentId)
+      .maybeSingle();
+
+    userId = (payment?.user_id as string | null) ?? null;
+    const subscription = relOne(
+      payment?.subscriptions as
+        | { plans?: { name?: string } | { name?: string }[] | null }
+        | null
+    );
+    const plan = relOne(subscription?.plans as { name?: string } | { name?: string }[] | null);
+    planName = plan?.name ?? null;
+  } else {
+    const { data: subscription } = await admin
+      .from('subscriptions')
+      .select('user_id, plans!plan_id(name)')
+      .eq('id', input.subscriptionId!)
+      .maybeSingle();
+
+    userId = (subscription?.user_id as string | null) ?? null;
+    const plan = relOne(
+      subscription?.plans as { name?: string } | { name?: string }[] | null
+    );
+    planName = plan?.name ?? null;
+  }
+
+  if (!userId) {
+    return { error: 'Cliente não encontrado para este pagamento.' };
+  }
+
+  const notify = await notifyPendingPaymentLink(admin, {
+    userId,
+    planName,
+    link: linkResult.link,
+  });
+
+  if (!notify.sent) {
+    return {
+      error:
+        notify.reason === 'missing_email'
+          ? 'Cliente sem e-mail cadastrado.'
+          : 'Não foi possível enviar o e-mail. Verifique a configuração do Resend.',
+    };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'payment.send_link',
+    entityType: input.paymentId ? 'payment' : 'subscription',
+    entityId: input.paymentId ?? input.subscriptionId ?? null,
+    metadata: {
+      url: linkResult.link.url,
+      source: linkResult.link.source,
+      amount_cents: linkResult.link.amountCents,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const };
 }
 
 function parseMoneyField(value: FormDataEntryValue | null, label: string) {

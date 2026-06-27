@@ -47,6 +47,8 @@ export type MarketingAudience =
   | 'newsletter_leads'
   | 'admin_test';
 
+export type MarketingTemplateId = 'unconverted_lead';
+
 export interface MarketingCopyPreset {
   id: string;
   label: string;
@@ -55,6 +57,13 @@ export interface MarketingCopyPreset {
   body: string;
   ctaLabel?: string;
   ctaHref?: string;
+  template?: MarketingTemplateId;
+  defaultAudience?: MarketingAudience;
+}
+
+export interface MarketingRecipient {
+  email: string;
+  name: string | null;
 }
 
 export interface AdminCustomerRow {

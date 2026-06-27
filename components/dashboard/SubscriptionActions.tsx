@@ -20,6 +20,7 @@ export default function SubscriptionActions({ subscription }: Props) {
   const canCancel =
     status === 'active' || status === 'paused' || status === 'past_due';
   const canAbandonPending = isPending;
+  const isPastDue = status === 'past_due';
 
   function run(action: 'pause' | 'cancel' | 'resume') {
     if (action === 'cancel' && canCancel && !reason.trim()) {
@@ -46,6 +47,12 @@ export default function SubscriptionActions({ subscription }: Props) {
         <p className="text-sm text-amber-200/90">
           Pagamento ainda não concluído. Volte ao checkout para tentar de novo ou
           cancele esta tentativa abaixo.
+        </p>
+      ) : null}
+      {isPastDue ? (
+        <p className="text-sm text-red-200/90">
+          Sua assinatura está em atraso. Use o botão &quot;Pagar agora&quot; acima para
+          regularizar e evitar interrupção das entregas.
         </p>
       ) : null}
       <div className="flex flex-wrap gap-3">

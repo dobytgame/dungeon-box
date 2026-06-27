@@ -5,11 +5,13 @@ import DashboardCard from '@/components/dashboard/DashboardCard';
 import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
+import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
 import {
   formatDate,
   formatMoney,
   relOne,
 } from '@/lib/dashboard/format';
+import { getCustomerSubscriptionPaymentLink } from '@/lib/dashboard/pending-payment';
 import {
   getSubscriptionWithCycles,
   getManageableSubscriptions,
@@ -38,8 +40,26 @@ export default async function DashboardPage() {
       )
     : null;
 
+  const pastDueSubscription = manageable.find((sub) => sub.status === 'past_due');
+  const pastDuePaymentLink = pastDueSubscription
+    ? await getCustomerSubscriptionPaymentLink(user.id, pastDueSubscription.id)
+    : null;
+  const pastDuePlan = pastDueSubscription
+    ? relOne(pastDueSubscription.plans)
+    : null;
+
   return (
     <div className="space-y-8 md:space-y-10">
+      {pastDueSubscription && pastDuePaymentLink ? (
+        <SubscriptionPaymentCallout
+          status="past_due"
+          planName={pastDuePlan?.name ?? null}
+          paymentUrl={pastDuePaymentLink.url}
+          paymentSource={pastDuePaymentLink.source}
+          amountCents={pastDuePaymentLink.amountCents}
+          dueDate={pastDuePaymentLink.dueDate}
+        />
+      ) : null}
       {manageable.length === 0 ? (
         <EmptyState
           title="Sem assinatura ativa"

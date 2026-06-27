@@ -1,7 +1,14 @@
+import Link from 'next/link';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
-import type { Payment } from '@/lib/dashboard/types';
+import type { Payment, PaymentStatus } from '@/lib/dashboard/types';
 import { CreditCard } from 'lucide-react';
+
+const RETRY_STATUSES = new Set<PaymentStatus>([
+  'pending',
+  'in_process',
+  'rejected',
+]);
 
 interface Props {
   payments: Payment[];
@@ -41,6 +48,15 @@ export default function PaymentReceiptList({ payments }: Props) {
               <div className="text-stone-500 sm:text-right">{p.status_detail}</div>
             ) : null}
           </dl>
+
+          {RETRY_STATUSES.has(p.status) && p.subscription_id ? (
+            <Link
+              href="/dashboard/subscription"
+              className="mt-4 inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+            >
+              Regularizar pagamento →
+            </Link>
+          ) : null}
         </li>
       ))}
     </ul>

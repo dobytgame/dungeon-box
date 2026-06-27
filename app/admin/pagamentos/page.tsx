@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
+import PendingPaymentLinkPanel from '@/components/admin/PendingPaymentLinkPanel';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
+import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
 import { listAdminPayments } from '@/lib/admin/queries';
 import type { PaymentStatus } from '@/lib/dashboard/types';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
@@ -27,6 +29,26 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
     limit: 100,
   });
 
+  const pendingPanels = await Promise.all(
+    payments
+      .filter((payment) => payment.status === 'pending')
+      .slice(0, 5)
+      .map(async (payment) => {
+        const panel = await buildAdminPendingPaymentPanel(admin, {
+          paymentId: payment.id,
+        });
+        return panel
+          ? {
+              paymentId: payment.id,
+              customerLabel: payment.customerName ?? payment.customerEmail ?? 'Cliente',
+              panel,
+            }
+          : null;
+      })
+  );
+
+  const payablePanels = pendingPanels.filter(Boolean);
+
   return (
     <div className="space-y-6">
       <AdminSearchForm placeholder="Busca em breve" name="q" defaultValue="">
@@ -48,6 +70,24 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           </select>
         </div>
       </AdminSearchForm>
+
+      {payablePanels.length > 0 ? (
+        <section className="space-y-4">
+          <h2 className="font-display text-sm uppercase tracking-widest text-stone-400">
+            Links de cobrança
+          </h2>
+          {payablePanels.map((entry) =>
+            entry ? (
+              <div key={entry.paymentId} className="space-y-2">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-600">
+                  {entry.customerLabel}
+                </p>
+                <PendingPaymentLinkPanel {...entry.panel} paymentId={entry.paymentId} />
+              </div>
+            ) : null
+          )}
+        </section>
+      ) : null}
 
       <AdminTable
         rows={payments}

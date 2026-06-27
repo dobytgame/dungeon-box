@@ -5,12 +5,14 @@ import AdminSubscriptionActions from '@/components/admin/AdminSubscriptionAction
 import PartnerSubscriptionPanel from '@/components/admin/PartnerSubscriptionPanel';
 import AdminTable from '@/components/admin/AdminTable';
 import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
+import PendingPaymentLinkPanel from '@/components/admin/PendingPaymentLinkPanel';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { hasPaintKitBump } from '@/lib/checkout/special-notes';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminSubscriptionDetail } from '@/lib/admin/queries';
+import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
 import {
   formatDate,
   formatDateTime,
@@ -47,6 +49,14 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
   const origin = headerList.get('x-forwarded-host')
     ? `${headerList.get('x-forwarded-proto') ?? 'https'}://${headerList.get('x-forwarded-host')}`
     : headerList.get('origin');
+
+  const pendingPaymentPanel =
+    (subscription.status === 'pending' || subscription.status === 'past_due') &&
+    !subscription.is_partner
+      ? await buildAdminPendingPaymentPanel(admin, {
+          subscriptionId: subscription.id,
+        })
+      : null;
 
   return (
     <div className="space-y-8">
@@ -166,6 +176,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
       {showPaintKitLink ? (
         <PaintKitAddonLink subscriptionId={subscription.id} origin={origin} />
+      ) : null}
+
+      {pendingPaymentPanel ? (
+        <PendingPaymentLinkPanel {...pendingPaymentPanel} />
       ) : null}
 
       <PartnerSubscriptionPanel subscription={subscription} />

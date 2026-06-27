@@ -48,6 +48,11 @@ import {
   referralPointsEarnedText,
 } from '@/lib/email/templates/referral-points-earned';
 import {
+  PENDING_PAYMENT_SUBJECT,
+  pendingPaymentHtml,
+  pendingPaymentText,
+} from '@/lib/email/templates/pending-payment';
+import {
   getRoleEmailAddress,
   isEmailConfigured,
   type EmailSenderRole,
@@ -116,6 +121,25 @@ export async function sendPurchaseCompletedEmail(input: {
     text: purchaseCompletedText(input),
     replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'purchase_completed' }],
+  });
+}
+
+export async function sendPendingPaymentEmail(input: {
+  to: string;
+  name?: string | null;
+  planName?: string | null;
+  amountCents: number;
+  paymentUrl: string;
+  dueDate?: string | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'billing',
+    to: input.to,
+    subject: PENDING_PAYMENT_SUBJECT,
+    html: pendingPaymentHtml(input),
+    text: pendingPaymentText(input),
+    replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'pending_payment_link' }],
   });
 }
 

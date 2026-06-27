@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { relOne } from '@/lib/dashboard/format';
-import type { MarketingAudience } from '@/lib/admin/types';
+import type { MarketingAudience, MarketingRecipient } from '@/lib/admin/types';
 
 const PAGE_SIZE = 1000;
 
@@ -8,14 +8,21 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-async function fetchProfileEmails(admin: SupabaseClient): Promise<string[]> {
-  const emails = new Set<string>();
+function profileName(profile: {
+  full_name?: string | null;
+  display_name?: string | null;
+}): string | null {
+  return profile.full_name?.trim() || profile.display_name?.trim() || null;
+}
+
+async function fetchProfileRecipients(admin: SupabaseClient): Promise<MarketingRecipient[]> {
+  const byEmail = new Map<string, MarketingRecipient>();
   let from = 0;
 
   while (true) {
     const { data, error } = await admin
       .from('profiles')
-      .select('email')
+      .select('email, full_name, display_name')
       .not('email', 'is', null)
       .order('created_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
@@ -24,24 +31,36 @@ async function fetchProfileEmails(admin: SupabaseClient): Promise<string[]> {
     if (!data?.length) break;
 
     for (const row of data) {
-      if (row.email) emails.add(normalizeEmail(row.email));
+      if (!row.email) continue;
+      const email = normalizeEmail(row.email);
+      byEmail.set(email, {
+        email,
+        name: profileName(row),
+      });
     }
 
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
 
-  return Array.from(emails);
+  return Array.from(byEmail.values());
 }
 
 async function fetchActiveSubscriberEmails(admin: SupabaseClient): Promise<string[]> {
-  const emails = new Set<string>();
+  const recipients = await fetchActiveSubscriberRecipients(admin);
+  return recipients.map((row) => row.email);
+}
+
+async function fetchActiveSubscriberRecipients(
+  admin: SupabaseClient
+): Promise<MarketingRecipient[]> {
+  const byEmail = new Map<string, MarketingRecipient>();
   let from = 0;
 
   while (true) {
     const { data, error } = await admin
       .from('subscriptions')
-      .select('profiles(email)')
+      .select('profiles(email, full_name, display_name)')
       .eq('status', 'active')
       .range(from, from + PAGE_SIZE - 1);
 
@@ -49,19 +68,28 @@ async function fetchActiveSubscriberEmails(admin: SupabaseClient): Promise<strin
     if (!data?.length) break;
 
     for (const row of data) {
-      const profile = relOne(row.profiles as { email?: string | null } | null);
-      if (profile?.email) emails.add(normalizeEmail(profile.email));
+      const profile = relOne(
+        row.profiles as
+          | { email?: string | null; full_name?: string | null; display_name?: string | null }
+          | null
+      );
+      if (!profile?.email) continue;
+      const email = normalizeEmail(profile.email);
+      byEmail.set(email, {
+        email,
+        name: profileName(profile),
+      });
     }
 
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
 
-  return Array.from(emails);
+  return Array.from(byEmail.values());
 }
 
-async function fetchNewsletterEmails(admin: SupabaseClient): Promise<string[]> {
-  const emails = new Set<string>();
+async function fetchNewsletterRecipients(admin: SupabaseClient): Promise<MarketingRecipient[]> {
+  const byEmail = new Map<string, MarketingRecipient>();
   let from = 0;
 
   while (true) {
@@ -75,39 +103,74 @@ async function fetchNewsletterEmails(admin: SupabaseClient): Promise<string[]> {
     if (!data?.length) break;
 
     for (const row of data) {
-      if (row.email) emails.add(normalizeEmail(row.email));
+      if (!row.email) continue;
+      const email = normalizeEmail(row.email);
+      byEmail.set(email, {
+        email,
+        name: null,
+      });
     }
 
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
 
-  return Array.from(emails);
+  return Array.from(byEmail.values());
+}
+
+function normalizeAdminProfile(
+  value?: string | { email?: string | null; full_name?: string | null; display_name?: string | null } | null
+): { email?: string | null; full_name?: string | null; display_name?: string | null } | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    return { email: value, full_name: null, display_name: null };
+  }
+  return value;
 }
 
 export async function resolveMarketingAudienceEmails(
   admin: SupabaseClient,
   audience: MarketingAudience,
-  adminEmail?: string | null
+  adminProfile?: string | { email?: string | null; full_name?: string | null; display_name?: string | null } | null
 ): Promise<string[]> {
+  const recipients = await resolveMarketingAudienceRecipients(
+    admin,
+    audience,
+    normalizeAdminProfile(adminProfile)
+  );
+  return recipients.map((row) => row.email);
+}
+
+export async function resolveMarketingAudienceRecipients(
+  admin: SupabaseClient,
+  audience: MarketingAudience,
+  adminProfile?: { email?: string | null; full_name?: string | null; display_name?: string | null } | null
+): Promise<MarketingRecipient[]> {
   switch (audience) {
     case 'admin_test':
-      return adminEmail ? [normalizeEmail(adminEmail)] : [];
+      return adminProfile?.email
+        ? [
+            {
+              email: normalizeEmail(adminProfile.email),
+              name: profileName(adminProfile),
+            },
+          ]
+        : [];
     case 'active_subscribers':
-      return fetchActiveSubscriberEmails(admin);
+      return fetchActiveSubscriberRecipients(admin);
     case 'newsletter_leads':
-      return fetchNewsletterEmails(admin);
+      return fetchNewsletterRecipients(admin);
     case 'inactive_users': {
       const [allProfiles, active] = await Promise.all([
-        fetchProfileEmails(admin),
-        fetchActiveSubscriberEmails(admin),
+        fetchProfileRecipients(admin),
+        fetchActiveSubscriberRecipients(admin),
       ]);
-      const activeSet = new Set(active);
-      return allProfiles.filter((email) => !activeSet.has(email));
+      const activeSet = new Set(active.map((row) => row.email));
+      return allProfiles.filter((row) => !activeSet.has(row.email));
     }
     case 'all_profiles':
     default:
-      return fetchProfileEmails(admin);
+      return fetchProfileRecipients(admin);
   }
 }
 

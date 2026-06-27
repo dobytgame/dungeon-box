@@ -12,11 +12,7 @@ export default async function AdminMarketingPage() {
   const audiences = Object.keys(MARKETING_AUDIENCE_LABELS) as MarketingAudience[];
   const counts = await Promise.all(
     audiences.map(async (audience) => {
-      const emails = await resolveMarketingAudienceEmails(
-        admin,
-        audience,
-        profile.email
-      );
+      const emails = await resolveMarketingAudienceEmails(admin, audience, profile);
       return [audience, emails.length] as const;
     })
   );
