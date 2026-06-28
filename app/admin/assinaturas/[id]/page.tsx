@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import AdminSubscriptionActions from '@/components/admin/AdminSubscriptionActions';
+import ComboBadge from '@/components/admin/ComboBadge';
 import PartnerSubscriptionPanel from '@/components/admin/PartnerSubscriptionPanel';
 import AdminTable from '@/components/admin/AdminTable';
 import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
@@ -10,6 +11,9 @@ import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { hasPaintKitBump } from '@/lib/checkout/special-notes';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
+import { getSubscriptionComboSummary } from '@/lib/checkout/combo-display';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminSubscriptionDetail } from '@/lib/admin/queries';
 import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
@@ -58,6 +62,9 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
         })
       : null;
 
+  const combo = getSubscriptionComboSummary(subscription);
+  const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -88,6 +95,9 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
               <span className="rounded-sm border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-violet-200">
                 Parceiro
               </span>
+            ) : null}
+            {isComboTerm(billingTerm) ? (
+              <ComboBadge term={billingTerm} />
             ) : null}
           </div>
         </div>
@@ -132,6 +142,29 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
             value={formatMoney(subscription.shipping_cents ?? 0)}
           />
           <DataRow label="Cupom" value={subscription.promo_code} />
+          {combo ? (
+            <>
+              <DataRow label="Pacote" value={combo.label} />
+              <DataRow
+                label="Valor do combo"
+                value={
+                  combo.comboTotalCents
+                    ? `${formatMoney(combo.comboTotalCents)}${
+                        combo.installmentLabel ? ` · ${combo.installmentLabel}` : ''
+                      }`
+                    : '—'
+                }
+              />
+              <DataRow
+                label="Combo ativo até"
+                value={
+                  combo.prepaidUntil
+                    ? formatDate(combo.prepaidUntil)
+                    : '—'
+                }
+              />
+            </>
+          ) : null}
           <DataRow
             label="Parceiro"
             value={subscription.is_partner ? 'Sim — sem cobrança' : 'Não'}

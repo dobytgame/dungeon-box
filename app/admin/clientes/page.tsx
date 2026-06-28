@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
+import ComboBadge from '@/components/admin/ComboBadge';
 import PartnerBadge from '@/components/admin/PartnerBadge';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
@@ -35,6 +36,9 @@ export default async function AdminCustomersPage({ searchParams }: Props) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p>{row.full_name ?? row.display_name ?? '—'}</p>
                   {row.isPartner ? <PartnerBadge compact /> : null}
+                  {row.comboTerms.map((term) => (
+                    <ComboBadge key={term} term={term} compact />
+                  ))}
                 </div>
                 <p className="text-xs text-stone-500">{row.email}</p>
               </div>

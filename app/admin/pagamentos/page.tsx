@@ -110,7 +110,19 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
           {
             key: 'amount',
             header: 'Valor',
-            cell: (row) => formatMoney(row.amount_cents),
+            cell: (row) => (
+              <div>
+                <p>{formatMoney(row.effectiveAmountCents)}</p>
+                {row.installmentCount != null && row.installmentCount > 1 ? (
+                  <p className="text-xs text-stone-500">
+                    {row.installmentCount}x no cartão
+                  </p>
+                ) : null}
+                {row.comboLabel ? (
+                  <p className="text-xs text-amber-200/80">{row.comboLabel}</p>
+                ) : null}
+              </div>
+            ),
           },
           {
             key: 'status',

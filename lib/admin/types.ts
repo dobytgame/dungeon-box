@@ -29,7 +29,7 @@ export interface AdminDashboardStats {
   revenueApproved30dCents: number;
   mrrByPlan: { planName: string; subscribers: number; mrrCents: number }[];
   activePlanCounts: AdminActivePlanCount[];
-  recentPayments: Payment[];
+  recentPayments: AdminPaymentRow[];
   shipQueue: AdminCycleRow[];
   userPlanStats: AdminUserPlanStats;
 }
@@ -77,6 +77,7 @@ export interface AdminCustomerRow {
   activeSubscriptions: number;
   latestStatus: SubscriptionStatus | null;
   isPartner: boolean;
+  comboTerms: Array<'combo_3' | 'combo_6' | 'combo_12'>;
 }
 
 export interface AdminPartnerRow {
@@ -105,6 +106,10 @@ export interface AdminSubscriptionRow {
   customerEmail: string | null;
   planName: string | null;
   planSlug: string | null;
+  billingTerm: string | null;
+  comboTotalCents: number | null;
+  comboInstallments: number | null;
+  prepaidUntil: string | null;
 }
 
 export interface AdminCycleBundledTag {
@@ -149,6 +154,9 @@ export interface AdminPaymentRow extends Payment {
   customerName: string | null;
   customerEmail: string | null;
   planName: string | null;
+  effectiveAmountCents: number;
+  installmentCount: number | null;
+  comboLabel: string | null;
 }
 
 export interface AdminCustomerDetail {

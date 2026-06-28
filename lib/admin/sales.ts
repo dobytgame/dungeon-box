@@ -1,5 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
+import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
+import {
+  parseComboPaymentDetail,
+  resolveEffectivePaymentAmountCents,
+  resolvePaymentInstallments,
+} from '@/lib/payments/effective-amount';
 import type { PaymentStatus } from '@/lib/dashboard/types';
 
 export type AdminSaleType =
@@ -16,6 +24,9 @@ export interface AdminSaleRow {
   customerEmail: string | null;
   description: string;
   amount_cents: number;
+  effectiveAmountCents: number;
+  installmentCount: number | null;
+  comboLabel: string | null;
   status: PaymentStatus;
   payment_method: string | null;
   paid_at: string | null;
@@ -42,7 +53,9 @@ function classifyPayment(row: {
   subscription_id: string | null;
   status_detail: string | null;
   planName: string | null;
+  billingTerm?: string | null;
 }): { saleType: AdminSaleType; description: string } {
+  const comboDetail = parseComboPaymentDetail(row.status_detail);
   const storeMeta = parseStoreOrderMeta(row.status_detail);
 
   if (storeMeta) {
@@ -58,6 +71,20 @@ function classifyPayment(row: {
   }
 
   if (row.subscription_id) {
+    const billingTerm = (row.billingTerm ?? 'monthly') as BillingTerm;
+    if (comboDetail || isComboTerm(billingTerm)) {
+      const comboLabel = isComboTerm(billingTerm)
+        ? getComboTermLabel(billingTerm)
+        : comboDetail?.billing_term && isComboTerm(comboDetail.billing_term)
+          ? getComboTermLabel(comboDetail.billing_term)
+          : 'Combo';
+      return {
+        saleType: 'assinatura',
+        description: row.planName
+          ? `${comboLabel} — ${row.planName}`
+          : comboLabel,
+      };
+    }
     return {
       saleType: 'assinatura',
       description: row.planName ? `Assinatura — ${row.planName}` : 'Assinatura',
@@ -85,8 +112,14 @@ export async function listAdminSales(
       payment_method,
       paid_at,
       created_at,
+      installments,
       profiles(full_name, display_name, email),
-      subscriptions(plans!plan_id(name))
+      subscriptions(
+        billing_term,
+        combo_total_cents,
+        combo_installments,
+        plans!plan_id(name)
+      )
     `
     )
     .order('paid_at', { ascending: false, nullsFirst: false })
@@ -114,11 +147,30 @@ export async function listAdminSales(
         : subscription.plans
       : null;
     const planName = (plan?.name as string | null) ?? null;
+    const subContext = subscription as {
+      billing_term?: string | null;
+      combo_total_cents?: number | null;
+      combo_installments?: number | null;
+    } | null;
+
+    const paymentData = {
+      amount_cents: row.amount_cents as number,
+      status_detail: row.status_detail as string | null,
+      installments: row.installments as number | null,
+    };
+    const effectiveAmountCents = resolveEffectivePaymentAmountCents(
+      paymentData,
+      subContext
+    );
+    const installmentCount = resolvePaymentInstallments(paymentData, subContext);
+    const billingTerm = (subContext?.billing_term ?? 'monthly') as BillingTerm;
+    const comboLabel = isComboTerm(billingTerm) ? getComboTermLabel(billingTerm) : null;
 
     const { saleType, description } = classifyPayment({
       subscription_id: row.subscription_id as string | null,
       status_detail: row.status_detail as string | null,
       planName,
+      billingTerm: subContext?.billing_term,
     });
 
     return {
@@ -129,6 +181,9 @@ export async function listAdminSales(
       customerEmail: profile?.email ?? null,
       description,
       amount_cents: row.amount_cents as number,
+      effectiveAmountCents,
+      installmentCount,
+      comboLabel,
       status: row.status as PaymentStatus,
       payment_method: (row.payment_method as string | null) ?? null,
       paid_at: (row.paid_at as string | null) ?? null,
@@ -153,7 +208,7 @@ export async function getAdminSalesSummary(
 
   for (const sale of sales) {
     summary[sale.saleType].count += 1;
-    summary[sale.saleType].revenueCents += sale.amount_cents;
+    summary[sale.saleType].revenueCents += sale.effectiveAmountCents;
   }
 
   return summary;

@@ -1,11 +1,10 @@
 import { sendEmail } from '@/lib/email/send';
+import { sendEmailBatch } from '@/lib/email/send-batch';
 import {
   marketingBroadcastHtml,
   marketingBroadcastText,
   type MarketingBroadcastTemplateData,
 } from '@/lib/email/templates/marketing-broadcast';
-
-const SEND_CHUNK_SIZE = 25;
 
 export interface MarketingBroadcastSendResult {
   total: number;
@@ -25,41 +24,21 @@ export async function sendMarketingBroadcast(
   const html = marketingBroadcastHtml(payload);
   const text = marketingBroadcastText(payload);
 
-  let sent = 0;
-  let failed = 0;
-  const errors: string[] = [];
+  const list = unique.map((email) => ({ email }));
 
-  for (let i = 0; i < unique.length; i += SEND_CHUNK_SIZE) {
-    const chunk = unique.slice(i, i + SEND_CHUNK_SIZE);
-    const results = await Promise.all(
-      chunk.map((to) =>
-        sendEmail({
-          role: 'marketing',
-          to,
-          subject: payload.subject,
-          html,
-          text,
-          tags: [
-            { name: 'category', value: 'marketing_broadcast' },
-            { name: 'campaign', value: 'admin_console' },
-          ],
-        })
-      )
-    );
+  const { sent, failed, errors } = await sendEmailBatch(list, (recipient) =>
+    sendEmail({
+      role: 'marketing',
+      to: recipient.email,
+      subject: payload.subject,
+      html,
+      text,
+      tags: [
+        { name: 'category', value: 'marketing_broadcast' },
+        { name: 'campaign', value: 'admin_console' },
+      ],
+    })
+  );
 
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j]!;
-      const email = chunk[j]!;
-      if (result.sent) {
-        sent += 1;
-      } else {
-        failed += 1;
-        if (errors.length < 5) {
-          errors.push(`${email}: ${result.message ?? result.reason}`);
-        }
-      }
-    }
-  }
-
-  return { total: unique.length, sent, failed, errors };
+  return { total: list.length, sent, failed, errors };
 }

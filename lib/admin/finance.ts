@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import type {
   AdminFinancialCategoryRow,
@@ -164,8 +165,14 @@ async function fetchApprovedPayments(
       created_at,
       subscription_id,
       status_detail,
+      installments,
       profiles(full_name, display_name, email),
-      subscriptions(plans!plan_id(name))
+      subscriptions(
+        billing_term,
+        combo_total_cents,
+        combo_installments,
+        plans!plan_id(name)
+      )
     `
     )
     .eq('status', 'approved')
@@ -213,10 +220,26 @@ export async function getFinancialSummary(
     listFinancialExpenses(admin, { from, to, limit: 5000 }),
   ]);
 
-  const revenueCents = payments.reduce(
-    (sum, row) => sum + (row.amount_cents as number),
-    0
-  );
+  const revenueCents = payments.reduce((sum, row) => {
+    const subscription = Array.isArray(row.subscriptions)
+      ? row.subscriptions[0]
+      : row.subscriptions;
+    return (
+      sum +
+      resolveEffectivePaymentAmountCents(
+        {
+          amount_cents: row.amount_cents as number,
+          status_detail: row.status_detail as string | null,
+          installments: row.installments as number | null,
+        },
+        subscription as {
+          billing_term?: string | null;
+          combo_total_cents?: number | null;
+          combo_installments?: number | null;
+        } | null
+      )
+    );
+  }, 0);
   const refundCents = refunds.reduce(
     (sum, row) => sum + (row.amount_cents as number),
     0
@@ -291,7 +314,22 @@ export async function getCashFlowByMonth(
   for (const payment of payments) {
     const key = monthKey((payment.paid_at as string) ?? (payment.created_at as string));
     const bucket = buckets.get(key);
-    if (bucket) bucket.inflow += payment.amount_cents as number;
+    if (!bucket) continue;
+    const subscription = Array.isArray(payment.subscriptions)
+      ? payment.subscriptions[0]
+      : payment.subscriptions;
+    bucket.inflow += resolveEffectivePaymentAmountCents(
+      {
+        amount_cents: payment.amount_cents as number,
+        status_detail: payment.status_detail as string | null,
+        installments: payment.installments as number | null,
+      },
+      subscription as {
+        billing_term?: string | null;
+        combo_total_cents?: number | null;
+        combo_installments?: number | null;
+      } | null
+    );
   }
 
   for (const refund of refunds) {
@@ -352,7 +390,18 @@ export async function listFinancialMovements(
         planName: (plan?.name as string | null) ?? null,
       }),
       counterparty: profile?.full_name ?? profile?.display_name ?? profile?.email ?? null,
-      amount_cents: row.amount_cents as number,
+      amount_cents: resolveEffectivePaymentAmountCents(
+        {
+          amount_cents: row.amount_cents as number,
+          status_detail: row.status_detail as string | null,
+          installments: row.installments as number | null,
+        },
+        subscription as {
+          billing_term?: string | null;
+          combo_total_cents?: number | null;
+          combo_installments?: number | null;
+        } | null
+      ),
       date: (row.paid_at as string) ?? (row.created_at as string),
       source: 'payment',
     });

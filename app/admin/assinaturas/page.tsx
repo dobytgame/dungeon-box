@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
+import ComboBadge from '@/components/admin/ComboBadge';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminSubscriptions } from '@/lib/admin/queries';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
-import { formatDate } from '@/lib/dashboard/format';
+import { formatDate, formatMoney } from '@/lib/dashboard/format';
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'Todos' },
@@ -71,7 +74,33 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
           {
             key: 'plan',
             header: 'Plano',
-            cell: (row) => row.planName ?? '—',
+            cell: (row) => (
+              <div className="flex flex-wrap items-center gap-2">
+                <span>{row.planName ?? '—'}</span>
+                {row.billingTerm && isComboTerm(row.billingTerm as BillingTerm) ? (
+                  <ComboBadge term={row.billingTerm as BillingTerm} compact />
+                ) : null}
+              </div>
+            ),
+          },
+          {
+            key: 'combo',
+            header: 'Combo',
+            cell: (row) =>
+              row.comboTotalCents != null && row.comboTotalCents > 0 ? (
+                <div>
+                  <p className="font-mono text-sm tabular-nums">
+                    {formatMoney(row.comboTotalCents)}
+                  </p>
+                  {row.comboInstallments != null && row.comboInstallments > 1 ? (
+                    <p className="text-xs text-stone-500">
+                      {row.comboInstallments}x no cartão
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                '—'
+              ),
           },
           {
             key: 'status',

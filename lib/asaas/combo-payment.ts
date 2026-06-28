@@ -33,7 +33,7 @@ export async function handleComboPaymentConfirmed(
   const { data: local } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, user_id, prepaid_until, billing_term, combo_total_cents'
+      'id, status, user_id, prepaid_until, billing_term, combo_total_cents, combo_installments'
     )
     .eq('id', subscriptionId)
     .maybeSingle();
@@ -42,7 +42,12 @@ export async function handleComboPaymentConfirmed(
     return 'skipped';
   }
 
-  const amountCents = Math.round((payment.value ?? 0) * 100);
+  const asaasAmountCents = Math.round((payment.value ?? 0) * 100);
+  const amountCents =
+    local.combo_total_cents != null && local.combo_total_cents > 0
+      ? local.combo_total_cents
+      : asaasAmountCents;
+  const installments = local.combo_installments ?? 1;
   const now = new Date().toISOString();
 
   const { data: paymentRow } = await supabase
@@ -52,13 +57,16 @@ export async function handleComboPaymentConfirmed(
         user_id: local.user_id,
         subscription_id: local.id,
         asaas_payment_id: payment.id,
-        amount_cents: amountCents || local.combo_total_cents || 0,
+        amount_cents: amountCents,
         currency: 'BRL',
         status: 'approved',
         paid_at: now,
+        installments,
         status_detail: JSON.stringify({
           type: 'combo_prepaid',
           billing_term: local.billing_term,
+          combo_total_cents: amountCents,
+          combo_installments: installments > 1 ? installments : undefined,
         }),
       },
       { onConflict: 'asaas_payment_id' }

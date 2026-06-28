@@ -133,16 +133,15 @@ export default async function AdminDashboardPage() {
         action={{ href: '/admin/pagamentos', label: 'Ver todos' }}
       >
         <AdminTable
-          rows={stats.recentPayments.map((payment) => ({
-            ...payment,
-            id: payment.id,
-          }))}
+          rows={stats.recentPayments}
           columns={[
             {
               key: 'amount',
               header: 'Valor',
               cell: (row) => (
-                <span className="font-mono tabular-nums">{formatMoney(row.amount_cents)}</span>
+                <span className="font-mono tabular-nums">
+                  {formatMoney(row.effectiveAmountCents)}
+                </span>
               ),
             },
             {

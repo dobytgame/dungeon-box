@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import AdminTable from '@/components/admin/AdminTable';
+import ComboBadge from '@/components/admin/ComboBadge';
 import CustomerPartnerPanel from '@/components/admin/CustomerPartnerPanel';
 import PartnerBadge from '@/components/admin/PartnerBadge';
 import DataRow from '@/components/dashboard/DataRow';
@@ -8,6 +9,13 @@ import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminCustomerDetail } from '@/lib/admin/queries';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
+import {
+  resolveEffectivePaymentAmountCents,
+  resolvePaymentInstallments,
+} from '@/lib/payments/effective-amount';
+import { comboInstallmentLabel } from '@/lib/checkout/combo-billing';
 import {
   formatCpf,
   formatDate,
@@ -125,7 +133,17 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
               {
                 key: 'plan',
                 header: 'Plano',
-                cell: (row) => relOne(row.plans)?.name ?? '—',
+                cell: (row) => (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{relOne(row.plans)?.name ?? '—'}</span>
+                    {isComboTerm((row.billing_term ?? 'monthly') as BillingTerm) ? (
+                      <ComboBadge
+                        term={(row.billing_term ?? 'monthly') as BillingTerm}
+                        compact
+                      />
+                    ) : null}
+                  </div>
+                ),
               },
               {
                 key: 'status',
@@ -207,7 +225,27 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
               {
                 key: 'amount',
                 header: 'Valor',
-                cell: (row) => formatMoney(row.amount_cents),
+                cell: (row) => {
+                  const subscription = subscriptions.find(
+                    (sub) => sub.id === row.subscription_id
+                  );
+                  const effectiveAmount = resolveEffectivePaymentAmountCents(
+                    row,
+                    subscription
+                  );
+                  const installments = resolvePaymentInstallments(row, subscription);
+
+                  return (
+                    <div>
+                      <p>{formatMoney(effectiveAmount)}</p>
+                      {installments != null && installments > 1 ? (
+                        <p className="text-xs text-stone-500">
+                          {comboInstallmentLabel(installments)}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                },
               },
               {
                 key: 'status',

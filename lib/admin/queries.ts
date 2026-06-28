@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
+import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { relOne } from '@/lib/dashboard/format';
 import {
   buildCycleShipmentItems,
@@ -25,11 +28,57 @@ import type {
   AdminSubscriptionRow,
   AdminUserPlanStats,
 } from './types';
+import {
+  resolveEffectivePaymentAmountCents,
+  resolvePaymentInstallments,
+} from '@/lib/payments/effective-amount';
 
 function daysAgoIso(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);
   return date.toISOString();
+}
+
+type SubscriptionComboContext = {
+  billing_term?: string | null;
+  combo_total_cents?: number | null;
+  combo_installments?: number | null;
+};
+
+function mapPaymentRow(
+  row: Record<string, unknown>
+): AdminPaymentRow {
+  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const subscription = Array.isArray(row.subscriptions)
+    ? row.subscriptions[0]
+    : row.subscriptions;
+  const plan = subscription?.plans
+    ? Array.isArray(subscription.plans)
+      ? subscription.plans[0]
+      : subscription.plans
+    : null;
+  const subContext = subscription as SubscriptionComboContext | null | undefined;
+
+  const { profiles: _p, subscriptions: _s, ...payment } = row;
+  const paymentData = payment as unknown as Payment;
+
+  const effectiveAmountCents = resolveEffectivePaymentAmountCents(
+    paymentData,
+    subContext
+  );
+  const installmentCount = resolvePaymentInstallments(paymentData, subContext);
+  const billingTerm = (subContext?.billing_term ?? 'monthly') as BillingTerm;
+  const comboLabel = isComboTerm(billingTerm) ? getComboTermLabel(billingTerm) : null;
+
+  return {
+    ...paymentData,
+    customerName: profile?.full_name ?? profile?.display_name ?? null,
+    customerEmail: profile?.email ?? null,
+    planName: plan?.name ?? null,
+    effectiveAmountCents,
+    installmentCount,
+    comboLabel,
+  };
 }
 
 export async function getAdminUserPlanStats(
@@ -264,12 +313,30 @@ export async function getAdminDashboardStats(
       .eq('status', 'pending'),
     admin
       .from('payments')
-      .select('amount_cents')
+      .select(
+        `
+        amount_cents,
+        status_detail,
+        installments,
+        subscriptions(billing_term, combo_total_cents, combo_installments)
+      `
+      )
       .eq('status', 'approved')
       .gte('paid_at', since30d),
     admin
       .from('payments')
-      .select('*')
+      .select(
+        `
+        *,
+        profiles(full_name, display_name, email),
+        subscriptions(
+          billing_term,
+          combo_total_cents,
+          combo_installments,
+          plans!plan_id(name)
+        )
+      `
+      )
       .order('paid_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(8),
@@ -308,10 +375,22 @@ export async function getAdminDashboardStats(
   const mrrCents = mrrByPlan.reduce((sum, row) => sum + row.mrrCents, 0);
 
   const approvedPayments = payments30Res.data ?? [];
-  const revenueApproved30dCents = approvedPayments.reduce(
-    (sum, row) => sum + (row.amount_cents ?? 0),
-    0
-  );
+  const revenueApproved30dCents = approvedPayments.reduce((sum, row) => {
+    const subscription = Array.isArray(row.subscriptions)
+      ? row.subscriptions[0]
+      : row.subscriptions;
+    return (
+      sum +
+      resolveEffectivePaymentAmountCents(
+        {
+          amount_cents: row.amount_cents ?? 0,
+          status_detail: row.status_detail as string | null,
+          installments: row.installments as number | null,
+        },
+        subscription as SubscriptionComboContext | null
+      )
+    );
+  }, 0);
 
   return {
     mrrCents,
@@ -326,7 +405,9 @@ export async function getAdminDashboardStats(
     revenueApproved30dCents,
     mrrByPlan,
     activePlanCounts,
-    recentPayments: (recentPaymentsRes.data ?? []) as Payment[],
+    recentPayments: (recentPaymentsRes.data ?? []).map((row) =>
+      mapPaymentRow(row as Record<string, unknown>)
+    ),
     shipQueue: (shipQueueRes.data ?? []).map((row) =>
       mapCycleRow(row as Record<string, unknown>)
     ),
@@ -358,8 +439,10 @@ export async function listAdminCustomers(
   const ids = profiles.map((p) => p.id);
   const { data: subscriptions } = await admin
     .from('subscriptions')
-    .select('user_id, status, is_partner')
+    .select('user_id, status, is_partner, billing_term')
     .in('user_id', ids);
+
+  const COMBO_TERMS = new Set(['combo_3', 'combo_6', 'combo_12']);
 
   return profiles.map((profile) => {
     const userSubs = (subscriptions ?? []).filter(
@@ -375,6 +458,14 @@ export async function listAdminCustomers(
     const isPartner = userSubs.some(
       (sub) => sub.is_partner && sub.status === 'active'
     );
+    const comboTerms = Array.from(
+      new Set(
+        userSubs
+          .filter((sub) => sub.status === 'active')
+          .map((sub) => sub.billing_term as string)
+          .filter((term) => COMBO_TERMS.has(term))
+      )
+    ) as Array<'combo_3' | 'combo_6' | 'combo_12'>;
 
     return {
       id: profile.id,
@@ -387,6 +478,7 @@ export async function listAdminCustomers(
       activeSubscriptions,
       latestStatus,
       isPartner,
+      comboTerms,
     };
   });
 }
@@ -525,6 +617,10 @@ export async function listAdminSubscriptions(
       asaas_subscription_id,
       stripe_subscription_id,
       promo_code,
+      billing_term,
+      combo_total_cents,
+      combo_installments,
+      prepaid_until,
       profiles(full_name, display_name, email),
       plans!plan_id(name, slug)
     `
@@ -566,6 +662,10 @@ export async function listAdminSubscriptions(
       customerEmail: profileData?.email ?? null,
       planName: planData?.name ?? null,
       planSlug: planData?.slug ?? null,
+      billingTerm: (row.billing_term as string | null) ?? null,
+      comboTotalCents: (row.combo_total_cents as number | null) ?? null,
+      comboInstallments: (row.combo_installments as number | null) ?? null,
+      prepaidUntil: (row.prepaid_until as string | null) ?? null,
     };
   });
 }
@@ -769,7 +869,12 @@ export async function listAdminPayments(
       `
       *,
       profiles(full_name, display_name, email),
-      subscriptions(plans!plan_id(name))
+      subscriptions(
+        billing_term,
+        combo_total_cents,
+        combo_installments,
+        plans!plan_id(name)
+      )
     `
     )
     .order('created_at', { ascending: false })
@@ -781,26 +886,7 @@ export async function listAdminPayments(
 
   const { data } = await query;
 
-  return (data ?? []).map((row) => {
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-    const subscription = Array.isArray(row.subscriptions)
-      ? row.subscriptions[0]
-      : row.subscriptions;
-    const plan = subscription?.plans
-      ? Array.isArray(subscription.plans)
-        ? subscription.plans[0]
-        : subscription.plans
-      : null;
-
-    const { profiles: _p, subscriptions: _s, ...payment } = row;
-
-    return {
-      ...(payment as Payment),
-      customerName: profile?.full_name ?? profile?.display_name ?? null,
-      customerEmail: profile?.email ?? null,
-      planName: plan?.name ?? null,
-    };
-  });
+  return (data ?? []).map((row) => mapPaymentRow(row as Record<string, unknown>));
 }
 
 export async function listAdminPlans(

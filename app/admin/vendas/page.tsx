@@ -132,7 +132,16 @@ export default async function AdminSalesPage({ searchParams }: Props) {
               key: 'amount',
               header: 'Valor',
               cell: (row: AdminSaleRow) => (
-                <span className="font-mono tabular-nums">{formatMoney(row.amount_cents)}</span>
+                <div>
+                  <span className="font-mono tabular-nums">
+                    {formatMoney(row.effectiveAmountCents)}
+                  </span>
+                  {row.installmentCount != null && row.installmentCount > 1 ? (
+                    <p className="text-xs text-stone-500">
+                      {row.installmentCount}x no cartão
+                    </p>
+                  ) : null}
+                </div>
               ),
             },
             {
