@@ -6,6 +6,7 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import {
   getAllowedCycleTransitions,
+  getCycleRollbackTarget,
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import CycleShipForm from './CycleShipForm';
@@ -47,13 +48,19 @@ export default function CycleProductionPanel({
     return true;
   });
 
-  if (status === 'delivered' || status === 'cancelled') {
+  const rollbackTarget = getCycleRollbackTarget(status);
+  const rollbackLabel =
+    rollbackTarget != null
+      ? productionActionLabel(status, rollbackTarget)
+      : null;
+
+  if (status === 'cancelled') {
     return (
       <section className="admin-panel rounded p-5 md:p-6">
         <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">
           Produção encerrada
         </h3>
-        {status === 'cancelled' && cancelReason ? (
+        {cancelReason ? (
           <p className="mt-3 text-sm text-zinc-500">
             Motivo: <span className="text-zinc-300">{cancelReason}</span>
           </p>
@@ -67,8 +74,55 @@ export default function CycleProductionPanel({
     );
   }
 
+  function runTransition(target: CycleStatus, successMessage: string) {
+    setError('');
+    setMessage('');
+    startTransition(async () => {
+      const result = await advanceCycleProductionAction(cycleId, target);
+      if ('error' in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      handleSuccess(successMessage);
+    });
+  }
+
   return (
     <section className="space-y-6">
+      {rollbackTarget && rollbackLabel ? (
+        <div className="admin-panel rounded border-amber-500/20 p-5 md:p-6">
+          <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200/90">
+            Corrigir status
+          </h3>
+          <p className="mt-2 text-sm text-zinc-500">
+            Use se o pedido avançou por engano. Volta uma etapa e remove dados
+            de envio/entrega quando necessário.
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => runTransition(rollbackTarget, 'Status revertido.')}
+            className="mt-4 cursor-pointer rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-50"
+          >
+            {pending ? (
+              <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
+            ) : (
+              rollbackLabel
+            )}
+          </button>
+          {error ? (
+            <p className="mt-3 text-sm text-red-400" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {message ? (
+            <p className="mt-3 text-sm text-emerald-300" role="status">
+              {message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {status === 'preparing' ? (
         <div className="admin-panel rounded border-console/20 p-5 md:p-6">
           <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-console">
@@ -132,21 +186,7 @@ export default function CycleProductionPanel({
                   key={target}
                   type="button"
                   disabled={pending}
-                  onClick={() => {
-                    setError('');
-                    setMessage('');
-                    startTransition(async () => {
-                      const result = await advanceCycleProductionAction(
-                        cycleId,
-                        target
-                      );
-                      if ('error' in result && result.error) {
-                        setError(result.error);
-                        return;
-                      }
-                      handleSuccess('Status atualizado.');
-                    });
-                  }}
+                  onClick={() => runTransition(target, 'Status atualizado.')}
                   className="cursor-pointer rounded border border-console/30 bg-console/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-console transition hover:bg-console/15 disabled:opacity-50"
                 >
                   {pending ? (
@@ -233,21 +273,7 @@ export default function CycleProductionPanel({
           <button
             type="button"
             disabled={pending}
-            onClick={() => {
-              setError('');
-              setMessage('');
-              startTransition(async () => {
-                const result = await advanceCycleProductionAction(
-                  cycleId,
-                  'delivered'
-                );
-                if ('error' in result && result.error) {
-                  setError(result.error);
-                  return;
-                }
-                handleSuccess('Pedido marcado como entregue.');
-              });
-            }}
+            onClick={() => runTransition('delivered', 'Pedido marcado como entregue.')}
             className="mt-4 cursor-pointer rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-300 transition hover:bg-emerald-500/15 disabled:opacity-50"
           >
             {pending ? 'Salvando…' : 'Marcar entregue'}

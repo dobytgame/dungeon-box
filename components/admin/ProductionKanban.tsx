@@ -8,6 +8,7 @@ import type { AdminCycleRow } from '@/lib/admin/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import {
+  getCycleRollbackTarget,
   PRODUCTION_PIPELINE,
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
@@ -98,6 +99,10 @@ function KanbanCard({
   pending: boolean;
 }) {
   const quick = nextQuickAction(row.status);
+  const rollbackTarget = getCycleRollbackTarget(row.status);
+  const rollbackLabel = rollbackTarget
+    ? productionActionLabel(row.status, rollbackTarget)
+    : null;
 
   return (
     <article className="admin-panel rounded border border-zinc-800/80 bg-zinc-950/60 p-3 transition hover:border-zinc-700">
@@ -211,6 +216,17 @@ function KanbanCard({
           >
             {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
             {quick.label}
+          </button>
+        ) : null}
+        {rollbackTarget && rollbackLabel ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => onAdvance(row.id, rollbackTarget)}
+            className="inline-flex min-h-[32px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border border-amber-500/25 bg-amber-500/5 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-200/90 transition hover:border-amber-500/40 hover:bg-amber-500/10 disabled:opacity-50"
+          >
+            {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {rollbackLabel}
           </button>
         ) : null}
         <button

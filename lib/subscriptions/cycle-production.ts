@@ -33,18 +33,52 @@ const TRANSITIONS: Record<CycleStatus, CycleStatus[]> = {
   failed: ['production', 'preparing', 'cancelled'],
 };
 
+/** Etapa anterior no fluxo principal (correção operacional). */
+export function getCycleRollbackTarget(status: CycleStatus): CycleStatus | null {
+  const index = PRODUCTION_PIPELINE.indexOf(status);
+  if (index <= 0) return null;
+  return PRODUCTION_PIPELINE[index - 1] ?? null;
+}
+
+export function isCycleRollbackTransition(
+  from: CycleStatus,
+  to: CycleStatus
+): boolean {
+  return getCycleRollbackTarget(from) === to;
+}
+
 export function getAllowedCycleTransitions(status: CycleStatus): CycleStatus[] {
   return TRANSITIONS[status] ?? [];
 }
 
 export function canTransitionCycle(from: CycleStatus, to: CycleStatus): boolean {
-  return getAllowedCycleTransitions(from).includes(to);
+  if (getAllowedCycleTransitions(from).includes(to)) return true;
+  return isCycleRollbackTransition(from, to);
+}
+
+const ROLLBACK_TARGET_LABEL: Partial<Record<CycleStatus, string>> = {
+  upcoming: 'Aguardando',
+  production: 'Produção',
+  preparing: 'Em preparo',
+  shipped: 'Enviado',
+};
+
+export function cycleRollbackLabel(
+  from: CycleStatus,
+  to: CycleStatus
+): string | null {
+  if (!isCycleRollbackTransition(from, to)) return null;
+  const step = ROLLBACK_TARGET_LABEL[to];
+  return step ? `Voltar para ${step}` : 'Voltar etapa';
 }
 
 export function productionActionLabel(
   from: CycleStatus,
   to: CycleStatus
 ): string | null {
+  const rollback = cycleRollbackLabel(from, to);
+  if (rollback) return rollback;
+
   if (from === 'upcoming' && to === 'production') return 'Iniciar produção';
   if (from === 'production' && to === 'preparing') return 'Iniciar preparo';
   if (to === 'delivered') return 'Marcar entregue';

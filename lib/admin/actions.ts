@@ -19,7 +19,7 @@ import {
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
 import { backfillActiveSubscriptionCycles } from '@/lib/subscriptions/cycles';
-import { canTransitionCycle } from '@/lib/subscriptions/cycle-production';
+import { canTransitionCycle, isCycleRollbackTransition } from '@/lib/subscriptions/cycle-production';
 import {
   activatePartnerSubscription,
   clearSubscriptionPartnerFlag,
@@ -194,10 +194,24 @@ export async function advanceCycleProductionAction(
   }
 
   const now = new Date().toISOString();
+  const isRollback = isCycleRollbackTransition(cycle.status, targetStatus);
   const updates: Record<string, unknown> = {
     status: targetStatus,
     updated_at: now,
   };
+
+  if (isRollback) {
+    if (targetStatus === 'shipped' && cycle.status === 'delivered') {
+      updates.delivered_at = null;
+    }
+    if (targetStatus === 'preparing') {
+      updates.tracking_code = null;
+      updates.carrier = null;
+      updates.shipped_at = null;
+      updates.estimated_delivery = null;
+      updates.delivered_at = null;
+    }
+  }
 
   if (targetStatus === 'delivered') {
     updates.delivered_at = now;
@@ -245,7 +259,7 @@ export async function advanceCycleProductionAction(
     .eq('id', cycleId)
     .maybeSingle();
 
-  if (refreshed) {
+  if (refreshed && !isRollback) {
     const notify = await notifyCycleStatusFromRecord(admin, refreshed, {
       status: targetStatus,
     });
@@ -256,12 +270,13 @@ export async function advanceCycleProductionAction(
 
   await logAdminAction(admin, {
     actorId: user.id,
-    action: `cycle.${targetStatus}`,
+    action: isRollback ? 'cycle.rollback' : `cycle.${targetStatus}`,
     entityType: 'subscription_cycle',
     entityId: cycleId,
     metadata: {
       from: cycle.status,
       to: targetStatus,
+      rollback: isRollback,
       cancel_reason:
         targetStatus === 'cancelled'
           ? (formData?.get('cancel_reason') as string)?.trim()
