@@ -33,18 +33,50 @@ const TRANSITIONS: Record<CycleStatus, CycleStatus[]> = {
   failed: ['production', 'preparing', 'cancelled'],
 };
 
-/** Etapa anterior no fluxo principal (correção operacional). */
-export function getCycleRollbackTarget(status: CycleStatus): CycleStatus | null {
+/** Etapas anteriores no fluxo (correção operacional — pode pular etapas). */
+export function getCycleRollbackTargets(status: CycleStatus): CycleStatus[] {
   const index = PRODUCTION_PIPELINE.indexOf(status);
-  if (index <= 0) return null;
-  return PRODUCTION_PIPELINE[index - 1] ?? null;
+  if (index <= 0) return [];
+  return [...PRODUCTION_PIPELINE.slice(0, index)].reverse();
+}
+
+/** @deprecated Prefer getCycleRollbackTargets */
+export function getCycleRollbackTarget(status: CycleStatus): CycleStatus | null {
+  return getCycleRollbackTargets(status)[0] ?? null;
 }
 
 export function isCycleRollbackTransition(
   from: CycleStatus,
   to: CycleStatus
 ): boolean {
-  return getCycleRollbackTarget(from) === to;
+  const fromIndex = PRODUCTION_PIPELINE.indexOf(from);
+  const toIndex = PRODUCTION_PIPELINE.indexOf(to);
+  if (fromIndex <= 0 || toIndex < 0) return false;
+  return toIndex < fromIndex;
+}
+
+/** Limpa campos de etapas posteriores ao destino do rollback. */
+export function cycleRollbackFieldClears(
+  target: CycleStatus
+): Record<string, null> {
+  const targetIndex = PRODUCTION_PIPELINE.indexOf(target);
+  if (targetIndex < 0) return {};
+
+  const shippedIndex = PRODUCTION_PIPELINE.indexOf('shipped');
+  const deliveredIndex = PRODUCTION_PIPELINE.indexOf('delivered');
+  const clears: Record<string, null> = {};
+
+  if (targetIndex < shippedIndex) {
+    clears.tracking_code = null;
+    clears.carrier = null;
+    clears.shipped_at = null;
+    clears.estimated_delivery = null;
+  }
+  if (targetIndex < deliveredIndex) {
+    clears.delivered_at = null;
+  }
+
+  return clears;
 }
 
 export function getAllowedCycleTransitions(status: CycleStatus): CycleStatus[] {

@@ -19,7 +19,7 @@ import {
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
 import { backfillActiveSubscriptionCycles } from '@/lib/subscriptions/cycles';
-import { canTransitionCycle, isCycleRollbackTransition } from '@/lib/subscriptions/cycle-production';
+import { canTransitionCycle, cycleRollbackFieldClears, isCycleRollbackTransition } from '@/lib/subscriptions/cycle-production';
 import {
   activatePartnerSubscription,
   clearSubscriptionPartnerFlag,
@@ -201,16 +201,7 @@ export async function advanceCycleProductionAction(
   };
 
   if (isRollback) {
-    if (targetStatus === 'shipped' && cycle.status === 'delivered') {
-      updates.delivered_at = null;
-    }
-    if (targetStatus === 'preparing') {
-      updates.tracking_code = null;
-      updates.carrier = null;
-      updates.shipped_at = null;
-      updates.estimated_delivery = null;
-      updates.delivered_at = null;
-    }
+    Object.assign(updates, cycleRollbackFieldClears(targetStatus));
   }
 
   if (targetStatus === 'delivered') {

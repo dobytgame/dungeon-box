@@ -6,7 +6,7 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import {
   getAllowedCycleTransitions,
-  getCycleRollbackTarget,
+  getCycleRollbackTargets,
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import CycleShipForm from './CycleShipForm';
@@ -48,11 +48,7 @@ export default function CycleProductionPanel({
     return true;
   });
 
-  const rollbackTarget = getCycleRollbackTarget(status);
-  const rollbackLabel =
-    rollbackTarget != null
-      ? productionActionLabel(status, rollbackTarget)
-      : null;
+  const rollbackTargets = getCycleRollbackTargets(status);
 
   if (status === 'cancelled') {
     return (
@@ -89,27 +85,37 @@ export default function CycleProductionPanel({
 
   return (
     <section className="space-y-6">
-      {rollbackTarget && rollbackLabel ? (
+      {rollbackTargets.length > 0 ? (
         <div className="admin-panel rounded border-amber-500/20 p-5 md:p-6">
           <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200/90">
             Corrigir status
           </h3>
           <p className="mt-2 text-sm text-zinc-500">
-            Use se o pedido avançou por engano. Volta uma etapa e remove dados
-            de envio/entrega quando necessário.
+            Use se o pedido avançou por engano. Pode voltar para qualquer etapa
+            anterior; dados de envio e entrega são removidos quando necessário.
           </p>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => runTransition(rollbackTarget, 'Status revertido.')}
-            className="mt-4 cursor-pointer rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-50"
-          >
-            {pending ? (
-              <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
-            ) : (
-              rollbackLabel
-            )}
-          </button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {rollbackTargets.map((rollbackTarget) => {
+              const rollbackLabel = productionActionLabel(status, rollbackTarget);
+              if (!rollbackLabel) return null;
+
+              return (
+                <button
+                  key={rollbackTarget}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => runTransition(rollbackTarget, 'Status revertido.')}
+                  className="cursor-pointer rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-50"
+                >
+                  {pending ? (
+                    <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    rollbackLabel
+                  )}
+                </button>
+              );
+            })}
+          </div>
           {error ? (
             <p className="mt-3 text-sm text-red-400" role="alert">
               {error}
