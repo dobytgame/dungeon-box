@@ -615,6 +615,7 @@ export async function listAdminSubscriptions(
       next_billing_date,
       started_at,
       asaas_subscription_id,
+      asaas_customer_id,
       stripe_subscription_id,
       promo_code,
       billing_term,
@@ -655,6 +656,7 @@ export async function listAdminSubscriptions(
       next_billing_date: row.next_billing_date as string | null,
       started_at: row.started_at as string | null,
       asaas_subscription_id: row.asaas_subscription_id as string | null,
+      asaas_customer_id: row.asaas_customer_id as string | null,
       stripe_subscription_id: row.stripe_subscription_id as string | null,
       promo_code: row.promo_code as string | null,
       customerName:

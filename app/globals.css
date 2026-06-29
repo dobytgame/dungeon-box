@@ -205,6 +205,52 @@
     display: none;
   }
 
+  .shell-skeleton {
+    background-size: 220% 100%;
+    animation: shell-shimmer 1.35s ease-in-out infinite;
+  }
+
+  .shell-skeleton-admin {
+    background-image: linear-gradient(
+      90deg,
+      rgb(24 24 27 / 0.95) 0%,
+      rgb(45 212 191 / 0.14) 45%,
+      rgb(24 24 27 / 0.95) 90%
+    );
+  }
+
+  .shell-skeleton-dashboard {
+    background-image: linear-gradient(
+      90deg,
+      rgb(28 25 23 / 0.95) 0%,
+      rgb(255 107 43 / 0.16) 40%,
+      rgb(0 212 255 / 0.1) 60%,
+      rgb(28 25 23 / 0.95) 100%
+    );
+  }
+
+  @keyframes shell-shimmer {
+    0% {
+      background-position: 120% 0;
+    }
+
+    100% {
+      background-position: -120% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shell-skeleton {
+      animation: none;
+      background-image: none;
+      background-color: rgb(39 39 42);
+    }
+
+    .shell-skeleton-dashboard {
+      background-color: rgb(41 37 36);
+    }
+  }
+
   .noise::after {
     content: '';
     position: absolute;

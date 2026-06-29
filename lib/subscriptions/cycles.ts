@@ -5,9 +5,10 @@ const CYCLE_STATUS_RANK: Record<string, number> = {
   delivered: 6,
   shipped: 5,
   preparing: 4,
-  upcoming: 3,
-  failed: 2,
-  cancelled: 1,
+  production: 3,
+  upcoming: 2,
+  failed: 1,
+  cancelled: 0,
 };
 
 export function resolvePaidCycleNumber(

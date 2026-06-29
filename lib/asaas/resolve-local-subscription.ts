@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { asaasRequest } from '@/lib/asaas/client';
-import { normalizeAsaasSubscriptionRef } from '@/lib/asaas/refs';
+import {
+  normalizeAsaasSubscriptionRef,
+  parseSubscriptionExternalReference,
+} from '@/lib/asaas/refs';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 
 type LocalSubscription = {
@@ -35,12 +38,15 @@ async function findSubscriptionByExternalReference(
   supabase: SupabaseClient,
   externalReference: string
 ): Promise<LocalSubscription | null> {
+  const subscriptionId = parseSubscriptionExternalReference(externalReference);
+  if (!subscriptionId) return null;
+
   const { data } = await supabase
     .from('subscriptions')
     .select(
       'id, status, started_at, user_id, current_cycle, asaas_subscription_id'
     )
-    .eq('id', externalReference)
+    .eq('id', subscriptionId)
     .maybeSingle();
   return data;
 }

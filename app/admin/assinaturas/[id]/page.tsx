@@ -16,6 +16,7 @@ import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getSubscriptionComboSummary } from '@/lib/checkout/combo-display';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminSubscriptionDetail } from '@/lib/admin/queries';
+import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
 import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
 import {
   formatDate,
@@ -31,9 +32,20 @@ interface Props {
 export default async function AdminSubscriptionDetailPage({ params }: Props) {
   const { id } = await params;
   const { admin } = await requireAdmin();
-  const subscription = await getAdminSubscriptionDetail(admin, id);
 
+  let subscription = await getAdminSubscriptionDetail(admin, id);
   if (!subscription) notFound();
+
+  if (subscription.status === 'pending') {
+    await reconcilePendingAsaasSubscription(admin, {
+      id: subscription.id,
+      status: subscription.status,
+      asaas_subscription_id: subscription.asaas_subscription_id,
+      asaas_customer_id: subscription.asaas_customer_id,
+      billing_term: subscription.billing_term,
+    });
+    subscription = (await getAdminSubscriptionDetail(admin, id)) ?? subscription;
+  }
 
   const plan = relOne(subscription.plans);
   const pendingPlan = relOne(subscription.pending_plan);

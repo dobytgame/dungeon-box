@@ -1,22 +1,35 @@
-import { reconcilePendingAsaasSubscription } from '@/lib/asaas/payment-sync';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
+import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
 import { reconcilePendingStripeSubscription } from '@/lib/stripe/payment-sync';
 
-type PendingSubscription = {
+export type PendingSubscription = {
   id: string;
   status: string;
   asaas_subscription_id?: string | null;
+  asaas_customer_id?: string | null;
+  billing_term?: string | null;
   stripe_subscription_id?: string | null;
 };
 
 export async function reconcilePendingSubscription(
-  subscription: PendingSubscription
+  subscription: PendingSubscription,
+  supabase?: SupabaseClient
 ): Promise<void> {
   if (subscription.status !== 'pending') {
     return;
   }
 
-  if (subscription.asaas_subscription_id) {
-    await reconcilePendingAsaasSubscription(subscription);
+  if (subscription.asaas_subscription_id || subscription.asaas_customer_id) {
+    if (!supabase) {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      await reconcilePendingAsaasSubscription(
+        createAdminClient(),
+        subscription
+      );
+    } else {
+      await reconcilePendingAsaasSubscription(supabase, subscription);
+    }
     return;
   }
 
@@ -26,7 +39,8 @@ export async function reconcilePendingSubscription(
 }
 
 export async function reconcilePendingSubscriptions(
-  subscriptions: PendingSubscription[]
+  subscriptions: PendingSubscription[],
+  supabase?: SupabaseClient
 ): Promise<void> {
   const pending = subscriptions.filter((sub) => sub.status === 'pending');
   if (pending.length === 0) {
@@ -34,6 +48,6 @@ export async function reconcilePendingSubscriptions(
   }
 
   for (const subscription of pending) {
-    await reconcilePendingSubscription(subscription);
+    await reconcilePendingSubscription(subscription, supabase);
   }
 }

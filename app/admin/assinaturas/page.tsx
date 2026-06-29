@@ -5,6 +5,7 @@ import ComboBadge from '@/components/admin/ComboBadge';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminSubscriptions } from '@/lib/admin/queries';
+import { reconcilePendingAsaasSubscriptions } from '@/lib/asaas/reconcile-pending';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
@@ -26,11 +27,31 @@ interface Props {
 export default async function AdminSubscriptionsPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
   const { q, status } = await searchParams;
-  const subscriptions = await listAdminSubscriptions(admin, {
+  let subscriptions = await listAdminSubscriptions(admin, {
     q,
     status: status || undefined,
     limit: 100,
   });
+
+  const hasPending = subscriptions.some((row) => row.status === 'pending');
+  if (hasPending) {
+    await reconcilePendingAsaasSubscriptions(
+      admin,
+      subscriptions.map((row) => ({
+        id: row.id,
+        status: row.status,
+        asaas_subscription_id: row.asaas_subscription_id,
+        asaas_customer_id: row.asaas_customer_id,
+        billing_term: row.billingTerm,
+      })),
+      { limit: 20 }
+    );
+    subscriptions = await listAdminSubscriptions(admin, {
+      q,
+      status: status || undefined,
+      limit: 100,
+    });
+  }
 
   return (
     <div className="space-y-6">

@@ -49,10 +49,46 @@ export function isCycleRollbackTransition(
   from: CycleStatus,
   to: CycleStatus
 ): boolean {
-  const fromIndex = PRODUCTION_PIPELINE.indexOf(from);
-  const toIndex = PRODUCTION_PIPELINE.indexOf(to);
-  if (fromIndex <= 0 || toIndex < 0) return false;
-  return toIndex < fromIndex;
+  return getCycleRollbackTargets(from).includes(to);
+}
+
+const CYCLE_STATUS_LABEL: Record<CycleStatus, string> = {
+  upcoming: 'Aguardando',
+  production: 'Produção',
+  preparing: 'Em preparo',
+  shipped: 'Enviado',
+  delivered: 'Entregue',
+  cancelled: 'Cancelado',
+  failed: 'Falha pagamento',
+};
+
+export function cycleStatusLabel(status: CycleStatus): string {
+  return CYCLE_STATUS_LABEL[status] ?? status;
+}
+
+const CYCLE_STATUS_SET = new Set<CycleStatus>([
+  'upcoming',
+  'production',
+  'preparing',
+  'shipped',
+  'delivered',
+  'cancelled',
+  'failed',
+]);
+
+export function parseCycleStatus(value: unknown): CycleStatus | null {
+  if (typeof value !== 'string') return null;
+  return CYCLE_STATUS_SET.has(value as CycleStatus)
+    ? (value as CycleStatus)
+    : null;
+}
+
+/** Reabertura operacional após cancelamento indevido. */
+export function isCycleReopenTransition(
+  from: CycleStatus,
+  to: CycleStatus
+): boolean {
+  return from === 'cancelled' && to === 'upcoming';
 }
 
 /** Limpa campos de etapas posteriores ao destino do rollback. */
@@ -60,20 +96,23 @@ export function cycleRollbackFieldClears(
   target: CycleStatus
 ): Record<string, null> {
   const targetIndex = PRODUCTION_PIPELINE.indexOf(target);
-  if (targetIndex < 0) return {};
-
-  const shippedIndex = PRODUCTION_PIPELINE.indexOf('shipped');
-  const deliveredIndex = PRODUCTION_PIPELINE.indexOf('delivered');
   const clears: Record<string, null> = {};
 
-  if (targetIndex < shippedIndex) {
-    clears.tracking_code = null;
-    clears.carrier = null;
-    clears.shipped_at = null;
-    clears.estimated_delivery = null;
+  if (target === 'upcoming' || targetIndex >= 0) {
+    if (targetIndex < 0 || targetIndex < PRODUCTION_PIPELINE.indexOf('shipped')) {
+      clears.tracking_code = null;
+      clears.carrier = null;
+      clears.shipped_at = null;
+      clears.estimated_delivery = null;
+    }
+    if (targetIndex < 0 || targetIndex < PRODUCTION_PIPELINE.indexOf('delivered')) {
+      clears.delivered_at = null;
+    }
   }
-  if (targetIndex < deliveredIndex) {
-    clears.delivered_at = null;
+
+  if (target === 'upcoming') {
+    clears.cancelled_at = null;
+    clears.cancel_reason = null;
   }
 
   return clears;
@@ -84,8 +123,17 @@ export function getAllowedCycleTransitions(status: CycleStatus): CycleStatus[] {
 }
 
 export function canTransitionCycle(from: CycleStatus, to: CycleStatus): boolean {
+  if (from === to) return false;
   if (getAllowedCycleTransitions(from).includes(to)) return true;
-  return isCycleRollbackTransition(from, to);
+  if (isCycleRollbackTransition(from, to)) return true;
+  return isCycleReopenTransition(from, to);
+}
+
+export function cycleTransitionErrorMessage(
+  from: CycleStatus,
+  to: CycleStatus
+): string {
+  return `Transição de ${cycleStatusLabel(from)} para ${cycleStatusLabel(to)} não permitida.`;
 }
 
 const ROLLBACK_TARGET_LABEL: Partial<Record<CycleStatus, string>> = {

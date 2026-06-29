@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import {
   getAllowedCycleTransitions,
   getCycleRollbackTargets,
+  isCycleReopenTransition,
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import CycleShipForm from './CycleShipForm';
@@ -32,10 +33,12 @@ export default function CycleProductionPanel({
   onShipRequest,
   onUpdated,
 }: Props) {
-  const [pending, startTransition] = useTransition();
+  const [actingTarget, setActingTarget] = useState<CycleStatus | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
+
+  const pending = actingTarget !== null;
 
   function handleSuccess(message: string) {
     setMessage(message);
@@ -50,7 +53,24 @@ export default function CycleProductionPanel({
 
   const rollbackTargets = getCycleRollbackTargets(status);
 
+  function runTransition(target: CycleStatus, successMessage: string) {
+    setActingTarget(target);
+    setError('');
+    setMessage('');
+
+    void advanceCycleProductionAction(cycleId, target).then((result) => {
+      setActingTarget(null);
+      if ('error' in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      handleSuccess(successMessage);
+    });
+  }
+
   if (status === 'cancelled') {
+    const canReopen = isCycleReopenTransition(status, 'upcoming');
+
     return (
       <section className="admin-panel rounded p-5 md:p-6">
         <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">
@@ -66,21 +86,36 @@ export default function CycleProductionPanel({
             Notas: <span className="text-zinc-300">{productionNotes}</span>
           </p>
         ) : null}
+        {canReopen ? (
+          <div className="mt-5 border-t border-zinc-800 pt-4">
+            <p className="text-sm text-zinc-500">
+              Se o cancelamento foi por engano, reabra o pedido na fila.
+            </p>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runTransition('upcoming', 'Pedido reaberto na fila.')}
+              className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-50"
+            >
+              {actingTarget === 'upcoming' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              Reabrir em Aguardando
+            </button>
+            {error ? (
+              <p className="mt-3 text-sm text-red-400" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {message ? (
+              <p className="mt-3 text-sm text-emerald-300" role="status">
+                {message}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
     );
-  }
-
-  function runTransition(target: CycleStatus, successMessage: string) {
-    setError('');
-    setMessage('');
-    startTransition(async () => {
-      const result = await advanceCycleProductionAction(cycleId, target);
-      if ('error' in result && result.error) {
-        setError(result.error);
-        return;
-      }
-      handleSuccess(successMessage);
-    });
   }
 
   return (
@@ -105,13 +140,12 @@ export default function CycleProductionPanel({
                   type="button"
                   disabled={pending}
                   onClick={() => runTransition(rollbackTarget, 'Status revertido.')}
-                  className="cursor-pointer rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-50"
                 >
-                  {pending ? (
-                    <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    rollbackLabel
-                  )}
+                  {actingTarget === rollbackTarget ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  {rollbackLabel}
                 </button>
               );
             })}
@@ -193,13 +227,12 @@ export default function CycleProductionPanel({
                   type="button"
                   disabled={pending}
                   onClick={() => runTransition(target, 'Status atualizado.')}
-                  className="cursor-pointer rounded border border-console/30 bg-console/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-console transition hover:bg-console/15 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded border border-console/30 bg-console/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-console transition hover:bg-console/15 disabled:opacity-50"
                 >
-                  {pending ? (
-                    <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    label
-                  )}
+                  {actingTarget === target ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  {label}
                 </button>
               );
             })}
@@ -211,14 +244,16 @@ export default function CycleProductionPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 const formData = new FormData(event.currentTarget);
+                setActingTarget('cancelled');
                 setError('');
                 setMessage('');
-                startTransition(async () => {
-                  const result = await advanceCycleProductionAction(
-                    cycleId,
-                    'cancelled',
-                    formData
-                  );
+
+                void advanceCycleProductionAction(
+                  cycleId,
+                  'cancelled',
+                  formData
+                ).then((result) => {
+                  setActingTarget(null);
                   if ('error' in result && result.error) {
                     setError(result.error);
                     return;
@@ -248,8 +283,11 @@ export default function CycleProductionPanel({
               <button
                 type="submit"
                 disabled={pending}
-                className="cursor-pointer rounded border border-red-500/40 bg-red-500/15 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-red-300 disabled:opacity-50"
+                className="inline-flex cursor-pointer items-center gap-2 rounded border border-red-500/40 bg-red-500/15 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-red-300 disabled:opacity-50"
               >
+                {actingTarget === 'cancelled' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
                 Confirmar cancelamento
               </button>
             </form>
@@ -280,9 +318,12 @@ export default function CycleProductionPanel({
             type="button"
             disabled={pending}
             onClick={() => runTransition('delivered', 'Pedido marcado como entregue.')}
-            className="mt-4 cursor-pointer rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-300 transition hover:bg-emerald-500/15 disabled:opacity-50"
+            className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-300 transition hover:bg-emerald-500/15 disabled:opacity-50"
           >
-            {pending ? 'Salvando…' : 'Marcar entregue'}
+            {actingTarget === 'delivered' ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : null}
+            Marcar entregue
           </button>
           {error ? (
             <p className="mt-3 text-sm text-red-400" role="alert">

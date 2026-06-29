@@ -5,6 +5,7 @@ import type { DashboardNavItem } from '@/lib/dashboard/constants';
 import DashboardHeader from './DashboardHeader';
 import DashboardNav from './DashboardNav';
 import DashboardPageIntro from './DashboardPageIntro';
+import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
 
 interface Props {
   displayName: string;
@@ -39,35 +40,37 @@ export default function DashboardShell({
   );
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
-      <div
-        className="pointer-events-none absolute -right-24 top-32 h-72 w-72 rounded-full bg-ember/10 blur-[100px]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -left-32 bottom-40 h-64 w-64 rounded-full bg-frost/8 blur-[90px]"
-        aria-hidden="true"
-      />
-
-      <DashboardHeader
-        displayName={displayName}
-        email={email}
-        avatarUrl={avatarUrl}
-      />
-
-      <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 md:pt-32">
-        <DashboardPageIntro
-          eyebrow={navItem.eyebrow}
-          title={title}
-          description={navItem.description}
+    <ShellNavigationFrame scope="/dashboard" variant="dashboard">
+      <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
+        <div
+          className="pointer-events-none absolute -right-24 top-32 h-72 w-72 rounded-full bg-ember/10 blur-[100px]"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -left-32 bottom-40 h-64 w-64 rounded-full bg-frost/8 blur-[90px]"
+          aria-hidden="true"
         />
 
-        <div className="mt-8 md:mt-10">
-          <DashboardNav items={navItems} />
-        </div>
+        <DashboardHeader
+          displayName={displayName}
+          email={email}
+          avatarUrl={avatarUrl}
+        />
 
-        <main className="mt-10 md:mt-12">{children}</main>
+        <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 md:pt-32">
+          <DashboardPageIntro
+            eyebrow={navItem.eyebrow}
+            title={title}
+            description={navItem.description}
+          />
+
+          <div className="mt-8 md:mt-10">
+            <DashboardNav items={navItems} />
+          </div>
+
+          <main className="mt-10 md:mt-12">{children}</main>
+        </div>
       </div>
-    </div>
+    </ShellNavigationFrame>
   );
 }

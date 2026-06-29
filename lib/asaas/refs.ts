@@ -8,3 +8,28 @@ export function normalizeAsaasSubscriptionRef(
   }
   return null;
 }
+
+const SUBSCRIPTION_REF_SUFFIXES = [':combo', ':one-time'] as const;
+
+/** Extrai o ID local da assinatura a partir de externalReference do Asaas. */
+export function parseSubscriptionExternalReference(
+  externalReference?: string | null
+): string | null {
+  if (!externalReference?.trim()) return null;
+
+  const ref = externalReference.trim();
+  for (const suffix of SUBSCRIPTION_REF_SUFFIXES) {
+    if (ref.endsWith(suffix)) {
+      const id = ref.slice(0, -suffix.length);
+      return id.length > 0 ? id : null;
+    }
+  }
+
+  return ref;
+}
+
+export function isComboExternalReference(
+  externalReference?: string | null
+): boolean {
+  return Boolean(externalReference?.trim().endsWith(':combo'));
+}

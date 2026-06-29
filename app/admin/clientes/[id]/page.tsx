@@ -8,6 +8,7 @@ import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminCustomerDetail } from '@/lib/admin/queries';
+import { reconcilePendingAsaasSubscriptions } from '@/lib/asaas/reconcile-pending';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
@@ -34,6 +35,22 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
   const detail = await getAdminCustomerDetail(admin, id);
 
   if (!detail) notFound();
+
+  const pendingAsaas = detail.subscriptions.filter(
+    (sub) =>
+      sub.status === 'pending' &&
+      (sub.asaas_subscription_id || sub.asaas_customer_id)
+  );
+
+  if (pendingAsaas.length > 0) {
+    await reconcilePendingAsaasSubscriptions(admin, pendingAsaas, {
+      limit: pendingAsaas.length,
+    });
+    const refreshed = await getAdminCustomerDetail(admin, id);
+    if (refreshed) {
+      Object.assign(detail, refreshed);
+    }
+  }
 
   const { profile, addresses, subscriptions, payments, cycles } = detail;
   const name = profile.full_name ?? profile.display_name ?? profile.email;

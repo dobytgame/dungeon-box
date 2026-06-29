@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   const { data: owned, error: ownedError } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, asaas_subscription_id, stripe_subscription_id, plan_id, shipping_cents, special_notes'
+      'id, status, asaas_subscription_id, asaas_customer_id, stripe_subscription_id, billing_term, plan_id, shipping_cents, special_notes'
     )
     .eq('user_id', user.id)
     .in('id', ids);
@@ -61,13 +61,14 @@ export async function GET(request: Request) {
     );
   }
 
+  const admin = createAdminClient();
+
   for (const subscription of found) {
     if (subscription.status === 'pending') {
-      await reconcilePendingSubscription(subscription);
+      await reconcilePendingSubscription(subscription, admin);
     }
   }
 
-  const admin = createAdminClient();
   const { data: refreshed, error: refreshError } = await admin
     .from('subscriptions')
     .select(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { shipSubscriptionCycleAction } from '@/lib/admin/actions';
 
@@ -15,7 +15,7 @@ export default function CycleShipForm({
   defaultCarrier = 'Correios',
   onSuccess,
 }: Props) {
-  const [pending, startTransition] = useTransition();
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -26,10 +26,12 @@ export default function CycleShipForm({
         event.preventDefault();
         const form = event.currentTarget;
         const formData = new FormData(form);
+        setSubmitting(true);
         setError('');
         setMessage('');
-        startTransition(async () => {
-          const result = await shipSubscriptionCycleAction(cycleId, formData);
+
+        void shipSubscriptionCycleAction(cycleId, formData).then((result) => {
+          setSubmitting(false);
           if ('error' in result && result.error) {
             setError(result.error);
             return;
@@ -51,7 +53,7 @@ export default function CycleShipForm({
           id={`tracking-${cycleId}`}
           name="tracking_code"
           required
-          disabled={pending}
+          disabled={submitting}
           placeholder="BR123456789BR"
           autoFocus
           className="mt-2 w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 font-mono text-sm text-zinc-100 outline-none focus:border-console/50"
@@ -68,16 +70,16 @@ export default function CycleShipForm({
           id={`carrier-${cycleId}`}
           name="carrier"
           defaultValue={defaultCarrier}
-          disabled={pending}
+          disabled={submitting}
           className="mt-2 w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-console/50"
         />
       </div>
       <button
         type="submit"
-        disabled={pending}
+        disabled={submitting}
         className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded border border-console/30 bg-console/10 px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-console transition hover:bg-console/15 disabled:opacity-50"
       >
-        {pending ? (
+        {submitting ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Salvando…

@@ -243,18 +243,3 @@ export async function syncAsaasSubscriptionPayments(
 
   return false;
 }
-
-export async function reconcilePendingAsaasSubscription(subscription: {
-  status: string;
-  asaas_subscription_id?: string | null;
-}): Promise<void> {
-  if (subscription.status !== 'pending' || !subscription.asaas_subscription_id) {
-    return;
-  }
-
-  try {
-    await syncAsaasSubscriptionPayments(subscription.asaas_subscription_id);
-  } catch (error) {
-    console.error('[asaas] reconcile pending subscription:', error);
-  }
-}

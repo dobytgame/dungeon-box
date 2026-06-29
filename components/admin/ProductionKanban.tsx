@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import {
+  compareCyclesByPurchaseOrder,
   getCycleRollbackTargets,
   PRODUCTION_PIPELINE,
   productionActionLabel,
@@ -16,8 +17,15 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { formatDate } from '@/lib/dashboard/format';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 
+type BoardColumn = keyof ProductionKanbanBoard;
+
+type PendingAction = {
+  cycleId: string;
+  target: CycleStatus;
+};
+
 const KANBAN_COLUMNS = PRODUCTION_PIPELINE.filter(
-  (status): status is keyof ProductionKanbanBoard =>
+  (status): status is BoardColumn =>
     status === 'upcoming' ||
     status === 'production' ||
     status === 'preparing' ||
@@ -25,8 +33,46 @@ const KANBAN_COLUMNS = PRODUCTION_PIPELINE.filter(
     status === 'delivered'
 );
 
+function cloneBoard(board: ProductionKanbanBoard): ProductionKanbanBoard {
+  return {
+    upcoming: [...board.upcoming],
+    production: [...board.production],
+    preparing: [...board.preparing],
+    shipped: [...board.shipped],
+    delivered: [...board.delivered],
+  };
+}
+
+function moveCardInBoard(
+  board: ProductionKanbanBoard,
+  cycleId: string,
+  target: CycleStatus
+): ProductionKanbanBoard | null {
+  if (!KANBAN_COLUMNS.includes(target as BoardColumn)) return null;
+
+  const next = cloneBoard(board);
+  let row: AdminCycleRow | null = null;
+
+  for (const status of KANBAN_COLUMNS) {
+    const index = next[status].findIndex((item) => item.id === cycleId);
+    if (index >= 0) {
+      row = next[status][index];
+      next[status].splice(index, 1);
+      break;
+    }
+  }
+
+  if (!row) return null;
+
+  const updated: AdminCycleRow = { ...row, status: target };
+  const column = target as BoardColumn;
+  next[column].push(updated);
+  next[column].sort(compareCyclesByPurchaseOrder);
+  return next;
+}
+
 const COLUMN_META: Record<
-  keyof ProductionKanbanBoard,
+  BoardColumn,
   { label: string; hint: string }
 > = {
   upcoming: {
@@ -90,19 +136,38 @@ function KanbanCard({
   onAdvance,
   onOpenDetail,
   onOpenShip,
-  pending,
+  pendingAction,
 }: {
   row: AdminCycleRow;
   onAdvance: (cycleId: string, target: CycleStatus) => void;
   onOpenDetail: (row: AdminCycleRow) => void;
   onOpenShip: (row: AdminCycleRow) => void;
-  pending: boolean;
+  pendingAction: PendingAction | null;
 }) {
   const quick = nextQuickAction(row.status);
   const rollbackTargets = getCycleRollbackTargets(row.status);
+  const isCardBusy = pendingAction?.cycleId === row.id;
+
+  function isButtonBusy(target: CycleStatus) {
+    return (
+      pendingAction?.cycleId === row.id && pendingAction.target === target
+    );
+  }
 
   return (
-    <article className="admin-panel rounded border border-zinc-800/80 bg-zinc-950/60 p-3 transition hover:border-zinc-700">
+    <article className="relative admin-panel rounded border border-zinc-800/80 bg-zinc-950/60 p-3 transition hover:border-zinc-700">
+      {isCardBusy ? (
+        <div
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded bg-zinc-950/75 backdrop-blur-[1px]"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <Loader2 className="h-5 w-5 animate-spin text-console" />
+          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-400">
+            Salvando…
+          </span>
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={() => onOpenDetail(row)}
@@ -207,11 +272,13 @@ function KanbanCard({
         ) : quick ? (
           <button
             type="button"
-            disabled={pending}
+            disabled={isCardBusy}
             onClick={() => onAdvance(row.id, quick.target)}
             className="inline-flex min-h-[32px] flex-1 items-center justify-center gap-1.5 rounded border border-zinc-700 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-300 transition hover:border-console/40 hover:text-console disabled:opacity-50"
           >
-            {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {isButtonBusy(quick.target) ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : null}
             {quick.label}
           </button>
         ) : null}
@@ -223,11 +290,13 @@ function KanbanCard({
             <button
               key={rollbackTarget}
               type="button"
-              disabled={pending}
+              disabled={isCardBusy}
               onClick={() => onAdvance(row.id, rollbackTarget)}
               className="inline-flex min-h-[32px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border border-amber-500/25 bg-amber-500/5 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-200/90 transition hover:border-amber-500/40 hover:bg-amber-500/10 disabled:opacity-50"
             >
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              {isButtonBusy(rollbackTarget) ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : null}
               {rollbackLabel}
             </button>
           );
@@ -251,17 +320,30 @@ export default function ProductionKanban({
   onOpenShip,
 }: Props) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [optimisticBoard, setOptimisticBoard] =
+    useState<ProductionKanbanBoard | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [error, setError] = useState('');
 
+  const displayBoard = optimisticBoard ?? board;
+
+  useEffect(() => {
+    setOptimisticBoard(null);
+  }, [board]);
+
   function handleAdvance(cycleId: string, target: CycleStatus) {
-    setActiveId(cycleId);
+    setPendingAction({ cycleId, target });
     setError('');
-    startTransition(async () => {
-      const result = await advanceCycleProductionAction(cycleId, target);
-      setActiveId(null);
+
+    setOptimisticBoard((current) => {
+      const base = current ?? board;
+      return moveCardInBoard(base, cycleId, target) ?? current;
+    });
+
+    void advanceCycleProductionAction(cycleId, target).then((result) => {
+      setPendingAction(null);
       if (result.error) {
+        setOptimisticBoard(null);
         setError(result.error);
         return;
       }
@@ -280,7 +362,7 @@ export default function ProductionKanban({
       <div className="grid gap-4 xl:grid-cols-5">
         {KANBAN_COLUMNS.map((status) => {
           const meta = COLUMN_META[status];
-          const cards = board[status];
+          const cards = displayBoard[status];
 
           return (
             <section
@@ -309,7 +391,7 @@ export default function ProductionKanban({
                     <KanbanCard
                       key={row.id}
                       row={row}
-                      pending={pending && activeId === row.id}
+                      pendingAction={pendingAction}
                       onAdvance={handleAdvance}
                       onOpenDetail={onOpenDetail}
                       onOpenShip={onOpenShip}

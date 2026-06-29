@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
-import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
+import { importAsaasPaymentsForSubscription } from '@/lib/asaas/import-payments';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import {
   normalizePromoCode,
@@ -19,7 +19,14 @@ import {
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
 import { backfillActiveSubscriptionCycles } from '@/lib/subscriptions/cycles';
-import { canTransitionCycle, cycleRollbackFieldClears, isCycleRollbackTransition } from '@/lib/subscriptions/cycle-production';
+import {
+  canTransitionCycle,
+  cycleRollbackFieldClears,
+  cycleTransitionErrorMessage,
+  isCycleReopenTransition,
+  isCycleRollbackTransition,
+  parseCycleStatus,
+} from '@/lib/subscriptions/cycle-production';
 import {
   activatePartnerSubscription,
   clearSubscriptionPartnerFlag,
@@ -28,6 +35,11 @@ import {
 
 function revalidateAdmin() {
   revalidatePath('/admin', 'layout');
+  revalidatePath('/dashboard', 'layout');
+}
+
+function revalidateCycleBoard() {
+  revalidatePath('/admin/ciclos');
   revalidatePath('/dashboard', 'layout');
 }
 
@@ -55,7 +67,8 @@ export async function shipSubscriptionCycleAction(
     return { error: 'Ciclo não encontrado.' };
   }
 
-  if (!canTransitionCycle(cycle.status, 'shipped')) {
+  const currentStatus = parseCycleStatus(cycle.status);
+  if (!currentStatus || !canTransitionCycle(currentStatus, 'shipped')) {
     return {
       error: 'Só é possível enviar ciclos em preparo.',
     };
@@ -85,35 +98,42 @@ export async function shipSubscriptionCycleAction(
     return { error: error.message };
   }
 
+  const postSave: Promise<unknown>[] = [
+    logAdminAction(admin, {
+      actorId: user.id,
+      action: 'cycle.ship',
+      entityType: 'subscription_cycle',
+      entityId: cycleId,
+      metadata: { tracking_code: trackingCode, carrier },
+      ipAddress: await clientIp(),
+    }),
+  ];
+
   if (subscription?.user_id) {
-    const notify = await notifyCycleStatusFromRecord(
-      admin,
-      {
-        cycle_number: cycle.cycle_number,
-        status: 'shipped',
-        tracking_code: trackingCode,
-        carrier,
-        estimated_delivery: cycle.estimated_delivery,
-        themes: cycle.themes,
-        subscriptions: cycle.subscriptions,
-      },
-      { status: 'shipped' }
+    postSave.push(
+      notifyCycleStatusFromRecord(
+        admin,
+        {
+          cycle_number: cycle.cycle_number,
+          status: 'shipped',
+          tracking_code: trackingCode,
+          carrier,
+          estimated_delivery: cycle.estimated_delivery,
+          themes: cycle.themes,
+          subscriptions: cycle.subscriptions,
+        },
+        { status: 'shipped' }
+      ).then((notify) => {
+        if (!notify.sent) {
+          console.warn('[admin] ship email not sent:', notify.reason);
+        }
+      })
     );
-    if (!notify.sent) {
-      console.warn('[admin] ship email not sent:', notify.reason);
-    }
   }
 
-  await logAdminAction(admin, {
-    actorId: user.id,
-    action: 'cycle.ship',
-    entityType: 'subscription_cycle',
-    entityId: cycleId,
-    metadata: { tracking_code: trackingCode, carrier },
-    ipAddress: await clientIp(),
-  });
+  await Promise.all(postSave);
 
-  revalidateAdmin();
+  revalidateCycleBoard();
   return { success: true as const };
 }
 
@@ -122,32 +142,45 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
 
   const { data: subscription } = await admin
     .from('subscriptions')
-    .select('id, asaas_subscription_id')
+    .select(
+      'id, user_id, status, asaas_subscription_id, asaas_customer_id, billing_term, combo_total_cents, combo_installments'
+    )
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (!subscription?.asaas_subscription_id) {
-    return { error: 'Assinatura sem ID Asaas para sincronizar.' };
+  if (!subscription) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  if (!subscription.asaas_subscription_id && !subscription.asaas_customer_id) {
+    return { error: 'Assinatura sem vínculo Asaas para sincronizar.' };
   }
 
   try {
-    const synced = await syncAsaasSubscriptionPayments(
-      subscription.asaas_subscription_id
-    );
+    const result = await importAsaasPaymentsForSubscription(admin, subscription);
 
     await logAdminAction(admin, {
       actorId: user.id,
       action: 'subscription.sync_asaas',
       entityType: 'subscription',
       entityId: subscriptionId,
-      metadata: { synced },
+      metadata: {
+        mode: 'import_only',
+        subscriptionStatus: subscription.status,
+        ...result,
+      },
       ipAddress: await clientIp(),
     });
 
     revalidateAdmin();
+
+    if (result.remoteCount === 0) {
+      return { error: 'Nenhuma cobrança encontrada no Asaas para esta assinatura.' };
+    }
+
     return {
       success: true as const,
-      synced,
+      ...result,
     };
   } catch (error) {
     console.error('[admin] sync asaas:', error);
@@ -184,31 +217,55 @@ export async function advanceCycleProductionAction(
 ) {
   const { user, admin } = await requireAdmin();
 
-  const cycle = await getAdminCycleDetail(admin, cycleId);
-  if (!cycle) {
+  const parsedTarget = parseCycleStatus(targetStatus);
+  if (!parsedTarget) {
+    return { error: 'Status de destino inválido.' };
+  }
+
+  const { data: cycleRow, error: fetchError } = await admin
+    .from('subscription_cycles')
+    .select('id, status')
+    .eq('id', cycleId)
+    .maybeSingle();
+
+  if (fetchError) {
+    return { error: fetchError.message };
+  }
+
+  if (!cycleRow) {
     return { error: 'Ciclo não encontrado.' };
   }
 
-  if (!canTransitionCycle(cycle.status, targetStatus)) {
-    return { error: 'Transição de status não permitida.' };
+  const currentStatus = parseCycleStatus(cycleRow.status);
+  if (!currentStatus) {
+    return {
+      error: `Status atual do ciclo é inválido (${String(cycleRow.status)}).`,
+    };
+  }
+
+  if (!canTransitionCycle(currentStatus, parsedTarget)) {
+    return {
+      error: cycleTransitionErrorMessage(currentStatus, parsedTarget),
+    };
   }
 
   const now = new Date().toISOString();
-  const isRollback = isCycleRollbackTransition(cycle.status, targetStatus);
+  const isRollback = isCycleRollbackTransition(currentStatus, parsedTarget);
+  const isReopen = isCycleReopenTransition(currentStatus, parsedTarget);
   const updates: Record<string, unknown> = {
-    status: targetStatus,
+    status: parsedTarget,
     updated_at: now,
   };
 
-  if (isRollback) {
-    Object.assign(updates, cycleRollbackFieldClears(targetStatus));
+  if (isRollback || isReopen) {
+    Object.assign(updates, cycleRollbackFieldClears(parsedTarget));
   }
 
-  if (targetStatus === 'delivered') {
+  if (parsedTarget === 'delivered') {
     updates.delivered_at = now;
   }
 
-  if (targetStatus === 'cancelled') {
+  if (parsedTarget === 'cancelled') {
     const reason = (formData?.get('cancel_reason') as string)?.trim();
     if (!reason) {
       return { error: 'Informe o motivo do cancelamento.' };
@@ -217,7 +274,7 @@ export async function advanceCycleProductionAction(
     updates.cancel_reason = reason;
   }
 
-  if (targetStatus === 'preparing') {
+  if (parsedTarget === 'preparing') {
     const notes = (formData?.get('production_notes') as string)?.trim();
     if (notes) {
       updates.production_notes = notes;
@@ -250,33 +307,44 @@ export async function advanceCycleProductionAction(
     .eq('id', cycleId)
     .maybeSingle();
 
-  if (refreshed && !isRollback) {
-    const notify = await notifyCycleStatusFromRecord(admin, refreshed, {
-      status: targetStatus,
-    });
-    if (!notify.sent) {
-      console.warn('[admin] cycle status email not sent:', targetStatus, notify.reason);
-    }
+  const postSave: Promise<unknown>[] = [
+    logAdminAction(admin, {
+      actorId: user.id,
+      action: isRollback || isReopen ? 'cycle.rollback' : `cycle.${parsedTarget}`,
+      entityType: 'subscription_cycle',
+      entityId: cycleId,
+      metadata: {
+        from: currentStatus,
+        to: parsedTarget,
+        rollback: isRollback || isReopen,
+        cancel_reason:
+          parsedTarget === 'cancelled'
+            ? (formData?.get('cancel_reason') as string)?.trim()
+            : undefined,
+      },
+      ipAddress: await clientIp(),
+    }),
+  ];
+
+  if (refreshed && !isRollback && !isReopen) {
+    postSave.push(
+      notifyCycleStatusFromRecord(admin, refreshed, {
+        status: parsedTarget,
+      }).then((notify) => {
+        if (!notify.sent) {
+          console.warn(
+            '[admin] cycle status email not sent:',
+            parsedTarget,
+            notify.reason
+          );
+        }
+      })
+    );
   }
 
-  await logAdminAction(admin, {
-    actorId: user.id,
-    action: isRollback ? 'cycle.rollback' : `cycle.${targetStatus}`,
-    entityType: 'subscription_cycle',
-    entityId: cycleId,
-    metadata: {
-      from: cycle.status,
-      to: targetStatus,
-      rollback: isRollback,
-      cancel_reason:
-        targetStatus === 'cancelled'
-          ? (formData?.get('cancel_reason') as string)?.trim()
-          : undefined,
-    },
-    ipAddress: await clientIp(),
-  });
+  await Promise.all(postSave);
 
-  revalidateAdmin();
+  revalidateCycleBoard();
   return { success: true as const };
 }
 
