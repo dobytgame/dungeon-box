@@ -25,6 +25,7 @@ import { trackAddPaymentInfo } from '@/lib/analytics/data-layer';
 import {
   calculateComboTotalCents,
   COMBO_BILLING_ENABLED,
+  comboInterestFreeMaxForCheckout,
   isComboTerm,
 } from '@/lib/checkout/combo-billing';
 import AsaasPaymentForm, {
@@ -77,6 +78,9 @@ export default function StepPayment({
   const comboTotalCents = comboTerm
     ? calculateComboTotalCents(data, comboTerm)
     : 0;
+  const comboInterestFreeMax = comboTerm
+    ? comboInterestFreeMaxForCheckout(data)
+    : 4;
   const stripeSinglePlanOnly = data.planSlugs.length > 1;
 
   const stripeReady =
@@ -322,6 +326,7 @@ export default function StepPayment({
                 setData((prev) => ({ ...prev, installmentCount: count }))
               }
               totalCents={comboTotalCents}
+              interestFreeMax={comboInterestFreeMax}
             />
           </CheckoutSection>
         ) : null}

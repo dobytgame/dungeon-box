@@ -2,6 +2,7 @@ import { Sparkles } from 'lucide-react';
 import { COMBO_BILLING_ENABLED } from '@/lib/checkout/combo-billing';
 import { getSubscriptionComboSummary } from '@/lib/checkout/combo-display';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
+import { relOne } from '@/lib/dashboard/format';
 import type { Subscription } from '@/lib/dashboard/types';
 
 export default function ComboSubscriptionCallout({
@@ -11,7 +12,8 @@ export default function ComboSubscriptionCallout({
 }) {
   if (!COMBO_BILLING_ENABLED) return null;
 
-  const combo = getSubscriptionComboSummary(subscription);
+  const plan = relOne(subscription.plans);
+  const combo = getSubscriptionComboSummary(subscription, plan?.slug ?? null);
   if (!combo) return null;
 
   return (

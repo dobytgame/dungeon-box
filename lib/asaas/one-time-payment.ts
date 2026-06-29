@@ -41,6 +41,8 @@ export type ChargeAsaasPaymentInput = {
   creditCardHolderInfo: AsaasCreditCardHolderInput;
   externalReference?: string;
   installmentCount?: number;
+  /** Parcelas até este limite são enviadas sem juros ao Asaas. */
+  interestFreeMax?: number;
 };
 
 export type CreateAsaasPixPaymentInput = {
@@ -101,6 +103,8 @@ export async function chargeAsaasOneTimePayment(
     throw new Error('Número de parcelas inválido.');
   }
 
+  const interestFreeMax = input.interestFreeMax ?? COMBO_INTEREST_FREE_MAX;
+
   const body: Record<string, unknown> = {
     customer: input.customerId,
     billingType: 'CREDIT_CARD',
@@ -114,7 +118,7 @@ export async function chargeAsaasOneTimePayment(
 
   if (installmentCount === 1) {
     body.value = centsToReais(input.valueCents);
-  } else if (installmentCount <= COMBO_INTEREST_FREE_MAX) {
+  } else if (installmentCount <= interestFreeMax) {
     body.installmentCount = installmentCount;
     body.totalValue = centsToReais(input.valueCents);
   } else {

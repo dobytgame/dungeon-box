@@ -25,7 +25,7 @@ Combo 3 meses: 10% OFF
 Combo 6 meses: 15% OFF
 Combo 12 meses: 1 mês grátis
 
-Parcelamento em até 12x no cartão — até 4x sem juros. Disponível para um plano por vez no checkout.`,
+Parcelamento em até 12x no cartão — até 4x sem juros (Lendário 6/12 meses: até 6x sem juros). Disponível para um plano por vez no checkout.`,
     ctaLabel: 'Ver planos combo',
     ctaHref: '/#planos',
   },

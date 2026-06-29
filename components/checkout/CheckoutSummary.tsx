@@ -7,6 +7,7 @@ import {
   calculateComboTotalCents,
   COMBO_BILLING_ENABLED,
   comboInstallmentLabel,
+  comboInterestFreeMaxForCheckout,
   isComboTerm,
 } from '@/lib/checkout/combo-billing';
 import { resolveBumpBilling, sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
@@ -51,6 +52,9 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
   const comboSavingsCents = comboTerm
     ? calculateComboSavingsCents(data, comboTerm)
     : 0;
+  const comboInterestFreeMax = comboTerm
+    ? comboInterestFreeMaxForCheckout(data)
+    : 4;
   const originalMonthlyTotalCents = data.planSlugs.reduce(
     (sum, slug) => sum + getPlanPriceCents(slug),
     0
@@ -301,7 +305,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
               ) : null}
               {data.installmentCount > 1 ? (
                 <p className="mt-2 text-right text-[11px] text-stone-500">
-                  {comboInstallmentLabel(data.installmentCount)}
+                  {comboInstallmentLabel(data.installmentCount, comboInterestFreeMax)}
                 </p>
               ) : null}
               <p className="mt-2 text-[11px] text-stone-600">
@@ -318,7 +322,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                   {formatBRL(comboTotalCents)}
                   {data.installmentCount > 1 ? (
                     <span className="ml-2 text-sm text-stone-500">
-                      ({comboInstallmentLabel(data.installmentCount)})
+                      ({comboInstallmentLabel(data.installmentCount, comboInterestFreeMax)})
                     </span>
                   ) : null}
                 </p>

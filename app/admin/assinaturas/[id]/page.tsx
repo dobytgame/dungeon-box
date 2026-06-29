@@ -62,7 +62,7 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
         })
       : null;
 
-  const combo = getSubscriptionComboSummary(subscription);
+  const combo = getSubscriptionComboSummary(subscription, plan?.slug ?? null);
   const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
 
   return (

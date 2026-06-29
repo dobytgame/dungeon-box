@@ -41,7 +41,8 @@ export default function ComboPlansPromo() {
           </h2>
           <p className="mt-4 text-base leading-relaxed text-stone-400">
             Pague vários meses de uma vez com desconto. Parcelamento em até 12x
-            no cartão — até 4x sem juros.
+            no cartão — até 4x sem juros (Lendário 6/12 meses: até 6x sem
+            juros).
           </p>
         </div>
 

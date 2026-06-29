@@ -3,6 +3,7 @@ import type { PlanSlug } from '@/lib/checkout/plans';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import {
   calculateComboTotalCents,
+  comboInterestFreeMax,
   isComboTerm,
   prepaidMonthsForTerm,
 } from '@/lib/checkout/combo-billing';
@@ -200,6 +201,7 @@ export async function createAsaasSubscription(
       creditCardHolderInfo: input.creditCardHolderInfo,
       externalReference: `${subscriptionId}:combo`,
       installmentCount: input.installmentCount,
+      interestFreeMax: comboInterestFreeMax(input.planSlug, input.billingTerm),
     });
 
     const renewalStart = prepaidUntil ?? addMonths(now, 1);

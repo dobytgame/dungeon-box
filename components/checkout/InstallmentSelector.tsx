@@ -10,6 +10,7 @@ interface Props {
   value: number;
   onChange: (count: number) => void;
   totalCents: number;
+  interestFreeMax?: number;
 }
 
 function formatBRL(cents: number) {
@@ -19,7 +20,12 @@ function formatBRL(cents: number) {
   });
 }
 
-export default function InstallmentSelector({ value, onChange, totalCents }: Props) {
+export default function InstallmentSelector({
+  value,
+  onChange,
+  totalCents,
+  interestFreeMax = COMBO_INTEREST_FREE_MAX,
+}: Props) {
   const options = Array.from({ length: COMBO_MAX_INSTALLMENTS }, (_, i) => i + 1);
 
   return (
@@ -32,9 +38,9 @@ export default function InstallmentSelector({ value, onChange, totalCents }: Pro
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
         {options.map((count) => {
           const selected = value === count;
-          const interestFree = count <= COMBO_INTEREST_FREE_MAX;
+          const interestFree = count <= interestFreeMax;
           const installmentCents =
-            count <= COMBO_INTEREST_FREE_MAX
+            count <= interestFreeMax
               ? Math.round(totalCents / count)
               : null;
 
@@ -50,7 +56,7 @@ export default function InstallmentSelector({ value, onChange, totalCents }: Pro
               }`}
             >
               <p className="font-display text-xs uppercase tracking-widest text-white">
-                {comboInstallmentLabel(count)}
+                {comboInstallmentLabel(count, interestFreeMax)}
               </p>
               {installmentCents ? (
                 <p className="mt-1 text-[11px] text-stone-500">
@@ -67,8 +73,8 @@ export default function InstallmentSelector({ value, onChange, totalCents }: Pro
       </div>
 
       <p className="text-[11px] leading-relaxed text-stone-600">
-        Até {COMBO_INTEREST_FREE_MAX}x sem juros. Acima disso, os juros são
-        calculados pela operadora do cartão no momento da cobrança.
+        Até {interestFreeMax}x sem juros. Acima disso, os juros são calculados
+        pela operadora do cartão no momento da cobrança.
       </p>
     </div>
   );

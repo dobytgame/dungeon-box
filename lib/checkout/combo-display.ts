@@ -1,7 +1,9 @@
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import {
+  COMBO_INTEREST_FREE_MAX,
   COMBO_OPTIONS,
   comboInstallmentLabel,
+  comboInterestFreeMax,
   isComboTerm,
 } from '@/lib/checkout/combo-billing';
 
@@ -62,7 +64,8 @@ export type SubscriptionComboSummary = {
 };
 
 export function getSubscriptionComboSummary(
-  subscription: SubscriptionComboFields
+  subscription: SubscriptionComboFields,
+  planSlug?: string | null
 ): SubscriptionComboSummary | null {
   const term = (subscription.billing_term ?? 'monthly') as BillingTerm;
   if (!isComboTerm(term)) return null;
@@ -72,6 +75,9 @@ export function getSubscriptionComboSummary(
     Boolean(prepaidUntil) && new Date(prepaidUntil!) > new Date();
 
   const installmentCount = subscription.combo_installments ?? 1;
+  const interestFreeMax = planSlug
+    ? comboInterestFreeMax(planSlug, term)
+    : undefined;
 
   return {
     isCombo: true,
@@ -81,7 +87,12 @@ export function getSubscriptionComboSummary(
     prepaidMonths: subscription.prepaid_months ?? null,
     comboTotalCents: subscription.combo_total_cents ?? null,
     installmentLabel:
-      installmentCount > 1 ? comboInstallmentLabel(installmentCount) : null,
+      installmentCount > 1
+        ? comboInstallmentLabel(
+            installmentCount,
+            interestFreeMax ?? COMBO_INTEREST_FREE_MAX
+          )
+        : null,
     nextBillingLabel: isPrepaidActive
       ? 'Renovação mensal após o combo'
       : 'Cobrança mensal',

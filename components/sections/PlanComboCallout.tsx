@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Sparkles } from 'lucide-react';
-import { COMBO_OPTIONS } from '@/lib/checkout/combo-billing';
+import { COMBO_OPTIONS, comboInstallmentPromoLine } from '@/lib/checkout/combo-billing';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { getComboTermBadge } from '@/lib/checkout/combo-display';
 
@@ -12,7 +12,7 @@ export default function PlanComboCallout({ planId }: { planId: PlanSlug }) {
         Pacotes combo
       </p>
       <p className="mt-1.5 text-xs leading-relaxed text-stone-400">
-        Antecipe meses com desconto e parcele em até 12x no cartão.
+        {comboInstallmentPromoLine(planId)}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {COMBO_OPTIONS.map((option) => (

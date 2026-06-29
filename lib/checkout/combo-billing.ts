@@ -1,4 +1,5 @@
 import type { CheckoutData } from '@/lib/checkout/types';
+import type { PlanSlug } from '@/lib/checkout/plans';
 import { sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import { resolveBumpBilling } from '@/lib/checkout/bump-billing';
 
@@ -8,8 +9,45 @@ export const COMBO_BILLING_ENABLED = true;
 export const BILLING_TERMS = ['monthly', 'combo_3', 'combo_6', 'combo_12'] as const;
 export type BillingTerm = (typeof BILLING_TERMS)[number];
 
+/** Padrão: combos de 3/6/12 meses (Aventureiro e Herói, e Lendário 3 meses). */
 export const COMBO_INTEREST_FREE_MAX = 4;
+
+/** Lendário nos combos de 6 ou 12 meses. */
+export const COMBO_INTEREST_FREE_MAX_LENDARIO_LONG = 6;
+
 export const COMBO_MAX_INSTALLMENTS = 12;
+
+export function isLendarioLongCombo(
+  planSlug: string,
+  billingTerm: BillingTerm
+): boolean {
+  return (
+    planSlug === 'lendario' &&
+    (billingTerm === 'combo_6' || billingTerm === 'combo_12')
+  );
+}
+
+export function comboInterestFreeMax(
+  planSlug: string,
+  billingTerm: BillingTerm
+): number {
+  if (isLendarioLongCombo(planSlug, billingTerm)) {
+    return COMBO_INTEREST_FREE_MAX_LENDARIO_LONG;
+  }
+  return COMBO_INTEREST_FREE_MAX;
+}
+
+export function comboInterestFreeMaxForCheckout(data: CheckoutData): number {
+  const planSlug = data.planSlugs[0] ?? 'heroi';
+  return comboInterestFreeMax(planSlug, data.billingTerm);
+}
+
+export function comboInstallmentPromoLine(planSlug: PlanSlug): string {
+  if (planSlug === 'lendario') {
+    return 'Parcelamento em até 12x no cartão — até 6x sem juros nos combos de 6 e 12 meses.';
+  }
+  return 'Parcelamento em até 12x no cartão — até 4x sem juros.';
+}
 
 export const COMBO_OPTIONS: Array<{
   term: Exclude<BillingTerm, 'monthly'>;
@@ -97,9 +135,12 @@ export function calculateComboSavingsCents(
   return Math.max(0, fullPrice - calculateComboTotalCents(data, term));
 }
 
-export function comboInstallmentLabel(count: number): string {
+export function comboInstallmentLabel(
+  count: number,
+  interestFreeMax: number = COMBO_INTEREST_FREE_MAX
+): string {
   if (count <= 1) return 'À vista';
-  if (count <= COMBO_INTEREST_FREE_MAX) {
+  if (count <= interestFreeMax) {
     return `${count}x sem juros`;
   }
   return `${count}x com juros`;
