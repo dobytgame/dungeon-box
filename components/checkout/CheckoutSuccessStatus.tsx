@@ -13,6 +13,10 @@ import {
   buildPurchaseEcommerceFromSubscriptions,
   parseSubscriptionPurchaseDetail,
 } from '@/lib/analytics/purchase-details';
+import {
+  hasTrackedSubscriptionPurchase,
+  markSubscriptionPurchaseTracked,
+} from '@/lib/analytics/subscription-purchase';
 import Logo from '@/components/ui/Logo';
 
 type CheckoutState = 'loading' | 'active' | 'pending' | 'failed' | 'invalid';
@@ -54,7 +58,6 @@ export default function CheckoutSuccessStatus() {
     []
   );
   const purchaseTracked = useRef(false);
-  const metaPurchaseTracked = useRef(false);
 
   useEffect(() => {
     if (subscriptionIds.length === 0) return;
@@ -133,6 +136,11 @@ export default function CheckoutSuccessStatus() {
       return;
     }
 
+    if (hasTrackedSubscriptionPurchase(subscriptionIds)) {
+      purchaseTracked.current = true;
+      return;
+    }
+
     const details = subscriptionRows.map((row) =>
       parseSubscriptionPurchaseDetail({
         id: row.id,
@@ -147,31 +155,20 @@ export default function CheckoutSuccessStatus() {
     );
 
     const { value, items } = buildPurchaseEcommerceFromSubscriptions(details);
-    if (items.length === 0) return;
+    const metaPurchase = buildMetaPurchaseFromSubscriptions(subscriptionRows);
+    if (items.length === 0 || !metaPurchase) return;
 
     purchaseTracked.current = true;
+    markSubscriptionPurchaseTracked(subscriptionIds);
+
     trackPurchase({
       transactionId: subscriptionIds.join(','),
       value,
       items,
     });
-  }, [state, subscriptionIds, subscriptionRows]);
 
-  useEffect(() => {
-    if (
-      state !== 'active' ||
-      metaPurchaseTracked.current ||
-      subscriptionRows.length === 0
-    ) {
-      return;
-    }
-
-    const metaPurchase = buildMetaPurchaseFromSubscriptions(subscriptionRows);
-    if (!metaPurchase) return;
-
-    metaPurchaseTracked.current = true;
     trackMetaPurchase(metaPurchase);
-  }, [state, subscriptionRows]);
+  }, [state, subscriptionIds, subscriptionRows]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">

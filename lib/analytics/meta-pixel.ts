@@ -1,12 +1,21 @@
-export function trackMetaPurchase(input: {
+import {
+  buildPurchaseEcommerceFromSubscriptions,
+  parseSubscriptionPurchaseDetail,
+  type SubscriptionPurchaseDetail,
+} from '@/lib/analytics/purchase-details';
+
+export type MetaPurchasePayload = {
   value: number;
   contentName: string;
-}): void {
+  contentIds: string[];
+};
+
+export function trackMetaPurchase(input: MetaPurchasePayload): void {
   if (typeof window === 'undefined' || typeof window.fbq !== 'function') {
     return;
   }
 
-  if (input.value <= 0 || !input.contentName.trim()) {
+  if (input.value <= 0 || !input.contentName.trim() || input.contentIds.length === 0) {
     return;
   }
 
@@ -15,28 +24,57 @@ export function trackMetaPurchase(input: {
     currency: 'BRL',
     content_name: input.contentName.trim(),
     content_type: 'product',
+    content_ids: input.contentIds,
   });
+}
+
+export function buildMetaPurchaseFromSubscriptionDetails(
+  details: SubscriptionPurchaseDetail[]
+): MetaPurchasePayload | null {
+  const { value, items } = buildPurchaseEcommerceFromSubscriptions(details);
+  if (items.length === 0 || value <= 0) return null;
+
+  const planSlugs = details
+    .map((detail) => detail.planSlug)
+    .filter((slug): slug is string => Boolean(slug));
+
+  const contentIds =
+    planSlugs.length > 0 ? planSlugs : items.map((item) => String(item.item_id));
+
+  const contentName =
+    planSlugs.length === 1
+      ? planSlugs[0]!
+      : planSlugs.length > 1
+        ? planSlugs.join(', ')
+        : items.map((item) => item.item_name).join(', ');
+
+  return { value, contentName, contentIds };
 }
 
 export function buildMetaPurchaseFromSubscriptions(
   subscriptions: Array<{
+    id: string;
+    status: string;
+    planSlug: string | null;
     planName: string | null;
     priceCents: number | null;
+    shippingCents?: number | null;
+    specialNotes?: string | null;
+    paidAmountCents?: number | null;
   }>
-): { value: number; contentName: string } | null {
-  const rows = subscriptions.filter(
-    (row) => row.planName && row.priceCents != null && row.priceCents > 0
+): MetaPurchasePayload | null {
+  const details = subscriptions.map((row) =>
+    parseSubscriptionPurchaseDetail({
+      id: row.id,
+      status: row.status,
+      planSlug: row.planSlug,
+      planName: row.planName,
+      planPriceCents: row.priceCents,
+      shippingCents: row.shippingCents,
+      specialNotes: row.specialNotes,
+      paidAmountCents: row.paidAmountCents,
+    })
   );
 
-  if (rows.length === 0) return null;
-
-  const value =
-    rows.reduce((sum, row) => sum + (row.priceCents ?? 0), 0) / 100;
-
-  const contentName =
-    rows.length === 1
-      ? rows[0]!.planName!
-      : rows.map((row) => row.planName!).join(', ');
-
-  return { value, contentName };
+  return buildMetaPurchaseFromSubscriptionDetails(details);
 }

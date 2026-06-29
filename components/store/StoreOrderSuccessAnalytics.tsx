@@ -28,6 +28,7 @@ function trackStoreOrderPurchase(order: StoreOrderPurchaseAnalytics): void {
   trackMetaPurchase({
     value: order.value,
     contentName: order.contentName,
+    contentIds: order.items.map((item) => String(item.item_id)),
   });
 
   markStorePurchaseTracked(order.transactionId);

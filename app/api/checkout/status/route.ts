@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
 import { reconcilePendingSubscription } from '@/lib/subscriptions/reconcile-pending';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -67,7 +70,9 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const { data: refreshed, error: refreshError } = await admin
     .from('subscriptions')
-    .select('id, status, plan_id, user_id, shipping_cents, special_notes')
+    .select(
+      'id, status, plan_id, user_id, shipping_cents, special_notes, billing_term, combo_total_cents, combo_installments'
+    )
     .eq('user_id', user.id)
     .in('id', ids);
 
@@ -91,7 +96,9 @@ export async function GET(request: Request) {
         }),
     admin
       .from('payments')
-      .select('subscription_id, amount_cents, status, paid_at')
+      .select(
+        'subscription_id, amount_cents, status, paid_at, status_detail, installments'
+      )
       .in('subscription_id', ids)
       .eq('status', 'approved')
       .order('paid_at', { ascending: true }),
@@ -99,12 +106,32 @@ export async function GET(request: Request) {
 
   const planById = new Map((planRows ?? []).map((plan) => [plan.id, plan]));
 
+  const subscriptionById = new Map(rows.map((row) => [row.id, row]));
+
   const paidBySubscription = new Map<string, number>();
   for (const payment of paymentRows ?? []) {
     if (!payment.subscription_id || paidBySubscription.has(payment.subscription_id)) {
       continue;
     }
-    paidBySubscription.set(payment.subscription_id, payment.amount_cents ?? 0);
+
+    const subscription = subscriptionById.get(payment.subscription_id);
+    paidBySubscription.set(
+      payment.subscription_id,
+      resolveEffectivePaymentAmountCents(
+        {
+          amount_cents: payment.amount_cents ?? 0,
+          status_detail: payment.status_detail as string | null,
+          installments: payment.installments as number | null,
+        },
+        subscription
+          ? {
+              billing_term: subscription.billing_term as string | null,
+              combo_total_cents: subscription.combo_total_cents as number | null,
+              combo_installments: subscription.combo_installments as number | null,
+            }
+          : null
+      )
+    );
   }
 
   const statuses = rows.map((row) => row.status);
@@ -127,6 +154,19 @@ export async function GET(request: Request) {
     state,
     subscriptions: rows.map((row) => {
       const plan = row.plan_id ? planById.get(row.plan_id) : undefined;
+      const billingTerm = (row.billing_term ?? 'monthly') as BillingTerm;
+      const comboTotalCents = row.combo_total_cents as number | null;
+      let paidAmountCents = paidBySubscription.get(row.id) ?? null;
+
+      if (
+        paidAmountCents == null &&
+        isComboTerm(billingTerm) &&
+        comboTotalCents != null &&
+        comboTotalCents > 0
+      ) {
+        paidAmountCents = comboTotalCents;
+      }
+
       return {
         id: row.id,
         status: row.status,
@@ -135,7 +175,7 @@ export async function GET(request: Request) {
         priceCents: plan?.price_cents ?? null,
         shippingCents: row.shipping_cents ?? null,
         specialNotes: row.special_notes ?? null,
-        paidAmountCents: paidBySubscription.get(row.id) ?? null,
+        paidAmountCents,
       };
     }),
   });
