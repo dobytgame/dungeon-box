@@ -3,8 +3,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 import {
   REFERRAL_COOKIE_MAX_AGE_SECONDS,
   REFERRAL_COOKIE_NAME,
+  REFERRAL_VISIT_COUNTED_COOKIE_NAME,
   normalizeReferralCode,
 } from '@/lib/referral/cookie';
+import { recordReferralLinkVisit } from '@/lib/referral/visits';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+function shouldTrackReferralVisit(pathname: string): boolean {
+  if (pathname.startsWith('/api/')) return false;
+  if (pathname.startsWith('/_next/')) return false;
+  if (/\.[a-z0-9]+$/i.test(pathname)) return false;
+  return true;
+}
 
 function applyReferralCookie(request: NextRequest, response: NextResponse) {
   const refParam = request.nextUrl.searchParams.get('ref');
@@ -19,6 +29,54 @@ function applyReferralCookie(request: NextRequest, response: NextResponse) {
   });
 
   return response;
+}
+
+async function trackReferralVisitIfNeeded(
+  request: NextRequest,
+  response: NextResponse,
+  visitorUserId: string | null
+) {
+  const refParam = request.nextUrl.searchParams.get('ref');
+  const code = normalizeReferralCode(refParam);
+  if (!code || !shouldTrackReferralVisit(request.nextUrl.pathname)) {
+    return response;
+  }
+
+  const alreadyCounted =
+    request.cookies.get(REFERRAL_VISIT_COUNTED_COOKIE_NAME)?.value === code;
+  if (alreadyCounted) return response;
+
+  try {
+    const admin = createAdminClient();
+    const result = await recordReferralLinkVisit(admin, code, {
+      visitorUserId,
+    });
+
+    if (result === 'recorded') {
+      response.cookies.set(REFERRAL_VISIT_COUNTED_COOKIE_NAME, code, {
+        maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS,
+        path: '/',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      });
+    }
+  } catch (error) {
+    console.error('[referral] visit tracking failed:', error);
+  }
+
+  return response;
+}
+
+async function finalizeReferralResponse(
+  request: NextRequest,
+  response: NextResponse,
+  visitorUserId: string | null
+) {
+  return trackReferralVisitIfNeeded(
+    request,
+    applyReferralCookie(request, response),
+    visitorUserId
+  );
 }
 
 export async function updateSession(request: NextRequest) {
@@ -60,7 +118,11 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/auth';
     redirectUrl.searchParams.set('next', pathname + request.nextUrl.search);
-    return NextResponse.redirect(redirectUrl);
+    return finalizeReferralResponse(
+      request,
+      NextResponse.redirect(redirectUrl),
+      null
+    );
   }
 
   if (pathname.startsWith('/admin') && user) {
@@ -73,7 +135,11 @@ export async function updateSession(request: NextRequest) {
     if (!profile?.is_admin) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = '/';
-      return NextResponse.redirect(redirectUrl);
+      return finalizeReferralResponse(
+        request,
+        NextResponse.redirect(redirectUrl),
+        user.id
+      );
     }
   }
 
@@ -82,8 +148,12 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = next.startsWith('/') ? next : '/dashboard';
     redirectUrl.search = '';
-    return applyReferralCookie(request, NextResponse.redirect(redirectUrl));
+    return finalizeReferralResponse(
+      request,
+      NextResponse.redirect(redirectUrl),
+      user.id
+    );
   }
 
-  return applyReferralCookie(request, supabaseResponse);
+  return finalizeReferralResponse(request, supabaseResponse, user?.id ?? null);
 }

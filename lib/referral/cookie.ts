@@ -1,5 +1,6 @@
 export const REFERRAL_COOKIE_NAME = 'db_ref';
 export const REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+export const REFERRAL_VISIT_COUNTED_COOKIE_NAME = 'db_ref_counted';
 
 export function normalizeReferralCode(raw: string | null | undefined): string | null {
   if (!raw?.trim()) return null;

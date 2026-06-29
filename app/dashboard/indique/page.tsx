@@ -38,7 +38,11 @@ export default async function ReferralPage() {
     <div className="space-y-8 md:space-y-10">
       <ReferralSubNav />
       <DashboardCard title="Seu link de indicação" accent="gold">
-        <ReferralLinkCard code={data.code} link={data.link} />
+        <ReferralLinkCard
+          code={data.code}
+          link={data.link}
+          totalVisits={data.totalVisits}
+        />
       </DashboardCard>
 
       <DashboardCard title="Meus pontos" accent="frost">

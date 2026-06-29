@@ -3,6 +3,7 @@ import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import PartnerBadge from '@/components/admin/PartnerBadge';
+import ReferralAttributionBadge from '@/components/admin/ReferralAttributionBadge';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminCustomers } from '@/lib/admin/queries';
@@ -60,6 +61,19 @@ export default async function AdminCustomersPage({ searchParams }: Props) {
             cell: (row) =>
               row.latestStatus ? (
                 <StatusBadge kind="subscription" status={row.latestStatus} />
+              ) : (
+                '—'
+              ),
+          },
+          {
+            key: 'referral',
+            header: 'Link parceiro',
+            cell: (row) =>
+              row.referralAttribution ? (
+                <ReferralAttributionBadge
+                  attribution={row.referralAttribution}
+                  compact
+                />
               ) : (
                 '—'
               ),

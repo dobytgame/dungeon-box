@@ -29,6 +29,10 @@ import type {
   AdminUserPlanStats,
 } from './types';
 import {
+  getAdminPartnerReferralStats,
+  loadReferralAttributionByReferredIds,
+} from '@/lib/admin/referral-attribution';
+import {
   resolveEffectivePaymentAmountCents,
   resolvePaymentInstallments,
 } from '@/lib/payments/effective-amount';
@@ -279,6 +283,7 @@ export async function getAdminDashboardStats(
     shipQueueRes,
     userPlanStats,
     activePlanCounts,
+    partnerReferralStats,
   ] = await Promise.all([
     admin.from('mrr').select('*'),
     admin
@@ -364,6 +369,7 @@ export async function getAdminDashboardStats(
       .limit(10),
     getAdminUserPlanStats(admin),
     getAdminActivePlanCounts(admin),
+    getAdminPartnerReferralStats(admin),
   ]);
 
   const mrrRows = mrrRes.data ?? [];
@@ -412,6 +418,7 @@ export async function getAdminDashboardStats(
       mapCycleRow(row as Record<string, unknown>)
     ),
     userPlanStats,
+    partnerReferralStats,
   };
 }
 
@@ -437,10 +444,14 @@ export async function listAdminCustomers(
   if (!profiles?.length) return [];
 
   const ids = profiles.map((p) => p.id);
-  const { data: subscriptions } = await admin
-    .from('subscriptions')
-    .select('user_id, status, is_partner, billing_term')
-    .in('user_id', ids);
+  const [subscriptionsRes, referralByUserId] = await Promise.all([
+    admin
+      .from('subscriptions')
+      .select('user_id, status, is_partner, billing_term')
+      .in('user_id', ids),
+    loadReferralAttributionByReferredIds(admin, ids),
+  ]);
+  const subscriptions = subscriptionsRes.data;
 
   const COMBO_TERMS = new Set(['combo_3', 'combo_6', 'combo_12']);
 
@@ -479,6 +490,7 @@ export async function listAdminCustomers(
       latestStatus,
       isPartner,
       comboTerms,
+      referralAttribution: referralByUserId.get(profile.id) ?? null,
     };
   });
 }
@@ -580,15 +592,20 @@ export async function getAdminCustomerDetail(
   const subscriptions = (subscriptionsRes.data ?? []) as Subscription[];
   const subIds = subscriptions.map((sub) => sub.id);
 
-  let cycles: SubscriptionCycle[] = [];
-  if (subIds.length > 0) {
-    const { data } = await admin
-      .from('subscription_cycles')
-      .select('*, themes(*)')
-      .in('subscription_id', subIds)
-      .order('cycle_number', { ascending: false });
-    cycles = (data ?? []) as SubscriptionCycle[];
-  }
+  const [cyclesRes, referralAttribution] = await Promise.all([
+    subIds.length > 0
+      ? admin
+          .from('subscription_cycles')
+          .select('*, themes(*)')
+          .in('subscription_id', subIds)
+          .order('cycle_number', { ascending: false })
+      : Promise.resolve({ data: [] as SubscriptionCycle[] }),
+    loadReferralAttributionByReferredIds(admin, [userId]).then(
+      (map) => map.get(userId) ?? null
+    ),
+  ]);
+
+  const cycles = (cyclesRes.data ?? []) as SubscriptionCycle[];
 
   return {
     profile: profile as AdminCustomerDetail['profile'],
@@ -596,6 +613,7 @@ export async function getAdminCustomerDetail(
     subscriptions,
     payments: (paymentsRes.data ?? []) as Payment[],
     cycles,
+    referralAttribution,
   };
 }
 

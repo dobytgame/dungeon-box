@@ -9,6 +9,7 @@ import {
 import { getReferralHistory } from '@/lib/referral/referrals';
 import { getRedemptionHistory } from '@/lib/referral/redemptions';
 import { userHasActiveReferralAccess } from '@/lib/referral/access';
+import { getReferralVisitCount } from '@/lib/referral/visits';
 
 export async function getReferralDashboardData(
   supabase: SupabaseClient,
@@ -21,11 +22,13 @@ export async function getReferralDashboardData(
 
   const admin = createAdminClient();
   const code = await getOrCreateReferralCode(admin, userId);
-  const [balance, expiringSoon, referrals, redemptions] = await Promise.all([
+  const [balance, expiringSoon, referrals, redemptions, totalVisits] =
+    await Promise.all([
     getPointsBalance(admin, userId),
     getExpiringSoonPoints(admin, userId),
     getReferralHistory(admin, userId),
     getRedemptionHistory(admin, userId),
+    getReferralVisitCount(admin, userId),
   ]);
 
   return {
@@ -34,6 +37,7 @@ export async function getReferralDashboardData(
     link: buildReferralLink(code),
     balance,
     expiringSoon,
+    totalVisits,
     referrals,
     redemptions,
   };

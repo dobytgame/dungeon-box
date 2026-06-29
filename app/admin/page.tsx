@@ -56,6 +56,89 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
+      <AdminSection title="Indicações por link parceiro">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard
+            label="Visitas nos links"
+            value={String(stats.partnerReferralStats.totalLinkVisits)}
+            hint="Acessos com ?ref="
+            accent="console"
+          />
+          <KpiCard
+            label="Clientes indicados"
+            value={String(stats.partnerReferralStats.totalAttributedCustomers)}
+            hint={`${stats.partnerReferralStats.activeReferrers} parceiros ativos`}
+          />
+          <KpiCard
+            label="Qualificados"
+            value={String(stats.partnerReferralStats.qualifiedCustomers)}
+            hint="Indicações convertidas"
+            accent="gold"
+          />
+          <KpiCard
+            label="Pendentes"
+            value={String(stats.partnerReferralStats.pendingCustomers)}
+            hint="Aguardando qualificação"
+            accent="warn"
+          />
+          <KpiCard
+            label="Parceiros"
+            value={String(stats.partnerReferralStats.activeReferrers)}
+            hint="Com pelo menos 1 indicação"
+          />
+        </section>
+
+        <div className="mt-6">
+          <AdminTable
+            rows={stats.partnerReferralStats.topReferrers.map((row) => ({
+              ...row,
+              id: row.userId,
+            }))}
+            getRowHref={(row) => `/admin/clientes/${row.userId}`}
+            columns={[
+              {
+                key: 'name',
+                header: 'Parceiro',
+                cell: (row) => (
+                  <div>
+                    <p>{row.name ?? '—'}</p>
+                    <p className="font-mono text-[11px] text-zinc-600">{row.email}</p>
+                  </div>
+                ),
+              },
+              {
+                key: 'code',
+                header: 'Código',
+                cell: (row) => (
+                  <span className="font-mono text-xs text-console">{row.code}</span>
+                ),
+              },
+              {
+                key: 'visits',
+                header: 'Visitas',
+                cell: (row) => String(row.totalVisits),
+              },
+              {
+                key: 'total',
+                header: 'Clientes',
+                cell: (row) => String(row.totalReferrals),
+              },
+              {
+                key: 'qualified',
+                header: 'Qualificados',
+                cell: (row) => String(row.qualifiedCount),
+              },
+              {
+                key: 'pending',
+                header: 'Pendentes',
+                cell: (row) => String(row.pendingCount),
+              },
+            ]}
+            emptyMessage="Nenhuma indicação registrada ainda."
+          />
+        </div>
+      </AdminSection>
+
       <AdminSection
         title="Base de usuários"
         action={{ href: '/admin/marketing', label: 'Enviar campanha' }}

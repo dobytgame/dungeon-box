@@ -31,7 +31,7 @@ function RankBadge({ rank, large }: { rank: ReferralRank; large?: boolean }) {
 }
 
 export default function ReferralScoreboard({ stats }: Props) {
-  const { rank, balance, lifetimeEarned, totalConversions, pendingReferrals, monthlyQualified } =
+  const { rank, balance, lifetimeEarned, totalVisits, totalConversions, pendingReferrals, monthlyQualified } =
     stats;
 
   return (
@@ -58,9 +58,10 @@ export default function ReferralScoreboard({ stats }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
             <StatPill label="Saldo" value={`${balance}`} suffix="pts" accent="gold" />
             <StatPill label="Ganhos" value={`${lifetimeEarned}`} suffix="pts" />
+            <StatPill label="Visitas" value={`${totalVisits}`} />
             <StatPill label="Conversões" value={`${totalConversions}`} />
             <StatPill label="Este mês" value={`${monthlyQualified}`} suffix="/5" />
           </div>

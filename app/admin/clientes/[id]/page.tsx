@@ -4,6 +4,7 @@ import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CustomerPartnerPanel from '@/components/admin/CustomerPartnerPanel';
 import PartnerBadge from '@/components/admin/PartnerBadge';
+import ReferralAttributionBadge from '@/components/admin/ReferralAttributionBadge';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
@@ -52,7 +53,8 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
     }
   }
 
-  const { profile, addresses, subscriptions, payments, cycles } = detail;
+  const { profile, addresses, subscriptions, payments, cycles, referralAttribution } =
+    detail;
   const name = profile.full_name ?? profile.display_name ?? profile.email;
   const isPartner = subscriptions.some(
     (sub) => sub.is_partner && sub.status === 'active'
@@ -101,6 +103,17 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
           <DataRow label="Cadastro" value={formatDate(profile.created_at)} />
         </dl>
       </section>
+
+      {referralAttribution ? (
+        <section>
+          <h3 className="font-display text-sm uppercase tracking-widest text-stone-400">
+            Indicação
+          </h3>
+          <div className="mt-4">
+            <ReferralAttributionBadge attribution={referralAttribution} />
+          </div>
+        </section>
+      ) : null}
 
       <CustomerPartnerPanel
         userId={profile.id}

@@ -22,6 +22,7 @@ export type ScoreboardStats = {
   balance: number;
   lifetimeEarned: number;
   lifetimeSpent: number;
+  totalVisits: number;
   totalReferrals: number;
   totalConversions: number;
   pendingReferrals: number;
@@ -75,7 +76,7 @@ export async function getReferralScoreboard(
       .eq('user_id', userId),
     supabase
       .from('referral_codes')
-      .select('total_referrals, total_conversions')
+      .select('total_referrals, total_conversions, total_visits')
       .eq('user_id', userId)
       .maybeSingle(),
     supabase
@@ -103,6 +104,7 @@ export async function getReferralScoreboard(
 
   const totalConversions = codeRes.data?.total_conversions ?? 0;
   const totalReferrals = codeRes.data?.total_referrals ?? referrals.length;
+  const totalVisits = codeRes.data?.total_visits ?? 0;
   const pendingReferrals = referrals.filter((r) => r.status === 'pending').length;
 
   const monthStart = new Date();
@@ -179,6 +181,7 @@ export async function getReferralScoreboard(
     balance,
     lifetimeEarned,
     lifetimeSpent,
+    totalVisits,
     totalReferrals,
     totalConversions,
     pendingReferrals,

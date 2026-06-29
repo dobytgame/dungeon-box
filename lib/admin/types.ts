@@ -16,6 +16,36 @@ export interface AdminActivePlanCount {
   subscribers: number;
 }
 
+export interface AdminCustomerReferralAttribution {
+  referrerId: string;
+  referrerName: string | null;
+  referrerEmail: string | null;
+  referralCode: string | null;
+  status: string;
+  createdAt: string | null;
+}
+
+export interface AdminReferrerLeaderboardRow {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  code: string;
+  totalVisits: number;
+  totalReferrals: number;
+  totalConversions: number;
+  pendingCount: number;
+  qualifiedCount: number;
+}
+
+export interface AdminPartnerReferralStats {
+  totalAttributedCustomers: number;
+  qualifiedCustomers: number;
+  pendingCustomers: number;
+  totalLinkVisits: number;
+  activeReferrers: number;
+  topReferrers: AdminReferrerLeaderboardRow[];
+}
+
 export interface AdminDashboardStats {
   mrrCents: number;
   activeSubscribers: number;
@@ -32,6 +62,7 @@ export interface AdminDashboardStats {
   recentPayments: AdminPaymentRow[];
   shipQueue: AdminCycleRow[];
   userPlanStats: AdminUserPlanStats;
+  partnerReferralStats: AdminPartnerReferralStats;
 }
 
 export interface AdminUserPlanStats {
@@ -78,6 +109,7 @@ export interface AdminCustomerRow {
   latestStatus: SubscriptionStatus | null;
   isPartner: boolean;
   comboTerms: Array<'combo_3' | 'combo_6' | 'combo_12'>;
+  referralAttribution: AdminCustomerReferralAttribution | null;
 }
 
 export interface AdminPartnerRow {
@@ -166,6 +198,7 @@ export interface AdminCustomerDetail {
   subscriptions: Subscription[];
   payments: Payment[];
   cycles: SubscriptionCycle[];
+  referralAttribution: AdminCustomerReferralAttribution | null;
 }
 
 export type AdminListFilters = {

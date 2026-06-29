@@ -6,9 +6,10 @@ import { useState } from 'react';
 interface Props {
   code: string;
   link: string;
+  totalVisits?: number;
 }
 
-export default function ReferralLinkCard({ code, link }: Props) {
+export default function ReferralLinkCard({ code, link, totalVisits }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -35,6 +36,12 @@ export default function ReferralLinkCard({ code, link }: Props) {
         <p className="mt-1 font-display text-2xl tracking-widest text-gold">
           {code}
         </p>
+        {totalVisits != null ? (
+          <p className="mt-3 text-sm text-stone-400">
+            <span className="font-mono text-white">{totalVisits}</span> visita
+            {totalVisits === 1 ? '' : 's'} no seu link
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
