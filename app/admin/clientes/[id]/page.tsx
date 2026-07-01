@@ -44,9 +44,17 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
   );
 
   if (pendingAsaas.length > 0) {
-    await reconcilePendingAsaasSubscriptions(admin, pendingAsaas, {
-      limit: pendingAsaas.length,
-    });
+    await reconcilePendingAsaasSubscriptions(
+      admin,
+      pendingAsaas.map((sub) => ({
+        id: sub.id,
+        user_id: sub.user_id,
+        status: sub.status,
+        asaas_subscription_id: sub.asaas_subscription_id,
+        asaas_customer_id: sub.asaas_customer_id,
+        billing_term: sub.billing_term,
+      }))
+    );
     const refreshed = await getAdminCustomerDetail(admin, id);
     if (refreshed) {
       Object.assign(detail, refreshed);

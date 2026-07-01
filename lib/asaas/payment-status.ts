@@ -3,6 +3,7 @@ const CONFIRMED_STATUSES = new Set([
   'RECEIVED',
   'RECEIVED_IN_CASH',
   'AUTHORIZED',
+  'DUNNING_RECEIVED',
 ]);
 
 export function isAsaasPaymentConfirmed(status?: string | null): boolean {

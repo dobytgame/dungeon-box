@@ -31,9 +31,13 @@ export default function SyncAsaasButton({ subscriptionId }: Props) {
               return;
             }
             if ('success' in result && result.success) {
-              setMessage(
-                `Importadas ${result.upserted} de ${result.remoteCount} cobrança(s) do Asaas. Status da assinatura não foi alterado.`
-              );
+              const parts = [
+                `Importadas ${result.upserted} de ${result.remoteCount} cobrança(s) do Asaas.`,
+                result.reconciled
+                  ? 'Assinatura pendente foi ativada com base no pagamento confirmado.'
+                  : 'Status da assinatura não foi alterado.',
+              ];
+              setMessage(parts.join(' '));
               router.refresh();
             }
           });

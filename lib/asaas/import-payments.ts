@@ -114,6 +114,12 @@ async function collectRemotePayments(
   );
 }
 
+export async function collectRemotePaymentsForSubscription(
+  subscription: ImportAsaasPaymentsInput
+): Promise<AsaasPaymentRow[]> {
+  return collectRemotePayments(subscription);
+}
+
 /**
  * Importa cobranças do Asaas para a tabela `payments` sem alterar status da
  * assinatura, ciclos de produção ou enviar e-mails.

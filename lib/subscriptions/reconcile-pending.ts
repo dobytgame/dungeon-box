@@ -5,6 +5,7 @@ import { reconcilePendingStripeSubscription } from '@/lib/stripe/payment-sync';
 
 export type PendingSubscription = {
   id: string;
+  user_id?: string | null;
   status: string;
   asaas_subscription_id?: string | null;
   asaas_customer_id?: string | null;

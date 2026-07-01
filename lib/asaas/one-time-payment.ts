@@ -12,6 +12,9 @@ type AsaasPaymentResponse = {
   id: string;
   status?: string;
   value?: number;
+  externalReference?: string | null;
+  billingType?: string;
+  subscription?: string | { id?: string } | null;
 };
 
 export type AsaasPixQrCode = {

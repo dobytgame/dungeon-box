@@ -19,6 +19,7 @@ import {
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
 import { consolidateSubscriptionCycles } from '@/lib/subscriptions/cycles';
+import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
 import {
   canTransitionCycle,
   cycleRollbackFieldClears,
@@ -159,6 +160,11 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
   try {
     const result = await importAsaasPaymentsForSubscription(admin, subscription);
 
+    let reconciled = false;
+    if (subscription.status === 'pending') {
+      reconciled = await reconcilePendingAsaasSubscription(admin, subscription);
+    }
+
     await logAdminAction(admin, {
       actorId: user.id,
       action: 'subscription.sync_asaas',
@@ -167,6 +173,7 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
       metadata: {
         mode: 'import_only',
         subscriptionStatus: subscription.status,
+        reconciled,
         ...result,
       },
       ipAddress: await clientIp(),
@@ -180,6 +187,7 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
 
     return {
       success: true as const,
+      reconciled,
       ...result,
     };
   } catch (error) {
