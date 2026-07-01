@@ -63,6 +63,8 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
               primeiro entra primeiro). Clique no cartão para abrir o pedido em modal;
               use <strong className="text-zinc-300">Registrar envio</strong> para
               informar o rastreio. Cada mudança de status dispara e-mail ao cliente.
+              Use <strong className="text-zinc-300">Sincronizar ciclos</strong> apenas
+              para remover duplicatas — não altera o status dos pedidos.
             </>
           )}
         </p>

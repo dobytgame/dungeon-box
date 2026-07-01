@@ -252,15 +252,17 @@ export async function repairDuplicateSubscriptionCycles(
   return { removed, countersFixed };
 }
 
-/** Repara ciclos ausentes ou presos em upcoming para assinaturas já ativas. */
-export async function backfillActiveSubscriptionCycles(
+/**
+ * Consolida ciclos sem alterar o status operacional dos pedidos no kanban.
+ * Remove duplicatas, cria registro ausente e corrige contadores da assinatura.
+ */
+export async function consolidateSubscriptionCycles(
   supabase: SupabaseClient
 ): Promise<{
   created: number;
-  updated: number;
-  fixedCounters: number;
   removed: number;
   countersFixed: number;
+  subscriptionCountersFixed: number;
 }> {
   const repair = await repairDuplicateSubscriptionCycles(supabase);
   const { data: subs } = await supabase
@@ -269,8 +271,7 @@ export async function backfillActiveSubscriptionCycles(
     .in('status', ['active', 'past_due']);
 
   let created = 0;
-  let updated = 0;
-  let fixedCounters = 0;
+  let subscriptionCountersFixed = 0;
 
   for (const sub of subs ?? []) {
     if (!sub.current_cycle || sub.current_cycle < 1) {
@@ -278,8 +279,15 @@ export async function backfillActiveSubscriptionCycles(
         .from('subscriptions')
         .update({ current_cycle: 1, updated_at: new Date().toISOString() })
         .eq('id', sub.id);
-      fixedCounters++;
+      subscriptionCountersFixed++;
     }
+
+    const { count } = await supabase
+      .from('subscription_cycles')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_id', sub.id);
+
+    if ((count ?? 0) > 0) continue;
 
     const { data: latestPayment } = await supabase
       .from('payments')
@@ -290,57 +298,43 @@ export async function backfillActiveSubscriptionCycles(
       .limit(1)
       .maybeSingle();
 
-    const { count } = await supabase
-      .from('subscription_cycles')
-      .select('id', { count: 'exact', head: true })
-      .eq('subscription_id', sub.id);
+    const { error } = await supabase.from('subscription_cycles').insert({
+      subscription_id: sub.id,
+      cycle_number: 1,
+      status: 'upcoming',
+      payment_id: latestPayment?.id ?? null,
+      paid_at: latestPayment?.paid_at ?? null,
+      amount_cents: latestPayment?.amount_cents ?? null,
+    });
 
-    if ((count ?? 0) === 0) {
-      const { error } = await supabase.from('subscription_cycles').insert({
-        subscription_id: sub.id,
-        cycle_number: 1,
-        status: latestPayment ? 'preparing' : 'upcoming',
-        payment_id: latestPayment?.id ?? null,
-        paid_at: latestPayment?.paid_at ?? null,
-        amount_cents: latestPayment?.amount_cents ?? null,
-      });
-
-      if (!error) created++;
-      continue;
-    }
-
-    if (!latestPayment) continue;
-
-    const { data: stuckCycles } = await supabase
-      .from('subscription_cycles')
-      .select('id, status')
-      .eq('subscription_id', sub.id)
-      .in('status', ['upcoming', 'failed'])
-      .order('cycle_number', { ascending: true })
-      .limit(1);
-
-    const targetCycle = stuckCycles?.[0];
-    if (targetCycle) {
-      const { error } = await supabase
-        .from('subscription_cycles')
-        .update({
-          status: 'preparing',
-          payment_id: latestPayment.id,
-          paid_at: latestPayment.paid_at,
-          amount_cents: latestPayment.amount_cents,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', targetCycle.id);
-
-      if (!error) updated++;
-    }
+    if (!error) created++;
   }
 
   return {
     created,
-    updated,
-    fixedCounters,
     removed: repair.removed,
     countersFixed: repair.countersFixed,
+    subscriptionCountersFixed,
+  };
+}
+
+/** @deprecated Prefer consolidateSubscriptionCycles — não altera status no kanban. */
+export async function backfillActiveSubscriptionCycles(
+  supabase: SupabaseClient
+): Promise<{
+  created: number;
+  updated: number;
+  fixedCounters: number;
+  removed: number;
+  countersFixed: number;
+}> {
+  const result = await consolidateSubscriptionCycles(supabase);
+
+  return {
+    created: result.created,
+    updated: 0,
+    fixedCounters: result.subscriptionCountersFixed,
+    removed: result.removed,
+    countersFixed: result.countersFixed,
   };
 }

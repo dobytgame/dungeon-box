@@ -18,7 +18,7 @@ import {
   applySubscriptionStatusChange,
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
-import { backfillActiveSubscriptionCycles } from '@/lib/subscriptions/cycles';
+import { consolidateSubscriptionCycles } from '@/lib/subscriptions/cycles';
 import {
   canTransitionCycle,
   cycleRollbackFieldClears,
@@ -191,14 +191,14 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
 export async function syncSubscriptionCyclesAction() {
   const { user, admin } = await requireAdmin();
 
-  const result = await backfillActiveSubscriptionCycles(admin);
+  const result = await consolidateSubscriptionCycles(admin);
 
   await logAdminAction(admin, {
     actorId: user.id,
-    action: 'cycles.backfill',
+    action: 'cycles.consolidate',
     entityType: 'subscription_cycles',
     entityId: null,
-    metadata: result,
+    metadata: { ...result, mode: 'consolidate_only' },
     ipAddress: await clientIp(),
   });
 
