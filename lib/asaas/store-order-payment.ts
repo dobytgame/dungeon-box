@@ -86,6 +86,7 @@ export function parseStoreOrderMeta(raw: unknown): StoreOrderMeta | null {
 
 type AsaasCustomerPayment = {
   id: string;
+  subscription?: string | { id?: string } | null;
   externalReference?: string | null;
   description?: string | null;
   value?: number;

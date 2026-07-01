@@ -2,6 +2,7 @@ import Link from 'next/link';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
+import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminSubscriptions } from '@/lib/admin/queries';
@@ -150,6 +151,16 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
             key: 'next',
             header: 'Próxima cobrança',
             cell: (row) => formatDate(row.next_billing_date),
+          },
+          {
+            key: 'asaas',
+            header: 'Asaas',
+            cell: (row) =>
+              row.asaas_subscription_id || row.asaas_customer_id ? (
+                <SyncAsaasButton subscriptionId={row.id} compact />
+              ) : (
+                <span className="font-mono text-[10px] text-zinc-600">—</span>
+              ),
           },
         ]}
       />

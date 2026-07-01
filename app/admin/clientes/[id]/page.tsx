@@ -5,6 +5,7 @@ import ComboBadge from '@/components/admin/ComboBadge';
 import CustomerPartnerPanel from '@/components/admin/CustomerPartnerPanel';
 import PartnerBadge from '@/components/admin/PartnerBadge';
 import ReferralAttributionBadge from '@/components/admin/ReferralAttributionBadge';
+import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
@@ -206,6 +207,17 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
                   row.is_partner
                     ? '— (parceiro)'
                     : formatDate(row.next_billing_date),
+              },
+              {
+                key: 'asaas',
+                header: 'Asaas',
+                cell: (row) =>
+                  !row.is_partner &&
+                  (row.asaas_subscription_id || row.asaas_customer_id) ? (
+                    <SyncAsaasButton subscriptionId={row.id} compact />
+                  ) : (
+                    <span className="font-mono text-[10px] text-zinc-600">—</span>
+                  ),
               },
             ]}
             emptyMessage="Nenhuma assinatura."

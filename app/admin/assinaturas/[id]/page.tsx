@@ -7,7 +7,6 @@ import PartnerSubscriptionPanel from '@/components/admin/PartnerSubscriptionPane
 import AdminTable from '@/components/admin/AdminTable';
 import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
 import PendingPaymentLinkPanel from '@/components/admin/PendingPaymentLinkPanel';
-import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { hasPaintKitBump } from '@/lib/checkout/special-notes';
@@ -76,20 +75,18 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
   const combo = getSubscriptionComboSummary(subscription, plan?.slug ?? null);
   const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
+  const showAsaasSync =
+    !subscription.is_partner &&
+    Boolean(subscription.asaas_subscription_id || subscription.asaas_customer_id);
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href="/admin/assinaturas"
-          className="inline-block text-xs uppercase tracking-widest text-stone-500 hover:text-console"
-        >
-          ← Voltar para assinaturas
-        </Link>
-        {subscription.asaas_subscription_id && !subscription.is_partner ? (
-          <SyncAsaasButton subscriptionId={subscription.id} />
-        ) : null}
-      </div>
+      <Link
+        href="/admin/assinaturas"
+        className="inline-block text-xs uppercase tracking-widest text-stone-500 hover:text-console"
+      >
+        ← Voltar para assinaturas
+      </Link>
 
       <section className="rounded-sm border border-white/[0.06] p-5 md:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -229,7 +226,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
       <PartnerSubscriptionPanel subscription={subscription} />
 
-      <AdminSubscriptionActions subscription={subscription} />
+      <AdminSubscriptionActions
+        subscription={subscription}
+        showAsaasSync={showAsaasSync}
+      />
 
       <section>
         <h3 className="font-display text-sm uppercase tracking-widest text-stone-400">

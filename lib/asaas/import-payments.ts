@@ -8,6 +8,10 @@ import {
   normalizeAsaasSubscriptionRef,
   parseSubscriptionExternalReference,
 } from '@/lib/asaas/refs';
+import {
+  backfillAsaasSubscriptionId,
+  paymentBelongsToLocalSubscription,
+} from '@/lib/asaas/subscription-link';
 import { listAsaasCustomerPayments, parseStoreOrderExternalReference } from '@/lib/asaas/store-order-payment';
 
 type AsaasPaymentRow = {
@@ -91,33 +95,59 @@ function dedupePayments(payments: AsaasPaymentRow[]): AsaasPaymentRow[] {
 }
 
 async function collectRemotePayments(
+  supabase: SupabaseClient,
   subscription: ImportAsaasPaymentsInput
 ): Promise<AsaasPaymentRow[]> {
   const collected: AsaasPaymentRow[] = [];
+  let asaasSubscriptionId = subscription.asaas_subscription_id ?? null;
 
-  if (subscription.asaas_subscription_id) {
+  let customerPayments: AsaasPaymentRow[] = [];
+  if (subscription.asaas_customer_id) {
+    customerPayments = await listAsaasCustomerPayments(
+      subscription.asaas_customer_id
+    );
+    collected.push(...customerPayments);
+
+    if (!asaasSubscriptionId) {
+      asaasSubscriptionId = await backfillAsaasSubscriptionId(
+        supabase,
+        subscription,
+        customerPayments
+      );
+    }
+  }
+
+  if (asaasSubscriptionId) {
     const subscriptionPayments = await listAsaasSubscriptionPayments(
-      subscription.asaas_subscription_id
+      asaasSubscriptionId
     );
     collected.push(...subscriptionPayments);
   }
 
-  if (subscription.asaas_customer_id) {
-    const customerPayments = await listAsaasCustomerPayments(
-      subscription.asaas_customer_id
-    );
-    collected.push(...customerPayments);
+  const subscriptionWithLink: ImportAsaasPaymentsInput = {
+    ...subscription,
+    asaas_subscription_id: asaasSubscriptionId ?? subscription.asaas_subscription_id,
+  };
+
+  const matched: AsaasPaymentRow[] = [];
+  for (const payment of dedupePayments(collected)) {
+    if (paymentBelongsToSubscription(payment, subscriptionWithLink)) {
+      matched.push(payment);
+      continue;
+    }
+    if (await paymentBelongsToLocalSubscription(payment, subscriptionWithLink)) {
+      matched.push(payment);
+    }
   }
 
-  return dedupePayments(collected).filter((payment) =>
-    paymentBelongsToSubscription(payment, subscription)
-  );
+  return matched;
 }
 
 export async function collectRemotePaymentsForSubscription(
+  supabase: SupabaseClient,
   subscription: ImportAsaasPaymentsInput
 ): Promise<AsaasPaymentRow[]> {
-  return collectRemotePayments(subscription);
+  return collectRemotePayments(supabase, subscription);
 }
 
 /**
@@ -128,7 +158,7 @@ export async function importAsaasPaymentsForSubscription(
   supabase: SupabaseClient,
   subscription: ImportAsaasPaymentsInput
 ): Promise<ImportAsaasPaymentsResult> {
-  const remote = await collectRemotePayments(subscription);
+  const remote = await collectRemotePayments(supabase, subscription);
   let upserted = 0;
 
   for (const payment of remote) {

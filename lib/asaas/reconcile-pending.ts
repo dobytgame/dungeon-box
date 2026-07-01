@@ -8,6 +8,12 @@ import {
   collectRemotePaymentsForSubscription,
   type ImportAsaasPaymentsInput,
 } from '@/lib/asaas/import-payments';
+import {
+  backfillAsaasSubscriptionId,
+  paymentAsaasSubscriptionIdMatches,
+  paymentBelongsToLocalSubscription,
+  paymentExternalReferenceMatchesSubscription,
+} from '@/lib/asaas/subscription-link';
 import { fetchAsaasPayment } from '@/lib/asaas/one-time-payment';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import {
@@ -53,17 +59,53 @@ function toImportInput(
   };
 }
 
-function paymentMatchesSubscription(
+async function paymentMatchesSubscription(
   payment: CustomerPayment,
-  subscriptionId: string
-): boolean {
+  subscription: ReconcileAsaasSubscriptionInput
+): Promise<boolean> {
   if (!isAsaasPaymentConfirmed(payment.status)) return false;
 
-  const parsedRef = parseSubscriptionExternalReference(payment.externalReference);
-  if (parsedRef === subscriptionId) return true;
+  if (
+    paymentExternalReferenceMatchesSubscription(
+      payment.externalReference,
+      subscription.id
+    )
+  ) {
+    return true;
+  }
 
-  const comboRef = parseComboPaymentReference(payment.externalReference);
-  return comboRef === subscriptionId;
+  if (
+    paymentAsaasSubscriptionIdMatches(
+      payment,
+      subscription.asaas_subscription_id
+    )
+  ) {
+    return true;
+  }
+
+  return paymentBelongsToLocalSubscription(payment, subscription);
+}
+
+async function ensureAsaasSubscriptionLink(
+  supabase: SupabaseClient,
+  subscription: ReconcileAsaasSubscriptionInput
+): Promise<void> {
+  if (subscription.asaas_subscription_id) return;
+
+  const customerId = await resolveAsaasCustomerId(supabase, subscription);
+  if (!customerId) return;
+
+  const payments = await listAsaasCustomerPayments(customerId);
+  const asaasSubscriptionId = await backfillAsaasSubscriptionId(
+    supabase,
+    subscription,
+    payments
+  );
+
+  if (asaasSubscriptionId) {
+    subscription.asaas_subscription_id = asaasSubscriptionId;
+    subscription.asaas_customer_id = customerId;
+  }
 }
 
 async function resolveAsaasCustomerId(
@@ -222,7 +264,10 @@ async function reconcileFromRemotePayments(
     userId
   );
 
-  const remotePayments = await collectRemotePaymentsForSubscription(importInput);
+  const remotePayments = await collectRemotePaymentsForSubscription(
+    supabase,
+    importInput
+  );
   const confirmed = remotePayments.filter((payment) =>
     isAsaasPaymentConfirmed(payment.status)
   );
@@ -255,10 +300,12 @@ async function findConfirmedCustomerPayment(
   customerId: string
 ): Promise<CustomerPayment | null> {
   const payments = await listAsaasCustomerPayments(customerId);
-  return (
-    payments.find((payment) => paymentMatchesSubscription(payment, subscription.id)) ??
-    null
-  );
+  for (const payment of payments) {
+    if (await paymentMatchesSubscription(payment, subscription)) {
+      return payment;
+    }
+  }
+  return null;
 }
 
 async function reconcileComboCustomerPayment(
@@ -315,6 +362,8 @@ export async function reconcilePendingAsaasSubscription(
   if (subscription.status !== 'pending') {
     return false;
   }
+
+  await ensureAsaasSubscriptionLink(supabase, subscription);
 
   if (await reconcileFromLocalApprovedPayment(supabase, subscription.id)) {
     return true;

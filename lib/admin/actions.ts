@@ -19,6 +19,10 @@ import {
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
 import { consolidateSubscriptionCycles } from '@/lib/subscriptions/cycles';
+import {
+  manualActivateSubscription,
+  manualDeactivateSubscription,
+} from '@/lib/subscriptions/admin-manual-status';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
 import {
   canTransitionCycle,
@@ -160,9 +164,19 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
   try {
     const result = await importAsaasPaymentsForSubscription(admin, subscription);
 
+    const { data: refreshed } = await admin
+      .from('subscriptions')
+      .select(
+        'id, user_id, status, asaas_subscription_id, asaas_customer_id, billing_term'
+      )
+      .eq('id', subscriptionId)
+      .maybeSingle();
+
+    const reconcileTarget = refreshed ?? subscription;
+
     let reconciled = false;
-    if (subscription.status === 'pending') {
-      reconciled = await reconcilePendingAsaasSubscription(admin, subscription);
+    if (reconcileTarget.status === 'pending') {
+      reconciled = await reconcilePendingAsaasSubscription(admin, reconcileTarget);
     }
 
     await logAdminAction(admin, {
@@ -172,7 +186,7 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
       entityId: subscriptionId,
       metadata: {
         mode: 'import_only',
-        subscriptionStatus: subscription.status,
+        subscriptionStatus: reconcileTarget.status,
         reconciled,
         ...result,
       },
@@ -181,7 +195,7 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
 
     revalidateAdmin();
 
-    if (result.remoteCount === 0) {
+    if (result.remoteCount === 0 && !reconciled) {
       return { error: 'Nenhuma cobrança encontrada no Asaas para esta assinatura.' };
     }
 
@@ -433,6 +447,56 @@ export async function adminUpdateSubscriptionStatusAction(
     entityType: 'subscription',
     entityId: subscriptionId,
     metadata: reason ? { reason } : {},
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const };
+}
+
+export async function adminManualActivateSubscriptionAction(
+  subscriptionId: string,
+  reason?: string | null
+) {
+  const { user, admin } = await requireAdmin();
+
+  const result = await manualActivateSubscription(admin, subscriptionId);
+  if (result.error) {
+    return result;
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.manual_activate',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: reason?.trim() ? { reason: reason.trim() } : { mode: 'local_only' },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const };
+}
+
+export async function adminManualDeactivateSubscriptionAction(
+  subscriptionId: string,
+  reason?: string | null
+) {
+  const { user, admin } = await requireAdmin();
+
+  const result = await manualDeactivateSubscription(admin, subscriptionId, reason);
+  if (result.error) {
+    return result;
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.manual_deactivate',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: reason?.trim()
+      ? { reason: reason.trim() }
+      : { mode: 'local_only' },
     ipAddress: await clientIp(),
   });
 
