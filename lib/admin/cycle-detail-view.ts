@@ -58,6 +58,7 @@ export interface AdminCycleDetailView {
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
+  customerCpf: string | null;
   userId: string | null;
   subscriptionId: string | null;
   planName: string | null;
@@ -169,12 +170,14 @@ export function toAdminCycleDetailView(
               display_name?: string | null;
               email?: string | null;
               phone?: string | null;
+              cpf?: string | null;
             }
           | {
               full_name?: string | null;
               display_name?: string | null;
               email?: string | null;
               phone?: string | null;
+              cpf?: string | null;
             }[]
           | null
           | undefined
@@ -228,6 +231,7 @@ export function toAdminCycleDetailView(
       profile?.full_name ?? profile?.display_name ?? profile?.email ?? null,
     customerEmail: profile?.email ?? null,
     customerPhone: profile?.phone ?? null,
+    customerCpf: profile?.cpf ?? null,
     userId: subscription?.user_id ?? null,
     subscriptionId: subscription?.id ?? null,
     planName: plan?.name ?? null,

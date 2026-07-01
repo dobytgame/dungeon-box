@@ -868,7 +868,7 @@ export async function getAdminCycleDetail(
         *,
         plans!plan_id(*),
         addresses(*),
-        profiles(full_name, display_name, email, phone)
+        profiles(full_name, display_name, email, phone, cpf)
       )
     `
     )

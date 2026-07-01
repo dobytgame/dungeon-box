@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
+import CopyableDataRow from '@/components/admin/CopyableDataRow';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
 import ProductionChecklist from '@/components/admin/ProductionChecklist';
@@ -9,7 +10,7 @@ import ProductionPipeline from '@/components/admin/ProductionPipeline';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
-import { formatDate, formatDateTime, formatMoney, formatPhone } from '@/lib/dashboard/format';
+import { formatDate, formatDateTime, formatMoney, formatPhone, formatCpf } from '@/lib/dashboard/format';
 
 interface Props {
   cycleId: string | null;
@@ -62,6 +63,9 @@ export default function CycleDetailContent({
 
   if (!detail) return null;
 
+  const customerCpf = formatCpf(detail.customerCpf);
+  const customerCpfDigits = detail.customerCpf?.replace(/\D/g, '') ?? '';
+  const customerPhone = formatPhone(detail.customerPhone);
   const extraCount = Math.max(0, detail.productionChecklist.length - 1);
 
   return (
@@ -180,23 +184,41 @@ export default function CycleDetailContent({
               Endereço de entrega
             </p>
             <dl className="mt-4">
-              <DataRow label="Destinatário" value={detail.orderAddress.recipient} />
+              <CopyableDataRow
+                label="Destinatário"
+                value={detail.orderAddress.recipient}
+              />
+              <CopyableDataRow label="CPF" value={customerCpf} copyValue={customerCpfDigits} mono />
               {detail.orderAddress.label ? (
-                <DataRow label="Identificação" value={detail.orderAddress.label} />
+                <CopyableDataRow
+                  label="Identificação"
+                  value={detail.orderAddress.label}
+                />
               ) : null}
-              <DataRow
+              <CopyableDataRow
                 label="Logradouro"
                 value={`${detail.orderAddress.street}, ${detail.orderAddress.number}`}
               />
               {detail.orderAddress.complement ? (
-                <DataRow label="Complemento" value={detail.orderAddress.complement} />
+                <CopyableDataRow
+                  label="Complemento"
+                  value={detail.orderAddress.complement}
+                />
               ) : null}
-              <DataRow label="Bairro" value={detail.orderAddress.neighborhood} />
-              <DataRow
+              <CopyableDataRow
+                label="Bairro"
+                value={detail.orderAddress.neighborhood}
+              />
+              <CopyableDataRow
                 label="Cidade / UF"
                 value={`${detail.orderAddress.city}/${detail.orderAddress.state}`}
               />
-              <DataRow label="CEP" value={detail.orderAddress.zipCode} mono />
+              <CopyableDataRow
+                label="CEP"
+                value={detail.orderAddress.zipCode}
+                copyValue={detail.orderAddress.zipCode.replace(/\D/g, '')}
+                mono
+              />
             </dl>
           </section>
         ) : null}
@@ -223,8 +245,24 @@ export default function CycleDetailContent({
               )
             }
           />
-          <DataRow label="E-mail" value={detail.customerEmail} />
-          <DataRow label="Telefone" value={formatPhone(detail.customerPhone)} />
+          <CopyableDataRow
+            label="E-mail"
+            value={detail.customerEmail}
+          />
+          <CopyableDataRow
+            label="Telefone"
+            value={customerPhone}
+            copyValue={detail.customerPhone?.replace(/\D/g, '') ?? ''}
+            mono
+          />
+          {!detail.orderAddress ? (
+            <CopyableDataRow
+              label="CPF"
+              value={customerCpf}
+              copyValue={customerCpfDigits}
+              mono
+            />
+          ) : null}
           <DataRow
             label="Assinatura"
             value={
