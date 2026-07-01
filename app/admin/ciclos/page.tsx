@@ -10,14 +10,19 @@ import {
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 
 interface Props {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; view?: string }>;
 }
 
 const ARCHIVE_STATUSES = new Set(['cancelled', 'failed', 'all']);
 
+function parseViewMode(raw: string | undefined): 'kanban' | 'list' {
+  return raw === 'list' ? 'list' : 'kanban';
+}
+
 export default async function AdminCyclesPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
-  const { status = 'preparing' } = await searchParams;
+  const { status = 'preparing', view } = await searchParams;
+  const viewMode = parseViewMode(view);
   const showArchiveList = ARCHIVE_STATUSES.has(status);
 
   const [board, counts, archiveCycles] = await Promise.all([
@@ -32,10 +37,25 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="admin-panel flex flex-wrap items-center justify-between gap-3 rounded p-4">
         <p className="max-w-2xl text-sm text-zinc-500">
-          Quadro Kanban da produção, ordenado pela data de compra (quem pagou
-          primeiro entra primeiro). Clique no cartão para abrir o pedido em modal;
-          use <strong className="text-zinc-300">Registrar envio</strong> para
-          informar o rastreio. Cada mudança de status dispara e-mail ao cliente.
+          {showArchiveList ? (
+            <>
+              Lista de pedidos fora do fluxo principal (cancelados, falhas ou
+              histórico completo). Clique em uma linha para abrir o pedido.
+            </>
+          ) : viewMode === 'list' ? (
+            <>
+              Visualização em lista agrupada por processo, ordenada pela data de
+              compra. Mostra nome, endereço de envio, produto e pagamento. Clique
+              na linha para abrir o pedido em modal.
+            </>
+          ) : (
+            <>
+              Quadro Kanban da produção, ordenado pela data de compra (quem pagou
+              primeiro entra primeiro). Clique no cartão para abrir o pedido em modal;
+              use <strong className="text-zinc-300">Registrar envio</strong> para
+              informar o rastreio. Cada mudança de status dispara e-mail ao cliente.
+            </>
+          )}
         </p>
         <SyncCyclesButton />
       </div>
@@ -49,9 +69,14 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
         archiveCycles={archiveCycles}
         showArchiveList={showArchiveList}
         archiveStatus={status}
+        viewMode={viewMode}
       />
 
-      <ProductionStatusTabs currentStatus={status} counts={counts} />
+      <ProductionStatusTabs
+        currentStatus={status}
+        counts={counts}
+        currentView={showArchiveList ? undefined : viewMode}
+      />
 
       {!showArchiveList ? (
         <p className="font-mono text-[11px] text-zinc-600">

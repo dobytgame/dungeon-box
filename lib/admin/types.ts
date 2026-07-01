@@ -176,6 +176,7 @@ export interface AdminCycleRow {
   themeName: string | null;
   city: string | null;
   state: string | null;
+  shippingAddressLine: string | null;
   isPartner: boolean;
   hasBundledItems: boolean;
   bundledItemTags: AdminCycleBundledTag[];

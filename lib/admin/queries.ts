@@ -11,6 +11,7 @@ import {
   type CycleShipmentContext,
 } from '@/lib/admin/cycle-shipment-items';
 import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
+import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/lib/dashboard/types';
 import type {
   AdminActivePlanCount,
@@ -146,7 +147,7 @@ const ADMIN_CYCLE_LIST_SELECT = `
     is_partner,
     profiles(full_name, display_name, email),
     plans!plan_id(name),
-    addresses(city, state)
+    addresses(street, number, complement, neighborhood, city, state, zip_code, recipient)
   )
 `;
 
@@ -186,6 +187,18 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     themeName: (theme?.name as string | null) ?? null,
     city: (address?.city as string | null) ?? null,
     state: (address?.state as string | null) ?? null,
+    shippingAddressLine: formatProductionShippingAddress(
+      address as {
+        street?: string | null;
+        number?: string | null;
+        complement?: string | null;
+        neighborhood?: string | null;
+        city?: string | null;
+        state?: string | null;
+        zip_code?: string | null;
+        recipient?: string | null;
+      } | null
+    ),
     isPartner: Boolean(subscription?.is_partner),
     hasBundledItems: false,
     bundledItemTags: [],

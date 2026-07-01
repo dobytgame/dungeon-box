@@ -10,6 +10,10 @@ import AdminSection from '@/components/admin/AdminSection';
 import CycleDetailModalView from '@/components/admin/CycleDetailModalView';
 import CycleShipModal from '@/components/admin/CycleShipModal';
 import ProductionKanban from '@/components/admin/ProductionKanban';
+import ProductionListView from '@/components/admin/ProductionListView';
+import ProductionViewToggle, {
+  type ProductionViewMode,
+} from '@/components/admin/ProductionViewToggle';
 
 interface Props {
   board: ProductionKanbanBoard;
@@ -20,6 +24,7 @@ interface Props {
   archiveCycles: AdminCycleRow[];
   showArchiveList: boolean;
   archiveStatus: string;
+  viewMode: ProductionViewMode;
 }
 
 function cycleLabel(
@@ -35,6 +40,7 @@ export default function ProductionWorkspace({
   archiveCycles,
   showArchiveList,
   archiveStatus,
+  viewMode,
 }: Props) {
   const router = useRouter();
   const [detailCycleId, setDetailCycleId] = useState<string | null>(null);
@@ -73,12 +79,27 @@ export default function ProductionWorkspace({
 
   return (
     <>
-      <ProductionKanban
-        board={board}
-        counts={counts}
-        onOpenDetail={openDetail}
-        onOpenShip={openShip}
-      />
+      {!showArchiveList ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-600">
+            {viewMode === 'list'
+              ? 'Lista operacional por processo'
+              : 'Quadro por colunas de status'}
+          </p>
+          <ProductionViewToggle current={viewMode} />
+        </div>
+      ) : null}
+
+      {showArchiveList ? null : viewMode === 'list' ? (
+        <ProductionListView board={board} onOpenDetail={openDetail} />
+      ) : (
+        <ProductionKanban
+          board={board}
+          counts={counts}
+          onOpenDetail={openDetail}
+          onOpenShip={openShip}
+        />
+      )}
 
       {showArchiveList ? (
         <AdminSection
