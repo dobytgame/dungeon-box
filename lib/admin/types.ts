@@ -177,6 +177,9 @@ export interface AdminCycleRow {
   city: string | null;
   state: string | null;
   shippingAddressLine: string | null;
+  userId: string | null;
+  subscriptionStatus: string | null;
+  subscriptionCurrentCycle: number | null;
   isPartner: boolean;
   hasBundledItems: boolean;
   bundledItemTags: AdminCycleBundledTag[];

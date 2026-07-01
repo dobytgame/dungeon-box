@@ -25,13 +25,22 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
   const viewMode = parseViewMode(view);
   const showArchiveList = ARCHIVE_STATUSES.has(status);
 
-  const [board, counts, archiveCycles] = await Promise.all([
+  const [board, rawCounts, archiveCycles] = await Promise.all([
     listAdminProductionKanban(admin),
     getAdminCycleStatusCounts(admin),
     showArchiveList
       ? listAdminCycles(admin, { cycleStatus: status, limit: 100 })
       : Promise.resolve([]),
   ]);
+
+  const counts = {
+    ...rawCounts,
+    upcoming: board.upcoming.length,
+    production: board.production.length,
+    preparing: board.preparing.length,
+    shipped: board.shipped.length,
+    delivered: board.delivered.length,
+  };
 
   return (
     <div className="space-y-6">

@@ -12,6 +12,11 @@ import {
 } from '@/lib/admin/cycle-shipment-items';
 import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
+import {
+  filterProductionBoardRows,
+  groupProductionBoardRows,
+  type ProductionSubscriptionMeta,
+} from '@/lib/admin/production-board-filter';
 import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/lib/dashboard/types';
 import type {
   AdminActivePlanCount,
@@ -143,6 +148,9 @@ const ADMIN_CYCLE_LIST_SELECT = `
   created_at,
   themes(name),
   subscriptions(
+    status,
+    current_cycle,
+    user_id,
     special_notes,
     is_partner,
     profiles(full_name, display_name, email),
@@ -199,6 +207,10 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
         recipient?: string | null;
       } | null
     ),
+    userId: (subscription?.user_id as string | null) ?? null,
+    subscriptionStatus: (subscription?.status as string | null) ?? null,
+    subscriptionCurrentCycle:
+      (subscription?.current_cycle as number | null) ?? null,
     isPartner: Boolean(subscription?.is_partner),
     hasBundledItems: false,
     bundledItemTags: [],
@@ -809,17 +821,25 @@ export async function listAdminProductionKanban(
     siblingsBySub
   );
 
+  const metaBySubscriptionId = new Map<string, ProductionSubscriptionMeta>();
   for (const row of enriched) {
-    if (row.status in empty) {
-      empty[row.status as keyof ProductionKanbanBoard].push(row);
+    if (!metaBySubscriptionId.has(row.subscription_id)) {
+      metaBySubscriptionId.set(row.subscription_id, {
+        userId: row.userId,
+        status: row.subscriptionStatus ?? 'pending',
+        currentCycle: row.subscriptionCurrentCycle ?? 1,
+      });
     }
   }
 
-  for (const status of Object.keys(empty) as Array<keyof ProductionKanbanBoard>) {
-    empty[status].sort(compareCyclesByPurchaseOrder);
+  const filtered = filterProductionBoardRows(enriched, metaBySubscriptionId);
+  const board = groupProductionBoardRows(filtered);
+
+  for (const status of Object.keys(board) as Array<keyof ProductionKanbanBoard>) {
+    board[status].sort(compareCyclesByPurchaseOrder);
   }
 
-  return empty;
+  return board;
 }
 
 export type CycleStatusCounts = Record<
