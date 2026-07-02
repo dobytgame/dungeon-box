@@ -18,6 +18,10 @@ import {
   buildPlanProductionCostMap,
   resolveCycleShipmentFinance,
 } from '@/lib/admin/cycle-shipment-finance';
+import {
+  loadSubscriptionPaymentMaps,
+  pickCyclePaymentContext,
+} from '@/lib/admin/cycle-payment-resolve';
 import { mergeMonthlyKitProductionCosts } from '@/lib/admin/store-products';
 
 export type CycleShipmentItemKind = 'paint-kit' | 'monthly-kit' | 'store';
@@ -671,6 +675,7 @@ export async function resolveCycleProductionDataWithFinance(
     subscriptionBillingTerm?: string | null;
     subscriptionComboTotalCents?: number | null;
     subscriptionComboInstallments?: number | null;
+    fallbackMonthlyRevenueCents?: number | null;
   }
 ) {
   const [
@@ -679,6 +684,7 @@ export async function resolveCycleProductionDataWithFinance(
     addonPayments,
     plansRes,
     cyclePaymentRes,
+    paymentMaps,
   ] = await Promise.all([
     listSiblingCyclesForShipment(admin, input.subscriptionId),
     listBundledStoreOrdersBySubscription(admin, [input.subscriptionId]),
@@ -695,6 +701,7 @@ export async function resolveCycleProductionDataWithFinance(
           .eq('id', input.paymentId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    loadSubscriptionPaymentMaps(admin, [input.subscriptionId]),
   ]);
 
   const cycle: CycleShipmentContext = {
@@ -735,20 +742,32 @@ export async function resolveCycleProductionDataWithFinance(
     )
   );
 
+  const billingTerm = input.subscriptionBillingTerm ?? null;
+  const linkedPayment = cyclePaymentRes.data
+    ? {
+        amount_cents: (cyclePaymentRes.data.amount_cents as number) ?? 0,
+        status_detail:
+          (cyclePaymentRes.data.status_detail as string | null) ?? null,
+        installments:
+          (cyclePaymentRes.data.installments as number | null) ?? null,
+      }
+    : null;
+  const cyclePayment = pickCyclePaymentContext({
+    paymentId: input.paymentId,
+    amountCents: input.amountCents,
+    subscriptionId: input.subscriptionId,
+    billingTerm,
+    linkedPayment,
+    comboBySub: paymentMaps.comboBySub,
+    latestBySub: paymentMaps.latestBySub,
+  });
+
   const finance = resolveCycleShipmentFinance({
     cycleAmountCents: input.amountCents,
     cyclePaymentId: input.paymentId,
-    cyclePayment: cyclePaymentRes.data
-      ? {
-          amount_cents: (cyclePaymentRes.data.amount_cents as number) ?? 0,
-          status_detail:
-            (cyclePaymentRes.data.status_detail as string | null) ?? null,
-          installments:
-            (cyclePaymentRes.data.installments as number | null) ?? null,
-        }
-      : null,
+    cyclePayment,
     subscriptionContext: {
-      billing_term: input.subscriptionBillingTerm ?? null,
+      billing_term: billingTerm,
       combo_total_cents: input.subscriptionComboTotalCents ?? null,
       combo_installments: input.subscriptionComboInstallments ?? null,
     },
@@ -762,6 +781,7 @@ export async function resolveCycleProductionDataWithFinance(
     addonPayments,
     specialNotes: input.specialNotes,
     isPartner: input.isPartner,
+    fallbackMonthlyRevenueCents: input.fallbackMonthlyRevenueCents,
   });
 
   return { shipmentItems, productionChecklist, finance, pendingBundledOrders: describePendingStoreOrdersForCycle(cycle, siblingCycles, storeOrders) };

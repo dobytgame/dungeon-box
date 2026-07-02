@@ -279,31 +279,69 @@ export function resolveSubscriptionCycleRevenueCents(input: {
   cycleAmountCents: number | null;
   cyclePayment?: PaymentAmountContext | null;
   subscriptionContext?: SubscriptionAmountContext | null;
+  /** Plano + frete (+ bump recorrente) quando não há pagamento vinculado. */
+  fallbackMonthlyRevenueCents?: number | null;
 }): number {
-  const payment = input.cyclePayment;
-  if (payment && isComboPrepaidPayment(payment.status_detail)) {
-    const comboDetail = parseComboPaymentDetail(payment.status_detail);
-    const billingTerm =
-      (comboDetail?.billing_term as BillingTerm | null | undefined) ??
-      (input.subscriptionContext?.billing_term as BillingTerm | null | undefined);
+  const payment = input.cyclePayment ?? null;
+  const comboDetail = payment
+    ? parseComboPaymentDetail(payment.status_detail)
+    : null;
+  const billingTerm =
+    (comboDetail?.billing_term as BillingTerm | null | undefined) ??
+    (payment && isComboPrepaidPayment(payment.status_detail)
+      ? (input.subscriptionContext?.billing_term as BillingTerm | null | undefined)
+      : undefined) ??
+    (input.subscriptionContext?.billing_term as BillingTerm | null | undefined) ??
+    null;
+
+  const comboFromPayment =
+    payment != null && isComboPrepaidPayment(payment.status_detail);
+
+  if ((billingTerm && isComboTerm(billingTerm)) || comboFromPayment) {
+    const effectiveTerm =
+      billingTerm && isComboTerm(billingTerm)
+        ? billingTerm
+        : (input.subscriptionContext?.billing_term as BillingTerm | null | undefined);
 
     const months =
-      billingTerm && isComboTerm(billingTerm)
-        ? prepaidMonthsForTerm(billingTerm)
+      effectiveTerm && isComboTerm(effectiveTerm)
+        ? prepaidMonthsForTerm(effectiveTerm)
         : null;
-
     if (months && months > 0) {
-      const total = resolveEffectivePaymentAmountCents(
-        payment,
-        input.subscriptionContext
-      );
-      if (total > 0) {
-        return Math.round(total / months);
+      let comboTotal =
+        input.subscriptionContext?.combo_total_cents ??
+        (payment
+          ? resolveEffectivePaymentAmountCents(payment, input.subscriptionContext)
+          : null);
+
+      if ((comboTotal == null || comboTotal <= 0) && payment && payment.amount_cents > 0) {
+        comboTotal = payment.amount_cents;
+      }
+
+      if (comboTotal != null && comboTotal > 0) {
+        return Math.round(comboTotal / months);
       }
     }
   }
 
-  return input.cycleAmountCents ?? 0;
+  if (input.cycleAmountCents != null && input.cycleAmountCents > 0) {
+    return input.cycleAmountCents;
+  }
+
+  if (payment && payment.amount_cents > 0) {
+    return payment.amount_cents;
+  }
+
+  const monthlyFallback = input.fallbackMonthlyRevenueCents ?? null;
+  if (
+    monthlyFallback != null &&
+    monthlyFallback > 0 &&
+    (!billingTerm || billingTerm === 'monthly')
+  ) {
+    return monthlyFallback;
+  }
+
+  return 0;
 }
 
 export function resolveCycleShipmentFinance(input: {
@@ -321,6 +359,7 @@ export function resolveCycleShipmentFinance(input: {
   addonPayments?: CycleAddonPaymentRow[];
   specialNotes?: string | null;
   isPartner?: boolean;
+  fallbackMonthlyRevenueCents?: number | null;
 }): CycleShipmentFinance {
   const revenueLines: CycleFinanceLine[] = [];
   const productionCostLines: CycleProductionCostLine[] = [];
@@ -331,12 +370,18 @@ export function resolveCycleShipmentFinance(input: {
         cycleAmountCents: input.cycleAmountCents,
         cyclePayment: input.cyclePayment,
         subscriptionContext: input.subscriptionContext,
+        fallbackMonthlyRevenueCents: input.fallbackMonthlyRevenueCents,
       });
 
   if (subscriptionRevenueCents > 0) {
+    const billingTerm = input.subscriptionContext?.billing_term as
+      | BillingTerm
+      | null
+      | undefined;
     const comboCycle =
-      input.cyclePayment &&
-      isComboPrepaidPayment(input.cyclePayment.status_detail);
+      (billingTerm && isComboTerm(billingTerm)) ||
+      (input.cyclePayment &&
+        isComboPrepaidPayment(input.cyclePayment.status_detail));
     revenueLines.push({
       id: 'subscription-cycle',
       label: comboCycle ? 'Assinatura (ciclo combo)' : 'Assinatura (ciclo)',

@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin/auth';
 import { resolveCycleProductionDataWithFinance, type CycleShipmentItem, type ProductionChecklistItem } from '@/lib/admin/cycle-shipment-items';
 import { toAdminCycleDetailView, type AdminCyclePendingStoreOrder } from '@/lib/admin/cycle-detail-view';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
+import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { relOne } from '@/lib/dashboard/format';
 
 interface RouteContext {
@@ -53,6 +54,11 @@ export async function GET(_request: Request, context: RouteContext) {
         subscriptionBillingTerm: subscription?.billing_term ?? null,
         subscriptionComboTotalCents: subscription?.combo_total_cents ?? null,
         subscriptionComboInstallments: subscription?.combo_installments ?? null,
+        fallbackMonthlyRevenueCents: resolveSubscriptionMonthlyRevenueCents({
+          planPriceCents: plan?.price_cents ?? null,
+          shippingCents: subscription?.shipping_cents ?? null,
+          specialNotes: subscription?.special_notes,
+        }),
       });
       shipmentItems = resolved.shipmentItems;
       productionChecklist = resolved.productionChecklist;

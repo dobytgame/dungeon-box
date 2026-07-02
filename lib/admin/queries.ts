@@ -16,6 +16,12 @@ import {
   resolveCycleShipmentFinance,
 } from '@/lib/admin/cycle-shipment-finance';
 import { mergeMonthlyKitProductionCosts } from '@/lib/admin/store-products';
+import {
+  loadPaymentContextByIds,
+  loadSubscriptionPaymentMaps,
+  pickCyclePaymentContext,
+} from '@/lib/admin/cycle-payment-resolve';
+import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import {
@@ -168,9 +174,10 @@ const ADMIN_CYCLE_LIST_SELECT = `
     combo_total_cents,
     combo_installments,
     special_notes,
+    shipping_cents,
     is_partner,
     profiles(full_name, display_name, email),
-    plans!plan_id(name, slug, production_cost_cents),
+    plans!plan_id(name, slug, production_cost_cents, price_cents),
     addresses(street, number, complement, neighborhood, city, state, zip_code, recipient)
   )
 `;
@@ -302,29 +309,10 @@ async function enrichCycleRowsWithShipmentItems(
     )
   );
 
-  const paymentsById = new Map<
-    string,
-    {
-      amount_cents: number;
-      status_detail: string | null;
-      installments: number | null;
-    }
-  >();
-
-  if (paymentIds.length > 0) {
-    const { data: paymentsData } = await admin
-      .from('payments')
-      .select('id, amount_cents, status_detail, installments')
-      .in('id', paymentIds);
-
-    for (const payment of paymentsData ?? []) {
-      paymentsById.set(payment.id as string, {
-        amount_cents: (payment.amount_cents as number) ?? 0,
-        status_detail: (payment.status_detail as string | null) ?? null,
-        installments: (payment.installments as number | null) ?? null,
-      });
-    }
-  }
+  const [paymentsById, paymentMaps] = await Promise.all([
+    loadPaymentContextByIds(admin, paymentIds),
+    loadSubscriptionPaymentMaps(admin, subscriptionIds),
+  ]);
 
   const siblingsBySub =
     siblingCyclesBySub ??
@@ -346,9 +334,26 @@ async function enrichCycleRowsWithShipmentItems(
       combo_installments:
         (subscription?.combo_installments as number | null) ?? null,
     };
-    const cyclePayment = row.payment_id
-      ? paymentsById.get(row.payment_id) ?? null
-      : null;
+    const billingTerm = subscriptionContext.billing_term;
+    const plan = relOne(
+      subscription?.plans as Record<string, unknown> | Record<string, unknown>[] | null
+    );
+    let cyclePayment = pickCyclePaymentContext({
+      paymentId: row.payment_id,
+      amountCents: row.amount_cents,
+      subscriptionId: row.subscription_id,
+      billingTerm,
+      linkedPayment: row.payment_id
+        ? paymentsById.get(row.payment_id) ?? null
+        : null,
+      comboBySub: paymentMaps.comboBySub,
+      latestBySub: paymentMaps.latestBySub,
+    });
+    const fallbackMonthlyRevenueCents = resolveSubscriptionMonthlyRevenueCents({
+      planPriceCents: (plan?.price_cents as number | null) ?? null,
+      shippingCents: (subscription?.shipping_cents as number | null) ?? null,
+      specialNotes,
+    });
     const storeOrders = storeOrdersBySub.get(row.subscription_id) ?? [];
     const siblingCycles =
       siblingsBySub.get(row.subscription_id) ?? [toShipmentContext(row)];
@@ -375,6 +380,7 @@ async function enrichCycleRowsWithShipmentItems(
       addonPayments: addonPaymentsMap.get(row.subscription_id) ?? [],
       specialNotes,
       isPartner: row.isPartner,
+      fallbackMonthlyRevenueCents,
     });
 
     const extraItems = shipmentItems.map((item) => ({
