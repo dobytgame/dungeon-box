@@ -14,7 +14,7 @@ import {
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import type { CycleStatus } from '@/lib/dashboard/types';
-import { formatDate } from '@/lib/dashboard/format';
+import { formatDate, formatMoney } from '@/lib/dashboard/format';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 
 type BoardColumn = keyof ProductionKanbanBoard;
@@ -224,6 +224,31 @@ function KanbanCard({
             <div className="flex justify-between gap-2">
               <dt>Rastreio</dt>
               <dd className="truncate font-mono text-console">{row.tracking_code}</dd>
+            </div>
+          ) : null}
+          {!row.isPartner && row.totalRevenueCents != null ? (
+            <div className="flex justify-between gap-2">
+              <dt>Receita envio</dt>
+              <dd className="font-mono text-zinc-300">
+                {formatMoney(row.totalRevenueCents)}
+                {row.hasBundledRevenue ? (
+                  <span className="ml-1 text-[9px] text-violet-300">+ extras</span>
+                ) : null}
+              </dd>
+            </div>
+          ) : null}
+          {!row.isPartner && row.shipmentMarginCents != null ? (
+            <div className="flex justify-between gap-2">
+              <dt>Margem</dt>
+              <dd
+                className={`font-mono ${
+                  row.shipmentMarginCents >= 0
+                    ? 'text-emerald-300'
+                    : 'text-red-400'
+                }`}
+              >
+                {formatMoney(row.shipmentMarginCents)}
+              </dd>
             </div>
           ) : null}
         </dl>

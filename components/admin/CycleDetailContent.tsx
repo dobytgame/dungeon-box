@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import CopyableDataRow from '@/components/admin/CopyableDataRow';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
+import CycleShippingCostForm from '@/components/admin/CycleShippingCostForm';
 import ProductionChecklist from '@/components/admin/ProductionChecklist';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
 import DataRow from '@/components/dashboard/DataRow';
@@ -224,6 +225,110 @@ export default function CycleDetailContent({
         ) : null}
       </div>
 
+      {!detail.isPartner && detail.shipmentFinance ? (
+        <section className="admin-panel rounded p-4 md:p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+            Financeiro do envio
+          </p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Receita e margem considerando assinatura e itens extras enviados
+            neste pacote.
+          </p>
+
+          <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+                Receita
+              </p>
+              <ul className="mt-2 space-y-2">
+                {detail.shipmentFinance.revenueLines.map((line) => (
+                  <li
+                    key={line.id}
+                    className="flex items-start justify-between gap-3 text-sm"
+                  >
+                    <span className="min-w-0 text-zinc-400">{line.label}</span>
+                    <span className="shrink-0 font-mono text-xs text-zinc-200">
+                      {formatMoney(line.amountCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-3 text-sm">
+                <span className="text-zinc-300">Total receita</span>
+                <span className="font-mono text-zinc-100">
+                  {formatMoney(detail.shipmentFinance.totalRevenueCents)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-600">
+                Custos
+              </p>
+              <ul className="mt-2 space-y-2">
+                {detail.shipmentFinance.productionCostLines.map((line) => (
+                  <li
+                    key={line.id}
+                    className="flex items-start justify-between gap-3 text-sm"
+                  >
+                    <span className="min-w-0 text-zinc-400">{line.label}</span>
+                    <span className="shrink-0 font-mono text-xs text-zinc-200">
+                      {formatMoney(line.amountCents)}
+                    </span>
+                  </li>
+                ))}
+                <li className="flex items-start justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Envio (real)</span>
+                  <span className="shrink-0 font-mono text-xs text-zinc-200">
+                    {detail.shippingCostCents != null
+                      ? formatMoney(detail.shippingCostCents)
+                      : '—'}
+                  </span>
+                </li>
+              </ul>
+              {detail.kitMarginCents != null ? (
+                <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-3 text-sm">
+                  <span className="text-zinc-300">Margem do envio</span>
+                  <span
+                    className={`font-mono ${
+                      detail.kitMarginCents >= 0
+                        ? 'text-emerald-300'
+                        : 'text-red-400'
+                    }`}
+                  >
+                    {formatMoney(detail.kitMarginCents)}
+                    {detail.shippingCostCents == null
+                      ? ' · sem custo de envio'
+                      : ''}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {detail.pendingBundledOrders.length > 0 ? (
+            <div className="mt-4 rounded border border-amber-500/25 bg-amber-500/5 px-3 py-3">
+              <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-amber-300/90">
+                Aguardando pagamento — fora da produção
+              </p>
+              <ul className="mt-2 space-y-1">
+                {detail.pendingBundledOrders.map((line) => (
+                  <li
+                    key={line.id}
+                    className="flex items-start justify-between gap-3 text-sm text-amber-200/80"
+                  >
+                    <span className="min-w-0">{line.label}</span>
+                    <span className="shrink-0 font-mono text-xs">
+                      {formatMoney(line.amountCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="admin-panel rounded p-4">
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
           Dados do pedido
@@ -303,6 +408,28 @@ export default function CycleDetailContent({
           <DataRow label="Previsão entrega" value={formatDate(detail.estimated_delivery)} />
         </dl>
       </section>
+
+      {detail.status !== 'cancelled' ? (
+        <section className="admin-panel rounded p-4 md:p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+            Custo de envio (real)
+          </p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Valor pago ao transportador para calcular a margem do kit. Pode
+            cadastrar antes do envio ou corrigir depois.
+          </p>
+          <div className="mt-4">
+            <CycleShippingCostForm
+              cycleId={detail.id}
+              shippingCostCents={detail.shippingCostCents}
+              onSuccess={() => {
+                onUpdated?.();
+                onReload?.(detail.id);
+              }}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <CycleProductionPanel
         cycleId={detail.id}

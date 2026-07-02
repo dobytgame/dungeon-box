@@ -2,6 +2,7 @@ import type {
   CycleShipmentItem,
   ProductionChecklistItem,
 } from '@/lib/admin/cycle-shipment-items';
+import type { CycleShipmentFinance } from '@/lib/admin/cycle-shipment-finance';
 import type { Address, SubscriptionCycle } from '@/lib/dashboard/types';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import {
@@ -16,6 +17,7 @@ export interface AdminCycleOrderPlan {
   name: string;
   slug: string;
   priceCents: number;
+  productionCostCents: number;
   piecesLabel: string | null;
 }
 
@@ -38,6 +40,12 @@ export interface AdminCycleOrderAddress {
   state: string;
   zipCode: string;
   formattedMultiline: string;
+}
+
+export interface AdminCyclePendingStoreOrder {
+  id: string;
+  label: string;
+  amountCents: number;
 }
 
 export interface AdminCycleDetailView {
@@ -72,6 +80,11 @@ export interface AdminCycleDetailView {
   orderShippingRegion: string | null;
   orderCustomerNotes: string | null;
   orderMonthlyTotalCents: number | null;
+  productionCostCents: number | null;
+  shippingCostCents: number | null;
+  kitMarginCents: number | null;
+  shipmentFinance: CycleShipmentFinance | null;
+  pendingBundledOrders: AdminCyclePendingStoreOrder[];
   isPartner: boolean;
   shipmentItems: CycleShipmentItem[];
   productionChecklist: ProductionChecklistItem[];
@@ -157,7 +170,9 @@ function buildOrderAddons(
 export function toAdminCycleDetailView(
   cycle: SubscriptionCycle,
   shipmentItems: CycleShipmentItem[] = [],
-  productionChecklist: ProductionChecklistItem[] = []
+  productionChecklist: ProductionChecklistItem[] = [],
+  shipmentFinance: CycleShipmentFinance | null = null,
+  pendingBundledOrders: AdminCyclePendingStoreOrder[] = []
 ): AdminCycleDetailView {
   const subscription = relOne(cycle.subscriptions);
   const plan = subscription ? relOne(subscription.plans) : null;
@@ -192,12 +207,17 @@ export function toAdminCycleDetailView(
         name: plan.name,
         slug: plan.slug,
         priceCents: plan.price_cents,
+        productionCostCents: plan.production_cost_cents ?? 0,
         piecesLabel:
           plan.pieces_min && plan.pieces_max
             ? `${plan.pieces_min}–${plan.pieces_max} peças/mês`
             : null,
       }
     : null;
+
+  const productionCostCents = orderPlan?.productionCostCents ?? null;
+  const shippingCostCents = cycle.shipping_cost_cents ?? null;
+  const kitMarginCents = shipmentFinance?.marginCents ?? null;
 
   const shippingCents = subscription?.shipping_cents ?? null;
   const recurringAddonCents = orderAddons
@@ -244,6 +264,11 @@ export function toAdminCycleDetailView(
     orderShippingRegion: formatShippingRegion(subscription?.shipping_region),
     orderCustomerNotes: parseCustomerNotes(subscription?.special_notes),
     orderMonthlyTotalCents,
+    productionCostCents,
+    shippingCostCents,
+    kitMarginCents,
+    shipmentFinance,
+    pendingBundledOrders,
     isPartner: Boolean(subscription?.is_partner),
     shipmentItems,
     productionChecklist,

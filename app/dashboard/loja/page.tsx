@@ -2,8 +2,9 @@ import Link from 'next/link';
 import StoreProductCard from '@/components/store/StoreProductCard';
 import StoreSubNav from '@/components/store/StoreSubNav';
 import { planSupportCopy } from '@/lib/data';
-import { STORE_PRODUCTS } from '@/lib/store/catalog';
 import { requireDashboardUser } from '@/lib/dashboard/queries';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { loadActivePaintKitProducts } from '@/lib/store/load-catalog';
 import { getMonthlyKitStoreAvailability } from '@/lib/store/monthly-kits';
 
 function MonthlyKitEmptyState({
@@ -52,7 +53,11 @@ function MonthlyKitEmptyState({
 
 export default async function StorePage() {
   const { user, supabase } = await requireDashboardUser();
-  const monthlyKitStore = await getMonthlyKitStoreAvailability(user.id, supabase);
+  const admin = createAdminClient();
+  const [monthlyKitStore, paintKitProducts] = await Promise.all([
+    getMonthlyKitStoreAvailability(user.id, supabase),
+    loadActivePaintKitProducts(admin),
+  ]);
 
   return (
     <div>
@@ -99,7 +104,7 @@ export default async function StorePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {STORE_PRODUCTS.map((product) => (
+          {paintKitProducts.map((product) => (
             <StoreProductCard key={product.id} product={product} />
           ))}
         </div>

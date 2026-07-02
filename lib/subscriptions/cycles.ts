@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 
 const CYCLE_STATUS_RANK: Record<string, number> = {
@@ -179,7 +180,7 @@ export async function repairDuplicateSubscriptionCycles(
 
   const { data: subs } = await supabase
     .from('subscriptions')
-    .select('id, current_cycle')
+    .select('id, current_cycle, billing_term')
     .in('status', ['active', 'past_due']);
 
   for (const sub of subs ?? []) {
@@ -241,6 +242,9 @@ export async function repairDuplicateSubscriptionCycles(
     }
 
     if ((sub.current_cycle ?? 1) > 1) {
+      const billingTerm = (sub.billing_term as BillingTerm | null) ?? 'monthly';
+      if (isComboTerm(billingTerm)) continue;
+
       await supabase
         .from('subscriptions')
         .update({ current_cycle: 1, updated_at: new Date().toISOString() })

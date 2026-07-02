@@ -3,7 +3,7 @@ import { asaasRequest } from '@/lib/asaas/client';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
-import { markCyclePreparing } from '@/lib/subscriptions/cycles';
+import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -81,10 +81,15 @@ export async function handleComboPaymentConfirmed(
   }
 
   if (paymentRow) {
-    await markCyclePreparing(supabase, local.id, 1, {
-      id: paymentRow.id,
-      amount_cents: paymentRow.amount_cents,
-      paid_at: now,
+    await seedPrepaidComboProductionSchedule(supabase, {
+      subscriptionId: local.id,
+      billingTerm: (local.billing_term as 'combo_3' | 'combo_6' | 'combo_12') ?? 'combo_3',
+      paymentLink: {
+        id: paymentRow.id,
+        amount_cents: paymentRow.amount_cents,
+        paid_at: now,
+      },
+      anchorDate: new Date(now),
     });
   }
 

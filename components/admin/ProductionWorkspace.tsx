@@ -9,14 +9,18 @@ import ArchiveCyclesTable from '@/components/admin/ArchiveCyclesTable';
 import AdminSection from '@/components/admin/AdminSection';
 import CycleDetailModalView from '@/components/admin/CycleDetailModalView';
 import CycleShipModal from '@/components/admin/CycleShipModal';
+import ProductionCalendar from '@/components/admin/ProductionCalendar';
 import ProductionKanban from '@/components/admin/ProductionKanban';
 import ProductionListView from '@/components/admin/ProductionListView';
 import ProductionViewToggle, {
   type ProductionViewMode,
 } from '@/components/admin/ProductionViewToggle';
+import type { ProductionMonthNavItem } from '@/lib/admin/production-month';
 
 interface Props {
   board: ProductionKanbanBoard;
+  calendarMonths: ProductionMonthNavItem[];
+  productionMonth: string;
   counts: {
     cancelled: number;
     failed: number;
@@ -36,6 +40,8 @@ function cycleLabel(
 
 export default function ProductionWorkspace({
   board,
+  calendarMonths,
+  productionMonth,
   counts,
   archiveCycles,
   showArchiveList,
@@ -48,6 +54,7 @@ export default function ProductionWorkspace({
     cycleId: string;
     label: string;
     defaultCarrier: string;
+    defaultShippingCostCents: number | null;
   } | null>(null);
 
   const refreshBoard = useCallback(() => {
@@ -63,6 +70,7 @@ export default function ProductionWorkspace({
       cycleId: row.id,
       label: cycleLabel(row),
       defaultCarrier: row.carrier ?? 'Correios',
+      defaultShippingCostCents: null,
     });
   }, []);
 
@@ -74,11 +82,19 @@ export default function ProductionWorkspace({
         customerName: detail.customerName,
       }),
       defaultCarrier: detail.carrier ?? 'Correios',
+      defaultShippingCostCents: detail.shippingCostCents,
     });
   }, []);
 
   return (
     <>
+      {!showArchiveList ? (
+        <ProductionCalendar
+          months={calendarMonths}
+          selectedMonth={productionMonth}
+        />
+      ) : null}
+
       {!showArchiveList ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-600">
@@ -128,6 +144,7 @@ export default function ProductionWorkspace({
         cycleId={shipTarget?.cycleId ?? null}
         cycleLabel={shipTarget?.label}
         defaultCarrier={shipTarget?.defaultCarrier}
+        defaultShippingCostCents={shipTarget?.defaultShippingCostCents ?? null}
         onClose={() => setShipTarget(null)}
         onSuccess={refreshBoard}
       />

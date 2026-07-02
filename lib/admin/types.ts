@@ -31,6 +31,7 @@ export interface AdminReferrerLeaderboardRow {
   email: string | null;
   code: string;
   totalVisits: number;
+  totalSignups: number;
   totalReferrals: number;
   totalConversions: number;
   pendingCount: number;
@@ -38,12 +39,29 @@ export interface AdminReferrerLeaderboardRow {
 }
 
 export interface AdminPartnerReferralStats {
+  totalLinkVisits: number;
+  totalSignups: number;
   totalAttributedCustomers: number;
   qualifiedCustomers: number;
   pendingCustomers: number;
-  totalLinkVisits: number;
   activeReferrers: number;
   topReferrers: AdminReferrerLeaderboardRow[];
+}
+
+export interface AdminProfitSummary {
+  salesCents: number;
+  orderCostCents: number;
+  profitCents: number;
+  marginPercent: number | null;
+}
+
+export interface AdminProfitMonthRow {
+  month: string;
+  label: string;
+  salesCents: number;
+  costCents: number;
+  profitCents: number;
+  marginPercent: number | null;
 }
 
 export interface AdminDashboardStats {
@@ -57,6 +75,10 @@ export interface AdminDashboardStats {
   pendingSubscriptions: number;
   paymentsApproved30d: number;
   revenueApproved30dCents: number;
+  totalRevenueCents: number;
+  totalPaymentsApproved: number;
+  profit30d: AdminProfitSummary;
+  profitByMonth: AdminProfitMonthRow[];
   mrrByPlan: { planName: string; subscribers: number; mrrCents: number }[];
   activePlanCounts: AdminActivePlanCount[];
   recentPayments: AdminPaymentRow[];
@@ -158,6 +180,7 @@ export interface AdminCycleExtraItem {
   kind: CycleShipmentItemKind;
   source: 'subscription' | 'store_order';
   paymentPending?: boolean;
+  lineRevenueCents?: number | null;
 }
 
 export interface AdminCycleRow {
@@ -170,9 +193,14 @@ export interface AdminCycleRow {
   shipped_at: string | null;
   paid_at: string | null;
   created_at: string | null;
+  scheduledProductionMonth: string | null;
+  amount_cents: number | null;
+  shipping_cost_cents: number | null;
+  payment_id: string | null;
   customerName: string | null;
   customerEmail: string | null;
   planName: string | null;
+  planProductionCostCents: number;
   themeName: string | null;
   city: string | null;
   state: string | null;
@@ -180,11 +208,15 @@ export interface AdminCycleRow {
   userId: string | null;
   subscriptionStatus: string | null;
   subscriptionCurrentCycle: number | null;
+  subscriptionBillingTerm: string | null;
   isPartner: boolean;
   hasBundledItems: boolean;
   bundledItemTags: AdminCycleBundledTag[];
   /** Itens da loja + add-ons para montar junto com a caixa */
   extraItems: AdminCycleExtraItem[];
+  totalRevenueCents: number | null;
+  shipmentMarginCents: number | null;
+  hasBundledRevenue: boolean;
 }
 
 export interface AdminPaymentRow extends Payment {
@@ -320,6 +352,7 @@ export interface AdminFinancialMovementRow {
 
 export interface AdminFinancialDashboard {
   summary: AdminFinancialSummary;
+  profit: AdminProfitSummary;
   cashFlow: {
     month: string;
     label: string;
@@ -327,6 +360,7 @@ export interface AdminFinancialDashboard {
     outflowCents: number;
     netCents: number;
   }[];
+  profitByMonth: AdminProfitMonthRow[];
   movements: AdminFinancialMovementRow[];
   categories: AdminFinancialCategoryRow[];
 }

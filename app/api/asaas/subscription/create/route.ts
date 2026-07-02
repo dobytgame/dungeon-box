@@ -441,13 +441,21 @@ export async function POST(request: Request) {
 
       if (!referralRegistered && referralCookie) {
         const admin = createAdminClient();
-        await registerReferralAtCheckout(admin, {
+        const referralResult = await registerReferralAtCheckout(admin, {
           referredUserId: user.id,
           subscriptionId: result.subscriptionId,
           referralCode: referralCookie,
           usedPromoCode: Boolean(resolvedCoupon || body.couponCode?.trim()),
         });
-        referralRegistered = true;
+        if (referralResult === 'created') {
+          referralRegistered = true;
+        } else {
+          console.info('[referral] checkout attribution skipped:', {
+            userId: user.id,
+            subscriptionId: result.subscriptionId,
+            reason: referralResult,
+          });
+        }
       }
     }
 

@@ -11,8 +11,14 @@ import {
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
-import { isMonthlyKitProductId } from '@/lib/store/monthly-kits';
+import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
+import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import type { CycleStatus } from '@/lib/dashboard/types';
+import {
+  buildPlanProductionCostMap,
+  resolveCycleShipmentFinance,
+} from '@/lib/admin/cycle-shipment-finance';
+import { mergeMonthlyKitProductionCosts } from '@/lib/admin/store-products';
 
 export type CycleShipmentItemKind = 'paint-kit' | 'monthly-kit' | 'store';
 export type ProductionItemKind = 'subscription' | CycleShipmentItemKind;
@@ -26,6 +32,7 @@ export interface CycleShipmentItem {
   detail: string | null;
   source: 'subscription' | 'store_order';
   paymentPending?: boolean;
+  planSlug?: string | null;
 }
 
 export interface ProductionChecklistItem {
@@ -47,8 +54,9 @@ export interface CycleShipmentContext {
   createdAt: string | null;
 }
 
-interface StoreOrderPaymentRow {
+export interface StoreOrderPaymentRow {
   id: string;
+  amount_cents: number;
   paid_at: string | null;
   created_at: string | null;
   meta: StoreOrderMeta;
@@ -141,6 +149,14 @@ function itemsFromStoreOrderMeta(
         line.name ||
         (planName ? `Kit do mês — ${planName}` : 'Kit do mês adicional');
 
+      const planSlug =
+        (typeof line.planSlug === 'string' ? line.planSlug : null) ??
+        parseMonthlyKitPlanSlug(line.productId) ??
+        inferPlanSlugFromText(
+          typeof line.planName === 'string' ? line.planName : null
+        ) ??
+        inferPlanSlugFromText(line.name);
+
       items.push({
         id: `monthly-kit:${line.productId}:${line.quantity}`,
         kind: 'monthly-kit',
@@ -150,6 +166,7 @@ function itemsFromStoreOrderMeta(
         detail,
         source: 'store_order',
         paymentPending,
+        planSlug,
       });
       continue;
     }
@@ -210,7 +227,7 @@ function cycleStartTimestamp(cycle: CycleShipmentContext): number {
 }
 
 /** Atribui pedido da loja ao ciclo em que foi (ou será) enviado. */
-function assignStoreOrderToCycle(
+export function assignStoreOrderToCycle(
   order: StoreOrderPaymentRow,
   siblingCycles: CycleShipmentContext[]
 ): CycleShipmentContext | null {
@@ -247,20 +264,68 @@ export function storeOrdersForCycle(
   storeOrders: StoreOrderPaymentRow[]
 ): CycleShipmentItem[] {
   const matched = storeOrders.filter((order) => {
+    if (order.paymentStatus !== 'approved') return false;
     const assigned = assignStoreOrderToCycle(order, siblingCycles);
     return assigned?.cycleId === cycle.cycleId;
   });
 
   const items: CycleShipmentItem[] = [];
   for (const order of matched) {
-    items.push(
-      ...itemsFromStoreOrderMeta(
-        order.meta,
-        order.paymentStatus === 'pending'
-      )
-    );
+    items.push(...itemsFromStoreOrderMeta(order.meta, false));
   }
   return items;
+}
+
+function describeStoreOrderLine(
+  line: StoreOrderPaymentRow['meta']['items'][number]
+): string {
+  return line.quantity > 1 ? `${line.name} ×${line.quantity}` : line.name;
+}
+
+/** Pedidos da loja vinculados ao ciclo com pagamento ainda pendente (fora da produção). */
+export function pendingStoreOrdersForCycle(
+  cycle: CycleShipmentContext,
+  siblingCycles: CycleShipmentContext[],
+  storeOrders: StoreOrderPaymentRow[]
+): StoreOrderPaymentRow[] {
+  return storeOrders.filter((order) => {
+    if (order.paymentStatus !== 'pending') return false;
+    const assigned = assignStoreOrderToCycle(order, siblingCycles);
+    return assigned?.cycleId === cycle.cycleId;
+  });
+}
+
+export function describePendingStoreOrdersForCycle(
+  cycle: CycleShipmentContext,
+  siblingCycles: CycleShipmentContext[],
+  storeOrders: StoreOrderPaymentRow[]
+): { id: string; label: string; amountCents: number }[] {
+  const pending = pendingStoreOrdersForCycle(cycle, siblingCycles, storeOrders);
+  const rows: { id: string; label: string; amountCents: number }[] = [];
+
+  for (const order of pending) {
+    if (order.meta.items.length > 0) {
+      order.meta.items.forEach((line, index) => {
+        rows.push({
+          id: `${order.id}:pending:${index}`,
+          label: describeStoreOrderLine(line),
+          amountCents:
+            typeof line.lineTotalCents === 'number' && line.lineTotalCents > 0
+              ? line.lineTotalCents
+              : order.amount_cents,
+        });
+      });
+      continue;
+    }
+
+    rows.push({
+      id: `${order.id}:pending`,
+      label: 'Pedido da loja',
+      amountCents: order.amount_cents,
+    });
+  }
+
+  return rows;
 }
 
 export function buildCycleShipmentItems(input: {
@@ -395,7 +460,7 @@ export async function listBundledStoreOrdersBySubscription(
   await syncPendingBundledStoreOrders(admin, userIds);
 
   const paymentSelect =
-    'id, paid_at, created_at, status_detail, subscription_id, user_id, status';
+    'id, amount_cents, paid_at, created_at, status_detail, subscription_id, user_id, status';
 
   const { data: paymentRows, error } = await admin
     .from('payments')
@@ -445,6 +510,7 @@ export async function listBundledStoreOrdersBySubscription(
     const bucket = result.get(bundledSubId) ?? [];
     bucket.push({
       id: paymentId,
+      amount_cents: (row.amount_cents as number) ?? 0,
       paid_at: (row.paid_at as string | null) ?? null,
       created_at: (row.created_at as string | null) ?? null,
       meta,
@@ -539,4 +605,164 @@ export async function resolveCycleProductionData(
   });
 
   return { shipmentItems, productionChecklist };
+}
+
+export async function listAddonPaymentsForSubscription(
+  admin: SupabaseClient,
+  subscriptionId: string,
+  cyclePaymentId: string | null
+): Promise<
+  Array<{
+    id: string;
+    amount_cents: number;
+    paid_at: string | null;
+    created_at: string | null;
+  }>
+> {
+  let query = admin
+    .from('payments')
+    .select('id, amount_cents, paid_at, created_at, status_detail')
+    .eq('subscription_id', subscriptionId)
+    .eq('status', 'approved');
+
+  if (cyclePaymentId) {
+    query = query.neq('id', cyclePaymentId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[admin] listAddonPaymentsForSubscription:', error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((row) => {
+      const detail = row.status_detail as string | null;
+      return !detail?.includes('store_order');
+    })
+    .map((row) => ({
+      id: row.id as string,
+      amount_cents: (row.amount_cents as number) ?? 0,
+      paid_at: (row.paid_at as string | null) ?? null,
+      created_at: (row.created_at as string | null) ?? null,
+    }));
+}
+
+export async function resolveCycleProductionDataWithFinance(
+  admin: SupabaseClient,
+  input: {
+    cycleId: string;
+    cycleNumber: number;
+    subscriptionId: string;
+    status: CycleStatus;
+    paidAt: string | null;
+    createdAt: string | null;
+    paymentId: string | null;
+    amountCents: number | null;
+    shippingCostCents: number | null;
+    specialNotes: string | null | undefined;
+    planName: string | null;
+    planSlug: string | null;
+    planProductionCostCents: number;
+    themeName: string | null;
+    piecesLabel: string | null;
+    isPartner?: boolean;
+    subscriptionBillingTerm?: string | null;
+    subscriptionComboTotalCents?: number | null;
+    subscriptionComboInstallments?: number | null;
+  }
+) {
+  const [
+    siblingCycles,
+    storeOrdersBySub,
+    addonPayments,
+    plansRes,
+    cyclePaymentRes,
+  ] = await Promise.all([
+    listSiblingCyclesForShipment(admin, input.subscriptionId),
+    listBundledStoreOrdersBySubscription(admin, [input.subscriptionId]),
+    listAddonPaymentsForSubscription(
+      admin,
+      input.subscriptionId,
+      input.paymentId
+    ),
+    admin.from('plans').select('slug, production_cost_cents'),
+    input.paymentId
+      ? admin
+          .from('payments')
+          .select('amount_cents, status_detail, installments')
+          .eq('id', input.paymentId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const cycle: CycleShipmentContext = {
+    cycleId: input.cycleId,
+    cycleNumber: input.cycleNumber,
+    subscriptionId: input.subscriptionId,
+    status: input.status,
+    paidAt: input.paidAt,
+    createdAt: input.createdAt,
+  };
+
+  const storeOrders = storeOrdersBySub.get(input.subscriptionId) ?? [];
+
+  const shipmentItems = buildCycleShipmentItems({
+    cycle,
+    siblingCycles,
+    specialNotes: input.specialNotes,
+    storeOrders,
+  });
+
+  const productionChecklist = buildProductionChecklist({
+    cycle,
+    siblingCycles,
+    specialNotes: input.specialNotes,
+    storeOrders,
+    planName: input.planName,
+    themeName: input.themeName,
+    piecesLabel: input.piecesLabel,
+  });
+
+  const planProductionBySlug = await mergeMonthlyKitProductionCosts(
+    admin,
+    buildPlanProductionCostMap(
+      (plansRes.data ?? []) as Array<{
+        slug: string;
+        production_cost_cents: number;
+      }>
+    )
+  );
+
+  const finance = resolveCycleShipmentFinance({
+    cycleAmountCents: input.amountCents,
+    cyclePaymentId: input.paymentId,
+    cyclePayment: cyclePaymentRes.data
+      ? {
+          amount_cents: (cyclePaymentRes.data.amount_cents as number) ?? 0,
+          status_detail:
+            (cyclePaymentRes.data.status_detail as string | null) ?? null,
+          installments:
+            (cyclePaymentRes.data.installments as number | null) ?? null,
+        }
+      : null,
+    subscriptionContext: {
+      billing_term: input.subscriptionBillingTerm ?? null,
+      combo_total_cents: input.subscriptionComboTotalCents ?? null,
+      combo_installments: input.subscriptionComboInstallments ?? null,
+    },
+    shippingCostCents: input.shippingCostCents,
+    subscriptionPlanProductionCostCents: input.planProductionCostCents,
+    planProductionBySlug,
+    cycle,
+    siblingCycles,
+    shipmentItems,
+    storeOrders,
+    addonPayments,
+    specialNotes: input.specialNotes,
+    isPartner: input.isPartner,
+  });
+
+  return { shipmentItems, productionChecklist, finance, pendingBundledOrders: describePendingStoreOrdersForCycle(cycle, siblingCycles, storeOrders) };
 }

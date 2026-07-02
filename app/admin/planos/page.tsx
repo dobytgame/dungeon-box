@@ -29,6 +29,23 @@ export default async function AdminPlansPage() {
             cell: (row) => formatMoney(row.price_cents),
           },
           {
+            key: 'production_cost',
+            header: 'Custo prod.',
+            cell: (row) =>
+              row.production_cost_cents > 0
+                ? formatMoney(row.production_cost_cents)
+                : '—',
+          },
+          {
+            key: 'margin',
+            header: 'Margem ref.',
+            cell: (row) => {
+              if (row.production_cost_cents <= 0) return '—';
+              const margin = row.price_cents - row.production_cost_cents;
+              return formatMoney(margin);
+            },
+          },
+          {
             key: 'pieces',
             header: 'Peças',
             cell: (row) => `${row.pieces_min}–${row.pieces_max}`,

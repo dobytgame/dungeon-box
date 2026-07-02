@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
+import { getOperationChartPeriod } from '@/lib/admin/chart-period';
+import { getProfitByMonth, getProfitSummary } from '@/lib/admin/profit-analytics';
 import type {
   AdminFinancialCategoryRow,
   AdminFinancialDashboard,
@@ -149,6 +151,49 @@ export async function listFinancialExpenses(
   });
 }
 
+type ApprovedPaymentRevenueRow = {
+  amount_cents: number | null;
+  status_detail: string | null;
+  installments: number | null;
+  subscriptions: unknown;
+};
+
+export function sumApprovedPaymentsRevenueCents(
+  payments: ApprovedPaymentRevenueRow[]
+): number {
+  return payments.reduce((sum, row) => {
+    const subscription = Array.isArray(row.subscriptions)
+      ? row.subscriptions[0]
+      : row.subscriptions;
+    return (
+      sum +
+      resolveEffectivePaymentAmountCents(
+        {
+          amount_cents: row.amount_cents ?? 0,
+          status_detail: row.status_detail as string | null,
+          installments: row.installments as number | null,
+        },
+        subscription as {
+          billing_term?: string | null;
+          combo_total_cents?: number | null;
+          combo_installments?: number | null;
+        } | null
+      )
+    );
+  }, 0);
+}
+
+export async function getTotalApprovedRevenue(
+  admin: SupabaseClient
+): Promise<{ revenueCents: number; paymentCount: number }> {
+  const { from, to } = getFinancialPeriodBounds('all');
+  const payments = await fetchApprovedPayments(admin, from, to);
+  return {
+    revenueCents: sumApprovedPaymentsRevenueCents(payments),
+    paymentCount: payments.length,
+  };
+}
+
 async function fetchApprovedPayments(
   admin: SupabaseClient,
   from: string,
@@ -220,26 +265,9 @@ export async function getFinancialSummary(
     listFinancialExpenses(admin, { from, to, limit: 5000 }),
   ]);
 
-  const revenueCents = payments.reduce((sum, row) => {
-    const subscription = Array.isArray(row.subscriptions)
-      ? row.subscriptions[0]
-      : row.subscriptions;
-    return (
-      sum +
-      resolveEffectivePaymentAmountCents(
-        {
-          amount_cents: row.amount_cents as number,
-          status_detail: row.status_detail as string | null,
-          installments: row.installments as number | null,
-        },
-        subscription as {
-          billing_term?: string | null;
-          combo_total_cents?: number | null;
-          combo_installments?: number | null;
-        } | null
-      )
-    );
-  }, 0);
+  const revenueCents = sumApprovedPaymentsRevenueCents(
+    payments as ApprovedPaymentRevenueRow[]
+  );
   const refundCents = refunds.reduce(
     (sum, row) => sum + (row.amount_cents as number),
     0
@@ -289,13 +317,9 @@ export async function getFinancialSummary(
 }
 
 export async function getCashFlowByMonth(
-  admin: SupabaseClient,
-  months = 12
+  admin: SupabaseClient
 ): Promise<{ month: string; label: string; inflowCents: number; outflowCents: number; netCents: number }[]> {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-  const from = start.toISOString().slice(0, 10);
-  const to = now.toISOString().slice(0, 10);
+  const { from, to, monthKeys } = getOperationChartPeriod();
 
   const [payments, refunds, expenses] = await Promise.all([
     fetchApprovedPayments(admin, from, to),
@@ -305,9 +329,7 @@ export async function getCashFlowByMonth(
 
   const buckets = new Map<string, { inflow: number; outflow: number }>();
 
-  for (let i = 0; i < months; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1);
-    const key = monthKey(d.toISOString());
+  for (const key of monthKeys) {
     buckets.set(key, { inflow: 0, outflow: 0 });
   }
 
@@ -345,13 +367,16 @@ export async function getCashFlowByMonth(
     if (bucket) bucket.outflow += expense.amount_cents;
   }
 
-  return Array.from(buckets.entries()).map(([month, row]) => ({
-    month,
-    label: monthLabel(month),
-    inflowCents: row.inflow,
-    outflowCents: row.outflow,
-    netCents: row.inflow - row.outflow,
-  }));
+  return monthKeys.map((month) => {
+    const row = buckets.get(month) ?? { inflow: 0, outflow: 0 };
+    return {
+      month,
+      label: monthLabel(month),
+      inflowCents: row.inflow,
+      outflowCents: row.outflow,
+      netCents: row.inflow - row.outflow,
+    };
+  });
 }
 
 export async function listFinancialMovements(
@@ -442,15 +467,18 @@ export async function getFinancialDashboard(
   admin: SupabaseClient,
   period: AdminFinancialPeriod = '30d'
 ): Promise<AdminFinancialDashboard> {
-  const [summary, cashFlow, movements, categories] = await Promise.all([
-    getFinancialSummary(admin, period),
-    getCashFlowByMonth(admin, 12),
-    listFinancialMovements(admin, {
-      ...getFinancialPeriodBounds(period),
-      limit: 50,
-    }),
-    listFinancialCategories(admin),
-  ]);
+  const [summary, profit, cashFlow, profitByMonth, movements, categories] =
+    await Promise.all([
+      getFinancialSummary(admin, period),
+      getProfitSummary(admin, period),
+      getCashFlowByMonth(admin),
+      getProfitByMonth(admin),
+      listFinancialMovements(admin, {
+        ...getFinancialPeriodBounds(period),
+        limit: 50,
+      }),
+      listFinancialCategories(admin),
+    ]);
 
-  return { summary, cashFlow, movements, categories };
+  return { summary, profit, cashFlow, profitByMonth, movements, categories };
 }

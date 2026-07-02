@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import AdminCashFlowChart from '@/components/admin/AdminCashFlowChart';
+import AdminProfitMarginChart from '@/components/admin/AdminProfitMarginChart';
 import AdminSection from '@/components/admin/AdminSection';
 import AdminTable from '@/components/admin/AdminTable';
 import KpiCard from '@/components/admin/KpiCard';
@@ -40,7 +41,7 @@ export default async function AdminFinancePage({ searchParams }: Props) {
   ) as AdminFinancialPeriod;
 
   const dashboard = await getFinancialDashboard(admin, period);
-  const { summary, cashFlow, movements } = dashboard;
+  const { summary, profit, cashFlow, profitByMonth, movements } = dashboard;
 
   return (
     <div className="space-y-8">
@@ -70,22 +71,26 @@ export default async function AdminFinancePage({ searchParams }: Props) {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Entradas"
-          value={formatMoney(summary.revenueCents)}
+          label="Vendas"
+          value={formatMoney(profit.salesCents)}
           hint={`${summary.revenueCount} pagamentos aprovados`}
           accent="console"
         />
         <KpiCard
-          label="Saídas"
-          value={formatMoney(summary.expenseCents + summary.refundCents)}
-          hint={`${summary.expenseCount} gastos · ${summary.refundCount} reembolsos`}
+          label="Custo dos pedidos"
+          value={formatMoney(profit.orderCostCents)}
+          hint="Custo de produção dos pedidos vendidos no período"
           accent="danger"
         />
         <KpiCard
-          label="Saldo líquido"
-          value={formatMoney(summary.netCents)}
-          hint={`${formatDate(summary.from)} — ${formatDate(summary.to)}`}
-          accent={summary.netCents >= 0 ? 'gold' : 'danger'}
+          label="Lucro bruto"
+          value={formatMoney(profit.profitCents)}
+          hint={
+            profit.marginPercent != null
+              ? `${profit.marginPercent}% de margem de produto`
+              : `${formatDate(summary.from)} — ${formatDate(summary.to)}`
+          }
+          accent={profit.profitCents >= 0 ? 'gold' : 'danger'}
         />
         <KpiCard
           label="Gastos pendentes"
@@ -96,8 +101,12 @@ export default async function AdminFinancePage({ searchParams }: Props) {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <AdminCashFlowChart rows={cashFlow} />
+        <AdminProfitMarginChart rows={profitByMonth} />
 
+        <AdminCashFlowChart rows={cashFlow} />
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
         <div className="admin-panel rounded p-5 md:p-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
             Gastos por categoria
@@ -140,6 +149,20 @@ export default async function AdminFinancePage({ searchParams }: Props) {
               })}
             </div>
           )}
+        </div>
+
+        <div className="admin-panel rounded p-5 md:p-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+            Custo dos pedidos
+          </p>
+          <h3 className="mt-2 text-lg font-medium text-zinc-100">Pedidos vendidos no período</h3>
+          <p className="mt-4 text-sm leading-relaxed text-zinc-500">
+            Mensalidades e loja: custo no pagamento. Combos: 1 caixa por mês quando o ciclo
+            entra em produção (não tudo de uma vez no pagamento do combo).
+          </p>
+          <p className="mt-6 font-mono text-3xl tabular-nums text-red-300">
+            {formatMoney(profit.orderCostCents)}
+          </p>
         </div>
       </section>
 

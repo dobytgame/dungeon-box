@@ -1,0 +1,203 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getOperationChartPeriod } from '@/lib/admin/chart-period';
+import { getFinancialPeriodBounds } from '@/lib/admin/finance';
+import {
+  sumComboCycleProductionCosts,
+  sumComboCycleProductionCostsByMonth,
+} from '@/lib/admin/combo-cycle-cost';
+import {
+  fetchApprovedPaymentsForOrderCost,
+  loadFirstApprovedPaymentIdBySubscription,
+  loadOrderCostCatalog,
+  resolvePaymentOrderCostCents,
+} from '@/lib/admin/payment-order-cost';
+import type {
+  AdminFinancialPeriod,
+  AdminProfitMonthRow,
+  AdminProfitSummary,
+} from '@/lib/admin/types';
+import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
+
+function monthKey(dateStr: string): string {
+  return dateStr.slice(0, 7);
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split('-');
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' }).format(
+    date
+  );
+}
+
+function buildProfitSummary(
+  salesCents: number,
+  orderCostCents: number
+): AdminProfitSummary {
+  const profitCents = salesCents - orderCostCents;
+  const marginPercent =
+    salesCents > 0 ? Math.round((profitCents / salesCents) * 100) : null;
+
+  return {
+    salesCents,
+    orderCostCents,
+    profitCents,
+    marginPercent,
+  };
+}
+
+function sumPaymentRevenue(
+  payments: Array<{
+    amount_cents: number;
+    status_detail: string | null;
+    installments?: number | null;
+    subscriptions: unknown;
+  }>
+): number {
+  return payments.reduce((sum, row) => {
+    const subscription = Array.isArray(row.subscriptions)
+      ? row.subscriptions[0]
+      : row.subscriptions;
+    return (
+      sum +
+      resolveEffectivePaymentAmountCents(
+        {
+          amount_cents: row.amount_cents,
+          status_detail: row.status_detail,
+          installments: row.installments ?? null,
+        },
+        subscription as {
+          billing_term?: string | null;
+          combo_total_cents?: number | null;
+          combo_installments?: number | null;
+        } | null
+      )
+    );
+  }, 0);
+}
+
+async function sumOrderCostsForPayments(
+  admin: SupabaseClient,
+  payments: Awaited<ReturnType<typeof fetchApprovedPaymentsForOrderCost>>
+): Promise<number> {
+  if (payments.length === 0) return 0;
+
+  const subscriptionIds = Array.from(
+    new Set(
+      payments
+        .map((payment) => payment.subscription_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const [catalog, firstPaymentIdBySubscription] = await Promise.all([
+    loadOrderCostCatalog(admin),
+    loadFirstApprovedPaymentIdBySubscription(admin, subscriptionIds),
+  ]);
+
+  return payments.reduce(
+    (sum, payment) =>
+      sum +
+      resolvePaymentOrderCostCents(catalog, payment, firstPaymentIdBySubscription),
+    0
+  );
+}
+
+export async function getProfitSummary(
+  admin: SupabaseClient,
+  period: AdminFinancialPeriod = '30d'
+): Promise<AdminProfitSummary> {
+  const { from, to } = getFinancialPeriodBounds(period);
+
+  const payments = await fetchApprovedPaymentsForOrderCost(admin, from, to);
+  const [salesCents, paymentOrderCostCents, comboCycleCostCents] = await Promise.all([
+    Promise.resolve(sumPaymentRevenue(payments)),
+    sumOrderCostsForPayments(admin, payments),
+    sumComboCycleProductionCosts(admin, from, to),
+  ]);
+
+  return buildProfitSummary(salesCents, paymentOrderCostCents + comboCycleCostCents);
+}
+
+export async function getProfitByMonth(
+  admin: SupabaseClient
+): Promise<AdminProfitMonthRow[]> {
+  const { from, to, monthKeys } = getOperationChartPeriod();
+
+  const payments = await fetchApprovedPaymentsForOrderCost(admin, from, to);
+
+  const subscriptionIds = Array.from(
+    new Set(
+      payments
+        .map((payment) => payment.subscription_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const [catalog, firstPaymentIdBySubscription, comboCostsByMonth] =
+    await Promise.all([
+      loadOrderCostCatalog(admin),
+      loadFirstApprovedPaymentIdBySubscription(admin, subscriptionIds),
+      sumComboCycleProductionCostsByMonth(admin, from, to),
+    ]);
+
+  const buckets = new Map<
+    string,
+    { salesCents: number; orderCostCents: number }
+  >();
+
+  for (const key of monthKeys) {
+    buckets.set(key, { salesCents: 0, orderCostCents: 0 });
+  }
+
+  for (const payment of payments) {
+    const paidAt = payment.paid_at ?? payment.created_at;
+    if (!paidAt) continue;
+
+    const key = monthKey(paidAt);
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+
+    const subscription = Array.isArray(payment.subscriptions)
+      ? payment.subscriptions[0]
+      : payment.subscriptions;
+
+    bucket.salesCents += resolveEffectivePaymentAmountCents(
+      {
+        amount_cents: payment.amount_cents,
+        status_detail: payment.status_detail,
+        installments: payment.installments ?? null,
+      },
+      subscription as {
+        billing_term?: string | null;
+        combo_total_cents?: number | null;
+        combo_installments?: number | null;
+      } | null
+    );
+
+    bucket.orderCostCents += resolvePaymentOrderCostCents(
+      catalog,
+      payment,
+      firstPaymentIdBySubscription
+    );
+  }
+
+  for (const [month, comboCostCents] of Array.from(comboCostsByMonth.entries())) {
+    const bucket = buckets.get(month);
+    if (bucket) bucket.orderCostCents += comboCostCents;
+  }
+
+  return monthKeys.map((month) => {
+    const row = buckets.get(month) ?? { salesCents: 0, orderCostCents: 0 };
+    const summary = buildProfitSummary(row.salesCents, row.orderCostCents);
+
+    return {
+      month,
+      label: monthLabel(month),
+      salesCents: summary.salesCents,
+      costCents: summary.orderCostCents,
+      profitCents: summary.profitCents,
+      marginPercent: summary.marginPercent,
+    };
+  });
+}

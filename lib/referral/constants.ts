@@ -45,6 +45,7 @@ export const REFERRAL_REWARDS = [
 export type ReferralRewardType = (typeof REFERRAL_REWARDS)[number]['type'];
 
 export const REFERRAL_STATUS_LABELS: Record<string, string> = {
+  signed_up: 'Cadastrou (sem assinatura)',
   pending: 'Pendente',
   qualified: 'Qualificado',
   cancelled: 'Cancelado',

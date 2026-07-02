@@ -16,6 +16,11 @@ export type StoreProduct = {
   includes: readonly string[];
   featured?: boolean;
   category: StoreProductCategory;
+  storeCategorySlug?: string;
+  storeCategoryName?: string;
+  imageUrl?: string;
+  galleryUrls?: string[];
+  pageContentHtml?: string;
   /** ID interno usado em special_notes da assinatura */
   paintKitBumpId?: 'amador' | 'profissional';
   subscriberOnly?: boolean;

@@ -34,6 +34,15 @@ export default function PlanCommercialForm({ plan }: Props) {
         }
         formData.set('price_cents', String(Math.round(priceReais * 100)));
 
+        const productionCostReais = Number.parseFloat(
+          (formData.get('production_cost_reais') as string)?.replace(',', '.') ?? '0'
+        );
+        if (Number.isNaN(productionCostReais) || productionCostReais < 0) {
+          setError('Custo de produção inválido.');
+          return;
+        }
+        formData.set('production_cost_reais', productionCostReais.toFixed(2));
+
         setError('');
         setMessage('');
         startTransition(async () => {
@@ -89,6 +98,24 @@ export default function PlanCommercialForm({ plan }: Props) {
             className={inputClass}
           />
         </div>
+        <div>
+          <label htmlFor="production_cost_reais" className={labelClass}>
+            Custo de produção (R$)
+          </label>
+          <input
+            id="production_cost_reais"
+            name="production_cost_reais"
+            required
+            defaultValue={((plan.production_cost_cents ?? 0) / 100).toFixed(2)}
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-stone-500">
+            Custo estimado de matéria-prima e montagem de uma caixa deste plano.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="sort_order" className={labelClass}>
             Ordem

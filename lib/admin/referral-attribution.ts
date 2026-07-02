@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { REFERRAL_STATUS_LABELS } from '@/lib/referral/constants';
+import { loadReferralSignupByReferredIds } from '@/lib/referral/signups';
 import type {
   AdminCustomerReferralAttribution,
   AdminPartnerReferralStats,
@@ -44,26 +45,35 @@ export async function loadReferralAttributionByReferredIds(
   const result = new Map<string, AdminCustomerReferralAttribution>();
   if (referredIds.length === 0) return result;
 
-  const { data: referrals } = await admin
-    .from('referrals')
-    .select('referred_id, referrer_id, status, created_at')
-    .in('referred_id', referredIds);
+  const [{ data: referrals }, signupByReferred] = await Promise.all([
+    admin
+      .from('referrals')
+      .select('referred_id, referrer_id, status, created_at')
+      .in('referred_id', referredIds),
+    loadReferralSignupByReferredIds(admin, referredIds),
+  ]);
 
-  if (!referrals?.length) return result;
-
-  const referrerIds = Array.from(
-    new Set(referrals.map((row) => row.referrer_id))
-  );
+  const referrerIds = new Set<string>();
+  for (const referral of referrals ?? []) {
+    referrerIds.add(referral.referrer_id as string);
+  }
+  Array.from(signupByReferred.values()).forEach((signup) => {
+    referrerIds.add(signup.referrerId);
+  });
 
   const [{ data: profiles }, { data: codes }] = await Promise.all([
-    admin
-      .from('profiles')
-      .select('id, full_name, display_name, email')
-      .in('id', referrerIds),
-    admin
-      .from('referral_codes')
-      .select('user_id, code')
-      .in('user_id', referrerIds),
+    referrerIds.size
+      ? admin
+          .from('profiles')
+          .select('id, full_name, display_name, email')
+          .in('id', Array.from(referrerIds))
+      : Promise.resolve({ data: [] as ProfileRow[] }),
+    referrerIds.size
+      ? admin
+          .from('referral_codes')
+          .select('user_id, code')
+          .in('user_id', Array.from(referrerIds))
+      : Promise.resolve({ data: [] as { user_id: string; code: string }[] }),
   ]);
 
   const profileById = new Map(
@@ -73,7 +83,7 @@ export async function loadReferralAttributionByReferredIds(
     (codes ?? []).map((row) => [row.user_id, row.code as string])
   );
 
-  for (const referral of referrals as ReferralRow[]) {
+  for (const referral of (referrals ?? []) as ReferralRow[]) {
     const referrer = profileById.get(referral.referrer_id);
     result.set(referral.referred_id, {
       referrerId: referral.referrer_id,
@@ -85,6 +95,20 @@ export async function loadReferralAttributionByReferredIds(
     });
   }
 
+  Array.from(signupByReferred.entries()).forEach(([referredId, signup]) => {
+    if (result.has(referredId)) return;
+
+    const referrer = profileById.get(signup.referrerId);
+    result.set(referredId, {
+      referrerId: signup.referrerId,
+      referrerName: profileLabel(referrer),
+      referrerEmail: referrer?.email ?? null,
+      referralCode: signup.referralCode,
+      status: 'signed_up',
+      createdAt: signup.createdAt,
+    });
+  });
+
   return result;
 }
 
@@ -92,12 +116,15 @@ export async function getAdminPartnerReferralStats(
   admin: SupabaseClient
 ): Promise<AdminPartnerReferralStats> {
   const [
+    { count: totalSignups },
     { count: totalAttributed },
     { count: qualifiedCustomers },
     { count: pendingCustomers },
     { data: referrals },
+    { data: signups },
     { data: codes },
   ] = await Promise.all([
+    admin.from('referral_signups').select('id', { count: 'exact', head: true }),
     admin.from('referrals').select('id', { count: 'exact', head: true }),
     admin
       .from('referrals')
@@ -108,6 +135,7 @@ export async function getAdminPartnerReferralStats(
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
     admin.from('referrals').select('referrer_id, status'),
+    admin.from('referral_signups').select('referrer_id'),
     admin
       .from('referral_codes')
       .select('user_id, code, total_referrals, total_conversions, total_visits')
@@ -117,11 +145,23 @@ export async function getAdminPartnerReferralStats(
 
   const countsByReferrer = new Map<
     string,
-    { total: number; pending: number; qualified: number }
+    { signups: number; total: number; pending: number; qualified: number }
   >();
+
+  for (const row of signups ?? []) {
+    const current = countsByReferrer.get(row.referrer_id) ?? {
+      signups: 0,
+      total: 0,
+      pending: 0,
+      qualified: 0,
+    };
+    current.signups += 1;
+    countsByReferrer.set(row.referrer_id, current);
+  }
 
   for (const row of referrals ?? []) {
     const current = countsByReferrer.get(row.referrer_id) ?? {
+      signups: 0,
       total: 0,
       pending: 0,
       qualified: 0,
@@ -165,8 +205,11 @@ export async function getAdminPartnerReferralStats(
       const profile = profileById.get(userId);
       const totalReferrals = live?.total ?? codeRow?.total_referrals ?? 0;
       const totalVisits = codeRow?.total_visits ?? 0;
+      const totalSignupCount = live?.signups ?? 0;
 
-      if (totalReferrals <= 0 && totalVisits <= 0) return null;
+      if (totalReferrals <= 0 && totalVisits <= 0 && totalSignupCount <= 0) {
+        return null;
+      }
 
       return {
         userId,
@@ -174,6 +217,7 @@ export async function getAdminPartnerReferralStats(
         email: profile?.email ?? null,
         code: codeRow?.code ?? '—',
         totalVisits,
+        totalSignups: totalSignupCount,
         totalReferrals,
         totalConversions:
           live?.qualified ?? codeRow?.total_conversions ?? 0,
@@ -182,15 +226,25 @@ export async function getAdminPartnerReferralStats(
       };
     })
     .filter((row): row is AdminReferrerLeaderboardRow => row !== null)
-    .sort((a, b) => b.totalReferrals - a.totalReferrals || b.totalVisits - a.totalVisits)
+    .sort(
+      (a, b) =>
+        b.totalSignups - a.totalSignups ||
+        b.totalReferrals - a.totalReferrals ||
+        b.totalVisits - a.totalVisits
+    )
     .slice(0, 12);
 
+  const activeReferrers = Array.from(countsByReferrer.values()).filter(
+    (row) => row.signups > 0 || row.total > 0
+  ).length;
+
   return {
+    totalLinkVisits,
+    totalSignups: totalSignups ?? 0,
     totalAttributedCustomers: totalAttributed ?? 0,
     qualifiedCustomers: qualifiedCustomers ?? 0,
     pendingCustomers: pendingCustomers ?? 0,
-    totalLinkVisits,
-    activeReferrers: countsByReferrer.size,
+    activeReferrers,
     topReferrers,
   };
 }

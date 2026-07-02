@@ -13,6 +13,7 @@ import {
   type StoreOrderPurchaseAnalytics,
 } from '@/lib/analytics/store-purchase';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
+import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 
 export type StoreOrderMeta = {
   type: 'store_order';
@@ -109,6 +110,8 @@ function parseStoreItemFromAsaasDescription(description: string): {
   quantity: number;
   kind: 'monthly-kit' | 'catalog';
   productId: string;
+  planSlug: string | null;
+  planName: string | null;
 } {
   const qtyMatch = description.match(/(\d+)x\s/i);
   const quantity = qtyMatch ? Number.parseInt(qtyMatch[1], 10) : 1;
@@ -117,12 +120,19 @@ function parseStoreItemFromAsaasDescription(description: string): {
   const name = description
     .replace(/^DungeonBox\s+Loja\s*[—-]\s*/i, '')
     .trim();
+  const planSlug = isMonthlyKit ? inferPlanSlugFromText(name) : null;
 
   return {
     name: name || description,
     quantity: Number.isFinite(quantity) ? quantity : 1,
     kind: isMonthlyKit ? 'monthly-kit' : 'catalog',
-    productId: isMonthlyKit ? 'monthly-kit:imported' : 'catalog:imported',
+    productId: isMonthlyKit
+      ? planSlug
+        ? `monthly-kit:${planSlug}`
+        : 'monthly-kit:imported'
+      : 'catalog:imported',
+    planSlug,
+    planName: planSlug ? name.replace(/^\d+x\s*/i, '').trim() : null,
   };
 }
 
@@ -150,6 +160,8 @@ export function buildStoreOrderMetaFromAsaasPayment(
         name: parsed.name,
         lineTotalCents: lineTotalCents,
         bundleSubscriptionId,
+        ...(parsed.planSlug ? { planSlug: parsed.planSlug } : {}),
+        ...(parsed.planName ? { planName: parsed.planName } : {}),
       },
     ],
     addressId: '',

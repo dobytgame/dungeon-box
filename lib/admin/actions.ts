@@ -18,7 +18,14 @@ import {
   applySubscriptionStatusChange,
   type SubscriptionStatusAction,
 } from '@/lib/subscriptions/apply-status-change';
-import { consolidateSubscriptionCycles } from '@/lib/subscriptions/cycles';
+import {
+  consolidateSubscriptionCycles,
+} from '@/lib/subscriptions/cycles';
+import { backfillPrepaidComboProductionSchedules } from '@/lib/subscriptions/combo-production-schedule';
+import {
+  advancePrepaidComboCycleAfterShip,
+  resolveCyclePaymentLink,
+} from '@/lib/subscriptions/combo-cycle-advance';
 import {
   manualActivateSubscription,
   manualDeactivateSubscription,
@@ -62,9 +69,16 @@ export async function shipSubscriptionCycleAction(
   const trackingCode = (formData.get('tracking_code') as string)?.trim();
   const carrier =
     (formData.get('carrier') as string)?.trim() || 'Correios';
+  const shippingCost = parseMoneyFieldAllowZero(
+    formData.get('shipping_cost_reais'),
+    'Custo de envio'
+  );
 
   if (!trackingCode) {
     return { error: 'Informe o código de rastreio.' };
+  }
+  if ('error' in shippingCost) {
+    return shippingCost;
   }
 
   const cycle = await getAdminCycleDetail(admin, cycleId);
@@ -94,6 +108,7 @@ export async function shipSubscriptionCycleAction(
       status: 'shipped',
       tracking_code: trackingCode,
       carrier,
+      shipping_cost_cents: shippingCost.cents,
       shipped_at: now,
       updated_at: now,
     })
@@ -109,7 +124,11 @@ export async function shipSubscriptionCycleAction(
       action: 'cycle.ship',
       entityType: 'subscription_cycle',
       entityId: cycleId,
-      metadata: { tracking_code: trackingCode, carrier },
+      metadata: {
+        tracking_code: trackingCode,
+        carrier,
+        shipping_cost_cents: shippingCost.cents,
+      },
       ipAddress: await clientIp(),
     }),
   ];
@@ -137,6 +156,69 @@ export async function shipSubscriptionCycleAction(
   }
 
   await Promise.all(postSave);
+
+  const paymentLink = await resolveCyclePaymentLink(admin, {
+    payment_id: (cycle.payment_id as string | null) ?? null,
+    amount_cents: (cycle.amount_cents as number | null) ?? null,
+    paid_at: (cycle.paid_at as string | null) ?? null,
+  });
+
+  if (paymentLink) {
+    await advancePrepaidComboCycleAfterShip(admin, {
+      subscriptionId: cycle.subscription_id as string,
+      shippedCycleNumber: cycle.cycle_number as number,
+      paymentLink,
+    });
+  }
+
+  revalidateCycleBoard();
+  return { success: true as const };
+}
+
+export async function updateCycleShippingCostAction(
+  cycleId: string,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const shippingCost = parseMoneyFieldAllowZero(
+    formData.get('shipping_cost_reais'),
+    'Custo de envio'
+  );
+  if ('error' in shippingCost) {
+    return shippingCost;
+  }
+
+  const cycle = await getAdminCycleDetail(admin, cycleId);
+  if (!cycle) {
+    return { error: 'Ciclo não encontrado.' };
+  }
+
+  if (parseCycleStatus(cycle.status) === 'cancelled') {
+    return { error: 'Não é possível alterar frete de pedido cancelado.' };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from('subscription_cycles')
+    .update({
+      shipping_cost_cents: shippingCost.cents,
+      updated_at: now,
+    })
+    .eq('id', cycleId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'cycle.shipping_cost',
+    entityType: 'subscription_cycle',
+    entityId: cycleId,
+    metadata: { shipping_cost_cents: shippingCost.cents },
+    ipAddress: await clientIp(),
+  });
 
   revalidateCycleBoard();
   return { success: true as const };
@@ -214,13 +296,14 @@ export async function syncSubscriptionCyclesAction() {
   const { user, admin } = await requireAdmin();
 
   const result = await consolidateSubscriptionCycles(admin);
+  const comboBackfill = await backfillPrepaidComboProductionSchedules(admin);
 
   await logAdminAction(admin, {
     actorId: user.id,
     action: 'cycles.consolidate',
     entityType: 'subscription_cycles',
     entityId: null,
-    metadata: { ...result, mode: 'consolidate_only' },
+    metadata: { ...result, comboBackfill, mode: 'consolidate_only' },
     ipAddress: await clientIp(),
   });
 
@@ -229,6 +312,8 @@ export async function syncSubscriptionCyclesAction() {
   return {
     success: true as const,
     ...result,
+    comboSubscriptionsScheduled: comboBackfill.subscriptions,
+    comboCyclesScheduled: comboBackfill.cyclesCreated,
   };
 }
 
@@ -798,6 +883,11 @@ export async function updatePlanCommercialAction(planId: string, formData: FormD
   if ('error' in storeDiscount) return storeDiscount;
   const sortOrder = parseIntField(formData.get('sort_order'), 'Ordem');
   if ('error' in sortOrder) return sortOrder;
+  const productionCost = parseMoneyFieldAllowZero(
+    formData.get('production_cost_reais'),
+    'Custo de produção'
+  );
+  if ('error' in productionCost) return productionCost;
 
   const freightRegionsRaw = (formData.get('freight_regions') as string)?.trim();
   const freightRegions = freightRegionsRaw
@@ -819,6 +909,7 @@ export async function updatePlanCommercialAction(planId: string, formData: FormD
     has_vote: formData.get('has_vote') === 'on',
     is_active: formData.get('is_active') === 'on',
     accent_color: (formData.get('accent_color') as string)?.trim() || null,
+    production_cost_cents: productionCost.cents,
   };
 
   if (!payload.name) {
@@ -1154,6 +1245,21 @@ function parseMoneyField(value: FormDataEntryValue | null, label: string) {
   return { cents: Math.round(parsed * 100) } as const;
 }
 
+function parseMoneyFieldAllowZero(
+  value: FormDataEntryValue | null,
+  label: string
+) {
+  const raw = String(value ?? '').trim().replace(',', '.');
+  if (!raw) {
+    return { cents: 0 } as const;
+  }
+  const parsed = Number.parseFloat(raw);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return { error: `${label} inválido.` } as const;
+  }
+  return { cents: Math.round(parsed * 100) } as const;
+}
+
 function parseDateField(value: FormDataEntryValue | null, label: string) {
   const raw = String(value ?? '').trim();
   if (!raw) return { error: `${label} é obrigatória.` } as const;
@@ -1278,6 +1384,287 @@ export async function cancelFinancialExpenseAction(expenseId: string) {
     action: 'finance.expense.cancel',
     entityType: 'financial_expense',
     entityId: expenseId,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const };
+}
+
+export async function saveStoreProductAction(
+  productId: string | null,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const category = formData.get('category') as 'paint-kit' | 'monthly-kit';
+  if (category !== 'paint-kit' && category !== 'monthly-kit') {
+    return { error: 'Categoria inválida.' };
+  }
+
+  const name = (formData.get('name') as string)?.trim();
+  if (!name) return { error: 'Informe o nome do produto.' };
+
+  const slug = (formData.get('slug') as string)?.trim().toLowerCase();
+  if (!slug) return { error: 'Informe o slug.' };
+
+  const price = parseMoneyFieldAllowZero(formData.get('price_reais'), 'Preço');
+  if ('error' in price) return price;
+
+  const productionCost = parseMoneyFieldAllowZero(
+    formData.get('production_cost_reais'),
+    'Custo de produção'
+  );
+  if ('error' in productionCost) return productionCost;
+
+  const sortOrder = parseIntField(formData.get('sort_order'), 'Ordem');
+  if ('error' in sortOrder) return sortOrder;
+
+  const maxQuantity = parseIntField(formData.get('max_quantity'), 'Quantidade máx.');
+  if ('error' in maxQuantity) return maxQuantity;
+
+  const includesRaw = (formData.get('includes') as string)?.trim();
+  const includes = includesRaw
+    ? includesRaw.split('\n').map((line) => line.trim()).filter(Boolean)
+    : [];
+
+  const storeCategoryId =
+    (formData.get('store_category_id') as string)?.trim() || null;
+
+  const imageUrl = (formData.get('image_url') as string)?.trim() || null;
+  const galleryUrlsRaw = (formData.get('gallery_urls') as string)?.trim() ?? '';
+  let galleryUrls: string[] = [];
+  if (galleryUrlsRaw) {
+    try {
+      const parsed = JSON.parse(galleryUrlsRaw) as unknown;
+      if (Array.isArray(parsed)) {
+        galleryUrls = parsed.filter(
+          (item): item is string => typeof item === 'string' && item.trim().length > 0
+        );
+      }
+    } catch {
+      galleryUrls = galleryUrlsRaw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    }
+  }
+
+  const pageContentHtml =
+    (formData.get('page_content_html') as string)?.trim() || null;
+
+  const paintKitBumpId =
+    category === 'paint-kit'
+      ? ((formData.get('paint_kit_bump_id') as string)?.trim() as
+          | 'amador'
+          | 'profissional'
+          | '')
+      : '';
+  const planSlug =
+    category === 'monthly-kit'
+      ? (formData.get('plan_slug') as string)?.trim() || null
+      : null;
+
+  if (category === 'paint-kit' && !paintKitBumpId) {
+    return { error: 'Selecione o tipo de kit de pintura.' };
+  }
+  if (category === 'monthly-kit' && !planSlug && !productId) {
+    return { error: 'Selecione o plano do kit avulso.' };
+  }
+
+  const payload = {
+    slug,
+    name,
+    tagline: (formData.get('tagline') as string)?.trim() || null,
+    category,
+    store_category_id: storeCategoryId,
+    image_url: imageUrl,
+    gallery_urls: galleryUrls,
+    page_content_html: pageContentHtml,
+    price_cents: price.cents,
+    production_cost_cents: productionCost.cents,
+    includes,
+    paint_kit_bump_id: category === 'paint-kit' ? paintKitBumpId : null,
+    plan_slug: category === 'monthly-kit' ? planSlug : null,
+    max_quantity: maxQuantity.value,
+    featured: formData.get('featured') === 'on',
+    is_active: formData.get('is_active') === 'on',
+    sort_order: sortOrder.value,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (productId) {
+    const { error } = await admin
+      .from('store_products')
+      .update(payload)
+      .eq('id', productId);
+
+    if (error) return { error: error.message };
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'store_product.update',
+      entityType: 'store_product',
+      entityId: productId,
+      metadata: { slug, category },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidatePath('/dashboard/loja');
+    revalidatePath(`/dashboard/loja/${slug}`);
+    return { success: true as const, id: productId };
+  }
+
+  const { data, error } = await admin
+    .from('store_products')
+    .insert({ ...payload, created_at: new Date().toISOString() })
+    .select('id')
+    .single();
+
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_product.create',
+    entityType: 'store_product',
+    entityId: data.id,
+    metadata: { slug, category },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath('/dashboard/loja');
+  revalidatePath(`/dashboard/loja/${slug}`);
+  return { success: true as const, id: data.id as string };
+}
+
+export async function deleteStoreProductAction(productId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { data: product } = await admin
+    .from('store_products')
+    .select('id, category, slug')
+    .eq('id', productId)
+    .maybeSingle();
+
+  if (!product) return { error: 'Produto não encontrado.' };
+
+  if (product.category === 'monthly-kit') {
+    const { error } = await admin
+      .from('store_products')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await admin.from('store_products').delete().eq('id', productId);
+    if (error) return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_product.delete',
+    entityType: 'store_product',
+    entityId: productId,
+    metadata: { slug: product.slug, category: product.category },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath('/dashboard/loja');
+  return { success: true as const };
+}
+
+export async function saveStoreCategoryAction(
+  categoryId: string | null,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const name = (formData.get('name') as string)?.trim();
+  if (!name) return { error: 'Informe o nome da categoria.' };
+
+  const slug = (formData.get('slug') as string)?.trim().toLowerCase();
+  if (!slug) return { error: 'Informe o slug.' };
+
+  const sortOrder = parseIntField(formData.get('sort_order'), 'Ordem');
+  if ('error' in sortOrder) return sortOrder;
+
+  const payload = {
+    slug,
+    name,
+    description: (formData.get('description') as string)?.trim() || null,
+    sort_order: sortOrder.value,
+    is_active: formData.get('is_active') === 'on',
+    updated_at: new Date().toISOString(),
+  };
+
+  if (categoryId) {
+    const { error } = await admin
+      .from('store_categories')
+      .update(payload)
+      .eq('id', categoryId);
+
+    if (error) return { error: error.message };
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'store_category.update',
+      entityType: 'store_category',
+      entityId: categoryId,
+      metadata: { slug },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    return { success: true as const, id: categoryId };
+  }
+
+  const { data, error } = await admin
+    .from('store_categories')
+    .insert({ ...payload, created_at: new Date().toISOString() })
+    .select('id')
+    .single();
+
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_category.create',
+    entityType: 'store_category',
+    entityId: data.id,
+    metadata: { slug },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  return { success: true as const, id: data.id as string };
+}
+
+export async function deleteStoreCategoryAction(categoryId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { count } = await admin
+    .from('store_products')
+    .select('id', { count: 'exact', head: true })
+    .eq('store_category_id', categoryId);
+
+  if ((count ?? 0) > 0) {
+    return {
+      error: `Esta categoria possui ${count} produto(s). Reatribua ou remova os produtos antes de excluir.`,
+    };
+  }
+
+  const { error } = await admin.from('store_categories').delete().eq('id', categoryId);
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_category.delete',
+    entityType: 'store_category',
+    entityId: categoryId,
+    metadata: {},
     ipAddress: await clientIp(),
   });
 

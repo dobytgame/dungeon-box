@@ -56,6 +56,7 @@ export interface Plan {
   has_vip_group: boolean;
   has_vote: boolean;
   accent_color: string | null;
+  production_cost_cents: number;
 }
 
 export interface Address {
@@ -107,6 +108,7 @@ export interface SubscriptionCycle {
   cancelled_at: string | null;
   cancel_reason: string | null;
   production_notes: string | null;
+  shipping_cost_cents: number | null;
   created_at: string | null;
   updated_at: string | null;
   themes: Theme | Theme[] | null;

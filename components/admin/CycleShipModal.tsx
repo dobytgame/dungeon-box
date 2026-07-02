@@ -9,6 +9,7 @@ interface Props {
   cycleId: string | null;
   cycleLabel?: string;
   defaultCarrier?: string;
+  defaultShippingCostCents?: number | null;
   onClose: () => void;
   onSuccess?: () => void;
 }
@@ -18,6 +19,7 @@ export default function CycleShipModal({
   cycleId,
   cycleLabel,
   defaultCarrier = 'Correios',
+  defaultShippingCostCents = null,
   onClose,
   onSuccess,
 }: Props) {
@@ -32,13 +34,14 @@ export default function CycleShipModal({
       title="Registrar envio"
       description={
         cycleLabel
-          ? `${cycleLabel} · informe o rastreio para mover o pedido para Enviado.`
-          : 'Informe o código de rastreio para mover o pedido para Enviado.'
+          ? `${cycleLabel} · informe rastreio e custo do envio para mover o pedido para Enviado.`
+          : 'Informe o código de rastreio e o custo do envio para mover o pedido para Enviado.'
       }
     >
       <CycleShipForm
         cycleId={cycleId}
         defaultCarrier={defaultCarrier}
+        defaultShippingCostCents={defaultShippingCostCents}
         onSuccess={() => {
           router.refresh();
           onSuccess?.();

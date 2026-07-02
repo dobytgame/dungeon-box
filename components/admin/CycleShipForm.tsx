@@ -7,12 +7,14 @@ import { shipSubscriptionCycleAction } from '@/lib/admin/actions';
 interface Props {
   cycleId: string;
   defaultCarrier?: string;
+  defaultShippingCostCents?: number | null;
   onSuccess?: () => void;
 }
 
 export default function CycleShipForm({
   cycleId,
   defaultCarrier = 'Correios',
+  defaultShippingCostCents = null,
   onSuccess,
 }: Props) {
   const [submitting, setSubmitting] = useState(false);
@@ -26,6 +28,15 @@ export default function CycleShipForm({
         event.preventDefault();
         const form = event.currentTarget;
         const formData = new FormData(form);
+        const shippingCostReais = Number.parseFloat(
+          (formData.get('shipping_cost_reais') as string)?.replace(',', '.') ?? ''
+        );
+        if (Number.isNaN(shippingCostReais) || shippingCostReais < 0) {
+          setError('Informe o custo de envio (use 0 se não houve custo).');
+          return;
+        }
+        formData.set('shipping_cost_reais', shippingCostReais.toFixed(2));
+
         setSubmitting(true);
         setError('');
         setMessage('');
@@ -73,6 +84,31 @@ export default function CycleShipForm({
           disabled={submitting}
           className="mt-2 w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-console/50"
         />
+      </div>
+      <div>
+        <label
+          htmlFor={`shipping-cost-${cycleId}`}
+          className="block font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500"
+        >
+          Custo do envio (R$)
+        </label>
+        <input
+          id={`shipping-cost-${cycleId}`}
+          name="shipping_cost_reais"
+          required
+          disabled={submitting}
+          defaultValue={
+            defaultShippingCostCents != null
+              ? (defaultShippingCostCents / 100).toFixed(2)
+              : undefined
+          }
+          placeholder="18,90"
+          inputMode="decimal"
+          className="mt-2 w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-console/50"
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          Valor pago ao transportador (Correios, Melhor Envio, etc.). Use 0 se não houve custo.
+        </p>
       </div>
       <button
         type="submit"

@@ -1,5 +1,6 @@
 'use client';
 
+import { operationChartPeriodLabel } from '@/lib/admin/chart-period';
 import { formatMoney } from '@/lib/dashboard/format';
 
 interface MonthRow {
@@ -26,7 +27,9 @@ export default function AdminCashFlowChart({ rows }: Props) {
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
           Fluxo de caixa
         </p>
-        <h3 className="mt-2 text-lg font-medium text-zinc-100">Últimos 12 meses</h3>
+        <h3 className="mt-2 text-lg font-medium text-zinc-100">
+          Desde {operationChartPeriodLabel()}
+        </h3>
         <p className="mt-2 max-w-lg text-sm leading-relaxed text-zinc-500">
           Entradas de pedidos aprovados vs saídas (gastos pagos e reembolsos).
         </p>

@@ -1,6 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
+import { registerReferralAtSignup } from '@/lib/referral/signups';
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -52,6 +55,19 @@ export async function GET(request: NextRequest) {
 
       if (profileError) {
         console.warn('[auth] profile email sync after OAuth failed:', profileError);
+      }
+
+      const referralCode = cookies().get(REFERRAL_COOKIE_NAME)?.value ?? null;
+      if (referralCode) {
+        try {
+          const admin = createAdminClient();
+          await registerReferralAtSignup(admin, {
+            referredUserId: user.id,
+            referralCode,
+          });
+        } catch (error) {
+          console.error('[referral] OAuth signup attribution failed:', error);
+        }
       }
     }
   }

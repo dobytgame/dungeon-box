@@ -113,6 +113,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
       const destination = postRegisterRedirect(redirectTo);
 
       if (data.session) {
+        void fetch('/api/referral/attribute-signup', { method: 'POST' });
         window.location.href = destination;
         return;
       }
@@ -127,6 +128,8 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         setLoading(false);
         return;
       }
+
+      void fetch('/api/referral/attribute-signup', { method: 'POST' });
 
       window.location.href = destination;
       return;

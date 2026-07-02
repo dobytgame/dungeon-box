@@ -1,5 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findReferrerByCode } from '@/lib/referral/codes';
+import { normalizeReferralCode } from '@/lib/referral/cookie';
+
+export type ReferralCheckoutResult =
+  | 'created'
+  | 'skipped_no_code'
+  | 'skipped_promo'
+  | 'skipped_invalid_code'
+  | 'skipped_self'
+  | 'skipped_existing';
 
 export async function registerReferralAtCheckout(
   supabase: SupabaseClient,
@@ -9,12 +18,14 @@ export async function registerReferralAtCheckout(
     referralCode: string | null;
     usedPromoCode: boolean;
   }
-): Promise<'created' | 'skipped'> {
-  if (!input.referralCode || input.usedPromoCode) return 'skipped';
+): Promise<ReferralCheckoutResult> {
+  const code = normalizeReferralCode(input.referralCode);
+  if (!code) return 'skipped_no_code';
+  if (input.usedPromoCode) return 'skipped_promo';
 
-  const referrer = await findReferrerByCode(supabase, input.referralCode);
-  if (!referrer) return 'skipped';
-  if (referrer.userId === input.referredUserId) return 'skipped';
+  const referrer = await findReferrerByCode(supabase, code);
+  if (!referrer) return 'skipped_invalid_code';
+  if (referrer.userId === input.referredUserId) return 'skipped_self';
 
   const { data: existing } = await supabase
     .from('referrals')
@@ -22,7 +33,7 @@ export async function registerReferralAtCheckout(
     .eq('referred_id', input.referredUserId)
     .maybeSingle();
 
-  if (existing) return 'skipped';
+  if (existing) return 'skipped_existing';
 
   const { error: insertError } = await supabase.from('referrals').insert({
     referrer_id: referrer.userId,
@@ -33,7 +44,7 @@ export async function registerReferralAtCheckout(
 
   if (insertError) {
     console.error('[referral] register failed:', insertError.message);
-    return 'skipped';
+    return 'skipped_existing';
   }
 
   const { data: codeRow } = await supabase

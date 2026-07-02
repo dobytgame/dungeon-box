@@ -5,11 +5,17 @@ import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { relOne } from '@/lib/dashboard/format';
 import {
   buildCycleShipmentItems,
+  listAddonPaymentsForSubscription,
   listBundledStoreOrdersBySubscription,
   loadSiblingCyclesBySubscription,
   shipmentItemTags,
   type CycleShipmentContext,
 } from '@/lib/admin/cycle-shipment-items';
+import {
+  buildPlanProductionCostMap,
+  resolveCycleShipmentFinance,
+} from '@/lib/admin/cycle-shipment-finance';
+import { mergeMonthlyKitProductionCosts } from '@/lib/admin/store-products';
 import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import {
@@ -17,6 +23,7 @@ import {
   groupProductionBoardRows,
   type ProductionSubscriptionMeta,
 } from '@/lib/admin/production-board-filter';
+import { resolveProductionMonthKey } from '@/lib/admin/production-month';
 import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/lib/dashboard/types';
 import type {
   AdminActivePlanCount,
@@ -38,6 +45,8 @@ import {
   getAdminPartnerReferralStats,
   loadReferralAttributionByReferredIds,
 } from '@/lib/admin/referral-attribution';
+import { getProfitByMonth, getProfitSummary } from '@/lib/admin/profit-analytics';
+import { getTotalApprovedRevenue } from '@/lib/admin/finance';
 import {
   resolveEffectivePaymentAmountCents,
   resolvePaymentInstallments,
@@ -146,15 +155,22 @@ const ADMIN_CYCLE_LIST_SELECT = `
   shipped_at,
   paid_at,
   created_at,
+  scheduled_production_month,
+  amount_cents,
+  shipping_cost_cents,
+  payment_id,
   themes(name),
   subscriptions(
     status,
     current_cycle,
     user_id,
+    billing_term,
+    combo_total_cents,
+    combo_installments,
     special_notes,
     is_partner,
     profiles(full_name, display_name, email),
-    plans!plan_id(name),
+    plans!plan_id(name, slug, production_cost_cents),
     addresses(street, number, complement, neighborhood, city, state, zip_code, recipient)
   )
 `;
@@ -186,12 +202,19 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     shipped_at: (row.shipped_at as string | null) ?? null,
     paid_at: (row.paid_at as string | null) ?? null,
     created_at: (row.created_at as string | null) ?? null,
+    scheduledProductionMonth:
+      (row.scheduled_production_month as string | null) ?? null,
+    amount_cents: (row.amount_cents as number | null) ?? null,
+    shipping_cost_cents: (row.shipping_cost_cents as number | null) ?? null,
+    payment_id: (row.payment_id as string | null) ?? null,
     customerName:
       (profile?.full_name as string | null) ??
       (profile?.display_name as string | null) ??
       null,
     customerEmail: (profile?.email as string | null) ?? null,
     planName: (plan?.name as string | null) ?? null,
+    planProductionCostCents:
+      (plan?.production_cost_cents as number | null) ?? 0,
     themeName: (theme?.name as string | null) ?? null,
     city: (address?.city as string | null) ?? null,
     state: (address?.state as string | null) ?? null,
@@ -211,10 +234,14 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     subscriptionStatus: (subscription?.status as string | null) ?? null,
     subscriptionCurrentCycle:
       (subscription?.current_cycle as number | null) ?? null,
+    subscriptionBillingTerm: (subscription?.billing_term as string | null) ?? null,
     isPartner: Boolean(subscription?.is_partner),
     hasBundledItems: false,
     bundledItemTags: [],
     extraItems: [],
+    totalRevenueCents: null,
+    shipmentMarginCents: null,
+    hasBundledRevenue: false,
   };
 }
 
@@ -245,6 +272,60 @@ async function enrichCycleRowsWithShipmentItems(
     subscriptionIds
   );
 
+  const [{ data: plansData }, addonPaymentsBySub] = await Promise.all([
+    admin.from('plans').select('slug, production_cost_cents'),
+    Promise.all(
+      subscriptionIds.map(async (subscriptionId) => {
+        const payments = await listAddonPaymentsForSubscription(
+          admin,
+          subscriptionId,
+          null
+        );
+        return [subscriptionId, payments] as const;
+      })
+    ),
+  ]);
+
+  const planProductionBySlug = await mergeMonthlyKitProductionCosts(
+    admin,
+    buildPlanProductionCostMap(
+      (plansData ?? []) as Array<{ slug: string; production_cost_cents: number }>
+    )
+  );
+  const addonPaymentsMap = new Map(addonPaymentsBySub);
+
+  const paymentIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.payment_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const paymentsById = new Map<
+    string,
+    {
+      amount_cents: number;
+      status_detail: string | null;
+      installments: number | null;
+    }
+  >();
+
+  if (paymentIds.length > 0) {
+    const { data: paymentsData } = await admin
+      .from('payments')
+      .select('id, amount_cents, status_detail, installments')
+      .in('id', paymentIds);
+
+    for (const payment of paymentsData ?? []) {
+      paymentsById.set(payment.id as string, {
+        amount_cents: (payment.amount_cents as number) ?? 0,
+        status_detail: (payment.status_detail as string | null) ?? null,
+        installments: (payment.installments as number | null) ?? null,
+      });
+    }
+  }
+
   const siblingsBySub =
     siblingCyclesBySub ??
     (await loadSiblingCyclesBySubscription(admin, subscriptionIds));
@@ -259,6 +340,15 @@ async function enrichCycleRowsWithShipmentItems(
       raw?.subscriptions as Record<string, unknown> | Record<string, unknown>[] | null
     );
     const specialNotes = (subscription?.special_notes as string | null) ?? null;
+    const subscriptionContext = {
+      billing_term: (subscription?.billing_term as string | null) ?? null,
+      combo_total_cents: (subscription?.combo_total_cents as number | null) ?? null,
+      combo_installments:
+        (subscription?.combo_installments as number | null) ?? null,
+    };
+    const cyclePayment = row.payment_id
+      ? paymentsById.get(row.payment_id) ?? null
+      : null;
     const storeOrders = storeOrdersBySub.get(row.subscription_id) ?? [];
     const siblingCycles =
       siblingsBySub.get(row.subscription_id) ?? [toShipmentContext(row)];
@@ -268,6 +358,23 @@ async function enrichCycleRowsWithShipmentItems(
       siblingCycles,
       specialNotes,
       storeOrders,
+    });
+
+    const finance = resolveCycleShipmentFinance({
+      cycleAmountCents: row.amount_cents,
+      cyclePaymentId: row.payment_id,
+      cyclePayment,
+      subscriptionContext,
+      shippingCostCents: row.shipping_cost_cents,
+      subscriptionPlanProductionCostCents: row.planProductionCostCents,
+      planProductionBySlug,
+      cycle: toShipmentContext(row),
+      siblingCycles,
+      shipmentItems,
+      storeOrders,
+      addonPayments: addonPaymentsMap.get(row.subscription_id) ?? [],
+      specialNotes,
+      isPartner: row.isPartner,
     });
 
     const extraItems = shipmentItems.map((item) => ({
@@ -285,6 +392,9 @@ async function enrichCycleRowsWithShipmentItems(
       hasBundledItems: extraItems.length > 0,
       bundledItemTags: shipmentItemTags(shipmentItems),
       extraItems,
+      totalRevenueCents: finance.totalRevenueCents,
+      shipmentMarginCents: finance.marginCents,
+      hasBundledRevenue: finance.hasBundledRevenue,
     };
   });
 }
@@ -309,6 +419,9 @@ export async function getAdminDashboardStats(
     userPlanStats,
     activePlanCounts,
     partnerReferralStats,
+    profit30d,
+    profitByMonth,
+    totalRevenue,
   ] = await Promise.all([
     admin.from('mrr').select('*'),
     admin
@@ -395,6 +508,9 @@ export async function getAdminDashboardStats(
     getAdminUserPlanStats(admin),
     getAdminActivePlanCounts(admin),
     getAdminPartnerReferralStats(admin),
+    getProfitSummary(admin, '30d'),
+    getProfitByMonth(admin),
+    getTotalApprovedRevenue(admin),
   ]);
 
   const mrrRows = mrrRes.data ?? [];
@@ -434,6 +550,10 @@ export async function getAdminDashboardStats(
     pendingSubscriptions: pendingSubsRes.count ?? 0,
     paymentsApproved30d: approvedPayments.length,
     revenueApproved30dCents,
+    totalRevenueCents: totalRevenue.revenueCents,
+    totalPaymentsApproved: totalRevenue.paymentCount,
+    profit30d,
+    profitByMonth,
     mrrByPlan,
     activePlanCounts,
     recentPayments: (recentPaymentsRes.data ?? []).map((row) =>
@@ -784,7 +904,8 @@ export type ProductionKanbanBoard = Record<
 >;
 
 export async function listAdminProductionKanban(
-  admin: SupabaseClient
+  admin: SupabaseClient,
+  options?: { monthKey?: string }
 ): Promise<ProductionKanbanBoard> {
   const empty: ProductionKanbanBoard = {
     upcoming: [],
@@ -798,6 +919,7 @@ export async function listAdminProductionKanban(
     .from('subscription_cycles')
     .select(ADMIN_CYCLE_LIST_SELECT)
     .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered'])
+    .order('scheduled_production_month', { ascending: true, nullsFirst: false })
     .order('paid_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });
 
@@ -821,6 +943,19 @@ export async function listAdminProductionKanban(
     siblingsBySub
   );
 
+  if (options?.monthKey) {
+    const monthRows = enriched.filter(
+      (row) => resolveProductionMonthKey(row) === options.monthKey
+    );
+    const board = groupProductionBoardRows(monthRows);
+
+    for (const status of Object.keys(board) as Array<keyof ProductionKanbanBoard>) {
+      board[status].sort(compareCyclesByPurchaseOrder);
+    }
+
+    return board;
+  }
+
   const metaBySubscriptionId = new Map<string, ProductionSubscriptionMeta>();
   for (const row of enriched) {
     if (!metaBySubscriptionId.has(row.subscription_id)) {
@@ -840,6 +975,33 @@ export async function listAdminProductionKanban(
   }
 
   return board;
+}
+
+/** Todos os ciclos operacionais para o calendário (inclui combos nos meses futuros). */
+export async function listAdminProductionCalendarSource(
+  admin: SupabaseClient
+): Promise<AdminCycleRow[]> {
+  const { data, error } = await admin
+    .from('subscription_cycles')
+    .select(ADMIN_CYCLE_LIST_SELECT)
+    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered'])
+    .order('scheduled_production_month', { ascending: true, nullsFirst: false })
+    .order('paid_at', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[admin] listAdminProductionCalendarSource:', error.message);
+    return [];
+  }
+
+  const rawRows = (data ?? []) as Record<string, unknown>[];
+  const mapped = rawRows.map((row) => mapCycleRow(row));
+  const subscriptionIds = Array.from(
+    new Set(mapped.map((row) => row.subscription_id))
+  );
+  const siblingsBySub = await loadSiblingCyclesBySubscription(admin, subscriptionIds);
+
+  return enrichCycleRowsWithShipmentItems(admin, mapped, rawRows, siblingsBySub);
 }
 
 export type CycleStatusCounts = Record<

@@ -8,11 +8,13 @@ interface Props {
   currentStatus: string;
   counts: CycleStatusCounts;
   currentView?: 'kanban' | 'list';
+  productionMonth?: string;
 }
 
 function tabHref(
   tabValue: string,
-  currentView?: 'kanban' | 'list'
+  currentView?: 'kanban' | 'list',
+  productionMonth?: string
 ): string {
   const params = new URLSearchParams();
   if (tabValue !== 'preparing') {
@@ -20,6 +22,9 @@ function tabHref(
   }
   if (currentView === 'list') {
     params.set('view', 'list');
+  }
+  if (productionMonth) {
+    params.set('month', productionMonth);
   }
   const query = params.toString();
   if (tabValue === 'preparing' && !query) return '/admin/ciclos';
@@ -31,6 +36,7 @@ export default function ProductionStatusTabs({
   currentStatus,
   counts,
   currentView,
+  productionMonth,
 }: Props) {
   return (
     <nav
@@ -45,7 +51,7 @@ export default function ProductionStatusTabs({
         return (
           <Link
             key={tab.value}
-            href={tabHref(tab.value, currentView)}
+            href={tabHref(tab.value, currentView, productionMonth)}
             aria-current={active ? 'page' : undefined}
             className={`inline-flex min-h-[40px] items-center gap-2 rounded border px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console ${
               active

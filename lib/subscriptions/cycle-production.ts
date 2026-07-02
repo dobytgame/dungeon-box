@@ -104,6 +104,7 @@ export function cycleRollbackFieldClears(
       clears.carrier = null;
       clears.shipped_at = null;
       clears.estimated_delivery = null;
+      clears.shipping_cost_cents = null;
     }
     if (targetIndex < 0 || targetIndex < PRODUCTION_PIPELINE.indexOf('delivered')) {
       clears.delivered_at = null;

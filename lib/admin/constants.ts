@@ -72,6 +72,14 @@ export const ADMIN_NAV = [
     group: 'catalogo',
   },
   {
+    href: '/admin/loja',
+    label: 'Loja',
+    eyebrow: 'Catálogo',
+    description: 'Kits de pintura e kits avulsos por plano.',
+    icon: 'shopping-bag',
+    group: 'catalogo',
+  },
+  {
     href: '/admin/temas',
     label: 'Temas',
     eyebrow: 'Lore',

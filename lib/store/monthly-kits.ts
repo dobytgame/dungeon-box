@@ -5,6 +5,7 @@ import { plans as staticPlans } from '@/lib/data';
 import { relOne } from '@/lib/dashboard/format';
 import type { Plan, Subscription, Theme } from '@/lib/dashboard/types';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { listActiveMonthlyKitPlanSlugs } from '@/lib/admin/store-products';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { resolveBestSubscriptionPromoForStorePlan } from '@/lib/store/subscription-promo';
 
@@ -69,6 +70,7 @@ function fallbackPlanFromStatic(slug: string): Plan | null {
     has_vip_group: false,
     has_vote: false,
     accent_color: null,
+    production_cost_cents: 0,
   };
 }
 
@@ -335,7 +337,14 @@ export async function getMonthlyKitStoreAvailability(
   }
 
   const plans = await fetchAllSellablePlans(admin);
-  const baseProducts = plans.map((plan) => buildMonthlyKitProduct(plan, theme));
+  const activeSlugs = await listActiveMonthlyKitPlanSlugs(admin);
+  const sellablePlans =
+    activeSlugs.size > 0
+      ? plans.filter((plan) => activeSlugs.has(plan.slug))
+      : plans;
+  const baseProducts = sellablePlans.map((plan) =>
+    buildMonthlyKitProduct(plan, theme)
+  );
   const products = await applySubscriptionPromosToProducts(
     admin,
     baseProducts,

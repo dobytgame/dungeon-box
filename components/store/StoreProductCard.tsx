@@ -54,11 +54,25 @@ export default function StoreProductCard({ product }: Props) {
         </span>
       ) : null}
 
+      {product.imageUrl ? (
+        <Link href={`/dashboard/loja/${product.slug}`} className="mb-4 block overflow-hidden rounded-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className="aspect-[16/10] w-full object-cover transition hover:scale-[1.02]"
+          />
+        </Link>
+      ) : null}
+
       <p className="font-display text-xs uppercase tracking-[0.2em] text-stone-500">
-        {isMonthlyKit ? 'Kit do mês' : 'Kit de pintura'}
+        {product.storeCategoryName ??
+          (isMonthlyKit ? 'Kit do mês' : 'Kit de pintura')}
       </p>
       <h3 className="mt-2 font-display text-xl uppercase tracking-wide text-white">
-        {product.name}
+        <Link href={`/dashboard/loja/${product.slug}`} className="hover:text-ember">
+          {product.name}
+        </Link>
       </h3>
       <p className="mt-2 text-sm text-stone-400">{product.tagline}</p>
       <div className="mt-4">

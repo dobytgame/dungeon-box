@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AdminSection from '@/components/admin/AdminSection';
 import AdminActivePlansChart from '@/components/admin/AdminActivePlansChart';
+import AdminProfitMarginChart from '@/components/admin/AdminProfitMarginChart';
 import AdminTable from '@/components/admin/AdminTable';
 import AdminUserPlanChart from '@/components/admin/AdminUserPlanChart';
 import KpiCard from '@/components/admin/KpiCard';
@@ -15,13 +16,44 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <KpiCard
+          label="Faturamento total"
+          value={formatMoney(stats.totalRevenueCents)}
+          hint={`${stats.totalPaymentsApproved} pagamentos aprovados`}
+          accent="gold"
+        />
+        <KpiCard
+          label="Vendas (30d)"
+          value={formatMoney(stats.profit30d.salesCents)}
+          hint={`${stats.paymentsApproved30d} pagamentos aprovados`}
+          accent="console"
+        />
+        <KpiCard
+          label="Custo dos pedidos (30d)"
+          value={formatMoney(stats.profit30d.orderCostCents)}
+          hint="Custo de produção dos pedidos vendidos"
+          accent="danger"
+        />
+        <KpiCard
+          label="Lucro bruto (30d)"
+          value={formatMoney(stats.profit30d.profitCents)}
+          hint={
+            stats.profit30d.marginPercent != null
+              ? `${stats.profit30d.marginPercent}% de margem de produto`
+              : 'Vendas − custo dos pedidos vendidos'
+          }
+          accent={stats.profit30d.profitCents >= 0 ? 'gold' : 'danger'}
+        />
         <KpiCard
           label="MRR"
           value={formatMoney(stats.mrrCents)}
           hint={`${stats.activeSubscribers} assinantes ativos`}
           accent="console"
         />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Novos (30d)"
           value={String(stats.newSubscribers30d)}
@@ -33,15 +65,6 @@ export default async function AdminDashboardPage() {
           hint={`${stats.cyclesPreparing} ciclos em produção`}
           accent="warn"
         />
-        <KpiCard
-          label="Receita (30d)"
-          value={formatMoney(stats.revenueApproved30dCents)}
-          hint={`${stats.paymentsApproved30d} pagamentos aprovados`}
-          accent="gold"
-        />
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Em atraso"
           value={String(stats.pastDueCount)}
@@ -56,8 +79,15 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
+      <AdminSection
+        title="Margem de produto"
+        action={{ href: '/admin/financeiro', label: 'Ver financeiro' }}
+      >
+        <AdminProfitMarginChart rows={stats.profitByMonth} />
+      </AdminSection>
+
       <AdminSection title="Indicações por link parceiro">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
             label="Visitas nos links"
             value={String(stats.partnerReferralStats.totalLinkVisits)}
@@ -65,7 +95,12 @@ export default async function AdminDashboardPage() {
             accent="console"
           />
           <KpiCard
-            label="Clientes indicados"
+            label="Cadastros"
+            value={String(stats.partnerReferralStats.totalSignups)}
+            hint="Conta criada via link"
+          />
+          <KpiCard
+            label="Assinaturas"
             value={String(stats.partnerReferralStats.totalAttributedCustomers)}
             hint={`${stats.partnerReferralStats.activeReferrers} parceiros ativos`}
           />
@@ -84,7 +119,7 @@ export default async function AdminDashboardPage() {
           <KpiCard
             label="Parceiros"
             value={String(stats.partnerReferralStats.activeReferrers)}
-            hint="Com pelo menos 1 indicação"
+            hint="Com cadastro ou assinatura"
           />
         </section>
 
@@ -119,8 +154,13 @@ export default async function AdminDashboardPage() {
                 cell: (row) => String(row.totalVisits),
               },
               {
+                key: 'signups',
+                header: 'Cadastros',
+                cell: (row) => String(row.totalSignups),
+              },
+              {
                 key: 'total',
-                header: 'Clientes',
+                header: 'Assinaturas',
                 cell: (row) => String(row.totalReferrals),
               },
               {

@@ -2,15 +2,23 @@ import ProductionStatusTabs from '@/components/admin/ProductionStatusTabs';
 import ProductionWorkspace from '@/components/admin/ProductionWorkspace';
 import SyncCyclesButton from '@/components/admin/SyncCyclesButton';
 import { requireAdmin } from '@/lib/admin/auth';
+import { buildProductionMonthNavigator } from '@/lib/admin/production-calendar';
+import {
+  defaultProductionMonthKey,
+  parseProductionMonthKey,
+  productionMonthLabel,
+} from '@/lib/admin/production-month';
 import {
   getAdminCycleStatusCounts,
   listAdminCycles,
+  listAdminProductionCalendarSource,
   listAdminProductionKanban,
 } from '@/lib/admin/queries';
+import { backfillPrepaidComboProductionSchedules } from '@/lib/subscriptions/combo-production-schedule';
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 
 interface Props {
-  searchParams: Promise<{ status?: string; view?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; month?: string }>;
 }
 
 const ARCHIVE_STATUSES = new Set(['cancelled', 'failed', 'all']);
@@ -21,12 +29,21 @@ function parseViewMode(raw: string | undefined): 'kanban' | 'list' {
 
 export default async function AdminCyclesPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
-  const { status = 'preparing', view } = await searchParams;
+  const { status = 'preparing', view, month } = await searchParams;
   const viewMode = parseViewMode(view);
   const showArchiveList = ARCHIVE_STATUSES.has(status);
 
+  await backfillPrepaidComboProductionSchedules(admin);
+  const calendarSource = await listAdminProductionCalendarSource(admin);
+  const calendarMonths = buildProductionMonthNavigator(calendarSource);
+
+  const productionMonth =
+    parseProductionMonthKey(month) ?? defaultProductionMonthKey();
+
   const [board, rawCounts, archiveCycles] = await Promise.all([
-    listAdminProductionKanban(admin),
+    showArchiveList
+      ? listAdminProductionKanban(admin)
+      : listAdminProductionKanban(admin, { monthKey: productionMonth }),
     getAdminCycleStatusCounts(admin),
     showArchiveList
       ? listAdminCycles(admin, { cycleStatus: status, limit: 100 })
@@ -42,6 +59,8 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
     delivered: board.delivered.length,
   };
 
+  const monthLabel = productionMonthLabel(productionMonth);
+
   return (
     <div className="space-y-6">
       <div className="admin-panel flex flex-wrap items-center justify-between gap-3 rounded p-4">
@@ -53,18 +72,16 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
             </>
           ) : viewMode === 'list' ? (
             <>
-              Visualização em lista agrupada por processo, ordenada pela data de
-              compra. Mostra nome, endereço de envio, produto e pagamento. Clique
-              na linha para abrir o pedido em modal.
+              Pedidos de <strong className="text-zinc-300">{monthLabel}</strong>{' '}
+              em lista, agrupados por processo. Clique na linha para abrir o pedido
+              em modal.
             </>
           ) : (
             <>
-              Quadro Kanban da produção, ordenado pela data de compra (quem pagou
-              primeiro entra primeiro). Clique no cartão para abrir o pedido em modal;
-              use <strong className="text-zinc-300">Registrar envio</strong> para
-              informar o rastreio. Cada mudança de status dispara e-mail ao cliente.
-              Use <strong className="text-zinc-300">Sincronizar ciclos</strong> apenas
-              para remover duplicatas — não altera o status dos pedidos.
+              Kanban de <strong className="text-zinc-300">{monthLabel}</strong>.
+              Use o calendário acima para trocar de mês. Clique no cartão para
+              abrir o pedido; use <strong className="text-zinc-300">Registrar envio</strong>{' '}
+              para informar o rastreio.
             </>
           )}
         </p>
@@ -73,6 +90,8 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
 
       <ProductionWorkspace
         board={board}
+        calendarMonths={calendarMonths}
+        productionMonth={productionMonth}
         counts={{
           cancelled: counts.cancelled,
           failed: counts.failed,
@@ -87,6 +106,7 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
         currentStatus={status}
         counts={counts}
         currentView={showArchiveList ? undefined : viewMode}
+        productionMonth={showArchiveList ? undefined : productionMonth}
       />
 
       {!showArchiveList ? (
@@ -105,7 +125,7 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
             </span>
           ))}
           {' · '}
-          Use as abas abaixo para cancelados, falhas ou lista completa.
+          {monthLabel}
         </p>
       ) : null}
     </div>

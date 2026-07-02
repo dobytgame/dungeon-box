@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
@@ -13,6 +14,8 @@ import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
 import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
+import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
+import { registerReferralAtCheckout } from '@/lib/referral/referrals';
 
 const bodySchema = z.object({
   planSlug: z.enum(PLAN_SLUGS),
@@ -199,11 +202,43 @@ export async function POST(request: Request) {
           : null,
     });
 
-    return NextResponse.json({
+    const referralCookie = cookies().get(REFERRAL_COOKIE_NAME)?.value ?? null;
+    let referralRegistered = false;
+    if (referralCookie) {
+      const admin = createAdminClient();
+      const referralResult = await registerReferralAtCheckout(admin, {
+        referredUserId: user.id,
+        subscriptionId: result.subscriptionId,
+        referralCode: referralCookie,
+        usedPromoCode: Boolean(
+          body.promotionCode?.trim() || body.couponCode?.trim()
+        ),
+      });
+      if (referralResult === 'created') {
+        referralRegistered = true;
+      } else {
+        console.info('[referral] stripe checkout attribution skipped:', {
+          userId: user.id,
+          subscriptionId: result.subscriptionId,
+          reason: referralResult,
+        });
+      }
+    }
+
+    const response = NextResponse.json({
       clientSecret: result.clientSecret,
       subscriptionId: result.subscriptionId,
       stripeSubscriptionId: result.stripeSubscriptionId,
     });
+
+    if (referralRegistered) {
+      response.cookies.set(REFERRAL_COOKIE_NAME, '', {
+        maxAge: 0,
+        path: '/',
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error('[stripe] prepare subscription:', error);
     return NextResponse.json(
