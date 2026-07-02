@@ -61,6 +61,14 @@ const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
   'preparing',
 ]);
 
+const FULFILLMENT_CYCLE_STATUSES = new Set<CycleStatus>([
+  'upcoming',
+  'production',
+  'preparing',
+  'shipped',
+  'delivered',
+]);
+
 const KIND_TAG: Record<CycleShipmentItemKind, string> = {
   'paint-kit': 'Kit pintura',
   'monthly-kit': 'Kit do mês',
@@ -90,9 +98,11 @@ function paintKitItemFromNotes(
 
   const recurring = parsePaintKitBumpRecurring(specialNotes);
   if (!recurring) {
-    const firstOpen = firstOpenCycle(siblingCycles);
-    if (!firstOpen || firstOpen.cycleId !== cycle.cycleId) return null;
-  } else if (!OPEN_CYCLE_STATUSES.has(cycle.status)) {
+    const firstCycle = [...siblingCycles].sort(
+      (a, b) => a.cycleNumber - b.cycleNumber
+    )[0];
+    if (!firstCycle || firstCycle.cycleId !== cycle.cycleId) return null;
+  } else if (!FULFILLMENT_CYCLE_STATUSES.has(cycle.status)) {
     return null;
   }
 
@@ -194,11 +204,40 @@ function isBundledStoreOrderMeta(
   );
 }
 
+function cycleStartTimestamp(cycle: CycleShipmentContext): number {
+  const raw = cycle.paidAt ?? cycle.createdAt;
+  return raw ? Date.parse(raw) : Number.POSITIVE_INFINITY;
+}
+
+/** Atribui pedido da loja ao ciclo em que foi (ou será) enviado. */
 function assignStoreOrderToCycle(
-  _order: StoreOrderPaymentRow,
+  order: StoreOrderPaymentRow,
   siblingCycles: CycleShipmentContext[]
 ): CycleShipmentContext | null {
-  return firstOpenCycle(siblingCycles);
+  const sorted = [...siblingCycles].sort(
+    (a, b) => a.cycleNumber - b.cycleNumber
+  );
+  if (sorted.length === 0) return null;
+
+  const orderTime = orderTimestamp(order);
+  if (!orderTime) {
+    return firstOpenCycle(sorted) ?? sorted[sorted.length - 1] ?? null;
+  }
+
+  for (let index = 0; index < sorted.length; index += 1) {
+    const cycle = sorted[index];
+    const nextCycle = sorted[index + 1];
+    if (!nextCycle) {
+      return cycle;
+    }
+
+    const nextCycleStart = cycleStartTimestamp(nextCycle);
+    if (orderTime < nextCycleStart) {
+      return cycle;
+    }
+  }
+
+  return sorted[sorted.length - 1] ?? null;
 }
 
 /** Atribui pedidos da loja ao ciclo de envio correspondente. */
@@ -207,10 +246,6 @@ export function storeOrdersForCycle(
   siblingCycles: CycleShipmentContext[],
   storeOrders: StoreOrderPaymentRow[]
 ): CycleShipmentItem[] {
-  if (!OPEN_CYCLE_STATUSES.has(cycle.status)) {
-    return [];
-  }
-
   const matched = storeOrders.filter((order) => {
     const assigned = assignStoreOrderToCycle(order, siblingCycles);
     return assigned?.cycleId === cycle.cycleId;
