@@ -197,6 +197,7 @@ export interface AdminCycleRow {
   amount_cents: number | null;
   shipping_cost_cents: number | null;
   payment_id: string | null;
+  productionNotes: string | null;
   customerName: string | null;
   customerEmail: string | null;
   planName: string | null;

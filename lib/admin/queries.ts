@@ -165,6 +165,7 @@ const ADMIN_CYCLE_LIST_SELECT = `
   amount_cents,
   shipping_cost_cents,
   payment_id,
+  production_notes,
   themes(name),
   subscriptions(
     status,
@@ -214,6 +215,7 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     amount_cents: (row.amount_cents as number | null) ?? null,
     shipping_cost_cents: (row.shipping_cost_cents as number | null) ?? null,
     payment_id: (row.payment_id as string | null) ?? null,
+    productionNotes: (row.production_notes as string | null) ?? null,
     customerName:
       (profile?.full_name as string | null) ??
       (profile?.display_name as string | null) ??

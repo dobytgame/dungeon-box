@@ -16,6 +16,7 @@ import {
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
+import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 
 type BoardColumn = keyof ProductionKanbanBoard;
 
@@ -192,6 +193,9 @@ function KanbanCard({
           <p className="truncate font-mono text-[10px] text-zinc-600">
             {row.customerEmail}
           </p>
+        ) : null}
+        {row.productionNotes ? (
+          <CycleProductionNotesHighlight notes={row.productionNotes} compact />
         ) : null}
         <dl className="grid gap-1 text-[11px] text-zinc-500">
           {row.paid_at ? (

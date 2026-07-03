@@ -8,6 +8,7 @@ import {
   PRODUCTION_SECTION_META,
 } from '@/lib/admin/production-list';
 import { formatDate } from '@/lib/dashboard/format';
+import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 
 interface Props {
   board: ProductionKanbanBoard;
@@ -76,6 +77,9 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                       <th className="min-w-[180px] px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500 md:px-5">
                         Produto
                       </th>
+                      <th className="min-w-[200px] px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500 md:px-5">
+                        Comentário
+                      </th>
                       <th className="whitespace-nowrap px-4 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500 md:px-5">
                         Data de compra
                       </th>
@@ -124,6 +128,16 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                               Com itens extras
                             </p>
                           ) : null}
+                        </td>
+                        <td className="px-4 py-4 align-top md:px-5">
+                          {row.productionNotes ? (
+                            <CycleProductionNotesHighlight
+                              notes={row.productionNotes}
+                              compact
+                            />
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-4 align-top font-mono text-xs tabular-nums text-zinc-400 md:px-5">
                           {row.paid_at ? formatDate(row.paid_at) : '—'}

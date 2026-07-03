@@ -224,6 +224,53 @@ export async function updateCycleShippingCostAction(
   return { success: true as const };
 }
 
+export async function updateCycleProductionNotesAction(
+  cycleId: string,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const notesRaw = (formData.get('production_notes') as string) ?? '';
+  const notes = notesRaw.trim();
+  if (notes.length > 2000) {
+    return { error: 'Comentário muito longo (máx. 2000 caracteres).' };
+  }
+
+  const cycle = await getAdminCycleDetail(admin, cycleId);
+  if (!cycle) {
+    return { error: 'Ciclo não encontrado.' };
+  }
+
+  if (parseCycleStatus(cycle.status) === 'cancelled') {
+    return { error: 'Não é possível comentar pedido cancelado.' };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from('subscription_cycles')
+    .update({
+      production_notes: notes || null,
+      updated_at: now,
+    })
+    .eq('id', cycleId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'cycle.production_notes',
+    entityType: 'subscription_cycle',
+    entityId: cycleId,
+    metadata: { production_notes: notes || null },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateCycleBoard();
+  return { success: true as const };
+}
+
 export async function syncAsaasSubscriptionAction(subscriptionId: string) {
   const { user, admin } = await requireAdmin();
 

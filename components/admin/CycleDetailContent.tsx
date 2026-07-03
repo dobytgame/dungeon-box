@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import CopyableDataRow from '@/components/admin/CopyableDataRow';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
+import CycleProductionNotesForm from '@/components/admin/CycleProductionNotesForm';
 import CycleShippingCostForm from '@/components/admin/CycleShippingCostForm';
 import ProductionChecklist from '@/components/admin/ProductionChecklist';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
@@ -72,6 +73,36 @@ export default function CycleDetailContent({
   return (
     <div className="space-y-6">
       <ProductionPipeline status={detail.status} />
+
+      {detail.status !== 'cancelled' ? (
+        <section className="admin-panel rounded border-amber-500/20 p-4 md:p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-200/90">
+            Comentários do pedido
+          </p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Instruções ou observações visíveis em destaque nos cards do kanban.
+          </p>
+          <div className="mt-4">
+            <CycleProductionNotesForm
+              cycleId={detail.id}
+              productionNotes={detail.production_notes}
+              onSuccess={() => {
+                onUpdated?.();
+                onReload?.(detail.id);
+              }}
+            />
+          </div>
+        </section>
+      ) : detail.production_notes ? (
+        <section className="admin-panel rounded border-amber-500/20 p-4 md:p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-amber-200/90">
+            Comentários do pedido
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-zinc-300">
+            {detail.production_notes}
+          </p>
+        </section>
+      ) : null}
 
       <section className="admin-panel rounded p-4 md:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -404,7 +435,6 @@ export default function CycleDetailContent({
           <DataRow label="Entregue em" value={formatDateTime(detail.delivered_at)} />
           <DataRow label="Cancelado em" value={formatDateTime(detail.cancelled_at)} />
           <DataRow label="Motivo cancelamento" value={detail.cancel_reason} />
-          <DataRow label="Notas de produção" value={detail.production_notes} />
           <DataRow label="Previsão entrega" value={formatDate(detail.estimated_delivery)} />
         </dl>
       </section>
