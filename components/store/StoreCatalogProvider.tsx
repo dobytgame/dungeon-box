@@ -18,21 +18,36 @@ const StoreCatalogContext = createContext<StoreCatalogContextValue | null>(null)
 
 export function StoreCatalogProvider({
   monthlyKits,
+  catalogProducts,
   children,
 }: {
   monthlyKits: StoreProduct[];
+  catalogProducts: StoreProduct[];
   children: ReactNode;
 }) {
   const value = useMemo(() => {
-    const allProducts = [...monthlyKits, ...STORE_PRODUCTS];
-    const byId = new Map(allProducts.map((product) => [product.id, product]));
+    const byId = new Map<string, StoreProduct>();
+
+    for (const product of catalogProducts) {
+      byId.set(product.id, product);
+    }
+    for (const product of monthlyKits) {
+      byId.set(product.id, product);
+    }
+    for (const product of STORE_PRODUCTS) {
+      if (!byId.has(product.id)) {
+        byId.set(product.id, product);
+      }
+    }
+
+    const allProducts = Array.from(byId.values());
 
     return {
       monthlyKits,
       allProducts,
       getProduct: (productId: string) => byId.get(productId),
     };
-  }, [monthlyKits]);
+  }, [monthlyKits, catalogProducts]);
 
   return (
     <StoreCatalogContext.Provider value={value}>

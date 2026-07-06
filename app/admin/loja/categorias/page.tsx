@@ -35,6 +35,11 @@ export default async function AdminStoreCategoriesPage() {
         getRowHref={(row) => `/admin/loja/categorias/${row.id}`}
         columns={[
           {
+            key: 'parent',
+            header: 'Pai',
+            cell: (row) => row.parent_name ?? '—',
+          },
+          {
             key: 'name',
             header: 'Categoria',
             cell: (row) => (

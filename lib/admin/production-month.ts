@@ -1,4 +1,8 @@
 import { monthKeyFromDate } from '@/lib/admin/chart-period';
+import {
+  buildProductionSubscriptionMeta,
+  countDedupedProductionCyclesByMonth,
+} from '@/lib/admin/production-board-filter';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import { resolveCycleScheduledMonthKey } from '@/lib/subscriptions/combo-production-schedule';
 
@@ -61,15 +65,12 @@ export function buildProductionMonthNavigator(
   cycles: AdminCycleRow[]
 ): ProductionMonthNavItem[] {
   const currentMonthKey = monthKeyFromDate(new Date());
-  const countsByMonth = new Map<string, number>();
+  const meta = buildProductionSubscriptionMeta(cycles);
+  const countsByMonth = countDedupedProductionCyclesByMonth(cycles, meta);
   let maxMonthKey: string | null = null;
 
-  for (const row of cycles) {
-    const monthKey = resolveProductionMonthKey(row);
-    if (!monthKey) continue;
-
-    countsByMonth.set(monthKey, (countsByMonth.get(monthKey) ?? 0) + 1);
-
+  for (const monthKey of Array.from(countsByMonth.keys())) {
+    if ((countsByMonth.get(monthKey) ?? 0) <= 0) continue;
     if (!maxMonthKey || monthKey > maxMonthKey) {
       maxMonthKey = monthKey;
     }

@@ -6,6 +6,7 @@ import Logo from '@/components/ui/Logo';
 import CTAButton from '@/components/ui/CTAButton';
 import MobileNavPanel, { MobileNavToggle } from '@/components/layout/MobileNav';
 import { WHATSAPP_GUILD_URL } from '@/lib/launch/constants';
+import { siteNavLinkClassName } from '@/lib/ui/site-nav';
 
 const navLinks = [
   { href: '#planos', label: 'Planos' },
@@ -57,7 +58,7 @@ export default function LaunchNavbar({ isLoggedIn = false, userName }: Props) {
               <Link
                 key={link.href}
                 href={link.href}
-                className="cursor-pointer text-sm text-stone-300 transition-colors hover:text-white"
+                className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
               >
                 {link.label}
               </Link>

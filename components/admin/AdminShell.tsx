@@ -6,7 +6,9 @@ import AdminHeader from './AdminHeader';
 import AdminNav from './AdminNav';
 import AdminPageIntro from './AdminPageIntro';
 import AdminSidebar from './AdminSidebar';
+import AdminStoreNav from './AdminStoreNav';
 import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
+import { isAdminStoreSection } from '@/lib/admin/store-nav';
 
 interface Props {
   displayName: string;
@@ -44,6 +46,12 @@ export default function AdminShell({ displayName, email, children }: Props) {
             <div className="mt-6 lg:hidden">
               <AdminNav />
             </div>
+
+            {isAdminStoreSection(pathname) ? (
+              <div className="mt-6">
+                <AdminStoreNav />
+              </div>
+            ) : null}
 
             <div className="mt-8 lg:mt-10">{children}</div>
           </main>

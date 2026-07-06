@@ -9,6 +9,7 @@ import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import {
   buildStoreOrderExternalReference,
   fulfillApprovedStoreOrder,
+  notifyStoreOrderConfirmed,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
 import type {
@@ -23,6 +24,9 @@ import {
   isMonthlyKitProductId,
   resolveMonthlyKitOrderItem,
 } from '@/lib/store/monthly-kits';
+import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
+import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 type AddressRow = {
   recipient: string;
@@ -150,6 +154,7 @@ async function resolveStoreLines(
   }
 
   const resolved: ResolvedStoreLine[] = [];
+  const admin = createAdminClient();
 
   for (const line of normalized) {
     if (isMonthlyKitProductId(line.productId)) {
@@ -182,7 +187,7 @@ async function resolveStoreLines(
       continue;
     }
 
-    const product = getStoreProduct(line.productId);
+    const product = await resolveStoreProductForCheckout(admin, line.productId);
     if (!product) {
       return { error: 'Produto inválido no carrinho.' };
     }
@@ -228,8 +233,8 @@ export async function purchaseStoreOrder(
   }
 
   const lines = resolvedResult;
-  const totalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  if (totalCents <= 0) {
+  const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
+  if (subtotalCents <= 0) {
     return { error: 'Total inválido.' };
   }
 
@@ -239,6 +244,11 @@ export async function purchaseStoreOrder(
     lines.find((line) => line.kind === 'catalog' && line.bundleSubscriptionId)
       ?.bundleSubscriptionId ??
     null;
+
+  const shippingMode: StoreOrderMeta['shippingMode'] =
+    hasMonthlyKit || primaryBundleSubscriptionId
+      ? 'with_subscription'
+      : 'standalone';
 
   const { data: profile } = await input.supabase
     .from('profiles')
@@ -311,6 +321,29 @@ export async function purchaseStoreOrder(
   const orderId = crypto.randomUUID();
   const now = new Date().toISOString();
 
+  let shippingCents = 0;
+  let shippingLabel: string | null = null;
+
+  if (shippingMode === 'standalone') {
+    try {
+      const quote = quoteStoreStandaloneShipping({
+        state: addressRow.state,
+        zip_code: addressRow.zip_code,
+      });
+      shippingCents = quote.cents;
+      shippingLabel = quote.label;
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível calcular o frete.',
+      };
+    }
+  }
+
+  const totalCents = subtotalCents + shippingCents;
+
   const asaasCustomerId = await getOrCreateAsaasCustomer(
     input.supabase,
     profileRow,
@@ -356,10 +389,10 @@ export async function purchaseStoreOrder(
     ),
     addressId,
     bundleSubscriptionId: primaryBundleSubscriptionId,
-    shippingMode:
-      hasMonthlyKit || primaryBundleSubscriptionId
-        ? 'with_subscription'
-        : 'standalone',
+    shippingMode,
+    subtotalCents,
+    shippingCents,
+    shippingLabel,
   };
 
   try {
@@ -452,6 +485,12 @@ export async function purchaseStoreOrder(
     }
 
     await fulfillApprovedStoreOrder(input.supabase, input.userId, orderMeta);
+    await notifyStoreOrderConfirmed(
+      input.supabase,
+      input.userId,
+      orderMeta,
+      totalCents
+    );
 
     return {
       success: true,

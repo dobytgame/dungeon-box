@@ -4,11 +4,7 @@ import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminStoreCategories } from '@/lib/admin/store-categories';
 import { listAdminStoreProducts } from '@/lib/admin/store-products';
 import { formatMoney } from '@/lib/dashboard/format';
-
-const PRODUCT_TYPE_LABEL = {
-  'paint-kit': 'Kit de pintura',
-  'monthly-kit': 'Kit avulso',
-} as const;
+import { STORE_PRODUCT_CATEGORY_LABELS } from '@/lib/store/catalog';
 
 export default async function AdminStorePage() {
   const { admin } = await requireAdmin();
@@ -21,10 +17,16 @@ export default async function AdminStorePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-stone-500">
-          Kits de pintura e kits avulsos por plano. Configure imagens, galeria e
-          conteúdo HTML da página de cada produto.
+          Produtos da vitrine: itens avulsos, kits de pintura e kits do mês.
+          Configure imagens, galeria e conteúdo HTML de cada produto.
         </p>
         <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/loja/banners"
+            className="inline-flex rounded-sm border border-white/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300"
+          >
+            Banners
+          </Link>
           <Link
             href="/admin/loja/categorias"
             className="inline-flex rounded-sm border border-white/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300"
@@ -66,7 +68,7 @@ export default async function AdminStorePage() {
           {
             key: 'type',
             header: 'Tipo',
-            cell: (row) => PRODUCT_TYPE_LABEL[row.category],
+            cell: (row) => STORE_PRODUCT_CATEGORY_LABELS[row.category],
           },
           {
             key: 'price',

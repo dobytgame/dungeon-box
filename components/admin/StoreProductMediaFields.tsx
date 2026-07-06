@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
+import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 
 const inputClass =
   'mt-2 w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white';
@@ -84,13 +85,18 @@ export default function StoreProductMediaFields({
 
       <div>
         <p className={labelClass}>Imagem principal</p>
+        <p className="mt-1 text-xs text-stone-500">
+          Quadrado {STORE_PRODUCT_IMAGE_SIZE}×{STORE_PRODUCT_IMAGE_SIZE}px recomendado.
+        </p>
         <div className="mt-3 flex flex-wrap items-start gap-4">
-          <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-sm border border-white/10 bg-stone-900/60">
+          <div className="flex aspect-square h-36 w-36 items-center justify-center overflow-hidden rounded-sm border border-white/10 bg-stone-900/60">
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={imageUrl}
                 alt="Imagem principal do produto"
+                width={STORE_PRODUCT_IMAGE_SIZE}
+                height={STORE_PRODUCT_IMAGE_SIZE}
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -142,7 +148,8 @@ export default function StoreProductMediaFields({
       <div>
         <p className={labelClass}>Galeria</p>
         <p className="mt-1 text-xs text-stone-500">
-          Imagens adicionais exibidas na página do produto.
+          Imagens adicionais na página do produto. Use {STORE_PRODUCT_IMAGE_SIZE}×
+          {STORE_PRODUCT_IMAGE_SIZE}px.
         </p>
 
         {galleryUrls.length > 0 ? (
@@ -153,7 +160,13 @@ export default function StoreProductMediaFields({
                 className="group relative overflow-hidden rounded-sm border border-white/10"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="aspect-square w-full object-cover" />
+                <img
+                  src={url}
+                  alt=""
+                  width={STORE_PRODUCT_IMAGE_SIZE}
+                  height={STORE_PRODUCT_IMAGE_SIZE}
+                  className="aspect-square w-full object-cover"
+                />
                 <button
                   type="button"
                   aria-label="Remover da galeria"

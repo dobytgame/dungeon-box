@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import CTAButton from '@/components/ui/CTAButton';
+import { siteNavLinkClassName } from '@/lib/ui/site-nav';
 
 const DEFAULT_LINKS = [
   { href: '#planos', label: 'Planos' },
@@ -100,7 +101,7 @@ export default function MobileNavPanel({
                 <Link
                   href={link.href}
                   onClick={() => onOpenChange(false)}
-                  className="flex min-h-[48px] cursor-pointer items-center font-display text-sm uppercase tracking-widest text-stone-300 transition-colors duration-200 hover:text-white"
+                  className={`flex min-h-[48px] cursor-pointer items-center text-stone-300 transition-colors duration-200 hover:text-white ${siteNavLinkClassName}`}
                 >
                   {link.label}
                 </Link>
@@ -111,7 +112,7 @@ export default function MobileNavPanel({
                 <Link
                   href={isLoggedIn ? '/dashboard' : '/auth'}
                   onClick={() => onOpenChange(false)}
-                  className="flex min-h-[48px] cursor-pointer items-center font-display text-sm uppercase tracking-widest text-stone-400 transition-colors duration-200 hover:text-white"
+                  className={`flex min-h-[48px] cursor-pointer items-center text-stone-400 transition-colors duration-200 hover:text-white ${siteNavLinkClassName}`}
                 >
                   {isLoggedIn
                     ? userName

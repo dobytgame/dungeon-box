@@ -1,22 +1,6 @@
-import StoreCheckoutForm from '@/components/store/StoreCheckoutForm';
-import StoreSubNav from '@/components/store/StoreSubNav';
-import {
-  getAddresses,
-  getManageableSubscriptions,
-  requireDashboardUser,
-} from '@/lib/dashboard/queries';
+import { redirect } from 'next/navigation';
+import { STORE_ROUTES } from '@/lib/store/routes';
 
-export default async function StoreCheckoutPage() {
-  const { user } = await requireDashboardUser();
-  const [addresses, subscriptions] = await Promise.all([
-    getAddresses(user.id),
-    getManageableSubscriptions(user.id),
-  ]);
-
-  return (
-    <div>
-      <StoreSubNav />
-      <StoreCheckoutForm addresses={addresses} subscriptions={subscriptions} />
-    </div>
-  );
+export default function DashboardLojaCheckoutRedirect() {
+  redirect(STORE_ROUTES.checkout);
 }

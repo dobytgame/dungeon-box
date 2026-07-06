@@ -76,7 +76,7 @@ export default function LaunchPlans() {
                       src={plan.image}
                       alt={`Plano ${plan.name} — cenários 3D modulares DungeonBox`}
                       fill
-                      className={`object-contain p-6 sm:p-8 ${theme.organicTilt}`}
+                      className="object-contain p-6 sm:p-8"
                       sizes="(max-width: 1024px) 100vw, 50vw"
                     />
                   </div>

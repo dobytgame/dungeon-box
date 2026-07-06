@@ -36,7 +36,7 @@ export const DASHBOARD_NAV = [
     description: 'Ciclos mensais, temas, rastreio e histórico de envios.',
   },
   {
-    href: '/dashboard/loja',
+    href: '/loja',
     label: 'Loja',
     icon: 'shop',
     eyebrow: 'Extras',
@@ -82,9 +82,15 @@ export const REFERRAL_NAV_ITEM = {
 
 export type DashboardNavItem = (typeof DASHBOARD_NAV)[number] | typeof REFERRAL_NAV_ITEM;
 
-export function buildDashboardNav(showReferral: boolean): DashboardNavItem[] {
-  if (!showReferral) return [...DASHBOARD_NAV];
-  const items: DashboardNavItem[] = [...DASHBOARD_NAV];
+export function buildDashboardNav(
+  showReferral: boolean,
+  showStore = true
+): DashboardNavItem[] {
+  const base = showStore
+    ? DASHBOARD_NAV
+    : DASHBOARD_NAV.filter((item) => item.href !== '/loja');
+  if (!showReferral) return [...base];
+  const items: DashboardNavItem[] = [...base];
   items.splice(items.length - 2, 0, REFERRAL_NAV_ITEM);
   return items;
 }

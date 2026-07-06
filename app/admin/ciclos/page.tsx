@@ -9,12 +9,11 @@ import {
   productionMonthLabel,
 } from '@/lib/admin/production-month';
 import {
+  buildProductionKanbanFromCycles,
   getAdminCycleStatusCounts,
   listAdminCycles,
-  listAdminProductionCalendarSource,
-  listAdminProductionKanban,
+  listAdminProductionEnrichedCycles,
 } from '@/lib/admin/queries';
-import { backfillPrepaidComboProductionSchedules } from '@/lib/subscriptions/combo-production-schedule';
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 
 interface Props {
@@ -33,22 +32,25 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
   const viewMode = parseViewMode(view);
   const showArchiveList = ARCHIVE_STATUSES.has(status);
 
-  await backfillPrepaidComboProductionSchedules(admin);
-  const calendarSource = await listAdminProductionCalendarSource(admin);
-  const calendarMonths = buildProductionMonthNavigator(calendarSource);
-
   const productionMonth =
     parseProductionMonthKey(month) ?? defaultProductionMonthKey();
 
-  const [board, rawCounts, archiveCycles] = await Promise.all([
+  const [enrichedCycles, rawCounts, archiveCycles] = await Promise.all([
     showArchiveList
-      ? listAdminProductionKanban(admin)
-      : listAdminProductionKanban(admin, { monthKey: productionMonth }),
+      ? Promise.resolve([])
+      : listAdminProductionEnrichedCycles(admin),
     getAdminCycleStatusCounts(admin),
     showArchiveList
       ? listAdminCycles(admin, { cycleStatus: status, limit: 100 })
       : Promise.resolve([]),
   ]);
+
+  const calendarMonths = buildProductionMonthNavigator(enrichedCycles);
+  const board = showArchiveList
+    ? buildProductionKanbanFromCycles([])
+    : buildProductionKanbanFromCycles(enrichedCycles, {
+        monthKey: productionMonth,
+      });
 
   const counts = {
     ...rawCounts,

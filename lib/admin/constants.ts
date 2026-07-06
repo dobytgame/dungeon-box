@@ -75,9 +75,14 @@ export const ADMIN_NAV = [
     href: '/admin/loja',
     label: 'Loja',
     eyebrow: 'Catálogo',
-    description: 'Kits de pintura e kits avulsos por plano.',
+    description: 'Produtos, categorias e banners da vitrine.',
     icon: 'shopping-bag',
     group: 'catalogo',
+    children: [
+      { href: '/admin/loja', label: 'Produtos' },
+      { href: '/admin/loja/categorias', label: 'Categorias' },
+      { href: '/admin/loja/banners', label: 'Banners' },
+    ],
   },
   {
     href: '/admin/temas',
@@ -101,6 +106,14 @@ export const ADMIN_NAV = [
     eyebrow: 'Comunicação',
     description: 'Campanhas por e-mail para a base via Resend.',
     icon: 'mail',
+    group: 'comunicacao',
+  },
+  {
+    href: '/admin/ferramentas/qr',
+    label: 'QR Code',
+    eyebrow: 'Comunicação',
+    description: 'Gere QR Codes do site para material publicitário.',
+    icon: 'qr-code',
     group: 'comunicacao',
   },
   {

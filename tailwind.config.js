@@ -4,7 +4,9 @@ module.exports = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: ['product-description', 'product-description--hero', 'category-hero'],
   theme: {
     extend: {
       colors: {
@@ -35,6 +37,7 @@ module.exports = {
         marquee: 'marquee 30s linear infinite',
         'pulse-glow': 'pulse-glow 2.5s ease-in-out infinite',
         float: 'float 6s ease-in-out infinite',
+        'store-cart-bump': 'store-cart-bump 0.45s ease-out',
       },
       keyframes: {
         marquee: {
@@ -48,6 +51,13 @@ module.exports = {
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-12px)' },
+        },
+        'store-cart-bump': {
+          '0%': { transform: 'scale(1)' },
+          '25%': { transform: 'scale(1.35)' },
+          '50%': { transform: 'scale(0.9)' },
+          '75%': { transform: 'scale(1.1)' },
+          '100%': { transform: 'scale(1)' },
         },
       },
     },

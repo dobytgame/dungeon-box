@@ -201,6 +201,7 @@ export interface AdminCycleRow {
   customerName: string | null;
   customerEmail: string | null;
   planName: string | null;
+  planSlug: string | null;
   planProductionCostCents: number;
   themeName: string | null;
   city: string | null;
@@ -218,6 +219,8 @@ export interface AdminCycleRow {
   totalRevenueCents: number | null;
   shipmentMarginCents: number | null;
   hasBundledRevenue: boolean;
+  /** Card deve destacar pagamento não confirmado (ciclo ou item bundled). */
+  paymentPendingHighlight: boolean;
 }
 
 export interface AdminPaymentRow extends Payment {

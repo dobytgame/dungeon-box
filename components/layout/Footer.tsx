@@ -4,12 +4,14 @@ import Logo from '@/components/ui/Logo';
 import CTAButton from '@/components/ui/CTAButton';
 import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
 import { COMPANY } from '@/lib/legal/constants';
+import { isStorePublic } from '@/lib/store/access';
 
 const exploreLinks = [
   { href: '#planos', label: 'Planos' },
   { href: '#fidelidade', label: 'Fidelidade' },
   { href: '#temas', label: 'Temas' },
-];
+  { href: '/loja', label: 'Loja', storeOnly: true },
+] as const;
 
 const supportLinks = [
   { href: '#faq', label: 'Perguntas frequentes' },
@@ -23,10 +25,17 @@ const legalLinks = [
 
 interface FooterProps {
   isLoggedIn?: boolean;
+  showStoreLink?: boolean;
 }
 
-export default function Footer({ isLoggedIn = false }: FooterProps) {
+export default function Footer({
+  isLoggedIn = false,
+  showStoreLink = isStorePublic(),
+}: FooterProps) {
   const year = new Date().getFullYear();
+  const visibleExploreLinks = exploreLinks.filter(
+    (link) => !('storeOnly' in link && link.storeOnly) || showStoreLink
+  );
 
   return (
     <footer className="relative border-t border-white/[0.06] bg-stone-950">
@@ -59,7 +68,7 @@ export default function Footer({ isLoggedIn = false }: FooterProps) {
               Explorar
             </p>
             <ul className="mt-4 space-y-3">
-              {exploreLinks.map((link) => (
+              {visibleExploreLinks.map((link) => (
                 <li key={link.href + link.label}>
                   <Link
                     href={link.href}

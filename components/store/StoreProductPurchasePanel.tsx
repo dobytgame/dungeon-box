@@ -4,6 +4,7 @@ import { Check, Minus, Plus, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import type { StoreProduct } from '@/lib/store/catalog';
 
 interface Props {
@@ -11,7 +12,8 @@ interface Props {
 }
 
 export default function StoreProductPurchasePanel({ product }: Props) {
-  const { addItem, setQuantity, lines } = useStoreCart();
+  const { setQuantity, lines } = useStoreCart();
+  const addToCart = useAddToStoreCart(product);
   const [added, setAdded] = useState(false);
   const [localQuantity, setLocalQuantity] = useState(1);
   const isMonthlyKit = product.category === 'monthly-kit';
@@ -29,7 +31,7 @@ export default function StoreProductPurchasePanel({ product }: Props) {
   }
 
   function handleAdd() {
-    addItem(product.id, isMonthlyKit ? quantity : 1);
+    addToCart(isMonthlyKit ? quantity : 1);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1800);
   }
@@ -115,6 +117,8 @@ export default function StoreProductPurchasePanel({ product }: Props) {
       <p className="text-xs text-stone-600">
         {isMonthlyKit ? (
           <>Frete grátis — enviado com a próxima caixa da assinatura.</>
+        ) : product.category === 'store-item' ? (
+          <>Frete calculado por região no checkout.</>
         ) : (
           <>
             Assinantes: frete grátis na{' '}

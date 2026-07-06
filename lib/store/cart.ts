@@ -9,8 +9,11 @@ export type CartLine = {
 
 export type CartLineResolved = CartLine & {
   name: string;
+  slug?: string;
+  imageUrl?: string;
   priceCents: number;
   lineTotalCents: number;
+  maxQuantity?: number;
   category?: StoreProduct['category'];
   subscriptionId?: string;
   themeName?: string;
@@ -20,6 +23,17 @@ export type CartLineResolved = CartLine & {
 };
 
 export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v2';
+
+function findCatalogProduct(
+  productId: string,
+  catalog: StoreProduct[] = []
+): StoreProduct | undefined {
+  return (
+    getStoreProduct(productId) ??
+    catalog.find((entry) => entry.id === productId) ??
+    catalog.find((entry) => entry.slug === productId)
+  );
+}
 
 function maxQuantityForProduct(
   product: StoreProduct | undefined,
@@ -37,9 +51,7 @@ export function normalizeCartLines(
   const merged = new Map<string, number>();
 
   for (const line of lines) {
-    const product =
-      getStoreProduct(line.productId) ??
-      catalog.find((entry) => entry.id === line.productId);
+    const product = findCatalogProduct(line.productId, catalog);
 
     if (!product) {
       if (
@@ -68,9 +80,7 @@ export function resolveCartLines(
   catalog: StoreProduct[] = []
 ): CartLineResolved[] {
   return normalizeCartLines(lines, catalog).flatMap((line) => {
-    const product =
-      getStoreProduct(line.productId) ??
-      catalog.find((entry) => entry.id === line.productId);
+    const product = findCatalogProduct(line.productId, catalog);
 
     if (!product) return [];
 
@@ -78,8 +88,11 @@ export function resolveCartLines(
       {
         ...line,
         name: product.name,
+        slug: product.slug,
+        imageUrl: product.imageUrl,
         priceCents: product.priceCents,
         lineTotalCents: product.priceCents * line.quantity,
+        maxQuantity: maxQuantityForProduct(product, line.productId),
         category: product.category,
         subscriptionId: product.subscriptionId,
         themeName: product.themeName,

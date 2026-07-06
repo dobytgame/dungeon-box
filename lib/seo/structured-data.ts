@@ -110,3 +110,39 @@ export function buildHomeJsonLd() {
 
 /** @deprecated Use buildHomeJsonLd — LP de vendas migrou para `/`. */
 export const buildSalesPageJsonLd = buildHomeJsonLd;
+
+export function buildStoreProductJsonLd(product: {
+  name: string;
+  slug: string;
+  tagline: string;
+  priceCents: number;
+  imageUrl?: string;
+  galleryUrls?: string[];
+}) {
+  const siteUrl = getCanonicalSiteUrl();
+  const productUrl = `${siteUrl}/loja/produto/${product.slug}`;
+  const images = [
+    ...(product.imageUrl ? [product.imageUrl] : []),
+    ...(product.galleryUrls ?? []),
+  ].filter((url, index, list) => list.indexOf(url) === index);
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.tagline,
+    image: images.length > 0 ? images : undefined,
+    url: productUrl,
+    brand: {
+      '@type': 'Brand',
+      name: SITE_NAME,
+    },
+    offers: {
+      '@type': 'Offer',
+      price: (product.priceCents / 100).toFixed(2),
+      priceCurrency: 'BRL',
+      availability: 'https://schema.org/InStock',
+      url: productUrl,
+    },
+  };
+}

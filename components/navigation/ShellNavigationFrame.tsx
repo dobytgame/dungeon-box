@@ -8,7 +8,7 @@ import {
 
 interface Props {
   scope: ShellScope;
-  variant: 'admin' | 'dashboard';
+  variant: 'admin' | 'dashboard' | 'shop';
   children: ReactNode;
 }
 
@@ -20,13 +20,15 @@ function ShellNavigationFrameInner({ scope, variant, children }: Props) {
       ? 'bg-console shadow-[0_0_12px_rgba(45,212,191,0.55)]'
       : 'bg-gradient-to-r from-ember via-[#ff9060] to-frost shadow-[0_0_14px_rgba(255,107,43,0.45)]';
 
+  const barZIndex = variant === 'shop' ? 'z-[250]' : 'z-[100]';
+
   const showBar = phase !== 'idle' || progress > 0;
 
   return (
     <>
       {showBar ? (
         <div
-          className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[2px] overflow-hidden bg-zinc-900/80"
+          className={`pointer-events-none fixed inset-x-0 top-0 ${barZIndex} h-[2px] overflow-hidden bg-zinc-900/80`}
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}

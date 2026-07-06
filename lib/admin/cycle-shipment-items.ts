@@ -430,19 +430,100 @@ export async function loadSiblingCyclesBySubscription(
   const result = new Map<string, CycleShipmentContext[]>();
   if (subscriptionIds.length === 0) return result;
 
-  await Promise.all(
-    subscriptionIds.map(async (subscriptionId) => {
-      const siblings = await listSiblingCyclesForShipment(admin, subscriptionId);
-      result.set(subscriptionId, siblings);
-    })
-  );
+  for (const subscriptionId of subscriptionIds) {
+    result.set(subscriptionId, []);
+  }
+
+  const { data, error } = await admin
+    .from('subscription_cycles')
+    .select('id, cycle_number, subscription_id, status, paid_at, created_at')
+    .in('subscription_id', subscriptionIds)
+    .order('cycle_number', { ascending: true });
+
+  if (error) {
+    console.error('[admin] loadSiblingCyclesBySubscription:', error.message);
+    return result;
+  }
+
+  for (const row of data ?? []) {
+    const subscriptionId = row.subscription_id as string;
+    const list = result.get(subscriptionId) ?? [];
+    list.push({
+      cycleId: row.id as string,
+      cycleNumber: row.cycle_number as number,
+      subscriptionId,
+      status: row.status as CycleStatus,
+      paidAt: (row.paid_at as string | null) ?? null,
+      createdAt: (row.created_at as string | null) ?? null,
+    });
+    result.set(subscriptionId, list);
+  }
+
+  return result;
+}
+
+export async function loadAddonPaymentsBySubscription(
+  admin: SupabaseClient,
+  subscriptionIds: string[]
+): Promise<
+  Map<
+    string,
+    Array<{
+      id: string;
+      amount_cents: number;
+      paid_at: string | null;
+      created_at: string | null;
+    }>
+  >
+> {
+  const result = new Map<
+    string,
+    Array<{
+      id: string;
+      amount_cents: number;
+      paid_at: string | null;
+      created_at: string | null;
+    }>
+  >();
+  if (subscriptionIds.length === 0) return result;
+
+  for (const subscriptionId of subscriptionIds) {
+    result.set(subscriptionId, []);
+  }
+
+  const { data, error } = await admin
+    .from('payments')
+    .select('id, amount_cents, paid_at, created_at, status_detail, subscription_id')
+    .in('subscription_id', subscriptionIds)
+    .eq('status', 'approved');
+
+  if (error) {
+    console.error('[admin] loadAddonPaymentsBySubscription:', error.message);
+    return result;
+  }
+
+  for (const row of data ?? []) {
+    const detail = row.status_detail as string | null;
+    if (detail?.includes('store_order')) continue;
+
+    const subscriptionId = row.subscription_id as string;
+    const list = result.get(subscriptionId) ?? [];
+    list.push({
+      id: row.id as string,
+      amount_cents: (row.amount_cents as number) ?? 0,
+      paid_at: (row.paid_at as string | null) ?? null,
+      created_at: (row.created_at as string | null) ?? null,
+    });
+    result.set(subscriptionId, list);
+  }
 
   return result;
 }
 
 export async function listBundledStoreOrdersBySubscription(
   admin: SupabaseClient,
-  subscriptionIds: string[]
+  subscriptionIds: string[],
+  options?: { syncFromAsaas?: boolean }
 ): Promise<Map<string, StoreOrderPaymentRow[]>> {
   const result = new Map<string, StoreOrderPaymentRow[]>();
   if (subscriptionIds.length === 0) return result;
@@ -460,8 +541,10 @@ export async function listBundledStoreOrdersBySubscription(
     new Set((subscriptions ?? []).map((row) => row.user_id as string))
   );
 
-  await syncStoreOrdersFromAsaasForSubscriptions(admin, subscriptionIds);
-  await syncPendingBundledStoreOrders(admin, userIds);
+  if (options?.syncFromAsaas) {
+    await syncStoreOrdersFromAsaasForSubscriptions(admin, subscriptionIds);
+    await syncPendingBundledStoreOrders(admin, userIds);
+  }
 
   const paymentSelect =
     'id, amount_cents, paid_at, created_at, status_detail, subscription_id, user_id, status';
@@ -577,7 +660,9 @@ export async function resolveCycleProductionData(
 ) {
   const [siblingCycles, storeOrdersBySub] = await Promise.all([
     listSiblingCyclesForShipment(admin, input.subscriptionId),
-    listBundledStoreOrdersBySubscription(admin, [input.subscriptionId]),
+    listBundledStoreOrdersBySubscription(admin, [input.subscriptionId], {
+      syncFromAsaas: true,
+    }),
   ]);
 
   const cycle: CycleShipmentContext = {
@@ -687,7 +772,9 @@ export async function resolveCycleProductionDataWithFinance(
     paymentMaps,
   ] = await Promise.all([
     listSiblingCyclesForShipment(admin, input.subscriptionId),
-    listBundledStoreOrdersBySubscription(admin, [input.subscriptionId]),
+    listBundledStoreOrdersBySubscription(admin, [input.subscriptionId], {
+      syncFromAsaas: true,
+    }),
     listAddonPaymentsForSubscription(
       admin,
       input.subscriptionId,

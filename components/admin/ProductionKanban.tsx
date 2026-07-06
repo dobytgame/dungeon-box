@@ -17,6 +17,8 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
+import AdminPlanChip from '@/components/admin/AdminPlanChip';
+import { adminPlanCardClasses } from '@/lib/plan-theme';
 
 type BoardColumn = keyof ProductionKanbanBoard;
 
@@ -156,7 +158,13 @@ function KanbanCard({
   }
 
   return (
-    <article className="relative admin-panel rounded border border-zinc-800/80 bg-zinc-950/60 p-3 transition hover:border-zinc-700">
+    <article
+      className={`relative admin-panel rounded border p-3 transition hover:brightness-110 ${
+        row.paymentPendingHighlight
+          ? 'border-amber-500/50 bg-amber-500/5 hover:border-amber-500/70'
+          : adminPlanCardClasses(row.planSlug, row.planName)
+      } ${row.paymentPendingHighlight ? '' : 'hover:border-opacity-80'}`}
+    >
       {isCardBusy ? (
         <div
           className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded bg-zinc-950/75 backdrop-blur-[1px]"
@@ -179,6 +187,11 @@ function KanbanCard({
             {row.customerName ?? 'Cliente sem nome'}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
+            {row.paymentPendingHighlight ? (
+              <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-amber-200">
+                Pag. pendente
+              </span>
+            ) : null}
             {row.isPartner ? (
               <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet-300">
                 Parceiro
@@ -207,7 +220,13 @@ function KanbanCard({
           {row.planName ? (
             <div className="flex justify-between gap-2">
               <dt>Plano</dt>
-              <dd className="text-zinc-400">{row.planName}</dd>
+              <dd>
+                <AdminPlanChip
+                  slug={row.planSlug}
+                  name={row.planName}
+                  compact
+                />
+              </dd>
             </div>
           ) : null}
           {row.themeName ? (

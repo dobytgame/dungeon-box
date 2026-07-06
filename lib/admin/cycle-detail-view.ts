@@ -70,6 +70,7 @@ export interface AdminCycleDetailView {
   userId: string | null;
   subscriptionId: string | null;
   planName: string | null;
+  planSlug: string | null;
   /** @deprecated Use orderAddress */
   addressLine: string | null;
   orderPlan: AdminCycleOrderPlan | null;
@@ -255,6 +256,7 @@ export function toAdminCycleDetailView(
     userId: subscription?.user_id ?? null,
     subscriptionId: subscription?.id ?? null,
     planName: plan?.name ?? null,
+    planSlug: (plan?.slug as string | null) ?? null,
     addressLine,
     orderPlan,
     orderAddons,

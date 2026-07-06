@@ -14,6 +14,7 @@ import {
 } from '@/lib/analytics/store-purchase';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
+import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 
 export type StoreOrderMeta = {
   type: 'store_order';
@@ -32,6 +33,9 @@ export type StoreOrderMeta = {
   addressId: string;
   bundleSubscriptionId: string | null;
   shippingMode: 'with_subscription' | 'standalone';
+  subtotalCents?: number;
+  shippingCents?: number;
+  shippingLabel?: string | null;
 };
 
 export function buildStoreOrderExternalReference(
@@ -307,6 +311,45 @@ export async function fulfillApprovedStoreOrder(
     .eq('user_id', userId);
 }
 
+export async function notifyStoreOrderConfirmed(
+  supabase: SupabaseClient,
+  userId: string,
+  meta: StoreOrderMeta,
+  amountCents: number
+): Promise<void> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('email, full_name')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (!profile?.email) return;
+
+  const subtotalCents =
+    meta.subtotalCents ??
+    meta.items.reduce((sum, item) => sum + item.lineTotalCents, 0);
+
+  try {
+    await sendStoreOrderConfirmedEmail({
+      to: profile.email,
+      name: profile.full_name,
+      orderId: meta.orderId,
+      items: meta.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        lineTotalCents: item.lineTotalCents,
+      })),
+      subtotalCents,
+      shippingCents: meta.shippingCents ?? 0,
+      shippingLabel: meta.shippingLabel,
+      amountCents,
+      bundledWithSubscription: meta.shippingMode === 'with_subscription',
+    });
+  } catch (error) {
+    console.error('[store] order confirmed email:', error);
+  }
+}
+
 export async function syncPendingBundledStoreOrders(
   supabase: SupabaseClient,
   userIds: string[]
@@ -382,6 +425,12 @@ export async function approveStoreOrderPayment(
     .eq('id', paymentRow.id);
 
   await fulfillApprovedStoreOrder(supabase, paymentRow.user_id, meta);
+  await notifyStoreOrderConfirmed(
+    supabase,
+    paymentRow.user_id,
+    meta,
+    amountCents ?? paymentRow.amount_cents ?? 0
+  );
 
   return 'processed';
 }

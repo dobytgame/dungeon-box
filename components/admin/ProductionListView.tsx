@@ -9,6 +9,8 @@ import {
 } from '@/lib/admin/production-list';
 import { formatDate } from '@/lib/dashboard/format';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
+import AdminPlanChip from '@/components/admin/AdminPlanChip';
+import { getAdminPlanVisual } from '@/lib/plan-theme';
 
 interface Props {
   board: ProductionKanbanBoard;
@@ -86,10 +88,22 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
+                    {rows.map((row) => {
+                      const planVisual = getAdminPlanVisual(
+                        row.planSlug,
+                        row.planName
+                      );
+
+                      return (
                       <tr
                         key={row.id}
-                        className="group cursor-pointer border-b border-zinc-800/60 transition-colors last:border-0 hover:bg-console/[0.04]"
+                        className={`group cursor-pointer border-b transition-colors last:border-0 hover:brightness-110 ${
+                          row.paymentPendingHighlight
+                            ? 'border-amber-500/25 bg-amber-500/[0.04] hover:bg-amber-500/[0.07]'
+                            : planVisual
+                              ? planVisual.rowClass
+                              : 'border-zinc-800/60'
+                        }`}
                         onClick={() => onOpenDetail(row)}
                       >
                         <td className="px-4 py-4 align-top md:px-5">
@@ -98,6 +112,11 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                               {row.customerName ?? 'Cliente sem nome'}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
+                              {row.paymentPendingHighlight ? (
+                                <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-amber-200">
+                                  Pag. pendente
+                                </span>
+                              ) : null}
                               {row.isPartner ? (
                                 <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet-300">
                                   Parceiro
@@ -120,14 +139,23 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                           </p>
                         </td>
                         <td className="px-4 py-4 align-top md:px-5">
-                          <p className="max-w-sm text-[13px] leading-relaxed text-zinc-300">
-                            {formatProductionProductLabel(row)}
-                          </p>
-                          {row.hasBundledItems ? (
-                            <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-violet-300/80">
-                              Com itens extras
+                          <div className="space-y-2">
+                            {row.planName ? (
+                              <AdminPlanChip
+                                slug={row.planSlug}
+                                name={row.planName}
+                                compact
+                              />
+                            ) : null}
+                            <p className="max-w-sm text-[13px] leading-relaxed text-zinc-300">
+                              {formatProductionProductLabel(row)}
                             </p>
-                          ) : null}
+                            {row.hasBundledItems ? (
+                              <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-violet-300/80">
+                                Com itens extras
+                              </p>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-top md:px-5">
                           {row.productionNotes ? (
@@ -143,7 +171,8 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                           {row.paid_at ? formatDate(row.paid_at) : '—'}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

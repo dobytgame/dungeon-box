@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import ProductDescriptionContent from '@/components/shop/ProductDescriptionContent';
 
 const labelClass =
   'block font-display text-xs uppercase tracking-widest text-stone-400';
@@ -10,6 +11,7 @@ const toolbarButtonClass =
 
 interface Props {
   name?: string;
+  label?: string;
   defaultValue?: string | null;
 }
 
@@ -28,6 +30,7 @@ function wrapSelection(textarea: HTMLTextAreaElement, before: string, after: str
 
 export default function AdminHtmlEditor({
   name = 'page_content_html',
+  label = 'Conteúdo da página (HTML)',
   defaultValue = '',
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -45,7 +48,7 @@ export default function AdminHtmlEditor({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label htmlFor={name} className={labelClass}>
-          Conteúdo da página (HTML)
+          {label}
         </label>
         <div className="inline-flex rounded-sm border border-white/10 p-0.5">
           <button
@@ -128,12 +131,11 @@ export default function AdminHtmlEditor({
           />
         </>
       ) : (
-        <div
-          className="prose prose-invert max-w-none min-h-48 rounded-sm border border-white/10 bg-stone-950/60 px-4 py-3 text-sm text-stone-300 prose-headings:font-display prose-headings:uppercase prose-a:text-console"
-          dangerouslySetInnerHTML={{
-            __html: html || '<p class="text-stone-600">Nenhum conteúdo ainda.</p>',
-          }}
-        />
+        <div className="min-h-48 rounded-sm border border-white/10 bg-stone-950/60 px-5 py-4">
+          <ProductDescriptionContent
+            html={html || '<p class="text-stone-600">Nenhum conteúdo ainda.</p>'}
+          />
+        </div>
       )}
 
       <p className="text-xs text-stone-500">

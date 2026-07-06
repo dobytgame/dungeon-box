@@ -64,7 +64,7 @@ Se já regularizou, desconsidere este aviso — a confirmação pode levar algum
 
 Entre com sua conta para ver descontos de fidelidade aplicados automaticamente no carrinho.`,
     ctaLabel: 'Visitar loja',
-    ctaHref: '/dashboard/loja',
+    ctaHref: '/loja',
   },
   {
     id: 'lead-nao-convertido',

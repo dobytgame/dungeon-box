@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import CopyableDataRow from '@/components/admin/CopyableDataRow';
+import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
 import CycleProductionNotesForm from '@/components/admin/CycleProductionNotesForm';
@@ -12,6 +13,7 @@ import ProductionPipeline from '@/components/admin/ProductionPipeline';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
+import { adminPlanCardClasses } from '@/lib/plan-theme';
 import { formatDate, formatDateTime, formatMoney, formatPhone, formatCpf } from '@/lib/dashboard/format';
 
 interface Props {
@@ -69,6 +71,9 @@ export default function CycleDetailContent({
   const customerCpfDigits = detail.customerCpf?.replace(/\D/g, '') ?? '';
   const customerPhone = formatPhone(detail.customerPhone);
   const extraCount = Math.max(0, detail.productionChecklist.length - 1);
+  const planSlug = detail.planSlug ?? detail.orderPlan?.slug ?? null;
+  const planName = detail.orderPlan?.name ?? detail.planName;
+  const subscriptionPanelClass = adminPlanCardClasses(planSlug, planName);
 
   return (
     <div className="space-y-6">
@@ -136,7 +141,7 @@ export default function CycleDetailContent({
       </section>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <section className="admin-panel rounded p-4">
+        <section className={`admin-panel rounded p-4 ${subscriptionPanelClass}`}>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
             Assinatura
           </p>
@@ -146,8 +151,8 @@ export default function CycleDetailContent({
               label="Plano"
               value={
                 detail.orderPlan ? (
-                  <span>
-                    {detail.orderPlan.name}
+                  <span className="space-y-2">
+                    <AdminPlanChip slug={planSlug} name={detail.orderPlan.name} />
                     <span className="block text-xs text-zinc-500">
                       {formatMoney(detail.orderPlan.priceCents)}/mês
                       {detail.orderPlan.piecesLabel
@@ -156,7 +161,7 @@ export default function CycleDetailContent({
                     </span>
                   </span>
                 ) : (
-                  detail.planName ?? '—'
+                  <AdminPlanChip slug={planSlug} name={detail.planName} />
                 )
               }
             />

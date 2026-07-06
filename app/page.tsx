@@ -11,6 +11,7 @@ import JsonLd from '@/components/seo/JsonLd';
 import { displayName, getProfile } from '@/lib/dashboard/queries';
 import { homePageMetadata } from '@/lib/seo/metadata';
 import { buildHomeJsonLd } from '@/lib/seo/structured-data';
+import { isStorePublic } from '@/lib/store/access';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = homePageMetadata;
@@ -23,6 +24,7 @@ export default async function Home() {
   const profile = user ? await getProfile(user.id) : null;
   const userName = user ? displayName(profile, user.email) : null;
   const isLoggedIn = !!user;
+  const showStoreLink = isStorePublic() || profile?.is_admin === true;
 
   const jsonLd = buildHomeJsonLd();
 
@@ -39,7 +41,7 @@ export default async function Home() {
         <Temas />
         <FAQ />
       </main>
-      <Footer isLoggedIn={isLoggedIn} />
+      <Footer isLoggedIn={isLoggedIn} showStoreLink={showStoreLink} />
     </>
   );
 }

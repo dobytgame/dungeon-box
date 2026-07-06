@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import CTAButton from '@/components/ui/CTAButton';
 import MobileNavPanel, { MobileNavToggle } from '@/components/layout/MobileNav';
+import { siteNavLinkClassName } from '@/lib/ui/site-nav';
 
 interface NavbarProps {
   isLoggedIn?: boolean;
@@ -47,25 +48,25 @@ export default function Navbar({ isLoggedIn = false, userName }: NavbarProps) {
           <div className="hidden items-center gap-8 md:flex">
             <Link
               href="#planos"
-              className="cursor-pointer text-sm text-stone-300 transition-colors hover:text-white"
+              className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
             >
               Planos
             </Link>
             <Link
               href="#fidelidade"
-              className="cursor-pointer text-sm text-stone-300 transition-colors hover:text-white"
+              className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
             >
               Fidelidade
             </Link>
             <Link
               href="#temas"
-              className="cursor-pointer text-sm text-stone-300 transition-colors hover:text-white"
+              className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
             >
               Temas
             </Link>
             <Link
               href="#faq"
-              className="cursor-pointer text-sm text-stone-300 transition-colors hover:text-white"
+              className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
             >
               FAQ
             </Link>

@@ -3,12 +3,43 @@
 import Link from 'next/link';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/DashboardCard';
+import ShopCard from '@/components/shop/ShopCard';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney } from '@/lib/dashboard/format';
 import { cartHasMonthlyKits, resolveCartLines } from '@/lib/store/cart';
+import { STORE_ROUTES } from '@/lib/store/routes';
+import StoreNavLink from '@/components/shop/StoreNavLink';
 
-export default function StoreCartView() {
+interface Props {
+  embedded?: boolean;
+}
+
+function CartShell({
+  title,
+  embedded,
+  children,
+}: {
+  title: string;
+  embedded?: boolean;
+  children: React.ReactNode;
+}) {
+  if (embedded) {
+    return (
+      <ShopCard title={title} eyebrow="Loja">
+        {children}
+      </ShopCard>
+    );
+  }
+
+  return (
+    <DashboardCard title={title} accent="gold">
+      {children}
+    </DashboardCard>
+  );
+}
+
+export default function StoreCartView({ embedded = false }: Props) {
   const { allProducts } = useStoreCatalog();
   const { lines, subtotalCents, setQuantity, removeItem, hydrated } = useStoreCart();
   const resolved = resolveCartLines(lines, allProducts);
@@ -16,32 +47,32 @@ export default function StoreCartView() {
 
   if (!hydrated) {
     return (
-      <DashboardCard title="Carrinho" accent="gold">
+      <CartShell title="Carrinho" embedded={embedded}>
         <p className="text-sm text-stone-500">Carregando carrinho…</p>
-      </DashboardCard>
+      </CartShell>
     );
   }
 
   if (resolved.length === 0) {
     return (
-      <DashboardCard title="Carrinho vazio" accent="gold">
+      <CartShell title="Carrinho vazio" embedded={embedded}>
         <p className="text-sm text-stone-400">
           Você ainda não adicionou produtos. Explore a loja para kits do mês e
           acessórios.
         </p>
         <Link
-          href="/dashboard/loja"
+          href={STORE_ROUTES.home}
           className="mt-4 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
         >
           Ver produtos →
         </Link>
-      </DashboardCard>
+      </CartShell>
     );
   }
 
   return (
     <div className="space-y-6">
-      <DashboardCard title="Seu carrinho" accent="gold">
+      <CartShell title="Seu carrinho" embedded={embedded}>
         <ul className="divide-y divide-white/[0.06]">
           {resolved.map((line) => (
             <li
@@ -79,9 +110,13 @@ export default function StoreCartView() {
                   <button
                     type="button"
                     aria-label="Diminuir quantidade"
-                    onClick={() =>
-                      setQuantity(line.productId, Math.max(1, line.quantity - 1))
-                    }
+                    onClick={() => {
+                      if (line.quantity <= 1) {
+                        removeItem(line.productId);
+                        return;
+                      }
+                      setQuantity(line.productId, line.quantity - 1);
+                    }}
                     className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
                   >
                     <Minus className="h-4 w-4" />
@@ -92,8 +127,12 @@ export default function StoreCartView() {
                   <button
                     type="button"
                     aria-label="Aumentar quantidade"
+                    disabled={line.quantity >= (line.maxQuantity ?? 9)}
                     onClick={() =>
-                      setQuantity(line.productId, Math.min(9, line.quantity + 1))
+                      setQuantity(
+                        line.productId,
+                        Math.min(line.maxQuantity ?? 9, line.quantity + 1)
+                      )
                     }
                     className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
                   >
@@ -127,17 +166,18 @@ export default function StoreCartView() {
             <p className="mt-1 text-xs text-stone-600">
               {hasMonthlyKit
                 ? 'Kits do mês: frete grátis na próxima caixa da assinatura.'
-                : 'Frete grátis ao enviar com a próxima caixa da assinatura.'}
+                : 'Frete avulso calculado por região no checkout.'}
             </p>
           </div>
-          <Link
-            href="/dashboard/loja/checkout"
+          <StoreNavLink
+            href={STORE_ROUTES.checkout}
+            loadingLabel="Abrindo pagamento…"
             className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
           >
             Finalizar compra
-          </Link>
+          </StoreNavLink>
         </div>
-      </DashboardCard>
+      </CartShell>
     </div>
   );
 }

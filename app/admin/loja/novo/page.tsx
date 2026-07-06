@@ -1,33 +1,25 @@
-import Link from 'next/link';
+import AdminFormNav from '@/components/admin/AdminFormNav';
 import StoreProductForm from '@/components/admin/StoreProductForm';
 import { requireAdmin } from '@/lib/admin/auth';
 import { listAdminPlans } from '@/lib/admin/queries';
-import { listAdminStoreCategories } from '@/lib/admin/store-categories';
+import { listAdminStoreCategoryOptions } from '@/lib/admin/store-categories';
 
 export default async function AdminStoreNewPage() {
   const { admin } = await requireAdmin();
-  const [plans, categories] = await Promise.all([
+  const [plans, categoryOptions] = await Promise.all([
     listAdminPlans(admin),
-    listAdminStoreCategories(admin),
+    listAdminStoreCategoryOptions(admin),
   ]);
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/admin/loja"
-        className="inline-block text-xs uppercase tracking-widest text-stone-500 hover:text-console"
-      >
-        ← Voltar para loja
-      </Link>
+      <AdminFormNav backHref="/admin/loja" backLabel="Voltar para loja" />
       <StoreProductForm
         planOptions={plans.map((plan) => ({
           slug: plan.slug,
           name: plan.name,
         }))}
-        categoryOptions={categories.map((category) => ({
-          id: category.id,
-          name: category.name,
-        }))}
+        categoryOptions={categoryOptions}
       />
     </div>
   );

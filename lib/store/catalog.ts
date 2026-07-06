@@ -4,7 +4,25 @@ export type StoreCatalogProductId = 'paint-kit-amador' | 'paint-kit-profissional
 
 export type StoreProductId = StoreCatalogProductId | string;
 
-export type StoreProductCategory = 'paint-kit' | 'monthly-kit';
+export type StoreProductCategory = 'paint-kit' | 'monthly-kit' | 'store-item';
+
+export const STORE_PRODUCT_CATEGORY_LABELS: Record<StoreProductCategory, string> = {
+  'paint-kit': 'Kit de pintura',
+  'monthly-kit': 'Kit avulso (plano)',
+  'store-item': 'Produto da loja',
+};
+
+export function isPaintKitCategory(category: StoreProductCategory): boolean {
+  return category === 'paint-kit';
+}
+
+export function isMonthlyKitCategory(category: StoreProductCategory): boolean {
+  return category === 'monthly-kit';
+}
+
+export function isStoreItemCategory(category: StoreProductCategory): boolean {
+  return category === 'store-item';
+}
 
 export type StoreProduct = {
   id: StoreProductId;
@@ -18,6 +36,8 @@ export type StoreProduct = {
   category: StoreProductCategory;
   storeCategorySlug?: string;
   storeCategoryName?: string;
+  storeParentCategorySlug?: string;
+  storeParentCategoryName?: string;
   imageUrl?: string;
   galleryUrls?: string[];
   pageContentHtml?: string;

@@ -1,25 +1,45 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  buildCategoryTree,
+  flattenCategoryTree,
+} from '@/lib/store/category-tree';
 
 export interface AdminStoreCategoryRow {
   id: string;
   slug: string;
   name: string;
   description: string | null;
+  banner_url: string | null;
+  thumb_url: string | null;
+  parent_id: string | null;
+  parent_name: string | null;
   sort_order: number;
   is_active: boolean;
   product_count: number;
   created_at: string | null;
 }
 
+export interface AdminStoreCategoryOption {
+  id: string;
+  name: string;
+  depth: number;
+  parentName: string | null;
+}
+
 function mapCategoryRow(
   row: Record<string, unknown>,
-  productCount = 0
+  productCount = 0,
+  parentName: string | null = null
 ): AdminStoreCategoryRow {
   return {
     id: row.id as string,
     slug: row.slug as string,
     name: row.name as string,
     description: (row.description as string | null) ?? null,
+    banner_url: (row.banner_url as string | null) ?? null,
+    thumb_url: (row.thumb_url as string | null) ?? null,
+    parent_id: (row.parent_id as string | null) ?? null,
+    parent_name: parentName,
     sort_order: row.sort_order as number,
     is_active: Boolean(row.is_active),
     product_count: productCount,
@@ -51,9 +71,42 @@ export async function listAdminStoreCategories(
     countByCategory.set(categoryId, (countByCategory.get(categoryId) ?? 0) + 1);
   }
 
-  return (data ?? []).map((row) =>
-    mapCategoryRow(row as Record<string, unknown>, countByCategory.get(row.id as string) ?? 0)
+  const nameById = new Map(
+    (data ?? []).map((row) => [row.id as string, row.name as string])
   );
+
+  return (data ?? []).map((row) =>
+    mapCategoryRow(
+      row as Record<string, unknown>,
+      countByCategory.get(row.id as string) ?? 0,
+      row.parent_id ? (nameById.get(row.parent_id as string) ?? null) : null
+    )
+  );
+}
+
+export async function listAdminStoreCategoryOptions(
+  admin: SupabaseClient
+): Promise<AdminStoreCategoryOption[]> {
+  const categories = await listAdminStoreCategories(admin);
+  const tree = buildCategoryTree(
+    categories.map((category) => ({
+      id: category.id,
+      slug: category.slug,
+      name: category.name,
+      parent_id: category.parent_id,
+    }))
+  );
+
+  return flattenCategoryTree(tree).map((node) => ({
+    id: node.id,
+    name: node.name,
+    depth: node.depth,
+    parentName:
+      node.parentId != null
+        ? (categories.find((category) => category.id === node.parentId)?.name ??
+          null)
+        : null,
+  }));
 }
 
 export async function getAdminStoreCategory(
@@ -68,12 +121,25 @@ export async function getAdminStoreCategory(
 
   if (error || !data) return null;
 
-  const { count } = await admin
-    .from('store_products')
-    .select('id', { count: 'exact', head: true })
-    .eq('store_category_id', categoryId);
+  const [{ count }, parentRow] = await Promise.all([
+    admin
+      .from('store_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_category_id', categoryId),
+    data.parent_id
+      ? admin
+          .from('store_categories')
+          .select('name')
+          .eq('id', data.parent_id as string)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  return mapCategoryRow(data as Record<string, unknown>, count ?? 0);
+  return mapCategoryRow(
+    data as Record<string, unknown>,
+    count ?? 0,
+    (parentRow.data?.name as string | null) ?? null
+  );
 }
 
 export async function listActiveStoreCategories(

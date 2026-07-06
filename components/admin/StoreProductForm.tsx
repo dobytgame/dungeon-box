@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   deleteStoreProductAction,
@@ -11,6 +11,11 @@ import AdminHtmlEditor from '@/components/admin/AdminHtmlEditor';
 import StoreProductMediaFields from '@/components/admin/StoreProductMediaFields';
 import type { AdminStoreProductRow } from '@/lib/admin/store-products';
 import { formatMoney } from '@/lib/dashboard/format';
+import { generateSeoSlug } from '@/lib/seo/slug';
+import {
+  STORE_PRODUCT_CATEGORY_LABELS,
+  type StoreProductCategory,
+} from '@/lib/store/catalog';
 
 const inputClass =
   'mt-2 w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white';
@@ -25,20 +30,22 @@ interface PlanOption {
 interface CategoryOption {
   id: string;
   name: string;
+  depth: number;
+  parentName?: string | null;
 }
 
 interface Props {
   product?: AdminStoreProductRow | null;
   planOptions?: PlanOption[];
   categoryOptions?: CategoryOption[];
-  defaultCategory?: 'paint-kit' | 'monthly-kit';
+  defaultCategory?: StoreProductCategory;
 }
 
 export default function StoreProductForm({
   product,
   planOptions = [],
   categoryOptions = [],
-  defaultCategory = 'paint-kit',
+  defaultCategory = 'store-item',
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -47,54 +54,114 @@ export default function StoreProductForm({
   const [category, setCategory] = useState(
     product?.category ?? defaultCategory
   );
+  const [storeCategoryId, setStoreCategoryId] = useState(
+    product?.store_category_id ?? ''
+  );
   const isMonthlyKit = category === 'monthly-kit';
+  const isPaintKit = category === 'paint-kit';
+  const isStoreItem = category === 'store-item';
+  const [name, setName] = useState(product?.name ?? '');
+  const [slug, setSlug] = useState(product?.slug ?? '');
+  const [slugEdited, setSlugEdited] = useState(Boolean(product?.slug));
+  const saveModeRef = useRef<'edit' | 'create-another'>('edit');
+
+  function submitForm(formData: FormData) {
+    formData.set('category', category);
+    setError('');
+
+    startTransition(async () => {
+      const result = await saveStoreProductAction(product?.id ?? null, formData);
+      if ('error' in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      if ('id' in result) {
+        if (saveModeRef.current === 'create-another') {
+          router.push('/admin/loja/novo');
+        } else {
+          router.push(`/admin/loja/${result.id}`);
+        }
+        router.refresh();
+      }
+    });
+  }
 
   return (
     <form
       className="max-w-3xl space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        formData.set('category', category);
-        setError('');
-
-        startTransition(async () => {
-          const result = await saveStoreProductAction(product?.id ?? null, formData);
-          if ('error' in result && result.error) {
-            setError(result.error);
-            return;
-          }
-          if ('id' in result) {
-            router.push(`/admin/loja/${result.id}`);
-            router.refresh();
-          }
-        });
+        submitForm(new FormData(event.currentTarget));
       }}
     >
       <input type="hidden" name="category" value={category} />
 
+      <div className="rounded-sm border border-console/20 bg-console/5 p-4">
+        <label htmlFor="store_category_id" className={labelClass}>
+          Categoria da vitrine
+        </label>
+        <p className="mt-1 text-xs text-stone-500">
+          Onde o produto aparece no menu e nas páginas da loja. Use as
+          categorias que você cadastrou em Loja → Categorias.
+        </p>
+        <select
+          id="store_category_id"
+          name="store_category_id"
+          value={storeCategoryId}
+          onChange={(event) => setStoreCategoryId(event.target.value)}
+          className={inputClass}
+        >
+          <option value="">Sem categoria</option>
+          {categoryOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {`${'  '.repeat(option.depth)}${option.depth > 0 ? '↳ ' : ''}${option.name}`}
+            </option>
+          ))}
+        </select>
+        {categoryOptions.length === 0 ? (
+          <p className="mt-2 text-xs text-amber-300/80">
+            Nenhuma categoria cadastrada.{' '}
+            <a href="/admin/loja/categorias/novo" className="text-console underline">
+              Criar categoria
+            </a>
+          </p>
+        ) : null}
+      </div>
+
       {!product ? (
         <div>
           <label htmlFor="category" className={labelClass}>
-            Categoria
+            Tipo de produto
           </label>
+          <p className="mt-1 text-xs text-stone-500">
+            {isStoreItem
+              ? 'Acessórios, cenários e demais itens avulsos com frete calculado no checkout.'
+              : isMonthlyKit
+                ? 'Cópia extra do kit do mês, vinculada a um plano de assinatura.'
+                : 'Kit de pintura recorrente vinculado ao tipo amador ou profissional.'}
+          </p>
           <select
             id="category"
             value={category}
             onChange={(event) =>
-              setCategory(event.target.value as 'paint-kit' | 'monthly-kit')
+              setCategory(event.target.value as StoreProductCategory)
             }
             className={inputClass}
           >
-            <option value="paint-kit">Kit de pintura</option>
-            <option value="monthly-kit">Kit avulso (plano)</option>
+            {(Object.keys(STORE_PRODUCT_CATEGORY_LABELS) as StoreProductCategory[]).map(
+              (value) => (
+                <option key={value} value={value}>
+                  {STORE_PRODUCT_CATEGORY_LABELS[value]}
+                </option>
+              )
+            )}
           </select>
         </div>
       ) : (
         <p className="text-sm text-stone-500">
-          Categoria:{' '}
+          Tipo de produto:{' '}
           <span className="text-stone-300">
-            {isMonthlyKit ? 'Kit avulso' : 'Kit de pintura'}
+            {STORE_PRODUCT_CATEGORY_LABELS[category]}
           </span>
         </p>
       )}
@@ -108,7 +175,14 @@ export default function StoreProductForm({
             id="name"
             name="name"
             required
-            defaultValue={product?.name ?? ''}
+            value={name}
+            onChange={(event) => {
+              const nextName = event.target.value;
+              setName(nextName);
+              if (!product && !slugEdited) {
+                setSlug(generateSeoSlug(nextName));
+              }
+            }}
             className={inputClass}
           />
         </div>
@@ -121,9 +195,18 @@ export default function StoreProductForm({
             name="slug"
             required
             readOnly={Boolean(product)}
-            defaultValue={product?.slug ?? ''}
+            value={slug}
+            onChange={(event) => {
+              setSlugEdited(true);
+              setSlug(event.target.value);
+            }}
             className={inputClass}
           />
+          {!product && slug ? (
+            <p className="mt-1 text-xs text-stone-500">
+              URL: /loja/produto/{slug}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -137,25 +220,6 @@ export default function StoreProductForm({
           defaultValue={product?.tagline ?? ''}
           className={inputClass}
         />
-      </div>
-
-      <div>
-        <label htmlFor="store_category_id" className={labelClass}>
-          Categoria da loja
-        </label>
-        <select
-          id="store_category_id"
-          name="store_category_id"
-          defaultValue={product?.store_category_id ?? ''}
-          className={inputClass}
-        >
-          <option value="">Sem categoria</option>
-          {categoryOptions.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
       </div>
 
       <StoreProductMediaFields
@@ -197,7 +261,7 @@ export default function StoreProductForm({
             O custo de produção usa o plano ou o valor abaixo, se preenchido.
           </p>
         </div>
-      ) : (
+      ) : isPaintKit ? (
         <div>
           <label htmlFor="paint_kit_bump_id" className={labelClass}>
             Tipo de kit
@@ -216,7 +280,7 @@ export default function StoreProductForm({
             <option value="profissional">Profissional</option>
           </select>
         </div>
-      )}
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -324,10 +388,24 @@ export default function StoreProductForm({
         <button
           type="submit"
           disabled={pending}
+          onClick={() => {
+            saveModeRef.current = 'edit';
+          }}
           className="inline-flex cursor-pointer items-center gap-2 rounded-sm bg-console px-5 py-2.5 font-display text-xs uppercase tracking-widest text-stone-950 disabled:opacity-50"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Salvar produto
+        </button>
+
+        <button
+          type="submit"
+          disabled={pending}
+          onClick={() => {
+            saveModeRef.current = 'create-another';
+          }}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-5 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300 transition hover:border-console/40 hover:text-console disabled:opacity-50"
+        >
+          Salvar e criar outro
         </button>
 
         {product ? (

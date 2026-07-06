@@ -1,4 +1,7 @@
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
 import type { AdminCycleRow } from '@/lib/admin/types';
+import { resolveProductionMonthKey } from '@/lib/admin/production-month';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { pipelineStepIndex } from '@/lib/subscriptions/cycle-production';
 
@@ -114,6 +117,103 @@ function keepPrimarySubscriptionPerUser(
     if (!userId) return true;
     return allowedSubscriptionIds.has(row.subscription_id);
   });
+}
+
+export function buildProductionSubscriptionMeta(
+  rows: AdminCycleRow[]
+): Map<string, ProductionSubscriptionMeta> {
+  const metaBySubscriptionId = new Map<string, ProductionSubscriptionMeta>();
+  for (const row of rows) {
+    if (!metaBySubscriptionId.has(row.subscription_id)) {
+      metaBySubscriptionId.set(row.subscription_id, {
+        userId: row.userId,
+        status: row.subscriptionStatus ?? 'pending',
+        currentCycle: row.subscriptionCurrentCycle ?? 1,
+      });
+    }
+  }
+  return metaBySubscriptionId;
+}
+
+/** Um card por assinatura no mês (combos por mês de produção; mensais sem ciclos prematuros). */
+export function filterProductionBoardRowsForMonth(
+  rows: AdminCycleRow[],
+  monthKey: string,
+  metaBySubscriptionId: Map<string, ProductionSubscriptionMeta>
+): AdminCycleRow[] {
+  const bySubscription = new Map<string, AdminCycleRow[]>();
+  for (const row of rows) {
+    const list = bySubscription.get(row.subscription_id) ?? [];
+    list.push(row);
+    bySubscription.set(row.subscription_id, list);
+  }
+
+  const inMonth = rows.filter(
+    (row) => resolveProductionMonthKey(row) === monthKey
+  );
+
+  const eligible: AdminCycleRow[] = [];
+  for (const row of inMonth) {
+    const meta = metaBySubscriptionId.get(row.subscription_id);
+    if (meta && !OPERATIONAL_SUBSCRIPTION_STATUSES.has(meta.status)) {
+      continue;
+    }
+
+    const siblings = bySubscription.get(row.subscription_id) ?? [];
+    if (isPrematureUpcoming(row, siblings)) continue;
+    eligible.push(row);
+  }
+
+  const eligibleBySubscription = new Map<string, AdminCycleRow[]>();
+  for (const row of eligible) {
+    const list = eligibleBySubscription.get(row.subscription_id) ?? [];
+    list.push(row);
+    eligibleBySubscription.set(row.subscription_id, list);
+  }
+
+  const deduped: AdminCycleRow[] = [];
+  for (const [, subRows] of Array.from(eligibleBySubscription.entries())) {
+    const billingTerm = subRows[0]?.subscriptionBillingTerm;
+    if (billingTerm && isComboTerm(billingTerm as BillingTerm)) {
+      const primary = pickPrimaryOpenCycle(subRows) ?? subRows[0];
+      if (primary) deduped.push(primary);
+      continue;
+    }
+    deduped.push(...filterRowsForSubscription(subRows));
+  }
+
+  const perUser = keepPrimarySubscriptionPerUser(
+    deduped,
+    metaBySubscriptionId
+  );
+
+  const seen = new Set<string>();
+  return perUser.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+}
+
+export function countDedupedProductionCyclesByMonth(
+  rows: AdminCycleRow[],
+  metaBySubscriptionId: Map<string, ProductionSubscriptionMeta>
+): Map<string, number> {
+  const monthKeys = new Set<string>();
+  for (const row of rows) {
+    const key = resolveProductionMonthKey(row);
+    if (key) monthKeys.add(key);
+  }
+
+  const counts = new Map<string, number>();
+  for (const monthKey of Array.from(monthKeys)) {
+    counts.set(
+      monthKey,
+      filterProductionBoardRowsForMonth(rows, monthKey, metaBySubscriptionId)
+        .length
+    );
+  }
+  return counts;
 }
 
 export function filterProductionBoardRows(

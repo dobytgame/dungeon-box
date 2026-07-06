@@ -33,6 +33,12 @@ import {
   subscriptionCancelledText,
 } from '@/lib/email/templates/subscription-cancelled';
 import {
+  STORE_ORDER_CONFIRMED_SUBJECT,
+  storeOrderConfirmedHtml,
+  storeOrderConfirmedText,
+  type StoreOrderConfirmedTemplateData,
+} from '@/lib/email/templates/store-order-confirmed';
+import {
   SUPPORT_CONFIRMATION_SUBJECT,
   supportConfirmationHtml,
   supportConfirmationText,
@@ -229,6 +235,20 @@ export async function sendReferralPointsEarnedEmail(input: {
     text: referralPointsEarnedText(input),
     replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'referral_points_earned' }],
+  });
+}
+
+export async function sendStoreOrderConfirmedEmail(
+  input: StoreOrderConfirmedTemplateData & { to: string }
+): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to: input.to,
+    subject: STORE_ORDER_CONFIRMED_SUBJECT,
+    html: storeOrderConfirmedHtml(input),
+    text: storeOrderConfirmedText(input),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'store_order_confirmed' }],
   });
 }
 

@@ -1,11 +1,6 @@
-import StoreCartView from '@/components/store/StoreCartView';
-import StoreSubNav from '@/components/store/StoreSubNav';
+import { redirect } from 'next/navigation';
+import { STORE_ROUTES } from '@/lib/store/routes';
 
-export default function StoreCartPage() {
-  return (
-    <div>
-      <StoreSubNav />
-      <StoreCartView />
-    </div>
-  );
+export default function DashboardLojaCartRedirect() {
+  redirect(STORE_ROUTES.cart);
 }

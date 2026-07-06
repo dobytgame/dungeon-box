@@ -4,21 +4,36 @@ import { Check, Minus, Plus, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { formatMoney } from '@/lib/dashboard/format';
+
+import { STORE_ROUTES } from '@/lib/store/routes';
+import {
+  STORE_PRODUCT_IMAGE_SIZE,
+  storeProductImageClassName,
+} from '@/lib/store/product-media';
 
 interface Props {
   product: StoreProduct;
 }
 
 export default function StoreProductCard({ product }: Props) {
-  const { addItem, setQuantity, lines } = useStoreCart();
+  const { setQuantity, lines } = useStoreCart();
+  const addToCart = useAddToStoreCart(product);
   const [added, setAdded] = useState(false);
+  const [imageHover, setImageHover] = useState(false);
   const [localQuantity, setLocalQuantity] = useState(1);
   const isMonthlyKit = product.category === 'monthly-kit';
   const maxQty = product.maxQuantity ?? 9;
   const cartLine = lines.find((line) => line.productId === product.id);
   const quantity = cartLine?.quantity ?? localQuantity;
+  const hoverImageUrl =
+    product.galleryUrls?.find((url) => url !== product.imageUrl) ??
+    product.galleryUrls?.[0];
+  const onSale =
+    product.originalPriceCents !== undefined &&
+    product.originalPriceCents > product.priceCents;
 
   function updateQuantity(next: number) {
     const clamped = Math.min(Math.max(next, 1), maxQty);
@@ -30,7 +45,7 @@ export default function StoreProductCard({ product }: Props) {
   }
 
   function handleAdd() {
-    addItem(product.id, isMonthlyKit ? quantity : 1);
+    addToCart(isMonthlyKit ? quantity : 1);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1800);
   }
@@ -45,7 +60,12 @@ export default function StoreProductCard({ product }: Props) {
     >
       {product.featured && !isMonthlyKit ? (
         <span className="absolute right-4 top-4 rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
-          Mais popular
+          Destaque
+        </span>
+      ) : null}
+      {onSale ? (
+        <span className="absolute left-4 top-4 rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">
+          Oferta
         </span>
       ) : null}
       {isMonthlyKit ? (
@@ -55,22 +75,40 @@ export default function StoreProductCard({ product }: Props) {
       ) : null}
 
       {product.imageUrl ? (
-        <Link href={`/dashboard/loja/${product.slug}`} className="mb-4 block overflow-hidden rounded-sm">
+        <Link
+          href={STORE_ROUTES.product(product.slug)}
+          className="group/image relative mb-4 block overflow-hidden rounded-sm"
+          onMouseEnter={() => setImageHover(true)}
+          onMouseLeave={() => setImageHover(false)}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={product.imageUrl}
+            src={
+              imageHover && hoverImageUrl ? hoverImageUrl : product.imageUrl
+            }
             alt={product.name}
-            className="aspect-[16/10] w-full object-cover transition hover:scale-[1.02]"
+            width={STORE_PRODUCT_IMAGE_SIZE}
+            height={STORE_PRODUCT_IMAGE_SIZE}
+            className={`${storeProductImageClassName} transition duration-300 group-hover/image:scale-[1.02]`}
           />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-stone-950/90 to-transparent p-4 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
+            <span className="font-display text-[10px] uppercase tracking-widest text-white">
+              Ver produto
+            </span>
+          </div>
         </Link>
       ) : null}
 
       <p className="font-display text-xs uppercase tracking-[0.2em] text-stone-500">
         {product.storeCategoryName ??
-          (isMonthlyKit ? 'Kit do mês' : 'Kit de pintura')}
+          (isMonthlyKit
+            ? 'Kit do mês'
+            : product.category === 'paint-kit'
+              ? 'Kit de pintura'
+              : 'Produto')}
       </p>
       <h3 className="mt-2 font-display text-xl uppercase tracking-wide text-white">
-        <Link href={`/dashboard/loja/${product.slug}`} className="hover:text-ember">
+        <Link href={STORE_ROUTES.product(product.slug)} className="hover:text-ember">
           {product.name}
         </Link>
       </h3>
@@ -173,6 +211,8 @@ export default function StoreProductCard({ product }: Props) {
       <p className="mt-3 text-center text-xs text-stone-600">
         {isMonthlyKit ? (
           <>Frete grátis — enviado com a próxima caixa da assinatura.</>
+        ) : product.category === 'store-item' ? (
+          <>Frete calculado por região no checkout.</>
         ) : (
           <>
             Assinantes: frete grátis na{' '}

@@ -126,9 +126,9 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
               imageOnLeft ? 'lg:order-1' : 'lg:order-2'
             } lg:sticky lg:top-[calc(var(--site-header-offset)+var(--plans-tier-nav-height)+0.75rem)] lg:self-start`}
           >
-            <div className={`relative ${theme.organicTilt}`}>
+            <div className="relative">
               <div
-                className={`pointer-events-none absolute -inset-8 blur-3xl ${theme.glowOrb} ${theme.organicMask}`}
+                className={`pointer-events-none absolute -inset-8 rounded-sm blur-3xl ${theme.glowOrb}`}
                 aria-hidden="true"
               />
 
@@ -141,9 +141,7 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
                 </span>
               )}
 
-              <div
-                className={`relative overflow-hidden border border-white/[0.1] ${theme.organicMask} shadow-[0_32px_80px_rgba(0,0,0,0.45)]`}
-              >
+              <div className="relative overflow-hidden rounded-sm border border-white/[0.1] shadow-[0_32px_80px_rgba(0,0,0,0.45)]">
                 <Image
                   src={plan.image}
                   alt={`Plano ${plan.name} — cenários 3D DungeonBox`}

@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import type { DashboardNavItem } from '@/lib/dashboard/constants';
+import { siteNavLinkClassName } from '@/lib/ui/site-nav';
 
 interface Props {
   items: DashboardNavItem[];
@@ -36,7 +37,7 @@ export default function DashboardNav({ items }: Props) {
               key={item.href}
               href={item.href}
               data-active={active ? 'true' : undefined}
-              className={`inline-flex min-h-[44px] shrink-0 snap-start cursor-pointer items-center rounded-sm px-4 py-2.5 font-display text-sm uppercase tracking-widest transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember ${
+              className={`inline-flex min-h-[44px] shrink-0 snap-start cursor-pointer items-center rounded-sm px-4 py-2.5 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember ${siteNavLinkClassName} ${
                 active
                   ? 'bg-ember text-stone-950'
                   : 'border border-white/10 text-stone-400 hover:border-white/20 hover:text-white'

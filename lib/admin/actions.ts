@@ -21,7 +21,12 @@ import {
 import {
   consolidateSubscriptionCycles,
 } from '@/lib/subscriptions/cycles';
+import { reconcileProductionDataCases } from '@/lib/admin/reconcile-production-cases';
 import { backfillPrepaidComboProductionSchedules } from '@/lib/subscriptions/combo-production-schedule';
+import {
+  syncPendingBundledStoreOrders,
+  syncStoreOrdersFromAsaasForSubscriptions,
+} from '@/lib/asaas/store-order-payment';
 import {
   advancePrepaidComboCycleAfterShip,
   resolveCyclePaymentLink,
@@ -31,6 +36,14 @@ import {
   manualDeactivateSubscription,
 } from '@/lib/subscriptions/admin-manual-status';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
+import type { StoreProductCategory } from '@/lib/store/catalog';
+import { STORE_PRODUCTS } from '@/lib/store/catalog';
+import {
+  ensureUniqueSeoSlug,
+  generateSeoSlug,
+  isValidSeoSlug,
+  normalizeSeoSlug,
+} from '@/lib/seo/slug';
 import {
   canTransitionCycle,
   cycleRollbackFieldClears,
@@ -344,13 +357,36 @@ export async function syncSubscriptionCyclesAction() {
 
   const result = await consolidateSubscriptionCycles(admin);
   const comboBackfill = await backfillPrepaidComboProductionSchedules(admin);
+  const productionReconcile = await reconcileProductionDataCases(admin);
+
+  const { data: activeSubs } = await admin
+    .from('subscriptions')
+    .select('id')
+    .in('status', ['active', 'past_due']);
+
+  const activeSubIds = (activeSubs ?? []).map((row) => row.id as string);
+  if (activeSubIds.length > 0) {
+    await syncStoreOrdersFromAsaasForSubscriptions(admin, activeSubIds);
+
+    const { data: subUsers } = await admin
+      .from('subscriptions')
+      .select('user_id')
+      .in('id', activeSubIds);
+
+    const userIds = Array.from(
+      new Set((subUsers ?? []).map((row) => row.user_id as string))
+    );
+    if (userIds.length > 0) {
+      await syncPendingBundledStoreOrders(admin, userIds);
+    }
+  }
 
   await logAdminAction(admin, {
     actorId: user.id,
     action: 'cycles.consolidate',
     entityType: 'subscription_cycles',
     entityId: null,
-    metadata: { ...result, comboBackfill, mode: 'consolidate_only' },
+    metadata: { ...result, comboBackfill, productionReconcile, mode: 'consolidate_only' },
     ipAddress: await clientIp(),
   });
 
@@ -361,6 +397,7 @@ export async function syncSubscriptionCyclesAction() {
     ...result,
     comboSubscriptionsScheduled: comboBackfill.subscriptions,
     comboCyclesScheduled: comboBackfill.cyclesCreated,
+    productionReconcile,
   };
 }
 
@@ -1444,16 +1481,42 @@ export async function saveStoreProductAction(
 ) {
   const { user, admin } = await requireAdmin();
 
-  const category = formData.get('category') as 'paint-kit' | 'monthly-kit';
-  if (category !== 'paint-kit' && category !== 'monthly-kit') {
-    return { error: 'Categoria inválida.' };
+  const category = formData.get('category') as StoreProductCategory;
+  if (
+    category !== 'paint-kit' &&
+    category !== 'monthly-kit' &&
+    category !== 'store-item'
+  ) {
+    return { error: 'Tipo de produto inválido.' };
   }
 
   const name = (formData.get('name') as string)?.trim();
   if (!name) return { error: 'Informe o nome do produto.' };
 
-  const slug = (formData.get('slug') as string)?.trim().toLowerCase();
-  if (!slug) return { error: 'Informe o slug.' };
+  const rawSlug = (formData.get('slug') as string)?.trim();
+  let slug = rawSlug
+    ? normalizeSeoSlug(rawSlug)
+    : generateSeoSlug(name);
+
+  if (!isValidSeoSlug(slug)) {
+    return {
+      error:
+        'Slug inválido. Use apenas letras minúsculas, números e hífens.',
+    };
+  }
+
+  if (!productId) {
+    const { data: existingProducts } = await admin
+      .from('store_products')
+      .select('slug');
+
+    const reservedSlugs = [
+      ...STORE_PRODUCTS.map((product) => product.slug),
+      ...(existingProducts ?? []).map((row) => row.slug),
+    ];
+
+    slug = ensureUniqueSeoSlug(slug, reservedSlugs);
+  }
 
   const price = parseMoneyFieldAllowZero(formData.get('price_reais'), 'Preço');
   if ('error' in price) return price;
@@ -1558,8 +1621,8 @@ export async function saveStoreProductAction(
     });
 
     revalidateAdmin();
-    revalidatePath('/dashboard/loja');
-    revalidatePath(`/dashboard/loja/${slug}`);
+    revalidatePath('/loja');
+    revalidatePath(`/loja/produto/${slug}`);
     return { success: true as const, id: productId };
   }
 
@@ -1581,8 +1644,8 @@ export async function saveStoreProductAction(
   });
 
   revalidateAdmin();
-  revalidatePath('/dashboard/loja');
-  revalidatePath(`/dashboard/loja/${slug}`);
+  revalidatePath('/loja');
+  revalidatePath(`/loja/produto/${slug}`);
   return { success: true as const, id: data.id as string };
 }
 
@@ -1619,7 +1682,7 @@ export async function deleteStoreProductAction(productId: string) {
   });
 
   revalidateAdmin();
-  revalidatePath('/dashboard/loja');
+  revalidatePath('/loja');
   return { success: true as const };
 }
 
@@ -1632,16 +1695,42 @@ export async function saveStoreCategoryAction(
   const name = (formData.get('name') as string)?.trim();
   if (!name) return { error: 'Informe o nome da categoria.' };
 
-  const slug = (formData.get('slug') as string)?.trim().toLowerCase();
-  if (!slug) return { error: 'Informe o slug.' };
+  const rawSlug = (formData.get('slug') as string)?.trim();
+  let slug = rawSlug ? normalizeSeoSlug(rawSlug) : generateSeoSlug(name);
+
+  if (!isValidSeoSlug(slug)) {
+    return {
+      error:
+        'Slug inválido. Use apenas letras minúsculas, números e hífens.',
+    };
+  }
+
+  if (!categoryId) {
+    const { data: existingCategories } = await admin
+      .from('store_categories')
+      .select('slug');
+
+    slug = ensureUniqueSeoSlug(
+      slug,
+      (existingCategories ?? []).map((row) => row.slug)
+    );
+  }
 
   const sortOrder = parseIntField(formData.get('sort_order'), 'Ordem');
   if ('error' in sortOrder) return sortOrder;
+
+  const parentId = (formData.get('parent_id') as string)?.trim() || null;
+  if (categoryId && parentId === categoryId) {
+    return { error: 'Uma categoria não pode ser pai dela mesma.' };
+  }
 
   const payload = {
     slug,
     name,
     description: (formData.get('description') as string)?.trim() || null,
+    banner_url: (formData.get('banner_url') as string)?.trim() || null,
+    thumb_url: (formData.get('thumb_url') as string)?.trim() || null,
+    parent_id: parentId,
     sort_order: sortOrder.value,
     is_active: formData.get('is_active') === 'on',
     updated_at: new Date().toISOString(),
@@ -1665,6 +1754,8 @@ export async function saveStoreCategoryAction(
     });
 
     revalidateAdmin();
+    revalidatePath('/loja');
+    revalidatePath(`/loja/${slug}`);
     return { success: true as const, id: categoryId };
   }
 
@@ -1686,20 +1777,34 @@ export async function saveStoreCategoryAction(
   });
 
   revalidateAdmin();
+  revalidatePath('/loja');
+  revalidatePath(`/loja/${slug}`);
   return { success: true as const, id: data.id as string };
 }
 
 export async function deleteStoreCategoryAction(categoryId: string) {
   const { user, admin } = await requireAdmin();
 
-  const { count } = await admin
-    .from('store_products')
-    .select('id', { count: 'exact', head: true })
-    .eq('store_category_id', categoryId);
+  const [{ count: productCount }, { count: childCount }] = await Promise.all([
+    admin
+      .from('store_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_category_id', categoryId),
+    admin
+      .from('store_categories')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_id', categoryId),
+  ]);
 
-  if ((count ?? 0) > 0) {
+  if ((productCount ?? 0) > 0) {
     return {
-      error: `Esta categoria possui ${count} produto(s). Reatribua ou remova os produtos antes de excluir.`,
+      error: `Esta categoria possui ${productCount} produto(s). Reatribua ou remova os produtos antes de excluir.`,
+    };
+  }
+
+  if ((childCount ?? 0) > 0) {
+    return {
+      error: `Esta categoria possui ${childCount} subcategoria(s). Reatribua ou remova as subcategorias antes de excluir.`,
     };
   }
 
@@ -1716,5 +1821,93 @@ export async function deleteStoreCategoryAction(categoryId: string) {
   });
 
   revalidateAdmin();
+  revalidatePath('/loja');
+  return { success: true as const };
+}
+
+export async function saveStoreBannerAction(
+  bannerId: string | null,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const title = (formData.get('title') as string)?.trim();
+  if (!title) return { error: 'Informe o título do banner.' };
+
+  const sortOrder = parseIntField(formData.get('sort_order'), 'Ordem');
+  if ('error' in sortOrder) return sortOrder;
+
+  const payload = {
+    title,
+    subtitle: (formData.get('subtitle') as string)?.trim() || null,
+    cta_label: (formData.get('cta_label') as string)?.trim() || null,
+    cta_href: (formData.get('cta_href') as string)?.trim() || null,
+    image_url: (formData.get('image_url') as string)?.trim() || null,
+    sort_order: sortOrder.value,
+    is_active: formData.get('is_active') === 'on',
+    updated_at: new Date().toISOString(),
+  };
+
+  if (bannerId) {
+    const { error } = await admin
+      .from('store_banners')
+      .update(payload)
+      .eq('id', bannerId);
+
+    if (error) return { error: error.message };
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'store_banner.update',
+      entityType: 'store_banner',
+      entityId: bannerId,
+      metadata: { title },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidatePath('/loja');
+    return { success: true as const, id: bannerId };
+  }
+
+  const { data, error } = await admin
+    .from('store_banners')
+    .insert({ ...payload, created_at: new Date().toISOString() })
+    .select('id')
+    .single();
+
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_banner.create',
+    entityType: 'store_banner',
+    entityId: data.id,
+    metadata: { title },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath('/loja');
+  return { success: true as const, id: data.id as string };
+}
+
+export async function deleteStoreBannerAction(bannerId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { error } = await admin.from('store_banners').delete().eq('id', bannerId);
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_banner.delete',
+    entityType: 'store_banner',
+    entityId: bannerId,
+    metadata: {},
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath('/loja');
   return { success: true as const };
 }

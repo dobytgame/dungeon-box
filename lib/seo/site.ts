@@ -40,4 +40,4 @@ export function shouldIndexSite(): boolean {
   return !url.includes('localhost') && !url.includes('127.0.0.1');
 }
 
-export const INDEXABLE_ROUTES = ['/', '/privacidade', '/termos'] as const;
+export const INDEXABLE_ROUTES = ['/', '/loja', '/privacidade', '/termos'] as const;

@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type ShellScope = '/admin' | '/dashboard';
+export type ShellScope = '/admin' | '/dashboard' | '/loja';
 
 export type ShellNavigationPhase = 'idle' | 'loading' | 'completing';
 

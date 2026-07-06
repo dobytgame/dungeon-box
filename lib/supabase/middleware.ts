@@ -8,6 +8,7 @@ import {
 } from '@/lib/referral/cookie';
 import { recordReferralLinkVisit } from '@/lib/referral/visits';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isStorePublic, profileIsStoreAdmin } from '@/lib/store/access';
 
 function shouldTrackReferralVisit(pathname: string): boolean {
   if (pathname.startsWith('/api/')) return false;
@@ -133,6 +134,41 @@ export async function updateSession(request: NextRequest) {
       .single();
 
     if (!profile?.is_admin) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/';
+      return finalizeReferralResponse(
+        request,
+        NextResponse.redirect(redirectUrl),
+        user.id
+      );
+    }
+  }
+
+  if (!isStorePublic() && pathname.startsWith('/api/store')) {
+    if (!user) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+
+    const isAdmin = await profileIsStoreAdmin(supabase, user.id);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+    }
+  }
+
+  if (!isStorePublic() && pathname.startsWith('/loja')) {
+    if (!user) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/auth';
+      redirectUrl.searchParams.set('next', pathname + request.nextUrl.search);
+      return finalizeReferralResponse(
+        request,
+        NextResponse.redirect(redirectUrl),
+        null
+      );
+    }
+
+    const isAdmin = await profileIsStoreAdmin(supabase, user.id);
+    if (!isAdmin) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = '/';
       return finalizeReferralResponse(

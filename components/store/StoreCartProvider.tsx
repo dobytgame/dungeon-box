@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { usePathname } from 'next/navigation';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import {
   cartItemCount,
@@ -18,15 +19,33 @@ import {
   type CartLine,
 } from '@/lib/store/cart';
 
+export type CartAddFeedback = {
+  id: number;
+  name: string;
+  imageUrl?: string;
+  priceCents: number;
+  quantity: number;
+};
+
 type StoreCartContextValue = {
   lines: CartLine[];
   itemCount: number;
   subtotalCents: number;
-  addItem: (productId: string, quantity?: number) => void;
+  addItem: (
+    productId: string,
+    quantity?: number,
+    feedback?: Omit<CartAddFeedback, 'id'>
+  ) => void;
   setQuantity: (productId: string, quantity: number) => void;
   removeItem: (productId: string) => void;
   clearCart: () => void;
   hydrated: boolean;
+  cartDrawerOpen: boolean;
+  openCartDrawer: () => void;
+  closeCartDrawer: () => void;
+  cartBump: number;
+  addFeedback: CartAddFeedback | null;
+  dismissAddFeedback: () => void;
 };
 
 const StoreCartContext = createContext<StoreCartContextValue | null>(null);
@@ -44,9 +63,17 @@ function readStoredCart(): CartLine[] {
 }
 
 export function StoreCartProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const { allProducts } = useStoreCatalog();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [cartBump, setCartBump] = useState(0);
+  const [addFeedback, setAddFeedback] = useState<CartAddFeedback | null>(null);
+
+  useEffect(() => {
+    setCartDrawerOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     setLines(readStoredCart());
@@ -63,8 +90,16 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(STORE_CART_STORAGE_KEY, JSON.stringify(lines));
   }, [lines, hydrated]);
 
+  const openCartDrawer = useCallback(() => setCartDrawerOpen(true), []);
+  const closeCartDrawer = useCallback(() => setCartDrawerOpen(false), []);
+  const dismissAddFeedback = useCallback(() => setAddFeedback(null), []);
+
   const addItem = useCallback(
-    (productId: string, quantity = 1) => {
+    (
+      productId: string,
+      quantity = 1,
+      feedback?: Omit<CartAddFeedback, 'id'>
+    ) => {
       setLines((current) => {
         const normalized = normalizeCartLines(current, allProducts);
         const existing = normalized.find((line) => line.productId === productId);
@@ -83,6 +118,17 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
           allProducts
         );
       });
+
+      if (feedback) {
+        setAddFeedback({
+          id: Date.now(),
+          name: feedback.name,
+          imageUrl: feedback.imageUrl,
+          priceCents: feedback.priceCents,
+          quantity: feedback.quantity,
+        });
+        setCartBump((value) => value + 1);
+      }
     },
     [allProducts]
   );
@@ -101,14 +147,17 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
     [allProducts]
   );
 
-  const removeItem = useCallback((productId: string) => {
-    setLines((current) =>
-      normalizeCartLines(
-        current.filter((line) => line.productId !== productId),
-        allProducts
-      )
-    );
-  }, [allProducts]);
+  const removeItem = useCallback(
+    (productId: string) => {
+      setLines((current) =>
+        normalizeCartLines(
+          current.filter((line) => line.productId !== productId),
+          allProducts
+        )
+      );
+    },
+    [allProducts]
+  );
 
   const clearCart = useCallback(() => {
     setLines([]);
@@ -124,8 +173,28 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearCart,
       hydrated,
+      cartDrawerOpen,
+      openCartDrawer,
+      closeCartDrawer,
+      cartBump,
+      addFeedback,
+      dismissAddFeedback,
     }),
-    [lines, allProducts, addItem, setQuantity, removeItem, clearCart, hydrated]
+    [
+      lines,
+      allProducts,
+      addItem,
+      setQuantity,
+      removeItem,
+      clearCart,
+      hydrated,
+      cartDrawerOpen,
+      openCartDrawer,
+      closeCartDrawer,
+      cartBump,
+      addFeedback,
+      dismissAddFeedback,
+    ]
   );
 
   return (

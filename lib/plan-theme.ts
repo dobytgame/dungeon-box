@@ -1,5 +1,7 @@
 export type PlanAccent = 'silver' | 'ember' | 'frost';
 
+export type PlanSlug = 'aventureiro' | 'heroi' | 'lendario';
+
 export type PlanTheme = {
   accent: PlanAccent;
   nameClass: string;
@@ -12,8 +14,6 @@ export type PlanTheme = {
   watermark: string;
   glowOrb: string;
   specBg: string;
-  organicMask: string;
-  organicTilt: string;
 };
 
 const themes: Record<PlanAccent, PlanTheme> = {
@@ -29,8 +29,6 @@ const themes: Record<PlanAccent, PlanTheme> = {
     watermark: 'text-silver',
     glowOrb: 'bg-silver/12',
     specBg: 'from-silver/5',
-    organicMask: 'plan-organic-silver',
-    organicTilt: '-rotate-1',
   },
   ember: {
     accent: 'ember',
@@ -44,8 +42,6 @@ const themes: Record<PlanAccent, PlanTheme> = {
     watermark: 'text-ember',
     glowOrb: 'bg-ember/18',
     specBg: 'from-ember/8',
-    organicMask: 'plan-organic-ember',
-    organicTilt: 'rotate-[1.25deg]',
   },
   frost: {
     accent: 'frost',
@@ -59,11 +55,101 @@ const themes: Record<PlanAccent, PlanTheme> = {
     watermark: 'text-frost',
     glowOrb: 'bg-frost/14',
     specBg: 'from-frost/8',
-    organicMask: 'plan-organic-frost',
-    organicTilt: '-rotate-[0.75deg]',
   },
 };
 
 export function getPlanTheme(accent: PlanAccent): PlanTheme {
   return themes[accent];
+}
+
+export const PLAN_SLUG_TO_ACCENT: Record<PlanSlug, PlanAccent> = {
+  aventureiro: 'silver',
+  heroi: 'ember',
+  lendario: 'frost',
+};
+
+export type AdminPlanVisual = {
+  slug: PlanSlug;
+  accent: PlanAccent;
+  label: string;
+  /** Fundo suave para cards/linhas no admin */
+  cardBgClass: string;
+  cardBorderClass: string;
+  accentBarClass: string;
+  badgeClass: string;
+  textClass: string;
+  rowClass: string;
+};
+
+const adminPlanVisual: Record<PlanSlug, AdminPlanVisual> = {
+  aventureiro: {
+    slug: 'aventureiro',
+    accent: 'silver',
+    label: 'Aventureiro',
+    cardBgClass: 'bg-silver/[0.07]',
+    cardBorderClass: 'border-silver/30',
+    accentBarClass: 'border-l-silver',
+    badgeClass: 'border-silver/40 bg-silver/12 text-silver',
+    textClass: 'text-silver',
+    rowClass: 'border-b-silver/20 bg-silver/[0.04]',
+  },
+  heroi: {
+    slug: 'heroi',
+    accent: 'ember',
+    label: 'Herói',
+    cardBgClass: 'bg-ember/[0.09]',
+    cardBorderClass: 'border-ember/35',
+    accentBarClass: 'border-l-ember',
+    badgeClass: 'border-ember/45 bg-ember/12 text-ember',
+    textClass: 'text-ember',
+    rowClass: 'border-b-ember/20 bg-ember/[0.05]',
+  },
+  lendario: {
+    slug: 'lendario',
+    accent: 'frost',
+    label: 'Lendário',
+    cardBgClass: 'bg-frost/[0.08]',
+    cardBorderClass: 'border-frost/35',
+    accentBarClass: 'border-l-frost',
+    badgeClass: 'border-frost/45 bg-frost/12 text-frost',
+    textClass: 'text-frost',
+    rowClass: 'border-b-frost/20 bg-frost/[0.05]',
+  },
+};
+
+export function isPlanSlug(value: string | null | undefined): value is PlanSlug {
+  return value === 'aventureiro' || value === 'heroi' || value === 'lendario';
+}
+
+export function resolvePlanSlug(
+  slug: string | null | undefined,
+  planName?: string | null
+): PlanSlug | null {
+  if (slug && isPlanSlug(slug)) return slug;
+
+  if (!planName) return null;
+  const lower = planName.toLowerCase();
+  if (lower.includes('lendár') || lower.includes('lendar')) return 'lendario';
+  if (lower.includes('herói') || lower.includes('heroi')) return 'heroi';
+  if (lower.includes('aventureiro')) return 'aventureiro';
+
+  return null;
+}
+
+export function getAdminPlanVisual(
+  slug: string | null | undefined,
+  planName?: string | null
+): AdminPlanVisual | null {
+  const resolved = resolvePlanSlug(slug, planName);
+  if (!resolved) return null;
+  return adminPlanVisual[resolved];
+}
+
+export function adminPlanCardClasses(
+  slug: string | null | undefined,
+  planName?: string | null
+): string {
+  const visual = getAdminPlanVisual(slug, planName);
+  if (!visual) return 'border-zinc-800/80 bg-zinc-950/60';
+  return `${visual.cardBgClass} ${visual.cardBorderClass} border-l-2 ${visual.accentBarClass}`;
 }

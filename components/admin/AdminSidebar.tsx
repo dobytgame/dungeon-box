@@ -10,6 +10,7 @@ import {
   Mail,
   Package,
   Palette,
+  QrCode,
   Receipt,
   Repeat,
   ScrollText,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
+import { isAdminStoreNavActive } from '@/lib/admin/store-nav';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   'layout-dashboard': LayoutDashboard,
@@ -35,6 +37,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   layers: Layers,
   'shopping-bag': ShoppingBag,
   palette: Palette,
+  'qr-code': QrCode,
   ticket: Ticket,
   'scroll-text': ScrollText,
 };
@@ -75,6 +78,8 @@ export default function AdminSidebar() {
                 {items.map((item) => {
                   const active = isActive(pathname, item.href);
                   const Icon = ICONS[item.icon];
+                  const children =
+                    'children' in item && item.children ? item.children : null;
 
                   return (
                     <li key={item.href}>
@@ -90,6 +95,33 @@ export default function AdminSidebar() {
                         <Icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
                         <span className="truncate">{item.label}</span>
                       </Link>
+
+                      {children ? (
+                        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-zinc-800/80 pl-2">
+                          {children.map((child) => {
+                            const childActive = isAdminStoreNavActive(
+                              pathname,
+                              child.href
+                            );
+
+                            return (
+                              <li key={child.href}>
+                                <Link
+                                  href={child.href}
+                                  aria-current={childActive ? 'page' : undefined}
+                                  className={`block rounded px-2 py-1.5 text-xs transition-colors ${
+                                    childActive
+                                      ? 'text-console'
+                                      : 'text-zinc-500 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  {child.label}
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
                     </li>
                   );
                 })}

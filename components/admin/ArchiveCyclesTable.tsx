@@ -1,6 +1,7 @@
 'use client';
 
 import AdminTable from '@/components/admin/AdminTable';
+import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import type { CycleStatus } from '@/lib/dashboard/types';
@@ -36,7 +37,9 @@ export default function ArchiveCyclesTable({ rows, onOpenDetail }: Props) {
         {
           key: 'plan',
           header: 'Plano',
-          cell: (row) => row.planName ?? '—',
+          cell: (row) => (
+            <AdminPlanChip slug={row.planSlug} name={row.planName} compact />
+          ),
         },
         {
           key: 'theme',

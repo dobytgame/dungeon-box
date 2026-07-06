@@ -12,6 +12,7 @@ import CycleShipModal from '@/components/admin/CycleShipModal';
 import ProductionCalendar from '@/components/admin/ProductionCalendar';
 import ProductionKanban from '@/components/admin/ProductionKanban';
 import ProductionListView from '@/components/admin/ProductionListView';
+import AdminPlanLegend from '@/components/admin/AdminPlanLegend';
 import ProductionViewToggle, {
   type ProductionViewMode,
 } from '@/components/admin/ProductionViewToggle';
@@ -97,11 +98,7 @@ export default function ProductionWorkspace({
 
       {!showArchiveList ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-600">
-            {viewMode === 'list'
-              ? 'Lista operacional por processo'
-              : 'Quadro por colunas de status'}
-          </p>
+          <AdminPlanLegend />
           <ProductionViewToggle current={viewMode} />
         </div>
       ) : null}

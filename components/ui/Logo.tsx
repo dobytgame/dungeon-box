@@ -5,23 +5,37 @@ interface Props {
   variant?: 'nav' | 'footer' | 'hero';
   className?: string;
   linked?: boolean;
+  href?: string;
 }
 
 const variantStyles = {
-  nav: 'h-9 w-auto md:h-11',
-  footer: 'h-8 w-auto',
+  nav: 'h-20 w-auto',
+  footer: 'h-auto w-[240px]',
   hero: 'h-auto w-full max-w-sm sm:max-w-md lg:max-w-lg',
 };
 
-export default function Logo({ variant = 'nav', className = '', linked = true }: Props) {
+const variantDimensions = {
+  nav: { width: 280, height: 80 },
+  footer: { width: 240, height: 70 },
+  hero: { width: 560, height: 160 },
+} as const;
+
+export default function Logo({
+  variant = 'nav',
+  className = '',
+  linked = true,
+  href = '/',
+}: Props) {
+  const { width, height } = variantDimensions[variant];
+
   const image = (
     <Image
       src="/images/dungeonbox.png"
       alt="DungeonBox — Kits de RPG impressos. Aventuras que ganham vida."
-      width={variant === 'hero' ? 560 : 220}
-      height={variant === 'hero' ? 160 : 64}
+      width={width}
+      height={height}
       className={`${variantStyles[variant]} ${className}`}
-      priority={variant === 'hero'}
+      priority={variant === 'nav' || variant === 'hero'}
     />
   );
 
@@ -30,7 +44,10 @@ export default function Logo({ variant = 'nav', className = '', linked = true }:
   }
 
   return (
-    <Link href="/" className="inline-flex cursor-pointer transition-opacity hover:opacity-90">
+    <Link
+      href={href}
+      className="inline-flex cursor-pointer transition-opacity hover:opacity-90"
+    >
       {image}
     </Link>
   );
