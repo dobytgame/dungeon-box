@@ -175,6 +175,13 @@ export function parseDailySalesFilters(
   return parseFilters(searchParams);
 }
 
+export function resolveDailySalesBounds(
+  filters: DailySalesFilters,
+  now = new Date()
+): { from: string; to: string; periodLabel: string } {
+  return resolveBounds(filters, now);
+}
+
 export async function getDailySalesChartData(
   admin: SupabaseClient,
   searchParams: Record<string, string | undefined> = {}

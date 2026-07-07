@@ -1,183 +1,116 @@
 import Link from 'next/link';
-import AdminSearchForm from '@/components/admin/AdminSearchForm';
+import { Suspense } from 'react';
+import AdminDailySalesChart from '@/components/admin/AdminDailySalesChart';
+import AdminSalesFiltersForm from '@/components/admin/AdminSalesFiltersForm';
+import AdminSalesTable from '@/components/admin/AdminSalesTable';
 import AdminSection from '@/components/admin/AdminSection';
-import AdminTable from '@/components/admin/AdminTable';
 import KpiCard from '@/components/admin/KpiCard';
-import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
-import { getAdminSalesSummary, listAdminSales } from '@/lib/admin/sales';
-import type { AdminSaleType, AdminSaleRow } from '@/lib/admin/sales';
-import type { PaymentStatus } from '@/lib/dashboard/types';
+import { getDailySalesChartData } from '@/lib/admin/daily-sales';
+import { getAdminSalesPageData } from '@/lib/admin/sales';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'Todos' },
-  { value: 'approved', label: 'Aprovado' },
-  { value: 'pending', label: 'Pendente' },
-  { value: 'rejected', label: 'Recusado' },
-  { value: 'refunded', label: 'Reembolsado' },
-];
-
-const TYPE_BADGE: Record<AdminSaleType, string> = {
-  assinatura: 'text-console',
-  loja_avulsa: 'text-violet-300',
-  loja_bundled: 'text-amber-200',
-  outro: 'text-zinc-400',
-};
-
 interface Props {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
 export default async function AdminSalesPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
-  const { status } = await searchParams;
-  const [sales, summary] = await Promise.all([
-    listAdminSales(admin, { status: status || undefined, limit: 200 }),
-    getAdminSalesSummary(admin),
+  const params = await searchParams;
+
+  const [{ filters, sales, summary }, chartData] = await Promise.all([
+    getAdminSalesPageData(admin, params),
+    getDailySalesChartData(admin, params),
   ]);
 
-  const totalApproved =
-    summary.assinatura.revenueCents +
-    summary.loja_avulsa.revenueCents +
-    summary.loja_bundled.revenueCents +
-    summary.outro.revenueCents;
+  const chartFilters = chartData.filters;
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <AdminSalesFiltersForm
+        values={{
+          q: filters.q,
+          status: filters.status,
+          type: filters.saleType,
+          salesYear: chartFilters.year,
+          salesMonth: chartFilters.month,
+          salesPeriod: chartFilters.period,
+        }}
+        availableYears={chartData.availableYears}
+      />
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
-          label="Assinaturas"
-          value={String(summary.assinatura.count)}
-          hint={formatMoney(summary.assinatura.revenueCents)}
-          accent="console"
-        />
-        <KpiCard
-          label="Loja avulsa"
-          value={String(summary.loja_avulsa.count)}
-          hint={formatMoney(summary.loja_avulsa.revenueCents)}
-        />
-        <KpiCard
-          label="Loja + assinatura"
-          value={String(summary.loja_bundled.count)}
-          hint={formatMoney(summary.loja_bundled.revenueCents)}
+          label="Receita no período"
+          value={formatMoney(summary.revenueCents)}
+          hint={`${summary.periodLabel} · aprovadas que contam`}
           accent="gold"
         />
         <KpiCard
-          label="Receita aprovada"
-          value={formatMoney(totalApproved)}
-          hint="Soma das vendas aprovadas"
+          label="Vendas aprovadas"
+          value={String(summary.approvedCount)}
+          hint={`${summary.visibleCount} linha(s) · ${summary.hiddenInstallmentCount} parcela(s) oculta(s)`}
+          accent="console"
+        />
+        <KpiCard
+          label="Assinaturas"
+          value={String(summary.byType.assinatura.count)}
+          hint={formatMoney(summary.byType.assinatura.revenueCents)}
+        />
+        <KpiCard
+          label="Loja"
+          value={String(
+            summary.byType.loja_avulsa.count + summary.byType.loja_bundled.count
+          )}
+          hint={formatMoney(
+            summary.byType.loja_avulsa.revenueCents +
+              summary.byType.loja_bundled.revenueCents
+          )}
+        />
+        <KpiCard
+          label="Pendentes"
+          value={String(summary.pendingCount)}
+          hint="Aguardando confirmação"
           accent="warn"
         />
       </section>
 
-      <AdminSearchForm placeholder="Busca em breve" name="q" defaultValue="">
-        <div>
-          <label htmlFor="sale-status" className="sr-only">
-            Status
-          </label>
-          <select
-            id="sale-status"
-            name="status"
-            defaultValue={status ?? ''}
-            className="rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value || 'all'} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </AdminSearchForm>
+      <AdminSection title="Gráfico de vendas">
+        <Suspense
+          fallback={
+            <div className="admin-panel rounded p-6 font-mono text-xs text-zinc-600">
+              Carregando gráfico…
+            </div>
+          }
+        >
+          <AdminDailySalesChart data={chartData} />
+        </Suspense>
+      </AdminSection>
 
-      <AdminSection title="Todas as vendas">
-        <AdminTable
-          rows={sales}
-          columns={[
-            {
-              key: 'type',
-              header: 'Tipo',
-              cell: (row: AdminSaleRow) => (
-                <span className={`font-mono text-[11px] uppercase tracking-widest ${TYPE_BADGE[row.saleType]}`}>
-                  {row.saleTypeLabel}
-                </span>
-              ),
-            },
-            {
-              key: 'customer',
-              header: 'Cliente',
-              cell: (row: AdminSaleRow) => (
-                <div>
-                  <p>{row.customerName ?? '—'}</p>
-                  <p className="font-mono text-[11px] text-zinc-600">{row.customerEmail}</p>
-                </div>
-              ),
-            },
-            {
-              key: 'description',
-              header: 'Descrição',
-              cell: (row: AdminSaleRow) => (
-                <div>
-                  <p className="text-sm text-zinc-300">{row.description}</p>
-                  {row.planName && row.saleType !== 'assinatura' ? (
-                    <p className="font-mono text-[10px] text-zinc-600">
-                      Assinatura: {row.planName}
-                    </p>
-                  ) : null}
-                </div>
-              ),
-            },
-            {
-              key: 'amount',
-              header: 'Valor',
-              cell: (row: AdminSaleRow) => (
-                <div className={row.countsInRevenue ? '' : 'opacity-60'}>
-                  <span className="font-mono tabular-nums">
-                    {formatMoney(
-                      row.countsInRevenue
-                        ? row.effectiveAmountCents
-                        : row.amount_cents
-                    )}
-                  </span>
-                  {row.installmentCount != null && row.installmentCount > 1 ? (
-                    <p className="text-xs text-stone-500">
-                      {row.installmentCount}x no cartão
-                    </p>
-                  ) : null}
-                  {row.isComboInstallmentSlice ? (
-                    <p className="text-xs text-stone-500">
-                      Parcela do combo · não soma na receita
-                    </p>
-                  ) : null}
-                </div>
-              ),
-            },
-            {
-              key: 'status',
-              header: 'Status',
-              cell: (row: AdminSaleRow) => (
-                <StatusBadge kind="payment" status={row.status as PaymentStatus} />
-              ),
-            },
-            {
-              key: 'paid',
-              header: 'Data',
-              cell: (row: AdminSaleRow) => (
-                <span className="font-mono text-[11px] text-zinc-400">
-                  {formatDate(row.paid_at ?? row.created_at)}
-                </span>
-              ),
-            },
-          ]}
-          emptyMessage="Nenhuma venda encontrada."
-        />
+      <AdminSection title="Lista de vendas">
+        <div className="mb-3 px-1 font-mono text-[11px] text-zinc-600">
+          {summary.visibleCount} venda(s) exibida(s)
+          {summary.hiddenInstallmentCount > 0
+            ? ` · ${summary.hiddenInstallmentCount} parcela(s) de combo recolhida(s)`
+            : ''}{' '}
+          entre <span className="text-zinc-400">{formatDate(filters.from)}</span> e{' '}
+          <span className="text-zinc-400">{formatDate(filters.to)}</span>
+          {filters.q ? (
+            <>
+              {' '}
+              · busca: <span className="text-zinc-400">&quot;{filters.q}&quot;</span>
+            </>
+          ) : null}
+        </div>
+
+        <AdminSalesTable sales={sales} />
       </AdminSection>
 
       <p className="font-mono text-[11px] text-zinc-600">
-        {sales.length} registro(s).{' '}
-        <Link href="/admin/vendas" className="text-console hover:underline">
-          Limpar filtros
+        Combos parcelados aparecem com o valor total. Clique em{' '}
+        <span className="text-zinc-400">+</span> na linha para ver as parcelas do Asaas.{' '}
+        <Link href="/admin/pagamentos" className="text-console hover:underline">
+          Ver pagamentos brutos
         </Link>
       </p>
     </div>
