@@ -119,6 +119,9 @@ export default function LaunchPlans() {
                       </p>
                       <p className="mt-1 text-sm text-stone-400">{plan.freight}</p>
                       <p className="mt-1 text-xs text-stone-500">{plan.billingNote}</p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {planSupportCopy.productionNote}
+                      </p>
                     </div>
 
                     <div

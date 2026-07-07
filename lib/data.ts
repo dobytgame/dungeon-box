@@ -137,6 +137,8 @@ export const planSupportCopy = {
     'Compatível com D&D 5e · Tormenta RPG · Pathfinder · Old Dragon · Escala 28mm',
   piecesEstimateNote:
     'Quantidade estimada por kit. Pode variar conforme o tema do mês, chegando até o total informado ou próximo dele.',
+  productionNote:
+    'Prazo de produção de até 15 dias após a confirmação do pagamento.',
 };
 
 export const faqItems = [

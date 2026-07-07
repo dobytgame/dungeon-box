@@ -21,6 +21,7 @@ import {
 import CTAButton from '@/components/ui/CTAButton';
 import GlowOrb from '@/components/ui/GlowOrb';
 import ParallaxFloat from '@/components/ui/ParallaxFloat';
+import { LP_HERO_IMAGE } from '@/lib/ui/lp-hero-image';
 
 const container = {
   hidden: {},
@@ -268,10 +269,10 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
               />
 
               <Image
-                src="/images/img-hero-dungeonbox.png"
-                alt="Mesa de RPG com caixa DungeonBox aberta, miniaturas, dados e cenários 3D modulares"
-                width={2528}
-                height={1686}
+                src={LP_HERO_IMAGE.src}
+                alt={LP_HERO_IMAGE.alt}
+                width={LP_HERO_IMAGE.width}
+                height={LP_HERO_IMAGE.height}
                 priority
                 className="relative z-10 w-full h-auto max-h-[min(42vh,320px)] object-contain sm:max-h-[min(48vh,400px)] lg:max-h-[min(72vh,620px)] lg:scale-[1.04] lg:origin-center drop-shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
                 sizes="(max-width: 1024px) 92vw, 52vw"

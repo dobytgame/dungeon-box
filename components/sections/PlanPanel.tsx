@@ -183,6 +183,9 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
                 {plan.billingNote ? (
                   <p className="mt-1 text-xs text-stone-500">{plan.billingNote}</p>
                 ) : null}
+                <p className="mt-1 text-xs text-stone-500">
+                  {planSupportCopy.productionNote}
+                </p>
                 {COMBO_BILLING_ENABLED ? (
                   <PlanComboCallout planId={plan.id as PlanSlug} />
                 ) : null}

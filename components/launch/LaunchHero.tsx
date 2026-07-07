@@ -26,6 +26,7 @@ import {
   formatFounderWaitlistCopy,
   launchCopy,
 } from '@/lib/launch/constants';
+import { LP_HERO_IMAGE } from '@/lib/ui/lp-hero-image';
 
 const container = {
   hidden: {},
@@ -337,10 +338,10 @@ export default function LaunchHero({ waitlistCount = 0 }: LaunchHeroProps) {
               />
 
               <Image
-                src="/images/img-hero-dungeonbox.png"
-                alt="Mesa de RPG com caixa DungeonBox aberta, miniaturas, dados e cenários 3D modulares"
-                width={2528}
-                height={1686}
+                src={LP_HERO_IMAGE.src}
+                alt={LP_HERO_IMAGE.alt}
+                width={LP_HERO_IMAGE.width}
+                height={LP_HERO_IMAGE.height}
                 priority
                 className="relative z-10 h-auto max-h-[min(44vh,340px)] w-full object-contain drop-shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:max-h-[min(50vh,420px)] lg:max-h-[min(74vh,640px)] lg:scale-[1.02]"
                 sizes="(max-width: 1024px) 92vw, 50vw"

@@ -51,6 +51,7 @@ export function storeOrderConfirmedHtml(
       data.bundledWithSubscription
         ? 'Itens vinculados à assinatura serão enviados na próxima caixa.'
         : 'Nossa equipe preparará o envio avulso em breve.',
+      'O prazo de produção dos itens do pedido é de <strong style="color:#fff;">até 15 dias</strong> a partir da confirmação do pagamento.',
     ],
     bullets: data.items.map(
       (item) =>
@@ -85,6 +86,7 @@ export function storeOrderConfirmedText(
       ? `Frete: ${formatCurrencyBrl(data.shippingCents)}`
       : 'Frete grátis',
     `Total: ${formatCurrencyBrl(data.amountCents)}`,
+    'Prazo de produção: até 15 dias a partir da confirmação do pagamento.',
     `Ref: ${data.orderId}`,
     `Pagamentos: ${siteUrl}/dashboard/payments`,
     `Loja: ${siteUrl}/loja`,

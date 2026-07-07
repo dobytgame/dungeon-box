@@ -1,18 +1,29 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import AdminSection from '@/components/admin/AdminSection';
 import AdminActivePlansChart from '@/components/admin/AdminActivePlansChart';
+import AdminDailySalesChart from '@/components/admin/AdminDailySalesChart';
 import AdminProfitMarginChart from '@/components/admin/AdminProfitMarginChart';
 import AdminTable from '@/components/admin/AdminTable';
 import AdminUserPlanChart from '@/components/admin/AdminUserPlanChart';
 import KpiCard from '@/components/admin/KpiCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
+import { getDailySalesChartData } from '@/lib/admin/daily-sales';
 import { getAdminDashboardStats } from '@/lib/admin/queries';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 
-export default async function AdminDashboardPage() {
+interface Props {
+  searchParams: Promise<Record<string, string | undefined>>;
+}
+
+export default async function AdminDashboardPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
-  const stats = await getAdminDashboardStats(admin);
+  const params = await searchParams;
+  const [stats, dailySales] = await Promise.all([
+    getAdminDashboardStats(admin),
+    getDailySalesChartData(admin, params),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -78,6 +89,21 @@ export default async function AdminDashboardPage() {
           accent="warn"
         />
       </section>
+
+      <AdminSection
+        title="Vendas diárias"
+        action={{ href: '/admin/vendas', label: 'Ver todas as vendas' }}
+      >
+        <Suspense
+          fallback={
+            <div className="admin-panel rounded p-6 font-mono text-xs text-zinc-600">
+              Carregando gráfico…
+            </div>
+          }
+        >
+          <AdminDailySalesChart data={dailySales} />
+        </Suspense>
+      </AdminSection>
 
       <AdminSection
         title="Margem de produto"

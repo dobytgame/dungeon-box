@@ -49,7 +49,7 @@ function describeStoreOrder(meta: ReturnType<typeof parseStoreOrderMeta>): strin
     .join(', ');
 }
 
-function classifyPayment(row: {
+export function classifyAdminSale(row: {
   subscription_id: string | null;
   status_detail: string | null;
   planName: string | null;
@@ -166,7 +166,7 @@ export async function listAdminSales(
     const billingTerm = (subContext?.billing_term ?? 'monthly') as BillingTerm;
     const comboLabel = isComboTerm(billingTerm) ? getComboTermLabel(billingTerm) : null;
 
-    const { saleType, description } = classifyPayment({
+    const { saleType, description } = classifyAdminSale({
       subscription_id: row.subscription_id as string | null,
       status_detail: row.status_detail as string | null,
       planName,
