@@ -15,9 +15,12 @@ import {
 } from '@/lib/subscriptions/cycle-production';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
+import ComboBadge from '@/components/admin/ComboBadge';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { adminPlanCardClasses } from '@/lib/plan-theme';
 
 type BoardColumn = keyof ProductionKanbanBoard;
@@ -187,6 +190,13 @@ function KanbanCard({
             {row.customerName ?? 'Cliente sem nome'}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
+            {row.subscriptionBillingTerm &&
+            isComboTerm(row.subscriptionBillingTerm as BillingTerm) ? (
+              <ComboBadge
+                term={row.subscriptionBillingTerm as BillingTerm}
+                compact
+              />
+            ) : null}
             {row.paymentPendingHighlight ? (
               <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-amber-200">
                 Pag. pendente

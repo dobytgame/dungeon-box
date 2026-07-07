@@ -1,8 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { getOperationChartPeriod } from '@/lib/admin/chart-period';
 import { getProfitByMonth, getProfitSummary } from '@/lib/admin/profit-analytics';
+import {
+  buildCanonicalComboPrepaidIndex,
+  buildComboPrepaidDayBySubscription,
+  resolvePaymentRevenueCents,
+  shouldCountPaymentInRevenue,
+  type RevenuePaymentRow,
+} from '@/lib/payments/revenue-aggregation';
 import type {
   AdminFinancialCategoryRow,
   AdminFinancialDashboard,
@@ -151,35 +157,29 @@ export async function listFinancialExpenses(
   });
 }
 
-type ApprovedPaymentRevenueRow = {
-  amount_cents: number | null;
-  status_detail: string | null;
-  installments: number | null;
-  subscriptions: unknown;
-};
+type ApprovedPaymentRevenueRow = RevenuePaymentRow;
 
 export function sumApprovedPaymentsRevenueCents(
   payments: ApprovedPaymentRevenueRow[]
 ): number {
-  return payments.reduce((sum, row) => {
-    const subscription = Array.isArray(row.subscriptions)
-      ? row.subscriptions[0]
-      : row.subscriptions;
-    return (
-      sum +
-      resolveEffectivePaymentAmountCents(
-        {
-          amount_cents: row.amount_cents ?? 0,
-          status_detail: row.status_detail as string | null,
-          installments: row.installments as number | null,
-        },
-        subscription as {
-          billing_term?: string | null;
-          combo_total_cents?: number | null;
-          combo_installments?: number | null;
-        } | null
+  const rows = payments as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    rows,
+    canonicalComboBySubscription
+  );
+
+  return rows.reduce((sum, row) => {
+    if (
+      !shouldCountPaymentInRevenue(
+        row,
+        canonicalComboBySubscription,
+        comboPrepaidDayBySubscription
       )
-    );
+    ) {
+      return sum;
+    }
+    return sum + resolvePaymentRevenueCents(row);
   }, 0);
 }
 
@@ -333,25 +333,28 @@ export async function getCashFlowByMonth(
     buckets.set(key, { inflow: 0, outflow: 0 });
   }
 
-  for (const payment of payments) {
+  const paymentRows = payments as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(paymentRows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    paymentRows,
+    canonicalComboBySubscription
+  );
+
+  for (const payment of paymentRows) {
+    if (
+      !shouldCountPaymentInRevenue(
+        payment,
+        canonicalComboBySubscription,
+        comboPrepaidDayBySubscription
+      )
+    ) {
+      continue;
+    }
+
     const key = monthKey((payment.paid_at as string) ?? (payment.created_at as string));
     const bucket = buckets.get(key);
     if (!bucket) continue;
-    const subscription = Array.isArray(payment.subscriptions)
-      ? payment.subscriptions[0]
-      : payment.subscriptions;
-    bucket.inflow += resolveEffectivePaymentAmountCents(
-      {
-        amount_cents: payment.amount_cents as number,
-        status_detail: payment.status_detail as string | null,
-        installments: payment.installments as number | null,
-      },
-      subscription as {
-        billing_term?: string | null;
-        combo_total_cents?: number | null;
-        combo_installments?: number | null;
-      } | null
-    );
+    bucket.inflow += resolvePaymentRevenueCents(payment);
   }
 
   for (const refund of refunds) {
@@ -395,8 +398,30 @@ export async function listFinancialMovements(
 
   const movements: AdminFinancialMovementRow[] = [];
 
-  for (const row of payments) {
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const paymentRows = payments as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(paymentRows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    paymentRows,
+    canonicalComboBySubscription
+  );
+
+  for (const row of paymentRows) {
+    const paymentRow = row as RevenuePaymentRow & {
+      profiles?: unknown;
+    };
+    if (
+      !shouldCountPaymentInRevenue(
+        paymentRow,
+        canonicalComboBySubscription,
+        comboPrepaidDayBySubscription
+      )
+    ) {
+      continue;
+    }
+
+    const profile = Array.isArray(paymentRow.profiles)
+      ? paymentRow.profiles[0]
+      : paymentRow.profiles;
     const subscription = Array.isArray(row.subscriptions)
       ? row.subscriptions[0]
       : row.subscriptions;
@@ -415,18 +440,7 @@ export async function listFinancialMovements(
         planName: (plan?.name as string | null) ?? null,
       }),
       counterparty: profile?.full_name ?? profile?.display_name ?? profile?.email ?? null,
-      amount_cents: resolveEffectivePaymentAmountCents(
-        {
-          amount_cents: row.amount_cents as number,
-          status_detail: row.status_detail as string | null,
-          installments: row.installments as number | null,
-        },
-        subscription as {
-          billing_term?: string | null;
-          combo_total_cents?: number | null;
-          combo_installments?: number | null;
-        } | null
-      ),
+      amount_cents: resolvePaymentRevenueCents(row),
       date: (row.paid_at as string) ?? (row.created_at as string),
       source: 'payment',
     });

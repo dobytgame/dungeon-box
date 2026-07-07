@@ -98,6 +98,8 @@ type AsaasCustomerPayment = {
   status?: string;
   paymentDate?: string | null;
   billingType?: string;
+  installment?: string | null;
+  installmentNumber?: number | null;
 };
 
 export async function listAsaasCustomerPayments(

@@ -2,6 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 
+const PROTECTED_CYCLE_STATUSES = new Set([
+  'production',
+  'preparing',
+  'shipped',
+  'delivered',
+]);
+
 const CYCLE_STATUS_RANK: Record<string, number> = {
   delivered: 6,
   shipped: 5,
@@ -58,6 +65,85 @@ export async function ensureSubscriptionCycle(
   }
 
   return data.id;
+}
+
+/** Corrige data de compra do ciclo 1 com base no pagamento mais antigo / início da assinatura. */
+export async function backfillMissingCyclePaymentLinks(
+  supabase: SupabaseClient
+): Promise<number> {
+  const { data: cycles, error } = await supabase
+    .from('subscription_cycles')
+    .select('id, subscription_id, cycle_number, payment_id, paid_at')
+    .eq('cycle_number', 1)
+    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered']);
+
+  if (error || !cycles?.length) return 0;
+
+  let updated = 0;
+
+  for (const cycle of cycles) {
+    const subscriptionId = cycle.subscription_id as string;
+    const cyclePaidAt = cycle.paid_at as string | null;
+
+    const [{ data: subscription }, { data: payments }] = await Promise.all([
+      supabase
+        .from('subscriptions')
+        .select('started_at')
+        .eq('id', subscriptionId)
+        .maybeSingle(),
+      supabase
+        .from('payments')
+        .select('id, amount_cents, paid_at, created_at')
+        .eq('subscription_id', subscriptionId)
+        .eq('status', 'approved')
+        .order('paid_at', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true }),
+    ]);
+
+    const approvedPayments = payments ?? [];
+    const earliestPayment = approvedPayments.reduce<
+      (typeof approvedPayments)[number] | null
+    >((best, row) => {
+      const rowAt = (row.paid_at as string | null) ?? (row.created_at as string | null);
+      if (!rowAt) return best;
+      if (!best) return row;
+      const bestAt =
+        (best.paid_at as string | null) ?? (best.created_at as string | null);
+      return bestAt && rowAt < bestAt ? row : best;
+    }, null);
+
+    const candidates = [
+      (subscription?.started_at as string | null) ?? null,
+      earliestPayment
+        ? ((earliestPayment.paid_at as string | null) ??
+          (earliestPayment.created_at as string | null))
+        : null,
+    ].filter((value): value is string => Boolean(value));
+
+    if (candidates.length === 0) continue;
+
+    const canonicalPaidAt = candidates.sort((a, b) => a.localeCompare(b))[0]!;
+    if (cyclePaidAt) continue;
+
+    const patch: Record<string, unknown> = {
+      paid_at: canonicalPaidAt,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (!cycle.payment_id && earliestPayment) {
+      patch.payment_id = earliestPayment.id;
+      patch.amount_cents = earliestPayment.amount_cents;
+    }
+
+    const { error: updateError } = await supabase
+      .from('subscription_cycles')
+      .update(patch)
+      .eq('id', cycle.id);
+
+    if (!updateError) updated += 1;
+  }
+
+  return updated;
 }
 
 interface CyclePaymentLink {
@@ -209,6 +295,7 @@ export async function repairDuplicateSubscriptionCycles(
         return b.id.localeCompare(a.id);
       });
       for (const dup of sorted.slice(1)) {
+        if (PROTECTED_CYCLE_STATUSES.has(dup.status as string)) continue;
         await supabase.from('subscription_cycles').delete().eq('id', dup.id);
         removed++;
       }
@@ -261,14 +348,18 @@ export async function repairDuplicateSubscriptionCycles(
  * Remove duplicatas, cria registro ausente e corrige contadores da assinatura.
  */
 export async function consolidateSubscriptionCycles(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  options: { allowRepair?: boolean } = {}
 ): Promise<{
   created: number;
   removed: number;
   countersFixed: number;
   subscriptionCountersFixed: number;
 }> {
-  const repair = await repairDuplicateSubscriptionCycles(supabase);
+  const allowRepair = options.allowRepair ?? true;
+  const repair = allowRepair
+    ? await repairDuplicateSubscriptionCycles(supabase)
+    : { removed: 0, countersFixed: 0 };
   const { data: subs } = await supabase
     .from('subscriptions')
     .select('id, current_cycle')

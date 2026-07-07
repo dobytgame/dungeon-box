@@ -121,6 +121,11 @@ export default async function AdminPaymentsPage({ searchParams }: Props) {
                 {row.comboLabel ? (
                   <p className="text-xs text-amber-200/80">{row.comboLabel}</p>
                 ) : null}
+                {row.isComboInstallmentSlice ? (
+                  <p className="text-xs text-stone-500">
+                    Parcela do combo · não soma na receita
+                  </p>
+                ) : null}
               </div>
             ),
           },

@@ -4,9 +4,17 @@ import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import {
+  buildCanonicalComboPrepaidIndex,
+  buildComboPrepaidDayBySubscription,
+  resolvePaymentRevenueCents,
+  shouldCountPaymentInRevenue,
+  type RevenuePaymentRow,
+} from '@/lib/payments/revenue-aggregation';
+import {
   parseComboPaymentDetail,
   resolveEffectivePaymentAmountCents,
   resolvePaymentInstallments,
+  isComboInstallmentSlicePayment,
 } from '@/lib/payments/effective-amount';
 import type { PaymentStatus } from '@/lib/dashboard/types';
 
@@ -33,6 +41,8 @@ export interface AdminSaleRow {
   created_at: string | null;
   subscriptionId: string | null;
   planName: string | null;
+  isComboInstallmentSlice: boolean;
+  countsInRevenue: boolean;
 }
 
 const SALE_TYPE_LABEL: Record<AdminSaleType, string> = {
@@ -54,6 +64,7 @@ export function classifyAdminSale(row: {
   status_detail: string | null;
   planName: string | null;
   billingTerm?: string | null;
+  isComboInstallmentSlice?: boolean;
 }): { saleType: AdminSaleType; description: string } {
   const comboDetail = parseComboPaymentDetail(row.status_detail);
   const storeMeta = parseStoreOrderMeta(row.status_detail);
@@ -72,6 +83,14 @@ export function classifyAdminSale(row: {
 
   if (row.subscription_id) {
     const billingTerm = (row.billingTerm ?? 'monthly') as BillingTerm;
+    if (row.isComboInstallmentSlice) {
+      return {
+        saleType: 'assinatura',
+        description: row.planName
+          ? `Parcela do combo — ${row.planName}`
+          : 'Parcela do combo',
+      };
+    }
     if (comboDetail || isComboTerm(billingTerm)) {
       const comboLabel = isComboTerm(billingTerm)
         ? getComboTermLabel(billingTerm)
@@ -136,6 +155,13 @@ export async function listAdminSales(
     return [];
   }
 
+  const revenueRows = (data ?? []) as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(revenueRows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    revenueRows,
+    canonicalComboBySubscription
+  );
+
   return (data ?? []).map((row) => {
     const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     const subscription = Array.isArray(row.subscriptions)
@@ -158,19 +184,34 @@ export async function listAdminSales(
       status_detail: row.status_detail as string | null,
       installments: row.installments as number | null,
     };
+    const isComboInstallmentSlice = isComboInstallmentSlicePayment(
+      paymentData,
+      subContext
+    );
     const effectiveAmountCents = resolveEffectivePaymentAmountCents(
       paymentData,
       subContext
     );
     const installmentCount = resolvePaymentInstallments(paymentData, subContext);
     const billingTerm = (subContext?.billing_term ?? 'monthly') as BillingTerm;
-    const comboLabel = isComboTerm(billingTerm) ? getComboTermLabel(billingTerm) : null;
+    const comboLabel =
+      isComboTerm(billingTerm) && !isComboInstallmentSlice
+        ? getComboTermLabel(billingTerm)
+        : null;
+
+    const revenueRow = row as unknown as RevenuePaymentRow;
+    const countsInRevenue = shouldCountPaymentInRevenue(
+      revenueRow,
+      canonicalComboBySubscription,
+      comboPrepaidDayBySubscription
+    );
 
     const { saleType, description } = classifyAdminSale({
       subscription_id: row.subscription_id as string | null,
       status_detail: row.status_detail as string | null,
       planName,
       billingTerm: subContext?.billing_term,
+      isComboInstallmentSlice,
     });
 
     return {
@@ -190,6 +231,8 @@ export async function listAdminSales(
       created_at: (row.created_at as string | null) ?? null,
       subscriptionId: (row.subscription_id as string | null) ?? null,
       planName,
+      isComboInstallmentSlice,
+      countsInRevenue,
     };
   });
 }
@@ -197,7 +240,29 @@ export async function listAdminSales(
 export async function getAdminSalesSummary(
   admin: SupabaseClient
 ): Promise<Record<AdminSaleType, { count: number; revenueCents: number }>> {
-  const sales = await listAdminSales(admin, { status: 'approved', limit: 5000 });
+  const { data, error } = await admin
+    .from('payments')
+    .select(
+      `
+      id,
+      subscription_id,
+      amount_cents,
+      status_detail,
+      installments,
+      paid_at,
+      created_at,
+      subscriptions(
+        billing_term,
+        combo_total_cents,
+        combo_installments,
+        plans!plan_id(name)
+      )
+    `
+    )
+    .eq('status', 'approved')
+    .order('paid_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(5000);
 
   const summary: Record<AdminSaleType, { count: number; revenueCents: number }> = {
     assinatura: { count: 0, revenueCents: 0 },
@@ -206,9 +271,63 @@ export async function getAdminSalesSummary(
     outro: { count: 0, revenueCents: 0 },
   };
 
-  for (const sale of sales) {
-    summary[sale.saleType].count += 1;
-    summary[sale.saleType].revenueCents += sale.effectiveAmountCents;
+  if (error) {
+    console.error('[admin] getAdminSalesSummary:', error.message);
+    return summary;
+  }
+
+  const rows = (data ?? []) as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    rows,
+    canonicalComboBySubscription
+  );
+
+  for (const row of rows) {
+    if (
+      !shouldCountPaymentInRevenue(
+        row,
+        canonicalComboBySubscription,
+        comboPrepaidDayBySubscription
+      )
+    ) {
+      continue;
+    }
+
+    const subscription = Array.isArray(row.subscriptions)
+      ? row.subscriptions[0]
+      : row.subscriptions;
+    const plan = subscription?.plans
+      ? Array.isArray(subscription.plans)
+        ? subscription.plans[0]
+        : subscription.plans
+      : null;
+
+    const subContext = subscription as {
+      billing_term?: string | null;
+      combo_total_cents?: number | null;
+      combo_installments?: number | null;
+    } | null;
+    const paymentData = {
+      amount_cents: row.amount_cents as number,
+      status_detail: row.status_detail as string | null,
+      installments: row.installments as number | null,
+    };
+    const isComboInstallmentSlice = isComboInstallmentSlicePayment(
+      paymentData,
+      subContext
+    );
+
+    const { saleType } = classifyAdminSale({
+      subscription_id: row.subscription_id,
+      status_detail: row.status_detail,
+      planName: (plan?.name as string | null) ?? null,
+      billingTerm: subContext?.billing_term,
+      isComboInstallmentSlice,
+    });
+
+    summary[saleType].count += 1;
+    summary[saleType].revenueCents += resolvePaymentRevenueCents(row);
   }
 
   return summary;

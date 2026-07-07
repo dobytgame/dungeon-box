@@ -7,6 +7,7 @@ import {
   type BillingTerm,
 } from '@/lib/checkout/combo-billing';
 import { isComboPrepaidPayment } from '@/lib/payments/effective-amount';
+import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 import {
   ensureSubscriptionCycle,
   markCyclePreparing,
@@ -209,15 +210,10 @@ export async function backfillPrepaidComboProductionSchedules(
     const totalMonths = prepaidMonthsForTerm(billingTerm);
     if (!totalMonths) continue;
 
-    const { data: comboPayment } = await supabase
-      .from('payments')
-      .select('id, amount_cents, paid_at, status_detail')
-      .eq('subscription_id', subscription.id as string)
-      .eq('status', 'approved')
-      .ilike('status_detail', '%combo_prepaid%')
-      .order('paid_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const comboPayment = await findCanonicalComboPrepaidPayment(
+      supabase,
+      subscription.id as string
+    );
 
     if (!comboPayment || !isComboPrepaidPayment(comboPayment.status_detail as string)) {
       continue;

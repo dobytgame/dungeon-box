@@ -16,7 +16,14 @@ import type {
   AdminProfitMonthRow,
   AdminProfitSummary,
 } from '@/lib/admin/types';
-import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
+import {
+  buildCanonicalComboPrepaidIndex,
+  buildComboPrepaidDayBySubscription,
+  resolvePaymentRevenueCents,
+  shouldCountPaymentInRevenue,
+  sumPaymentRevenueCents,
+  type RevenuePaymentRow,
+} from '@/lib/payments/revenue-aggregation';
 
 function monthKey(dateStr: string): string {
   return dateStr.slice(0, 7);
@@ -48,32 +55,17 @@ function buildProfitSummary(
 
 function sumPaymentRevenue(
   payments: Array<{
+    id: string;
     amount_cents: number;
     status_detail: string | null;
     installments?: number | null;
+    subscription_id?: string | null;
+    paid_at?: string | null;
+    created_at?: string | null;
     subscriptions: unknown;
   }>
 ): number {
-  return payments.reduce((sum, row) => {
-    const subscription = Array.isArray(row.subscriptions)
-      ? row.subscriptions[0]
-      : row.subscriptions;
-    return (
-      sum +
-      resolveEffectivePaymentAmountCents(
-        {
-          amount_cents: row.amount_cents,
-          status_detail: row.status_detail,
-          installments: row.installments ?? null,
-        },
-        subscription as {
-          billing_term?: string | null;
-          combo_total_cents?: number | null;
-          combo_installments?: number | null;
-        } | null
-      )
-    );
-  }, 0);
+  return sumPaymentRevenueCents(payments as RevenuePaymentRow[]);
 }
 
 async function sumOrderCostsForPayments(
@@ -150,7 +142,24 @@ export async function getProfitByMonth(
     buckets.set(key, { salesCents: 0, orderCostCents: 0 });
   }
 
-  for (const payment of payments) {
+  const paymentRows = payments as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(paymentRows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    paymentRows,
+    canonicalComboBySubscription
+  );
+
+  for (const payment of paymentRows) {
+    if (
+      !shouldCountPaymentInRevenue(
+        payment,
+        canonicalComboBySubscription,
+        comboPrepaidDayBySubscription
+      )
+    ) {
+      continue;
+    }
+
     const paidAt = payment.paid_at ?? payment.created_at;
     if (!paidAt) continue;
 
@@ -158,26 +167,11 @@ export async function getProfitByMonth(
     const bucket = buckets.get(key);
     if (!bucket) continue;
 
-    const subscription = Array.isArray(payment.subscriptions)
-      ? payment.subscriptions[0]
-      : payment.subscriptions;
-
-    bucket.salesCents += resolveEffectivePaymentAmountCents(
-      {
-        amount_cents: payment.amount_cents,
-        status_detail: payment.status_detail,
-        installments: payment.installments ?? null,
-      },
-      subscription as {
-        billing_term?: string | null;
-        combo_total_cents?: number | null;
-        combo_installments?: number | null;
-      } | null
-    );
+    bucket.salesCents += resolvePaymentRevenueCents(payment);
 
     bucket.orderCostCents += resolvePaymentOrderCostCents(
       catalog,
-      payment,
+      payment as Parameters<typeof resolvePaymentOrderCostCents>[1],
       firstPaymentIdBySubscription
     );
   }

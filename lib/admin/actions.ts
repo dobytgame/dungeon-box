@@ -3,6 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { importAsaasPaymentsForSubscription } from '@/lib/asaas/import-payments';
+import {
+  annotateComboInstallmentSlicePayments,
+  dedupeComboPrepaidPayments,
+  repairComboPaymentAmounts,
+} from '@/lib/payments/repair-combo-amounts';
+import { repairAsaasPaymentIncoherencies } from '@/lib/payments/repair-asaas-incoherencies';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import {
   normalizePromoCode,
@@ -305,6 +311,10 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
 
   try {
     const result = await importAsaasPaymentsForSubscription(admin, subscription);
+    await repairComboPaymentAmounts(admin);
+    await dedupeComboPrepaidPayments(admin);
+    await annotateComboInstallmentSlicePayments(admin);
+    await repairAsaasPaymentIncoherencies(admin);
 
     const { data: refreshed } = await admin
       .from('subscriptions')
@@ -355,9 +365,13 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
 export async function syncSubscriptionCyclesAction() {
   const { user, admin } = await requireAdmin();
 
-  const result = await consolidateSubscriptionCycles(admin);
+  const result = await consolidateSubscriptionCycles(admin, {
+    allowRepair: false,
+  });
   const comboBackfill = await backfillPrepaidComboProductionSchedules(admin);
-  const productionReconcile = await reconcileProductionDataCases(admin);
+  const productionReconcile = await reconcileProductionDataCases(admin, {
+    markSubscriptionsPending: false,
+  });
 
   const { data: activeSubs } = await admin
     .from('subscriptions')

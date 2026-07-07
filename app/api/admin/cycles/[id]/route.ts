@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/auth';
 import { resolveCycleProductionDataWithFinance, type CycleShipmentItem, type ProductionChecklistItem } from '@/lib/admin/cycle-shipment-items';
+import {
+  loadPaymentContextByIds,
+  loadSubscriptionPaymentMaps,
+  resolveCycleEffectivePaidAt,
+} from '@/lib/admin/cycle-payment-resolve';
 import { toAdminCycleDetailView, type AdminCyclePendingStoreOrder } from '@/lib/admin/cycle-detail-view';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
@@ -14,7 +19,7 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const { admin } = await requireAdmin();
     const { id } = await context.params;
-    const cycle = await getAdminCycleDetail(admin, id);
+    let cycle = await getAdminCycleDetail(admin, id);
 
     if (!cycle) {
       return NextResponse.json({ error: 'Ciclo não encontrado.' }, { status: 404 });
@@ -24,6 +29,38 @@ export async function GET(_request: Request, context: RouteContext) {
     const plan = subscription ? relOne(subscription.plans) : null;
     const theme = relOne(cycle.themes);
     const subscriptionId = subscription?.id;
+
+    if (subscriptionId) {
+      const [paymentsById, paymentMaps] = await Promise.all([
+        cycle.payment_id
+          ? loadPaymentContextByIds(admin, [cycle.payment_id])
+          : Promise.resolve(new Map()),
+        loadSubscriptionPaymentMaps(admin, [subscriptionId]),
+      ]);
+      const linkedPayment = cycle.payment_id
+        ? paymentsById.get(cycle.payment_id) ?? null
+        : null;
+      const comboPayment = paymentMaps.comboBySub.get(subscriptionId) ?? null;
+      const firstApproved =
+        paymentMaps.firstApprovedBySub.get(subscriptionId) ?? null;
+
+      cycle = {
+        ...cycle,
+        paid_at: resolveCycleEffectivePaidAt({
+          cycleNumber: cycle.cycle_number,
+          cyclePaidAt: cycle.paid_at,
+          paymentId: cycle.payment_id,
+          billingTerm: subscription?.billing_term ?? null,
+          linkedPaymentPaidAt: linkedPayment?.paid_at ?? null,
+          linkedPaymentCreatedAt: linkedPayment?.created_at ?? null,
+          comboPaymentPaidAt: comboPayment?.paid_at ?? null,
+          comboPaymentCreatedAt: comboPayment?.created_at ?? null,
+          firstApprovedPaymentPaidAt: firstApproved?.paid_at ?? null,
+          firstApprovedPaymentCreatedAt: firstApproved?.created_at ?? null,
+          subscriptionStartedAt: subscription?.started_at ?? null,
+        }),
+      };
+    }
 
     let shipmentItems: CycleShipmentItem[] = [];
     let productionChecklist: ProductionChecklistItem[] = [];

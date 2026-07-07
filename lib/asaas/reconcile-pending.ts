@@ -2,8 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   handleComboPaymentConfirmed,
   parseComboPaymentReference,
-  syncComboPayment,
+  findConfirmedComboPaymentForSubscription,
 } from '@/lib/asaas/combo-payment';
+import { resolveConfirmedInstallmentPayment } from '@/lib/asaas/installment-payments';
 import {
   collectRemotePaymentsForSubscription,
   type ImportAsaasPaymentsInput,
@@ -218,21 +219,40 @@ async function reconcileFromLocalPendingAsaasPayments(
 
     try {
       const remote = await fetchAsaasPayment(row.asaas_payment_id);
-      if (!isAsaasPaymentConfirmed(remote.status)) continue;
+      const confirmed = await resolveConfirmedInstallmentPayment({
+        id: remote.id,
+        status: remote.status,
+        externalReference: remote.externalReference,
+        installment: remote.installment,
+        installmentNumber: remote.installmentNumber,
+        value: remote.value,
+      });
+      if (!confirmed) continue;
 
-      const comboId = parseComboPaymentReference(remote.externalReference);
+      const comboId = parseComboPaymentReference(confirmed.externalReference);
       if (comboId === subscription.id) {
-        const result = await syncComboPayment(row.asaas_payment_id);
+        const result = await handleComboPaymentConfirmed(
+          supabase,
+          toAsaasWebhookPayment({
+            id: confirmed.id,
+            externalReference: confirmed.externalReference,
+            value: confirmed.value,
+            status: confirmed.status,
+            billingType: remote.billingType,
+            subscription: remote.subscription,
+          }),
+          comboId
+        );
         if (result === 'processed') return true;
       }
 
       const result = await handleAsaasPaymentConfirmed(
         supabase,
         toAsaasWebhookPayment({
-          id: remote.id,
-          externalReference: remote.externalReference,
-          value: remote.value,
-          status: remote.status,
+          id: confirmed.id,
+          externalReference: confirmed.externalReference,
+          value: confirmed.value,
+          status: confirmed.status,
           billingType: remote.billingType,
           subscription: remote.subscription,
         })
@@ -268,27 +288,44 @@ async function reconcileFromRemotePayments(
     supabase,
     importInput
   );
-  const confirmed = remotePayments.filter((payment) =>
-    isAsaasPaymentConfirmed(payment.status)
-  );
 
-  for (const payment of confirmed) {
-    const webhookPayment = toAsaasWebhookPayment(payment);
-
+  for (const payment of remotePayments) {
     if (isComboExternalReference(payment.externalReference)) {
       const subscriptionId = parseComboPaymentReference(payment.externalReference);
-      if (subscriptionId === subscription.id) {
-        const result = await handleComboPaymentConfirmed(
-          supabase,
-          webhookPayment,
-          subscriptionId
-        );
-        if (result === 'processed') return true;
-      }
+      if (subscriptionId !== subscription.id) continue;
+
+      const confirmed = await resolveConfirmedInstallmentPayment({
+        id: payment.id,
+        status: payment.status,
+        externalReference: payment.externalReference,
+        installment: payment.installment,
+        installmentNumber: payment.installmentNumber,
+        value: payment.value,
+      });
+      if (!confirmed) continue;
+
+      const result = await handleComboPaymentConfirmed(
+        supabase,
+        toAsaasWebhookPayment({
+          id: confirmed.id,
+          externalReference: confirmed.externalReference,
+          value: confirmed.value,
+          status: confirmed.status,
+          billingType: payment.billingType,
+          subscription: payment.subscription,
+        }),
+        subscriptionId
+      );
+      if (result === 'processed') return true;
       continue;
     }
 
-    const result = await handleAsaasPaymentConfirmed(supabase, webhookPayment);
+    if (!isAsaasPaymentConfirmed(payment.status)) continue;
+
+    const result = await handleAsaasPaymentConfirmed(
+      supabase,
+      toAsaasWebhookPayment(payment)
+    );
     if (result === 'processed') return true;
   }
 
@@ -409,17 +446,15 @@ export async function reconcilePendingAsaasSubscription(
     isComboTerm(subscription.billing_term as BillingTerm);
 
   if (isCombo && customerId) {
-    const payments = await listAsaasCustomerPayments(customerId);
-    const comboPayment = payments.find(
-      (payment) =>
-        parseComboPaymentReference(payment.externalReference) === subscription.id &&
-        isAsaasPaymentConfirmed(payment.status)
+    const comboPayment = await findConfirmedComboPaymentForSubscription(
+      customerId,
+      subscription.id
     );
 
     if (comboPayment) {
       const result = await handleComboPaymentConfirmed(
         supabase,
-        toAsaasWebhookPayment(comboPayment),
+        comboPayment,
         subscription.id
       );
       if (result === 'processed') return true;

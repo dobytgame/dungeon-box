@@ -14,7 +14,10 @@ import {
   handleComboPaymentConfirmed,
   parseComboPaymentReference,
 } from '@/lib/asaas/combo-payment';
+import { resolveConfirmedInstallmentPayment } from '@/lib/asaas/installment-payments';
 import { handleStoreOrderPaymentConfirmed } from '@/lib/asaas/store-order-payment';
+import { isComboInstallmentSlicePayment } from '@/lib/payments/effective-amount';
+import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -23,6 +26,8 @@ export type AsaasWebhookPayment = {
   value?: number;
   status?: string;
   billingType?: string;
+  installment?: string | null;
+  installmentNumber?: number | null;
 };
 
 function paymentAmountCents(payment: AsaasWebhookPayment): number {
@@ -41,13 +46,55 @@ export async function handleAsaasPaymentConfirmed(
 
   const comboSubscriptionId = parseComboPaymentReference(payment.externalReference);
   if (comboSubscriptionId) {
-    return handleComboPaymentConfirmed(supabase, payment, comboSubscriptionId);
+    const confirmed = await resolveConfirmedInstallmentPayment({
+      id: payment.id,
+      status: payment.status,
+      externalReference: payment.externalReference,
+      installment: payment.installment,
+      installmentNumber: payment.installmentNumber,
+      value: payment.value,
+    });
+    if (!confirmed) {
+      return 'skipped';
+    }
+
+    const subscriptionId =
+      parseComboPaymentReference(confirmed.externalReference) ?? comboSubscriptionId;
+
+    return handleComboPaymentConfirmed(supabase, {
+      id: confirmed.id,
+      externalReference: confirmed.externalReference ?? undefined,
+      value: confirmed.value,
+      status: confirmed.status,
+      billingType: payment.billingType,
+    }, subscriptionId);
   }
 
   const local = await resolveLocalAsaasSubscription(supabase, payment);
   if (!local) return 'skipped';
 
   const amountCents = paymentAmountCents(payment);
+
+  const { data: subscriptionBilling } = await supabase
+    .from('subscriptions')
+    .select('billing_term, combo_total_cents, combo_installments')
+    .eq('id', local.id)
+    .maybeSingle();
+
+  if (
+    subscriptionBilling &&
+    isComboInstallmentSlicePayment(
+      { amount_cents: amountCents, status_detail: null },
+      subscriptionBilling
+    )
+  ) {
+    const existingComboPrepaid = await findCanonicalComboPrepaidPayment(supabase, local.id);
+
+    if (existingComboPrepaid) {
+      return 'skipped';
+    }
+  }
+
   const now = new Date().toISOString();
 
   const { data: paymentRow } = await supabase

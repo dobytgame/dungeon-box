@@ -132,13 +132,22 @@ export default async function AdminSalesPage({ searchParams }: Props) {
               key: 'amount',
               header: 'Valor',
               cell: (row: AdminSaleRow) => (
-                <div>
+                <div className={row.countsInRevenue ? '' : 'opacity-60'}>
                   <span className="font-mono tabular-nums">
-                    {formatMoney(row.effectiveAmountCents)}
+                    {formatMoney(
+                      row.countsInRevenue
+                        ? row.effectiveAmountCents
+                        : row.amount_cents
+                    )}
                   </span>
                   {row.installmentCount != null && row.installmentCount > 1 ? (
                     <p className="text-xs text-stone-500">
                       {row.installmentCount}x no cartão
+                    </p>
+                  ) : null}
+                  {row.isComboInstallmentSlice ? (
+                    <p className="text-xs text-stone-500">
+                      Parcela do combo · não soma na receita
                     </p>
                   ) : null}
                 </div>

@@ -13,6 +13,7 @@ import {
 } from '@/lib/admin/cycle-shipment-finance';
 import { mergeMonthlyKitProductionCosts } from '@/lib/admin/store-products';
 import { isComboPrepaidPayment } from '@/lib/payments/effective-amount';
+import { listApprovedComboPrepaidPayments } from '@/lib/payments/combo-payment-queries';
 
 const COMBO_CYCLE_STATUSES = [
   'production',
@@ -61,22 +62,8 @@ function toShipmentContext(row: {
 async function loadComboPrepaidPaymentIds(
   admin: SupabaseClient
 ): Promise<Set<string>> {
-  const { data, error } = await admin
-    .from('payments')
-    .select('id, status_detail')
-    .eq('status', 'approved')
-    .ilike('status_detail', '%combo_prepaid%');
-
-  if (error) {
-    console.error('[admin] loadComboPrepaidPaymentIds:', error.message);
-    return new Set();
-  }
-
-  return new Set(
-    (data ?? [])
-      .filter((row) => isComboPrepaidPayment(row.status_detail as string | null))
-      .map((row) => row.id as string)
-  );
+  const payments = await listApprovedComboPrepaidPayments(admin);
+  return new Set(payments.map((row) => row.id));
 }
 
 async function resolveComboCycleProductionCosts(

@@ -8,8 +8,11 @@ import {
   PRODUCTION_SECTION_META,
 } from '@/lib/admin/production-list';
 import { formatDate } from '@/lib/dashboard/format';
+import ComboBadge from '@/components/admin/ComboBadge';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
+import type { BillingTerm } from '@/lib/checkout/combo-billing';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getAdminPlanVisual } from '@/lib/plan-theme';
 
 interface Props {
@@ -112,6 +115,17 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                               {row.customerName ?? 'Cliente sem nome'}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
+                              {row.subscriptionBillingTerm &&
+                              isComboTerm(
+                                row.subscriptionBillingTerm as BillingTerm
+                              ) ? (
+                                <ComboBadge
+                                  term={
+                                    row.subscriptionBillingTerm as BillingTerm
+                                  }
+                                  compact
+                                />
+                              ) : null}
                               {row.paymentPendingHighlight ? (
                                 <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-amber-200">
                                   Pag. pendente

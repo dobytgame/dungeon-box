@@ -43,8 +43,8 @@ export default function SyncCyclesButton() {
 
               setMessage(
                 parts.length > 0
-                  ? `${parts.join(' · ')}. Status dos pedidos não foi alterado.`
-                  : 'Nada a consolidar. Status dos pedidos não foi alterado.'
+                  ? `${parts.join(' · ')}. Pedidos em produção não foram removidos.`
+                  : 'Nada a consolidar. Pedidos em produção não foram removidos.'
               );
               router.refresh();
           });

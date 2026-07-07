@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { asaasRequest } from '@/lib/asaas/client';
-import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
+import {
+  listAsaasPaymentsByExternalReference,
+  resolveConfirmedInstallmentPayment,
+} from '@/lib/asaas/installment-payments';
+import { listAsaasCustomerPayments } from '@/lib/asaas/store-order-payment';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
@@ -10,12 +13,68 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 const COMBO_REF_SUFFIX = ':combo';
 
-type AsaasPaymentResponse = {
+function comboExternalReference(subscriptionId: string): string {
+  return `${subscriptionId}${COMBO_REF_SUFFIX}`;
+}
+
+function toWebhookPayment(payment: {
   id: string;
-  status?: string;
-  value?: number;
   externalReference?: string | null;
-};
+  value?: number;
+  status?: string;
+}): AsaasWebhookPayment {
+  return {
+    id: payment.id,
+    externalReference: payment.externalReference ?? undefined,
+    value: payment.value,
+    status: payment.status,
+  };
+}
+
+export async function findConfirmedComboPaymentForSubscription(
+  customerId: string,
+  subscriptionId: string
+): Promise<AsaasWebhookPayment | null> {
+  const comboRef = comboExternalReference(subscriptionId);
+  const seen = new Set<string>();
+  const candidates: Array<{ id: string }> = [];
+
+  const pushCandidate = (payment: { id?: string | null }) => {
+    if (!payment.id || seen.has(payment.id)) return;
+    seen.add(payment.id);
+    candidates.push({ id: payment.id });
+  };
+
+  try {
+    for (const payment of await listAsaasPaymentsByExternalReference(
+      customerId,
+      comboRef
+    )) {
+      pushCandidate(payment);
+    }
+  } catch (error) {
+    console.error('[asaas] list combo payments by reference:', subscriptionId, error);
+  }
+
+  for (const payment of await listAsaasCustomerPayments(customerId)) {
+    if (parseComboPaymentReference(payment.externalReference) === subscriptionId) {
+      pushCandidate(payment);
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const confirmed = await resolveConfirmedInstallmentPayment(candidate.id);
+      if (confirmed) {
+        return toWebhookPayment(confirmed);
+      }
+    } catch (error) {
+      console.error('[asaas] resolve combo installment payment:', candidate.id, error);
+    }
+  }
+
+  return null;
+}
 
 export function parseComboPaymentReference(
   externalReference?: string | null
@@ -112,46 +171,58 @@ export async function handleComboPaymentConfirmed(
 export async function syncComboPayment(
   asaasPaymentId: string
 ): Promise<'processed' | 'skipped'> {
-  const payment = await asaasRequest<AsaasPaymentResponse>(
-    `/payments/${asaasPaymentId}`
-  );
-
-  if (!isAsaasPaymentConfirmed(payment.status)) {
+  const confirmed = await resolveConfirmedInstallmentPayment(asaasPaymentId);
+  if (!confirmed) {
     return 'skipped';
   }
 
-  const subscriptionId = parseComboPaymentReference(payment.externalReference);
+  const subscriptionId = parseComboPaymentReference(confirmed.externalReference);
   if (!subscriptionId) {
     return 'skipped';
   }
 
   const supabase = createAdminClient();
-  const webhookPayment: AsaasWebhookPayment = {
-    id: payment.id,
-    externalReference: payment.externalReference ?? undefined,
-    value: payment.value,
-    status: payment.status,
-  };
-
-  return handleComboPaymentConfirmed(supabase, webhookPayment, subscriptionId);
+  return handleComboPaymentConfirmed(
+    supabase,
+    toWebhookPayment(confirmed),
+    subscriptionId
+  );
 }
 
 export async function syncComboPaymentIfPending(
   supabase: SupabaseClient,
   subscriptionId: string,
-  asaasPaymentId: string | null | undefined
+  asaasPaymentId: string | null | undefined,
+  customerId?: string | null
 ): Promise<void> {
-  if (!asaasPaymentId) return;
-
   const { data: sub } = await supabase
     .from('subscriptions')
-    .select('status')
+    .select('status, asaas_customer_id')
     .eq('id', subscriptionId)
     .maybeSingle();
 
   if (sub?.status !== 'pending') return;
 
-  await syncComboPayment(asaasPaymentId).catch((err) => {
-    console.error('[asaas] combo payment sync failed:', err);
-  });
+  if (asaasPaymentId) {
+    const synced = await syncComboPayment(asaasPaymentId).catch((err) => {
+      console.error('[asaas] combo payment sync failed:', err);
+      return 'skipped' as const;
+    });
+    if (synced === 'processed') return;
+  }
+
+  const resolvedCustomerId = customerId ?? sub.asaas_customer_id ?? null;
+  if (!resolvedCustomerId) return;
+
+  const payment = await findConfirmedComboPaymentForSubscription(
+    resolvedCustomerId,
+    subscriptionId
+  );
+  if (!payment) return;
+
+  await handleComboPaymentConfirmed(supabase, payment, subscriptionId).catch(
+    (err) => {
+      console.error('[asaas] combo payment lookup sync failed:', err);
+    }
+  );
 }

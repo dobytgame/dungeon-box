@@ -20,6 +20,7 @@ import {
   loadPaymentContextByIds,
   loadSubscriptionPaymentMaps,
   pickCyclePaymentContext,
+  resolveCycleEffectivePaidAt,
 } from '@/lib/admin/cycle-payment-resolve';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
@@ -57,7 +58,9 @@ import { getTotalApprovedRevenue } from '@/lib/admin/finance';
 import {
   resolveEffectivePaymentAmountCents,
   resolvePaymentInstallments,
+  isComboInstallmentSlicePayment,
 } from '@/lib/payments/effective-amount';
+import { sumPaymentRevenueCents, type RevenuePaymentRow } from '@/lib/payments/revenue-aggregation';
 
 function daysAgoIso(days: number): string {
   const date = new Date();
@@ -95,6 +98,10 @@ function mapPaymentRow(
   const installmentCount = resolvePaymentInstallments(paymentData, subContext);
   const billingTerm = (subContext?.billing_term ?? 'monthly') as BillingTerm;
   const comboLabel = isComboTerm(billingTerm) ? getComboTermLabel(billingTerm) : null;
+  const isComboInstallmentSlice = isComboInstallmentSlicePayment(
+    paymentData,
+    subContext
+  );
 
   return {
     ...paymentData,
@@ -104,6 +111,7 @@ function mapPaymentRow(
     effectiveAmountCents,
     installmentCount,
     comboLabel,
+    isComboInstallmentSlice,
   };
 }
 
@@ -172,6 +180,7 @@ const ADMIN_CYCLE_LIST_SELECT = `
     status,
     current_cycle,
     user_id,
+    started_at,
     billing_term,
     combo_total_cents,
     combo_installments,
@@ -351,14 +360,38 @@ async function enrichCycleRowsWithShipmentItems(
     const plan = relOne(
       subscription?.plans as Record<string, unknown> | Record<string, unknown>[] | null
     );
+    const linkedPayment = row.payment_id
+      ? paymentsById.get(row.payment_id) ?? null
+      : null;
+    const comboPayment = paymentMaps.comboBySub.get(row.subscription_id) ?? null;
+    const firstApproved =
+      paymentMaps.firstApprovedBySub.get(row.subscription_id) ?? null;
+
+    const effectivePaidAt = resolveCycleEffectivePaidAt({
+      cycleNumber: row.cycle_number,
+      cyclePaidAt: row.paid_at,
+      paymentId: row.payment_id,
+      billingTerm,
+      linkedPaymentPaidAt: linkedPayment?.paid_at ?? null,
+      linkedPaymentCreatedAt: linkedPayment?.created_at ?? null,
+      comboPaymentPaidAt: comboPayment?.paid_at ?? null,
+      comboPaymentCreatedAt: comboPayment?.created_at ?? null,
+      firstApprovedPaymentPaidAt: firstApproved?.paid_at ?? null,
+      firstApprovedPaymentCreatedAt: firstApproved?.created_at ?? null,
+      subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
+    });
+
+    const enrichedRow: AdminCycleRow = {
+      ...row,
+      paid_at: effectivePaidAt,
+    };
+
     let cyclePayment = pickCyclePaymentContext({
       paymentId: row.payment_id,
       amountCents: row.amount_cents,
       subscriptionId: row.subscription_id,
       billingTerm,
-      linkedPayment: row.payment_id
-        ? paymentsById.get(row.payment_id) ?? null
-        : null,
+      linkedPayment,
       comboBySub: paymentMaps.comboBySub,
       latestBySub: paymentMaps.latestBySub,
     });
@@ -372,7 +405,7 @@ async function enrichCycleRowsWithShipmentItems(
       siblingsBySub.get(row.subscription_id) ?? [toShipmentContext(row)];
 
     const shipmentItems = buildCycleShipmentItems({
-      cycle: toShipmentContext(row),
+      cycle: toShipmentContext(enrichedRow),
       siblingCycles,
       specialNotes,
       storeOrders,
@@ -386,7 +419,7 @@ async function enrichCycleRowsWithShipmentItems(
       shippingCostCents: row.shipping_cost_cents,
       subscriptionPlanProductionCostCents: row.planProductionCostCents,
       planProductionBySlug,
-      cycle: toShipmentContext(row),
+      cycle: toShipmentContext(enrichedRow),
       siblingCycles,
       shipmentItems,
       storeOrders,
@@ -407,14 +440,17 @@ async function enrichCycleRowsWithShipmentItems(
     }));
 
     return {
-      ...row,
+      ...enrichedRow,
       hasBundledItems: extraItems.length > 0,
       bundledItemTags: shipmentItemTags(shipmentItems),
       extraItems,
       totalRevenueCents: finance.totalRevenueCents,
       shipmentMarginCents: finance.marginCents,
       hasBundledRevenue: finance.hasBundledRevenue,
-      paymentPendingHighlight: resolvePaymentPendingHighlight(row, extraItems),
+      paymentPendingHighlight: resolvePaymentPendingHighlight(
+        enrichedRow,
+        extraItems
+      ),
     };
   });
 }
@@ -478,9 +514,13 @@ export async function getAdminDashboardStats(
       .from('payments')
       .select(
         `
+        id,
         amount_cents,
         status_detail,
         installments,
+        subscription_id,
+        paid_at,
+        created_at,
         subscriptions(billing_term, combo_total_cents, combo_installments)
       `
       )
@@ -541,23 +581,8 @@ export async function getAdminDashboardStats(
   }));
   const mrrCents = mrrByPlan.reduce((sum, row) => sum + row.mrrCents, 0);
 
-  const approvedPayments = payments30Res.data ?? [];
-  const revenueApproved30dCents = approvedPayments.reduce((sum, row) => {
-    const subscription = Array.isArray(row.subscriptions)
-      ? row.subscriptions[0]
-      : row.subscriptions;
-    return (
-      sum +
-      resolveEffectivePaymentAmountCents(
-        {
-          amount_cents: row.amount_cents ?? 0,
-          status_detail: row.status_detail as string | null,
-          installments: row.installments as number | null,
-        },
-        subscription as SubscriptionComboContext | null
-      )
-    );
-  }, 0);
+  const approvedPayments = (payments30Res.data ?? []) as RevenuePaymentRow[];
+  const revenueApproved30dCents = sumPaymentRevenueCents(approvedPayments);
 
   return {
     mrrCents,

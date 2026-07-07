@@ -1,7 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { OPERATION_CHART_START } from '@/lib/admin/chart-period';
 import { classifyAdminSale } from '@/lib/admin/sales';
-import { resolveEffectivePaymentAmountCents } from '@/lib/payments/effective-amount';
+import {
+  buildCanonicalComboPrepaidIndex,
+  buildComboPrepaidDayBySubscription,
+  resolvePaymentRevenueCents,
+  shouldCountPaymentInRevenue,
+  type RevenuePaymentRow,
+} from '@/lib/payments/revenue-aggregation';
 
 export type DailySalesPeriod = '7d' | '30d' | '90d' | 'year';
 
@@ -157,7 +163,7 @@ function dayLabel(date: string): string {
   }).format(parsed);
 }
 
-function paymentDayKey(paidAt: string | null, createdAt: string | null): string | null {
+function chartDayKey(paidAt: string | null, createdAt: string | null): string | null {
   const raw = paidAt ?? createdAt;
   if (!raw) return null;
   return raw.slice(0, 10);
@@ -180,6 +186,7 @@ export async function getDailySalesChartData(
     .from('payments')
     .select(
       `
+      id,
       amount_cents,
       status_detail,
       installments,
@@ -202,10 +209,27 @@ export async function getDailySalesChartData(
     console.error('[admin] getDailySalesChartData:', error.message);
   }
 
+  const rows = (data ?? []) as RevenuePaymentRow[];
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    rows,
+    canonicalComboBySubscription
+  );
+
   const byDay = new Map<string, { assinaturaCents: number; lojaCents: number }>();
 
-  for (const row of data ?? []) {
-    const day = paymentDayKey(
+  for (const row of rows) {
+    if (
+      !shouldCountPaymentInRevenue(
+        row,
+        canonicalComboBySubscription,
+        comboPrepaidDayBySubscription
+      )
+    ) {
+      continue;
+    }
+
+    const day = chartDayKey(
       row.paid_at as string | null,
       row.created_at as string | null
     );
@@ -228,18 +252,7 @@ export async function getDailySalesChartData(
         ?.billing_term,
     });
 
-    const amountCents = resolveEffectivePaymentAmountCents(
-      {
-        amount_cents: row.amount_cents as number,
-        status_detail: row.status_detail as string | null,
-        installments: row.installments as number | null,
-      },
-      subscription as {
-        billing_term?: string | null;
-        combo_total_cents?: number | null;
-        combo_installments?: number | null;
-      } | null
-    );
+    const amountCents = resolvePaymentRevenueCents(row);
 
     const bucket = byDay.get(day) ?? { assinaturaCents: 0, lojaCents: 0 };
     if (saleType === 'assinatura') {

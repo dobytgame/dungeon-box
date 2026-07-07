@@ -429,7 +429,8 @@ export async function POST(request: Request) {
         await syncComboPaymentIfPending(
           supabase,
           result.subscriptionId,
-          result.comboPaymentId
+          result.comboPaymentId,
+          result.asaasCustomerId
         );
       }
 

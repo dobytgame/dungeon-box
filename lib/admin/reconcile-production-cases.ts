@@ -4,6 +4,10 @@ import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import { toAsaasWebhookPayment } from '@/lib/asaas/payment-sync';
 import { handleAsaasPaymentConfirmed } from '@/lib/asaas/webhook-handlers';
 import { approveStoreOrderPayment } from '@/lib/asaas/store-order-payment';
+import { annotateComboInstallmentSlicePayments, dedupeComboPrepaidPayments } from '@/lib/payments/repair-combo-amounts';
+import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
+import { repairAsaasPaymentIncoherencies } from '@/lib/payments/repair-asaas-incoherencies';
+import { backfillMissingCyclePaymentLinks } from '@/lib/subscriptions/cycles';
 import type { CycleStatus } from '@/lib/dashboard/types';
 
 const OPEN_CYCLE_STATUSES: CycleStatus[] = [
@@ -16,10 +20,26 @@ const OPEN_CYCLE_STATUSES: CycleStatus[] = [
 export type ProductionReconcileResult = {
   prematurePaymentsCleared: number;
   comboPaymentLinksRestored: number;
+  cyclePaymentLinksBackfilled: number;
+  subscriptionsRestoredActive: number;
   subscriptionsMarkedPending: number;
   asaasPaymentsImported: number;
   storePaymentsSynced: number;
   paymentMetadataFixed: number;
+  comboInstallmentSlicesAnnotated: number;
+  asaasIncoherenciesRepaired: RepairAsaasIncoherenciesSummary;
+};
+
+type RepairAsaasIncoherenciesSummary = {
+  comboDuplicateRowsFixed: number;
+  comboAmountsFixed: number;
+  futureChargesCancelled: number;
+  lordsethComboInserted: boolean;
+};
+
+export type ProductionReconcileOptions = {
+  /** Não rebaixa assinatura ativa para pending (evita sumir do kanban). */
+  markSubscriptionsPending?: boolean;
 };
 
 /** Remove vínculo de pagamento em ciclos futuros enquanto um ciclo anterior ainda está aberto (somente mensais). */
@@ -134,15 +154,7 @@ export async function restoreComboPrepaidCyclePaymentLinks(
   );
 
   for (const subscriptionId of subscriptionIds) {
-    const { data: comboPayment } = await supabase
-      .from('payments')
-      .select('id')
-      .eq('subscription_id', subscriptionId)
-      .eq('status', 'approved')
-      .ilike('status_detail', '%combo_prepaid%')
-      .order('paid_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const comboPayment = await findCanonicalComboPrepaidPayment(supabase, subscriptionId);
 
     if (!comboPayment?.id) continue;
 
@@ -159,6 +171,39 @@ export async function restoreComboPrepaidCyclePaymentLinks(
       .select('id');
 
     if (!updateError) restored += updated?.length ?? 0;
+  }
+
+  return restored;
+}
+
+/** Reativa assinaturas pending que ainda têm pedido operacional (corrige sync anterior). */
+export async function restorePendingSubscriptionsWithOpenCycles(
+  supabase: SupabaseClient
+): Promise<number> {
+  const { data: cycles, error } = await supabase
+    .from('subscription_cycles')
+    .select('subscription_id')
+    .in('status', ['upcoming', 'production', 'preparing', 'shipped']);
+
+  if (error || !cycles?.length) return 0;
+
+  const subscriptionIds = Array.from(
+    new Set(cycles.map((row) => row.subscription_id as string))
+  );
+
+  let restored = 0;
+
+  for (const subscriptionId of subscriptionIds) {
+    const { error: updateError } = await supabase
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', subscriptionId)
+      .eq('status', 'pending');
+
+    if (!updateError) restored += 1;
   }
 
   return restored;
@@ -337,15 +382,21 @@ export async function annotateKnownOrphanPayments(
 }
 
 export async function reconcileProductionDataCases(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  options: ProductionReconcileOptions = {}
 ): Promise<ProductionReconcileResult> {
   await applyManualAsaasSubscriptionLinks(supabase);
 
   const prematurePaymentsCleared = await clearPrematureCyclePaymentLinks(supabase);
   const comboPaymentLinksRestored =
     await restoreComboPrepaidCyclePaymentLinks(supabase);
-  const subscriptionsMarkedPending =
-    await reconcileActiveSubscriptionsWithoutApprovedPayment(supabase);
+  const cyclePaymentLinksBackfilled =
+    await backfillMissingCyclePaymentLinks(supabase);
+  const subscriptionsRestoredActive =
+    await restorePendingSubscriptionsWithOpenCycles(supabase);
+  const subscriptionsMarkedPending = options.markSubscriptionsPending
+    ? await reconcileActiveSubscriptionsWithoutApprovedPayment(supabase)
+    : 0;
   const asaasPaymentsImported = await importMissingConfirmedAsaasPayments(
     supabase,
     ['pay_5c8bf80ppq203x1w']
@@ -355,13 +406,27 @@ export async function reconcileProductionDataCases(
     ['pay_hwsbalxjklun4jps']
   );
   const paymentMetadataFixed = await annotateKnownOrphanPayments(supabase);
+  const comboPrepaidDeduped = (await dedupeComboPrepaidPayments(supabase)).updated;
+  const comboInstallmentSlicesAnnotated = (
+    await annotateComboInstallmentSlicePayments(supabase)
+  ).updated;
+  const asaasRepair = await repairAsaasPaymentIncoherencies(supabase);
 
   return {
     prematurePaymentsCleared,
     comboPaymentLinksRestored,
+    cyclePaymentLinksBackfilled,
+    subscriptionsRestoredActive,
     subscriptionsMarkedPending,
     asaasPaymentsImported,
     storePaymentsSynced,
     paymentMetadataFixed,
+    comboInstallmentSlicesAnnotated,
+    asaasIncoherenciesRepaired: {
+      comboDuplicateRowsFixed: asaasRepair.comboDuplicateRowsFixed,
+      comboAmountsFixed: asaasRepair.comboAmountsFixed,
+      futureChargesCancelled: asaasRepair.futureChargesCancelled,
+      lordsethComboInserted: asaasRepair.lordsethComboInserted,
+    },
   };
 }

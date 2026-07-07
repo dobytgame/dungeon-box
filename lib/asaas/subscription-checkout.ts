@@ -10,6 +10,7 @@ import {
 import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
 import { asaasRequest } from '@/lib/asaas/client';
 import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
+import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
 
 export type AsaasCreditCardInput = {
@@ -203,6 +204,40 @@ export async function createAsaasSubscription(
       installmentCount: input.installmentCount,
       interestFreeMax: comboInterestFreeMax(input.planSlug, input.billingTerm),
     });
+
+    const comboPaidAt = isAsaasPaymentConfirmed(comboPayment.status)
+      ? now.toISOString()
+      : null;
+
+    const { error: comboPaymentRowError } = await supabase.from('payments').upsert(
+      {
+        user_id: input.userId,
+        subscription_id: subscriptionId,
+        asaas_payment_id: comboPayment.id,
+        amount_cents: comboTotal,
+        currency: 'BRL',
+        status: comboPaidAt ? 'approved' : 'pending',
+        paid_at: comboPaidAt,
+        installments: input.installmentCount,
+        payment_method: 'credit_card',
+        status_detail: JSON.stringify({
+          type: 'combo_prepaid',
+          billing_term: input.billingTerm,
+          combo_total_cents: comboTotal,
+          combo_installments:
+            input.installmentCount > 1 ? input.installmentCount : undefined,
+        }),
+      },
+      { onConflict: 'asaas_payment_id' }
+    );
+
+    if (comboPaymentRowError) {
+      console.error(
+        '[asaas] combo pending payment row:',
+        subscriptionId,
+        comboPaymentRowError.message
+      );
+    }
 
     const renewalStart = prepaidUntil ?? addMonths(now, 1);
 

@@ -15,6 +15,9 @@ type AsaasPaymentResponse = {
   externalReference?: string | null;
   billingType?: string;
   subscription?: string | { id?: string } | null;
+  installment?: string | null;
+  installmentNumber?: number | null;
+  paymentDate?: string | null;
 };
 
 export type AsaasPixQrCode = {

@@ -230,6 +230,7 @@ export interface AdminPaymentRow extends Payment {
   effectiveAmountCents: number;
   installmentCount: number | null;
   comboLabel: string | null;
+  isComboInstallmentSlice?: boolean;
 }
 
 export interface AdminCustomerDetail {

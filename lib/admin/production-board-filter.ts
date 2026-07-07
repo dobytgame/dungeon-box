@@ -8,14 +8,9 @@ import { pipelineStepIndex } from '@/lib/subscriptions/cycle-production';
 export const OPERATIONAL_SUBSCRIPTION_STATUSES = new Set([
   'active',
   'past_due',
-]);
-
-const SUBSCRIPTION_STATUS_PRIORITY = [
-  'active',
-  'past_due',
-  'paused',
   'pending',
-] as const;
+  'paused',
+]);
 
 const OPEN_CYCLE_STATUSES: CycleStatus[] = [
   'upcoming',
@@ -30,13 +25,36 @@ export type ProductionSubscriptionMeta = {
   currentCycle: number;
 };
 
-function subscriptionPriority(status: string): number {
-  const index = SUBSCRIPTION_STATUS_PRIORITY.indexOf(
-    status as (typeof SUBSCRIPTION_STATUS_PRIORITY)[number]
-  );
-  return index >= 0 ? index : SUBSCRIPTION_STATUS_PRIORITY.length;
+const FULFILLMENT_CYCLE_STATUSES = new Set<CycleStatus>([
+  'upcoming',
+  'production',
+  'preparing',
+  'shipped',
+  'delivered',
+]);
+
+function subscriptionIsArchived(status: string): boolean {
+  return status === 'cancelled' || status === 'expired';
 }
 
+function cycleHasFulfillmentSignal(row: AdminCycleRow): boolean {
+  return Boolean(row.paid_at || row.payment_id);
+}
+
+function shouldShowSubscriptionOnBoard(
+  meta: ProductionSubscriptionMeta | undefined,
+  rows: AdminCycleRow[]
+): boolean {
+  if (!meta) return true;
+  if (subscriptionIsArchived(meta.status)) return false;
+  if (OPERATIONAL_SUBSCRIPTION_STATUSES.has(meta.status)) return true;
+
+  return rows.some(
+    (row) =>
+      FULFILLMENT_CYCLE_STATUSES.has(row.status) &&
+      (row.status !== 'upcoming' || cycleHasFulfillmentSignal(row))
+  );
+}
 function isPrematureUpcoming(
   row: AdminCycleRow,
   siblings: AdminCycleRow[]
@@ -99,17 +117,17 @@ function keepPrimarySubscriptionPerUser(
       continue;
     }
 
-    const ranked = Array.from(subscriptionIds).sort((a: string, b: string) => {
-      const metaA = metaBySubscriptionId.get(a);
-      const metaB = metaBySubscriptionId.get(b);
-      const priorityDiff =
-        subscriptionPriority(metaA?.status ?? '') -
-        subscriptionPriority(metaB?.status ?? '');
-      if (priorityDiff !== 0) return priorityDiff;
-      return (metaB?.currentCycle ?? 0) - (metaA?.currentCycle ?? 0);
+    const operationalIds = Array.from(subscriptionIds).filter((id) => {
+      const status = metaBySubscriptionId.get(id)?.status ?? '';
+      return !subscriptionIsArchived(status);
     });
 
-    if (ranked[0]) allowedSubscriptionIds.add(ranked[0]);
+    if (operationalIds.length <= 1) {
+      operationalIds.forEach((id) => allowedSubscriptionIds.add(id));
+      continue;
+    }
+
+    operationalIds.forEach((id) => allowedSubscriptionIds.add(id));
   }
 
   return rows.filter((row) => {
@@ -154,12 +172,12 @@ export function filterProductionBoardRowsForMonth(
 
   const eligible: AdminCycleRow[] = [];
   for (const row of inMonth) {
+    const siblings = bySubscription.get(row.subscription_id) ?? [];
     const meta = metaBySubscriptionId.get(row.subscription_id);
-    if (meta && !OPERATIONAL_SUBSCRIPTION_STATUSES.has(meta.status)) {
+    if (!shouldShowSubscriptionOnBoard(meta, siblings)) {
       continue;
     }
 
-    const siblings = bySubscription.get(row.subscription_id) ?? [];
     if (isPrematureUpcoming(row, siblings)) continue;
     eligible.push(row);
   }
@@ -230,7 +248,7 @@ export function filterProductionBoardRows(
   const eligible: AdminCycleRow[] = [];
   for (const [subscriptionId, subRows] of Array.from(bySubscription.entries())) {
     const meta = metaBySubscriptionId.get(subscriptionId);
-    if (meta && !OPERATIONAL_SUBSCRIPTION_STATUSES.has(meta.status)) {
+    if (!shouldShowSubscriptionOnBoard(meta, subRows)) {
       continue;
     }
 
