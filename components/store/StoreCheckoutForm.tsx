@@ -105,6 +105,15 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
 
   const resolved = resolveCartLines(lines, allProducts);
   const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);
+  const requiresBundledMonthlyKit = useMemo(
+    () =>
+      resolved.some((line) => {
+        if (line.category !== 'monthly-kit') return false;
+        const product = allProducts.find((entry) => entry.id === line.productId);
+        return product?.requiresSubscriptionBundle ?? false;
+      }),
+    [resolved, allProducts]
+  );
   const appliedPromoCodes = Array.from(
     new Set(
       resolved
@@ -131,7 +140,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   }, [lines, allProducts, hasMonthlyKit]);
 
   const shippingMode =
-    hasMonthlyKit ||
+    requiresBundledMonthlyKit ||
     (paintKitBundleSubscriptionId && canBundlePaintKit)
       ? 'with_subscription'
       : 'standalone';
@@ -140,7 +149,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     (sub) => sub.id === monthlyKitBundleSubscriptionId
   );
   const checkoutAddressId =
-    hasMonthlyKit && selectedMonthlySub?.address_id
+    requiresBundledMonthlyKit && selectedMonthlySub?.address_id
       ? selectedMonthlySub.address_id
       : addressId || addresses[0]?.id || '';
 
@@ -239,11 +248,11 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   }
 
   function goToPaymentStep() {
-    if (hasMonthlyKit && !monthlyKitBundleSubscriptionId) {
+    if (requiresBundledMonthlyKit && !monthlyKitBundleSubscriptionId) {
       setError('Selecione com qual assinatura enviar os kits do mês.');
       return;
     }
-    if (!hasMonthlyKit && !checkoutAddressId) {
+    if (!requiresBundledMonthlyKit && !checkoutAddressId) {
       setError('Selecione um endereço de entrega.');
       return;
     }
@@ -260,17 +269,17 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     method: StorePaymentMethod,
     card?: AsaasCardPayload
   ) {
-    if (hasMonthlyKit && !monthlyKitBundleSubscriptionId) {
+    if (requiresBundledMonthlyKit && !monthlyKitBundleSubscriptionId) {
       setError('Selecione com qual assinatura enviar os kits do mês.');
       return;
     }
 
-    if (!hasMonthlyKit && !checkoutAddressId) {
+    if (!requiresBundledMonthlyKit && !checkoutAddressId) {
       setError('Selecione um endereço de entrega.');
       return;
     }
 
-    if (hasMonthlyKit && !checkoutAddressId) {
+    if (requiresBundledMonthlyKit && !checkoutAddressId) {
       setError(
         'Sua assinatura não possui endereço de entrega. Atualize em Minha assinatura.'
       );
@@ -289,7 +298,9 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
               lines,
               checkoutAddressId,
               hasMonthlyKit
-                ? monthlyKitBundleSubscriptionId
+                ? requiresBundledMonthlyKit
+                  ? monthlyKitBundleSubscriptionId
+                  : null
                 : canBundlePaintKit && paintKitBundleSubscriptionId
                   ? paintKitBundleSubscriptionId
                   : null,
@@ -374,7 +385,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
 
         {step === 2 ? (
           <>
-        {hasMonthlyKit ? (
+        {requiresBundledMonthlyKit ? (
           <DashboardCard
             title="Envio com sua assinatura"
             accent="gold"

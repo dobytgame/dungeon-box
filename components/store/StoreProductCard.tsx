@@ -25,6 +25,8 @@ export default function StoreProductCard({ product }: Props) {
   const [imageHover, setImageHover] = useState(false);
   const [localQuantity, setLocalQuantity] = useState(1);
   const isMonthlyKit = product.category === 'monthly-kit';
+  const isStandaloneMonthlyKit =
+    isMonthlyKit && !product.requiresSubscriptionBundle;
   const maxQty = product.maxQuantity ?? 9;
   const cartLine = lines.find((line) => line.productId === product.id);
   const quantity = cartLine?.quantity ?? localQuantity;
@@ -70,7 +72,7 @@ export default function StoreProductCard({ product }: Props) {
       ) : null}
       {isMonthlyKit ? (
         <span className="absolute right-4 top-4 rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
-          Assinantes
+          {isStandaloneMonthlyKit ? 'Kit avulso' : 'Assinantes'}
         </span>
       ) : null}
 
@@ -210,7 +212,11 @@ export default function StoreProductCard({ product }: Props) {
 
       <p className="mt-3 text-center text-xs text-stone-600">
         {isMonthlyKit ? (
-          <>Frete grátis — enviado com a próxima caixa da assinatura.</>
+          isStandaloneMonthlyKit ? (
+            <>Frete calculado por região no checkout.</>
+          ) : (
+            <>Frete grátis — enviado com a próxima caixa da assinatura.</>
+          )
         ) : product.category === 'store-item' ? (
           <>Frete calculado por região no checkout.</>
         ) : (

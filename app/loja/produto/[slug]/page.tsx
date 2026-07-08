@@ -27,16 +27,28 @@ import {
   getStoreProductBySlugFromDb,
   loadRelatedProducts,
 } from '@/lib/store/load-catalog';
+import { getPublicMonthlyKitProducts } from '@/lib/store/monthly-kits';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
+async function resolveStoreProductPage(
+  admin: ReturnType<typeof createAdminClient>,
+  slug: string
+) {
+  return (
+    (await getStoreProductBySlugFromDb(admin, slug)) ??
+    (await getPublicMonthlyKitProducts(admin)).find((entry) => entry.slug === slug) ??
+    null
+  );
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const admin = createAdminClient();
-  const product = await getStoreProductBySlugFromDb(admin, slug);
+  const product = await resolveStoreProductPage(admin, slug);
 
   if (!product) {
     return { title: 'Produto não encontrado' };
@@ -66,7 +78,7 @@ export default async function LojaProductPage({ params }: Props) {
     data: { user },
   } = await supabase.auth.getUser();
   const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
-  const product = await getStoreProductBySlugFromDb(admin, slug);
+  const product = await resolveStoreProductPage(admin, slug);
 
   if (!product) notFound();
 
@@ -168,7 +180,11 @@ export default async function LojaProductPage({ params }: Props) {
             <li>✓ Sistema OpenLOCK compatível</li>
             <li>✓ Escala 28mm</li>
             {product.category === 'monthly-kit' ? (
-              <li>✓ Frete grátis na próxima caixa da assinatura</li>
+              <li>
+                {product.requiresSubscriptionBundle
+                  ? '✓ Frete grátis na próxima caixa da assinatura'
+                  : '✓ Compra avulsa — frete calculado no checkout'}
+              </li>
             ) : product.category === 'store-item' ? (
               <li>✓ Frete calculado por região no checkout</li>
             ) : (

@@ -230,30 +230,55 @@ export async function getCurrentMonthlyTheme(
   return fallbackThemeFromCalendar();
 }
 
-function buildMonthlyKitProduct(plan: Plan, theme: Theme): StoreProduct {
+function buildMonthlyKitProduct(
+  plan: Plan,
+  theme: Theme,
+  options?: { bundledWithSubscription?: boolean }
+): StoreProduct {
+  const bundledWithSubscription = options?.bundledWithSubscription ?? true;
   const staticPlan = staticPlans.find((entry) => entry.id === plan.slug);
   const planName = staticPlan?.name ?? plan.name;
 
   return {
     id: monthlyKitProductId(plan.slug as PlanSlug),
-    slug: `kit-mes-${plan.slug}-${theme.slug}`,
-    name: planName,
-    tagline: staticPlan?.tagline ?? plan.description ?? '',
+    slug: `kit-avulso-${plan.slug}`,
+    name: bundledWithSubscription ? planName : `Kit avulso — ${planName}`,
+    tagline:
+      staticPlan?.tagline ??
+      plan.description ??
+      `Cenário 3D do tema ${theme.name}`,
     priceCents: plan.price_cents,
     priceLabel: formatPriceLabel(plan.price_cents),
-    includes: staticPlan
-      ? [
-          staticPlan.pieces,
-          ...staticPlan.perks,
-          'Enviado junto com sua próxima caixa — sem frete',
-        ]
-      : [
-          `Conteúdo completo do plano ${planName}`,
-          'Enviado junto com sua próxima caixa — sem frete',
-        ],
+    includes: bundledWithSubscription
+      ? staticPlan
+        ? [
+            staticPlan.pieces,
+            ...staticPlan.perks,
+            `Tema: ${theme.name}`,
+            'Enviado junto com sua próxima caixa — sem frete',
+          ]
+        : [
+            `Conteúdo completo do plano ${planName}`,
+            `Tema: ${theme.name}`,
+            'Enviado junto com sua próxima caixa — sem frete',
+          ]
+      : staticPlan
+        ? [
+            staticPlan.pieces,
+            ...staticPlan.perks,
+            `Tema do mês: ${theme.name}`,
+            'Compra avulsa — frete calculado no checkout',
+          ]
+        : [
+            `Conteúdo completo do plano ${planName}`,
+            `Tema do mês: ${theme.name}`,
+            'Compra avulsa — frete calculado no checkout',
+          ],
     category: 'monthly-kit',
-    subscriberOnly: true,
-    requiresSubscriptionBundle: true,
+    storeCategorySlug: 'kits-mes',
+    storeCategoryName: 'Kits do mês',
+    subscriberOnly: bundledWithSubscription,
+    requiresSubscriptionBundle: bundledWithSubscription,
     themeId: theme.id,
     themeName: theme.name,
     themeEmoji: theme.emoji,
@@ -343,7 +368,7 @@ export async function getMonthlyKitStoreAvailability(
       ? plans.filter((plan) => activeSlugs.has(plan.slug))
       : plans;
   const baseProducts = sellablePlans.map((plan) =>
-    buildMonthlyKitProduct(plan, theme)
+    buildMonthlyKitProduct(plan, theme, { bundledWithSubscription: true })
   );
   const products = await applySubscriptionPromosToProducts(
     admin,
@@ -367,6 +392,24 @@ export async function getMonthlyKitStoreAvailability(
   };
 }
 
+export async function getPublicMonthlyKitProducts(
+  admin: SupabaseClient
+): Promise<StoreProduct[]> {
+  const theme = await getCurrentMonthlyTheme(admin, []);
+  if (!theme) return [];
+
+  const plans = await fetchAllSellablePlans(admin);
+  const activeSlugs = await listActiveMonthlyKitPlanSlugs(admin);
+  const sellablePlans =
+    activeSlugs.size > 0
+      ? plans.filter((plan) => activeSlugs.has(plan.slug))
+      : plans;
+
+  return sellablePlans.map((plan) =>
+    buildMonthlyKitProduct(plan, theme, { bundledWithSubscription: false })
+  );
+}
+
 export async function getMonthlyKitProductsForUser(
   userId: string,
   userSupabase?: SupabaseClient
@@ -379,7 +422,7 @@ export type MonthlyKitOrderItem = {
   productId: string;
   quantity: number;
   planSlug: PlanSlug;
-  bundleSubscriptionId: string;
+  bundleSubscriptionId: string | null;
   themeId: string;
   themeName: string;
   planName: string;
@@ -394,13 +437,10 @@ async function resolveMonthlyKitBundleSubscription(
   admin: SupabaseClient,
   userId: string,
   bundleSubscriptionId: string | null,
+  requireBundle: boolean,
   fallback?: SupabaseClient
-): Promise<string | { error: string }> {
+): Promise<string | null | { error: string }> {
   const subscriptions = await fetchEligibleSubscriptions(admin, userId, fallback);
-
-  if (subscriptions.length === 0) {
-    return { error: 'Assinatura ativa necessária para comprar kits do mês.' };
-  }
 
   if (bundleSubscriptionId) {
     const match = subscriptions.find((sub) => sub.id === bundleSubscriptionId);
@@ -408,6 +448,14 @@ async function resolveMonthlyKitBundleSubscription(
       return { error: 'Assinatura selecionada para envio é inválida.' };
     }
     return bundleSubscriptionId;
+  }
+
+  if (!requireBundle) {
+    return null;
+  }
+
+  if (subscriptions.length === 0) {
+    return { error: 'Assinatura ativa necessária para comprar kits do mês.' };
   }
 
   if (subscriptions.length === 1) {
@@ -433,14 +481,30 @@ export async function resolveMonthlyKitOrderItem(
   }
 
   const admin = createAdminClient();
+  const plan = await resolvePlanBySlug(admin, planSlug);
+  if (!plan || plan.price_cents <= 0) {
+    return { error: 'Não foi possível calcular o preço do kit do mês.' };
+  }
+
+  const theme = await getCurrentMonthlyTheme(
+    admin,
+    await fetchEligibleSubscriptions(admin, userId, userSupabase ?? supabase)
+  );
+  if (!theme) {
+    return { error: 'Nenhum tema do mês disponível para compra no momento.' };
+  }
+
+  const requireBundle = Boolean(bundleSubscriptionId);
+
   const bundleResult = await resolveMonthlyKitBundleSubscription(
     admin,
     userId,
     bundleSubscriptionId,
+    requireBundle,
     userSupabase ?? supabase
   );
 
-  if (typeof bundleResult !== 'string') {
+  if (typeof bundleResult !== 'string' && bundleResult !== null) {
     return bundleResult;
   }
 
@@ -450,17 +514,9 @@ export async function resolveMonthlyKitOrderItem(
     userSupabase ?? supabase
   );
 
-  const theme = await getCurrentMonthlyTheme(admin, subscriptions);
-  if (!theme) {
-    return { error: 'Nenhum tema do mês disponível para compra no momento.' };
-  }
-
-  const plan = await resolvePlanBySlug(admin, planSlug);
-  if (!plan || plan.price_cents <= 0) {
-    return { error: 'Não foi possível calcular o preço do kit do mês.' };
-  }
-
-  const product = buildMonthlyKitProduct(plan, theme);
+  const product = buildMonthlyKitProduct(plan, theme, {
+    bundledWithSubscription: requireBundle,
+  });
   const qty = Math.min(Math.max(Math.floor(quantity), 1), product.maxQuantity ?? 9);
   const pricedProduct = await applySubscriptionPromoToProduct(
     admin,

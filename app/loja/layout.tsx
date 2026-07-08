@@ -14,7 +14,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { loadActiveStoreCategories, loadAllActiveStoreProducts } from '@/lib/store/load-catalog';
-import { getMonthlyKitProductsForUser } from '@/lib/store/monthly-kits';
+import { getMonthlyKitProductsForUser, getPublicMonthlyKitProducts } from '@/lib/store/monthly-kits';
 
 export const metadata: Metadata = {
   title: 'Loja | DungeonBox',
@@ -46,16 +46,21 @@ export default async function LojaLayout({
 
   const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
 
-  const [profile, monthlyKits, categories, catalogProducts] = await Promise.all([
-    user ? getProfile(user.id) : Promise.resolve(null),
-    isStorePublic() || isAdmin
-      ? user
-        ? getMonthlyKitProductsForUser(user.id, supabase)
-        : Promise.resolve([])
-      : Promise.resolve([]),
-    loadActiveStoreCategories(admin),
-    loadAllActiveStoreProducts(admin),
-  ]);
+  const [profile, publicMonthlyKits, subscriberMonthlyKits, categories, catalogProducts] =
+    await Promise.all([
+      user ? getProfile(user.id) : Promise.resolve(null),
+      getPublicMonthlyKitProducts(admin),
+      isStorePublic() || isAdmin
+        ? user
+          ? getMonthlyKitProductsForUser(user.id, supabase)
+          : Promise.resolve([])
+        : Promise.resolve([]),
+      loadActiveStoreCategories(admin),
+      loadAllActiveStoreProducts(admin),
+    ]);
+
+  const monthlyKits =
+    subscriberMonthlyKits.length > 0 ? subscriberMonthlyKits : publicMonthlyKits;
 
   const visibleCategories =
     isStorePublic() || isAdmin

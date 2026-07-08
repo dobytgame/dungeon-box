@@ -8,11 +8,12 @@ export function isStorePublic(): boolean {
 }
 
 /** Categorias de vitrine visíveis mesmo com a loja fechada. */
-export const PUBLIC_STORE_CATEGORY_SLUGS = ['kits-pintura'] as const;
+export const PUBLIC_STORE_CATEGORY_SLUGS = ['kits-pintura', 'kits-mes'] as const;
 
 /** Tipos de produto compráveis na vitrine limitada. */
 export const PUBLIC_STORE_PRODUCT_CATEGORIES: readonly StoreProductCategory[] = [
   'paint-kit',
+  'monthly-kit',
 ];
 
 const PUBLIC_STORE_PATHS = new Set([
@@ -57,6 +58,7 @@ export function isPublicStoreProduct(product: PublicStoreProductRef): boolean {
   ) {
     return true;
   }
+  if (product.slug?.startsWith('kit-avulso-')) return true;
   return false;
 }
 
@@ -136,11 +138,12 @@ export async function assertPublicStoreCheckoutItems(
 ): Promise<{ allowed: true } | { error: string }> {
   if (isStorePublic()) return { allowed: true };
 
+  const { parseMonthlyKitPlanSlug } = await import('@/lib/store/monthly-kits');
   const { resolveStoreProductForCheckout } = await import('@/lib/store/resolve-product');
 
   for (const productId of productIds) {
-    if (productId.startsWith('monthly-kit:')) {
-      return { error: 'Este produto não está disponível no momento.' };
+    if (parseMonthlyKitPlanSlug(productId)) {
+      continue;
     }
 
     const product = await resolveStoreProductForCheckout(admin, productId);

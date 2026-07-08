@@ -70,7 +70,7 @@ type ResolvedStoreLine =
       planName: string;
       priceCents: number;
       originalPriceCents: number;
-      bundleSubscriptionId: string;
+      bundleSubscriptionId: string | null;
       promoCode?: string;
       promoSummary?: string;
     };
@@ -137,38 +137,17 @@ async function resolveStoreLines(
     return { error: 'Seu carrinho está vazio.' };
   }
 
-  let monthlyBundleSubscriptionId = bundleSubscriptionId;
-  const hasMonthlyKitInCart = normalized.some((line) =>
-    isMonthlyKitProductId(line.productId)
-  );
-
-  if (hasMonthlyKitInCart && !monthlyBundleSubscriptionId) {
-    const { data: subs } = await supabase
-      .from('subscriptions')
-      .select('id')
-      .eq('user_id', userId)
-      .in('status', ['active', 'past_due']);
-
-    if ((subs?.length ?? 0) === 1) {
-      monthlyBundleSubscriptionId = subs![0]!.id;
-    }
-  }
-
   const resolved: ResolvedStoreLine[] = [];
   const admin = createAdminClient();
 
   for (const line of normalized) {
     if (isMonthlyKitProductId(line.productId)) {
-      if (!isStorePublic()) {
-        return { error: 'Este produto não está disponível no momento.' };
-      }
-
       const monthly = await resolveMonthlyKitOrderItem(
         supabase,
         userId,
         line.productId,
         line.quantity,
-        monthlyBundleSubscriptionId,
+        bundleSubscriptionId,
         supabase
       );
       if ('error' in monthly) return monthly;
@@ -212,12 +191,14 @@ async function resolveStoreLines(
     });
   }
 
-  const hasMonthlyKit = resolved.some((line) => line.kind === 'monthly-kit');
+  const hasBundledMonthlyKit = resolved.some(
+    (line) => line.kind === 'monthly-kit' && line.bundleSubscriptionId
+  );
   const hasStandaloneCatalog = resolved.some(
     (line) => line.kind === 'catalog' && !line.bundleSubscriptionId
   );
 
-  if (hasMonthlyKit && hasStandaloneCatalog) {
+  if (hasBundledMonthlyKit && hasStandaloneCatalog) {
     return {
       error:
         'Kits do mês são enviados junto com a assinatura. Remova itens avulsos ou finalize separadamente.',
@@ -249,15 +230,15 @@ export async function purchaseStoreOrder(
 
   const hasMonthlyKit = lines.some((line) => line.kind === 'monthly-kit');
   const primaryBundleSubscriptionId =
-    lines.find((line) => line.kind === 'monthly-kit')?.bundleSubscriptionId ??
+    lines.find((line) => line.kind === 'monthly-kit' && line.bundleSubscriptionId)
+      ?.bundleSubscriptionId ??
     lines.find((line) => line.kind === 'catalog' && line.bundleSubscriptionId)
       ?.bundleSubscriptionId ??
     null;
 
-  const shippingMode: StoreOrderMeta['shippingMode'] =
-    hasMonthlyKit || primaryBundleSubscriptionId
-      ? 'with_subscription'
-      : 'standalone';
+  const shippingMode: StoreOrderMeta['shippingMode'] = primaryBundleSubscriptionId
+    ? 'with_subscription'
+    : 'standalone';
 
   const { data: profile } = await input.supabase
     .from('profiles')

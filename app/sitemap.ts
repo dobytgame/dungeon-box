@@ -39,11 +39,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const visibleCategories = storePublic
     ? (categories ?? [])
-    : (categories ?? []).filter((row) => row.slug === 'kits-pintura');
+    : (categories ?? []).filter(
+        (row) => row.slug === 'kits-pintura' || row.slug === 'kits-mes'
+      );
 
   const visibleProducts = storePublic
     ? (products ?? [])
-    : (products ?? []).filter((row) => row.category === 'paint-kit');
+    : (products ?? []).filter(
+        (row) => row.category === 'paint-kit' || row.category === 'monthly-kit'
+      );
 
   const categoryEntries: MetadataRoute.Sitemap = visibleCategories.map((row) => ({
     url: `${siteUrl}/loja/${row.slug as string}`,

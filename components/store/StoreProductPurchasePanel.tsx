@@ -17,6 +17,8 @@ export default function StoreProductPurchasePanel({ product }: Props) {
   const [added, setAdded] = useState(false);
   const [localQuantity, setLocalQuantity] = useState(1);
   const isMonthlyKit = product.category === 'monthly-kit';
+  const isStandaloneMonthlyKit =
+    isMonthlyKit && !product.requiresSubscriptionBundle;
   const maxQty = product.maxQuantity ?? 9;
   const cartLine = lines.find((line) => line.productId === product.id);
   const quantity = cartLine?.quantity ?? localQuantity;
@@ -116,7 +118,11 @@ export default function StoreProductPurchasePanel({ product }: Props) {
 
       <p className="text-xs text-stone-600">
         {isMonthlyKit ? (
-          <>Frete grátis — enviado com a próxima caixa da assinatura.</>
+          isStandaloneMonthlyKit ? (
+            <>Frete calculado por região no checkout.</>
+          ) : (
+            <>Frete grátis — enviado com a próxima caixa da assinatura.</>
+          )
         ) : product.category === 'store-item' ? (
           <>Frete calculado por região no checkout.</>
         ) : (
