@@ -100,7 +100,7 @@ export type StoreCheckoutResult =
       pending: true;
       paymentId: string;
       orderId: string;
-      pix: AsaasPixQrCode;
+      pix?: AsaasPixQrCode;
     }
   | { error: string };
 
@@ -344,8 +344,9 @@ export async function purchaseStoreOrder(
   let couponFreeShipping = false;
   let couponPromoId: string | null = null;
 
+  const admin = createAdminClient();
+
   if (input.couponCode?.trim()) {
-    const admin = createAdminClient();
     try {
       const promo = await resolveStorePromoCode(
         admin,
@@ -442,7 +443,7 @@ export async function purchaseStoreOrder(
         externalReference,
       });
 
-      const { data: paymentRow, error: paymentError } = await input.supabase
+      const { data: paymentRow, error: paymentError } = await admin
         .from('payments')
         .upsert(
           {
@@ -454,6 +455,7 @@ export async function purchaseStoreOrder(
             status: 'pending',
             status_detail: JSON.stringify(orderMeta),
             paid_at: null,
+            payment_method: 'pix',
           },
           { onConflict: 'asaas_payment_id' }
         )
@@ -493,7 +495,7 @@ export async function purchaseStoreOrder(
     const approved = isAsaasPaymentConfirmed(payment.status);
     const paidAt = approved ? now : null;
 
-    const { data: paymentRow, error: paymentError } = await input.supabase
+    const { data: paymentRow, error: paymentError } = await admin
       .from('payments')
       .upsert(
         {
@@ -505,6 +507,7 @@ export async function purchaseStoreOrder(
           status: approved ? 'approved' : 'pending',
           status_detail: JSON.stringify(orderMeta),
           paid_at: paidAt,
+          payment_method: 'credit_card',
         },
         { onConflict: 'asaas_payment_id' }
       )
@@ -517,26 +520,17 @@ export async function purchaseStoreOrder(
 
     if (!approved) {
       return {
-        error:
-          'Pagamento em processamento. Você receberá a confirmação em breve.',
+        pending: true,
+        paymentId: paymentRow?.id ?? payment.id,
+        orderId,
       };
     }
 
-    await fulfillApprovedStoreOrder(input.supabase, input.userId, orderMeta);
-    await notifyStoreOrderConfirmed(
-      input.supabase,
-      input.userId,
-      orderMeta,
-      totalCents
-    );
+    await fulfillApprovedStoreOrder(admin, input.userId, orderMeta);
+    await notifyStoreOrderConfirmed(admin, input.userId, orderMeta, totalCents);
 
     if (couponPromoId && couponCode) {
-      const admin = createAdminClient();
-      await recordStorePromoRedemption(
-        admin,
-        couponPromoId,
-        input.userId
-      );
+      await recordStorePromoRedemption(admin, couponPromoId, input.userId);
     }
 
     return {

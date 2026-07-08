@@ -5,31 +5,26 @@ import { useMemo, useState, useTransition } from 'react';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from '@/components/checkout/AsaasPaymentForm';
-import CouponField, {
-  couponsAvailableInCheckout,
-  type CouponApplyResult,
-} from '@/components/checkout/CouponField';
+import ComboUpgradeCouponField, {
+  type ComboUpgradeCouponApplyResult,
+} from '@/components/dashboard/ComboUpgradeCouponField';
+import { CHECKOUT_COUPONS_ENABLED } from '@/lib/checkout/public';
 import {
   COMBO_MAX_INSTALLMENTS,
   comboInstallmentLabel,
 } from '@/lib/checkout/combo-billing';
-import type { PlanSlug } from '@/lib/checkout/plans';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { ComboUpgradeOptionPricing } from '@/lib/subscriptions/combo-upgrade';
 
 interface Props {
   subscriptionId: string;
-  planSlug: PlanSlug;
   currentCycle: number;
-  subscriptionPromoCode: string | null;
   comboOptions: ComboUpgradeOptionPricing[];
 }
 
 export default function SubscriptionComboUpgrade({
   subscriptionId,
-  planSlug,
   currentCycle,
-  subscriptionPromoCode,
   comboOptions: initialComboOptions,
 }: Props) {
   const router = useRouter();
@@ -39,16 +34,11 @@ export default function SubscriptionComboUpgrade({
     ComboUpgradeOptionPricing['term'] | null
   >(null);
   const [installmentCount, setInstallmentCount] = useState(1);
-  const [couponCode, setCouponCode] = useState<string | null>(
-    subscriptionPromoCode
-  );
+  const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponSummary, setCouponSummary] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [couponError, setCouponError] = useState('');
-
-  const couponsEnabled = couponsAvailableInCheckout();
-  const hasBoundPromo = Boolean(subscriptionPromoCode?.trim());
 
   const selected = useMemo(
     () => comboOptions.find((option) => option.term === selectedTerm) ?? null,
@@ -57,34 +47,11 @@ export default function SubscriptionComboUpgrade({
 
   if (comboOptions.length === 0) return null;
 
-  async function handleCouponApply(result: CouponApplyResult) {
+  function handleCouponApply(result: ComboUpgradeCouponApplyResult) {
+    setComboOptions(result.options);
+    setCouponCode(result.code);
+    setCouponSummary(result.summary);
     setCouponError('');
-    const response = await fetch(
-      '/api/subscriptions/combo-upgrade/coupon/validate',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscriptionId,
-          code: result.code,
-        }),
-      }
-    );
-    const payload = (await response.json()) as {
-      valid?: boolean;
-      error?: string;
-      code?: string;
-      summary?: string | null;
-      options?: ComboUpgradeOptionPricing[];
-    };
-
-    if (!response.ok || !payload.valid || !payload.options?.length) {
-      throw new Error(payload.error ?? 'Cupom inválido.');
-    }
-
-    setComboOptions(payload.options);
-    setCouponCode(payload.code ?? result.code);
-    setCouponSummary(payload.summary ?? result.summary);
   }
 
   function handleCouponRemove() {
@@ -104,7 +71,7 @@ export default function SubscriptionComboUpgrade({
         subscriptionId,
         billingTerm: selected.term,
         installmentCount,
-        couponCode: hasBoundPromo ? null : couponCode,
+        couponCode,
         creditCard: card,
       }),
     });
@@ -136,18 +103,19 @@ export default function SubscriptionComboUpgrade({
           e o combo passa a ficar ativo imediatamente. Seu ciclo de fidelidade
           (ciclo {currentCycle}){' '}
           <strong className="font-medium text-stone-300">continua valendo</strong>{' '}
-          — não zera.
-          {hasBoundPromo
-            ? ' O cupom da sua assinatura já está aplicado nos valores abaixo.'
-            : couponsEnabled
-              ? ' Você pode aplicar um cupom antes de pagar o combo.'
-              : ''}
+          — não zera. Os valores já incluem o desconto do combo; o cupom da
+          assinatura mensal{' '}
+          <strong className="font-medium text-stone-300">não</strong> é aplicado
+          aqui.
+          {CHECKOUT_COUPONS_ENABLED
+            ? ' Se quiser, use um cupom extra só para esta migração.'
+            : ''}
         </p>
       </div>
 
-      {couponsEnabled && !hasBoundPromo ? (
-        <CouponField
-          planSlugs={[planSlug]}
+      {CHECKOUT_COUPONS_ENABLED ? (
+        <ComboUpgradeCouponField
+          subscriptionId={subscriptionId}
           couponCode={couponCode}
           couponSummary={couponSummary}
           onApply={handleCouponApply}
@@ -157,17 +125,10 @@ export default function SubscriptionComboUpgrade({
         />
       ) : null}
 
-      {hasBoundPromo ? (
-        <p className="rounded-sm border border-gold/25 bg-gold/[0.06] px-3 py-2 text-sm text-stone-300">
-          Cupom ativo na assinatura:{' '}
-          <span className="font-medium text-gold">{subscriptionPromoCode}</span>
-        </p>
-      ) : null}
-
       <div className="space-y-3">
         {comboOptions.map((option) => {
           const isSelected = selectedTerm === option.term;
-          const hasCouponDiscount =
+          const hasExtraCouponDiscount =
             option.originalTotalCents > option.totalCents;
 
           return (
@@ -187,7 +148,7 @@ export default function SubscriptionComboUpgrade({
                   </p>
                   <p className="text-sm text-stone-500">{option.description}</p>
                   <p className="mt-1 text-sm text-stone-400">
-                    {hasCouponDiscount ? (
+                    {hasExtraCouponDiscount ? (
                       <>
                         <span className="text-stone-600 line-through">
                           {formatMoney(option.originalTotalCents)}
@@ -203,7 +164,7 @@ export default function SubscriptionComboUpgrade({
                     {option.savingsCents > 0 ? (
                       <span className="text-stone-600">
                         {' '}
-                        · economia de {formatMoney(option.savingsCents)}
+                        · economia do combo {formatMoney(option.savingsCents)}
                       </span>
                     ) : null}
                   </p>

@@ -349,11 +349,18 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           return;
         }
 
-        if (payload.pending && payload.pix && payload.orderId) {
-          setPixCheckout({
-            orderId: payload.orderId,
-            pix: payload.pix as StorePixDetails,
-          });
+        if (payload.pending && payload.orderId) {
+          if (payload.pix) {
+            setPixCheckout({
+              orderId: payload.orderId,
+              pix: payload.pix as StorePixDetails,
+            });
+            return;
+          }
+
+          clearCart();
+          router.push(STORE_ROUTES.success(payload.orderId));
+          router.refresh();
           return;
         }
 

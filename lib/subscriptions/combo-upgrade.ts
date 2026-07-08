@@ -28,7 +28,6 @@ import {
 } from '@/lib/checkout/special-notes';
 import { logSubscriptionPlanChange } from '@/lib/subscriptions/plan-change-log';
 import {
-  recordPromoRedemption,
   resolvePromoCode,
 } from '@/lib/checkout/promo-codes';
 import {
@@ -101,6 +100,41 @@ function centsToReais(cents: number): number {
   return Math.round(cents) / 100;
 }
 
+async function recordComboUpgradePromoRedemption(
+  supabase: SupabaseClient,
+  promoCodeId: string,
+  userId: string,
+  subscriptionId: string
+): Promise<void> {
+  const { error: redemptionError } = await supabase
+    .from('promo_code_redemptions')
+    .insert({
+      promo_code_id: promoCodeId,
+      user_id: userId,
+      subscription_id: subscriptionId,
+    });
+
+  if (redemptionError) {
+    console.error('[combo-upgrade] promo redemption:', redemptionError);
+    return;
+  }
+
+  const { data: promo } = await supabase
+    .from('promo_codes')
+    .select('times_redeemed')
+    .eq('id', promoCodeId)
+    .single();
+
+  if (!promo) return;
+
+  await supabase
+    .from('promo_codes')
+    .update({
+      times_redeemed: (promo.times_redeemed ?? 0) + 1,
+    })
+    .eq('id', promoCodeId);
+}
+
 function isMonthlyActiveSubscription(subscription: SubscriptionComboUpgradeRow): boolean {
   const term = (subscription.billing_term ?? 'monthly') as BillingTerm;
   return subscription.status === 'active' && term === 'monthly';
@@ -154,12 +188,6 @@ async function resolveComboUpgradeChargeContext(
   const trimmedCoupon = couponCode?.trim() ?? '';
 
   if (trimmedCoupon) {
-    if (subscription.promo_code?.trim()) {
-      throw new Error(
-        'Sua assinatura já possui um cupom vinculado. O desconto atual já está nos valores.'
-      );
-    }
-
     const resolved = await resolvePromoCode(
       admin,
       trimmedCoupon,
@@ -179,17 +207,11 @@ async function resolveComboUpgradeChargeContext(
     };
   }
 
-  const charge = await resolveSubscriptionRecurringCharge(
-    admin,
-    plan,
-    subscription
-  );
-
   return {
-    planCents: charge.planCents,
-    shippingCents: charge.shippingCents,
-    promoCode: subscription.promo_code?.trim() || null,
-    promoSummary: charge.promoSummary,
+    planCents: plan.price_cents,
+    shippingCents: subscription.shipping_cents ?? 0,
+    promoCode: null,
+    promoSummary: null,
     newPromoId: null,
   };
 }
@@ -210,9 +232,6 @@ function buildComboUpgradeOptionPricing(
     charge.shippingCents
   );
   const totalCents = calculateComboTotalCents(checkoutData, billingTerm);
-  const savingsCents = calculateComboSavingsCents(checkoutData, billingTerm);
-  const option = COMBO_OPTIONS.find((entry) => entry.term === billingTerm)!;
-  const interestFreeMax = comboInterestFreeMax(planSlug, billingTerm);
 
   const baselineCheckout = buildCheckoutDataFromSubscription(
     subscription,
@@ -226,6 +245,9 @@ function buildComboUpgradeOptionPricing(
     baselineCheckout,
     billingTerm
   );
+  const savingsCents = calculateComboSavingsCents(baselineCheckout, billingTerm);
+  const option = COMBO_OPTIONS.find((entry) => entry.term === billingTerm)!;
+  const interestFreeMax = comboInterestFreeMax(planSlug, billingTerm);
 
   return {
     term: billingTerm,
@@ -652,12 +674,11 @@ export async function upgradeMonthlySubscriptionToCombo(input: {
       }
 
       if (charge.newPromoId && charge.promoCode) {
-        await recordPromoRedemption(
+        await recordComboUpgradePromoRedemption(
           admin,
           charge.newPromoId,
           input.userId,
-          input.subscriptionId,
-          charge.promoCode
+          input.subscriptionId
         );
       }
     }

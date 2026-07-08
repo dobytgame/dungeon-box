@@ -518,11 +518,9 @@ export async function resolveMonthlyKitOrderItem(
     bundledWithSubscription: requireBundle,
   });
   const qty = Math.min(Math.max(Math.floor(quantity), 1), product.maxQuantity ?? 9);
-  const pricedProduct = await applySubscriptionPromoToProduct(
-    admin,
-    product,
-    subscriptions
-  );
+  const pricedProduct = requireBundle
+    ? await applySubscriptionPromoToProduct(admin, product, subscriptions)
+    : product;
   const unitPrice = pricedProduct.priceCents;
 
   return {

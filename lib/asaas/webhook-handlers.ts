@@ -17,7 +17,10 @@ import {
   parseComboPaymentReference,
 } from '@/lib/asaas/combo-payment';
 import { resolveConfirmedInstallmentPayment } from '@/lib/asaas/installment-payments';
-import { handleStoreOrderPaymentConfirmed } from '@/lib/asaas/store-order-payment';
+import {
+  handleStoreOrderPaymentConfirmed,
+  parseStoreOrderExternalReference,
+} from '@/lib/asaas/store-order-payment';
 import { isComboInstallmentSlicePayment } from '@/lib/payments/effective-amount';
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 
@@ -41,9 +44,12 @@ export async function handleAsaasPaymentConfirmed(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
 ): Promise<'processed' | 'skipped'> {
-  const storeResult = await handleStoreOrderPaymentConfirmed(supabase, payment);
-  if (storeResult === 'processed') {
-    return 'processed';
+  const storeReference = parseStoreOrderExternalReference(
+    payment.externalReference
+  );
+  if (storeReference) {
+    const storeResult = await handleStoreOrderPaymentConfirmed(supabase, payment);
+    return storeResult;
   }
 
   const comboSubscriptionId = parseComboPaymentReference(payment.externalReference);

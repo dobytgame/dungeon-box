@@ -141,7 +141,11 @@ function itemsFromStoreOrderMeta(
     meta.shippingMode === 'with_subscription' || Boolean(meta.bundleSubscriptionId);
 
   for (const line of meta.items) {
-    if (!line.bundleSubscriptionId && !bundled) continue;
+    if (!line.bundleSubscriptionId && !bundled) {
+      if (line.kind !== 'monthly-kit' && !isMonthlyKitProductId(line.productId)) {
+        continue;
+      }
+    }
 
     if (line.kind === 'monthly-kit' || isMonthlyKitProductId(line.productId)) {
       const planName =
@@ -215,14 +219,12 @@ function isBundledStoreOrderMeta(
   meta: StoreOrderMeta,
   paymentSubscriptionId: string | null
 ): boolean {
+  if (meta.shippingMode === 'standalone') return false;
   if (meta.shippingMode === 'with_subscription') return true;
   if (meta.bundleSubscriptionId) return true;
   if (meta.items.some((line) => Boolean(line.bundleSubscriptionId))) return true;
   if (paymentSubscriptionId) return true;
-  return meta.items.some(
-    (line) =>
-      line.kind === 'monthly-kit' || isMonthlyKitProductId(line.productId)
-  );
+  return false;
 }
 
 function cycleStartTimestamp(cycle: CycleShipmentContext): number {
