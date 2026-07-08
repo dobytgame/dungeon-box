@@ -20,6 +20,7 @@ const bodySchema = z.object({
   subscriptionId: z.string().uuid(),
   billingTerm: z.enum(['combo_3', 'combo_6', 'combo_12']),
   installmentCount: z.number().int().min(1).max(COMBO_MAX_INSTALLMENTS).default(1),
+  couponCode: z.string().max(64).nullable().optional(),
   creditCard: cardSchema,
 });
 
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
       subscriptionId: body.subscriptionId,
       billingTerm: body.billingTerm,
       installmentCount: body.installmentCount,
+      couponCode: body.couponCode ?? null,
       creditCard,
       creditCardHolderInfo,
       remoteIp: getClientIpFromRequest(request),

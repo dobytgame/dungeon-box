@@ -215,7 +215,9 @@ async function SubscriptionDetailCard({
             />
             <SubscriptionComboUpgrade
               subscriptionId={subscription.id}
+              planSlug={(plan?.slug as PlanSlug) ?? 'heroi'}
               currentCycle={subscription.current_cycle ?? 1}
+              subscriptionPromoCode={subscription.promo_code ?? null}
               comboOptions={comboUpgradeOptions}
             />
           </div>

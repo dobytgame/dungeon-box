@@ -1,41 +1,98 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from '@/components/checkout/AsaasPaymentForm';
+import CouponField, {
+  couponsAvailableInCheckout,
+  type CouponApplyResult,
+} from '@/components/checkout/CouponField';
 import {
   COMBO_MAX_INSTALLMENTS,
   comboInstallmentLabel,
 } from '@/lib/checkout/combo-billing';
+import type { PlanSlug } from '@/lib/checkout/plans';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { ComboUpgradeOptionPricing } from '@/lib/subscriptions/combo-upgrade';
 
 interface Props {
   subscriptionId: string;
+  planSlug: PlanSlug;
   currentCycle: number;
+  subscriptionPromoCode: string | null;
   comboOptions: ComboUpgradeOptionPricing[];
 }
 
 export default function SubscriptionComboUpgrade({
   subscriptionId,
+  planSlug,
   currentCycle,
-  comboOptions,
+  subscriptionPromoCode,
+  comboOptions: initialComboOptions,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [comboOptions, setComboOptions] = useState(initialComboOptions);
   const [selectedTerm, setSelectedTerm] = useState<
     ComboUpgradeOptionPricing['term'] | null
   >(null);
   const [installmentCount, setInstallmentCount] = useState(1);
+  const [couponCode, setCouponCode] = useState<string | null>(
+    subscriptionPromoCode
+  );
+  const [couponSummary, setCouponSummary] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [couponError, setCouponError] = useState('');
+
+  const couponsEnabled = couponsAvailableInCheckout();
+  const hasBoundPromo = Boolean(subscriptionPromoCode?.trim());
+
+  const selected = useMemo(
+    () => comboOptions.find((option) => option.term === selectedTerm) ?? null,
+    [comboOptions, selectedTerm]
+  );
 
   if (comboOptions.length === 0) return null;
 
-  const selected =
-    comboOptions.find((option) => option.term === selectedTerm) ?? null;
+  async function handleCouponApply(result: CouponApplyResult) {
+    setCouponError('');
+    const response = await fetch(
+      '/api/subscriptions/combo-upgrade/coupon/validate',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionId,
+          code: result.code,
+        }),
+      }
+    );
+    const payload = (await response.json()) as {
+      valid?: boolean;
+      error?: string;
+      code?: string;
+      summary?: string | null;
+      options?: ComboUpgradeOptionPricing[];
+    };
+
+    if (!response.ok || !payload.valid || !payload.options?.length) {
+      throw new Error(payload.error ?? 'Cupom inválido.');
+    }
+
+    setComboOptions(payload.options);
+    setCouponCode(payload.code ?? result.code);
+    setCouponSummary(payload.summary ?? result.summary);
+  }
+
+  function handleCouponRemove() {
+    setCouponCode(null);
+    setCouponSummary(null);
+    setComboOptions(initialComboOptions);
+    setCouponError('');
+  }
 
   async function handlePay(card: AsaasCardPayload) {
     if (!selected) return;
@@ -47,6 +104,7 @@ export default function SubscriptionComboUpgrade({
         subscriptionId,
         billingTerm: selected.term,
         installmentCount,
+        couponCode: hasBoundPromo ? null : couponCode,
         creditCard: card,
       }),
     });
@@ -71,16 +129,47 @@ export default function SubscriptionComboUpgrade({
           Migrar para combo
         </p>
         <p className="mt-1 text-sm text-stone-500">
-          Ao confirmar, sua <strong className="font-medium text-stone-300">assinatura mensal será cancelada</strong>{' '}
+          Ao confirmar, sua{' '}
+          <strong className="font-medium text-stone-300">
+            assinatura mensal será cancelada
+          </strong>{' '}
           e o combo passa a ficar ativo imediatamente. Seu ciclo de fidelidade
-          (ciclo {currentCycle}) <strong className="font-medium text-stone-300">continua valendo</strong> — não
-          zera.
+          (ciclo {currentCycle}){' '}
+          <strong className="font-medium text-stone-300">continua valendo</strong>{' '}
+          — não zera.
+          {hasBoundPromo
+            ? ' O cupom da sua assinatura já está aplicado nos valores abaixo.'
+            : couponsEnabled
+              ? ' Você pode aplicar um cupom antes de pagar o combo.'
+              : ''}
         </p>
       </div>
+
+      {couponsEnabled && !hasBoundPromo ? (
+        <CouponField
+          planSlugs={[planSlug]}
+          couponCode={couponCode}
+          couponSummary={couponSummary}
+          onApply={handleCouponApply}
+          onRemove={handleCouponRemove}
+          onError={setCouponError}
+          disabled={pending}
+        />
+      ) : null}
+
+      {hasBoundPromo ? (
+        <p className="rounded-sm border border-gold/25 bg-gold/[0.06] px-3 py-2 text-sm text-stone-300">
+          Cupom ativo na assinatura:{' '}
+          <span className="font-medium text-gold">{subscriptionPromoCode}</span>
+        </p>
+      ) : null}
 
       <div className="space-y-3">
         {comboOptions.map((option) => {
           const isSelected = selectedTerm === option.term;
+          const hasCouponDiscount =
+            option.originalTotalCents > option.totalCents;
+
           return (
             <div
               key={option.term}
@@ -98,7 +187,19 @@ export default function SubscriptionComboUpgrade({
                   </p>
                   <p className="text-sm text-stone-500">{option.description}</p>
                   <p className="mt-1 text-sm text-stone-400">
-                    {formatMoney(option.totalCents)} à vista
+                    {hasCouponDiscount ? (
+                      <>
+                        <span className="text-stone-600 line-through">
+                          {formatMoney(option.originalTotalCents)}
+                        </span>{' '}
+                        <span className="text-white">
+                          {formatMoney(option.totalCents)}
+                        </span>
+                      </>
+                    ) : (
+                      formatMoney(option.totalCents)
+                    )}{' '}
+                    à vista
                     {option.savingsCents > 0 ? (
                       <span className="text-stone-600">
                         {' '}
@@ -170,6 +271,11 @@ export default function SubscriptionComboUpgrade({
         })}
       </div>
 
+      {couponError ? (
+        <p className="text-sm text-red-400" role="alert">
+          {couponError}
+        </p>
+      ) : null}
       {error ? (
         <p className="text-sm text-red-400" role="alert">
           {error}
