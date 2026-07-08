@@ -9,25 +9,34 @@
     --color-gold: #ffd600;
     --color-console: #2dd4bf;
     --color-stone-deep: #09090b;
-    /* Navbar fixa (top + padding + logo/CTA) */
-    --site-header-offset: 4.5rem;
+    /* Navbar flutuante: top + padding + logo */
+    --site-header-offset: 5.75rem;
     --plans-tier-nav-height: 3.25rem;
+    --z-site-header: 50;
+    --z-mobile-nav-backdrop: 45;
+    --z-mobile-nav-panel: 48;
+    --z-plans-tier-nav: 30;
   }
 
   @media (min-width: 640px) {
     :root {
-      --site-header-offset: 5.25rem;
+      --site-header-offset: 6.5rem;
     }
   }
 
   @media (min-width: 768px) {
     :root {
-      --site-header-offset: 6.25rem;
+      --site-header-offset: 8rem;
     }
   }
 
   html {
     scroll-behavior: auto;
+    overflow-x: clip;
+  }
+
+  body {
+    overflow-x: clip;
   }
 
   @media (prefers-reduced-motion: reduce) {

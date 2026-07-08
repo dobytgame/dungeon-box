@@ -97,29 +97,54 @@ export async function getSubscriptionWithCycles(
   };
 }
 
-export async function getAllSubscriptions(userId: string): Promise<Subscription[]> {
-  const supabase = createClient();
-  const { data } = await supabase
+const SUBSCRIPTION_SELECT =
+  '*, plans!plan_id(*), addresses(*), pending_plan:plans!pending_plan_id(*)';
+
+const SUBSCRIPTION_SELECT_FALLBACK = '*, plans!plan_id(*), addresses(*)';
+
+async function fetchUserSubscriptions(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<Subscription[]> {
+  const { data, error } = await supabase
     .from('subscriptions')
-    .select(
-      `*, plans!plan_id(*), addresses(*), pending_plan:plans!pending_plan_id(*)`
-    )
+    .select(SUBSCRIPTION_SELECT)
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  const subscriptions = data ?? [];
+  if (!error) {
+    return data ?? [];
+  }
+
+  console.error('[dashboard] getAllSubscriptions:', error.message);
+
+  const { data: fallback, error: fallbackError } = await supabase
+    .from('subscriptions')
+    .select(SUBSCRIPTION_SELECT_FALLBACK)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (fallbackError) {
+    console.error('[dashboard] getAllSubscriptions fallback:', fallbackError.message);
+    return [];
+  }
+
+  return fallback ?? [];
+}
+
+export async function getAllSubscriptions(userId: string): Promise<Subscription[]> {
+  const supabase = createClient();
+  const subscriptions = await fetchUserSubscriptions(supabase, userId);
   const pending = subscriptions.filter((sub) => sub.status === 'pending');
 
   if (pending.length > 0) {
-    await reconcilePendingSubscriptions(pending);
-    const { data: refreshed } = await supabase
-      .from('subscriptions')
-      .select(
-        `*, plans!plan_id(*), addresses(*), pending_plan:plans!pending_plan_id(*)`
-      )
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    return refreshed ?? subscriptions;
+    try {
+      await reconcilePendingSubscriptions(pending);
+    } catch (error) {
+      console.error('[dashboard] reconcilePendingSubscriptions failed:', error);
+    }
+
+    return fetchUserSubscriptions(supabase, userId);
   }
 
   return subscriptions;

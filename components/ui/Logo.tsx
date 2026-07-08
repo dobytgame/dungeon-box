@@ -9,13 +9,13 @@ interface Props {
 }
 
 const variantStyles = {
-  nav: 'h-20 w-auto',
+  nav: 'h-14 w-auto max-w-[min(52vw,11rem)] sm:h-16 sm:max-w-none md:h-20',
   footer: 'h-auto w-[240px]',
   hero: 'h-auto w-full max-w-sm sm:max-w-md lg:max-w-lg',
 };
 
 const variantDimensions = {
-  nav: { width: 280, height: 80 },
+  nav: { width: 220, height: 56 },
   footer: { width: 240, height: 70 },
   hero: { width: 560, height: 160 },
 } as const;
@@ -46,7 +46,7 @@ export default function Logo({
   return (
     <Link
       href={href}
-      className="inline-flex cursor-pointer transition-opacity hover:opacity-90"
+      className="inline-flex min-w-0 shrink cursor-pointer transition-opacity hover:opacity-90"
     >
       {image}
     </Link>

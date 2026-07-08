@@ -36,6 +36,7 @@ import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/li
 import type {
   AdminActivePlanCount,
   AdminCustomerDetail,
+  AdminCustomerPlanChange,
   AdminCustomerRow,
   AdminCycleRow,
   AdminDashboardStats,
@@ -769,7 +770,7 @@ export async function getAdminCustomerDetail(
       .order('is_default', { ascending: false }),
     admin
       .from('subscriptions')
-      .select('*, plans!plan_id(*), addresses(*)')
+      .select('*, plans!plan_id(*), pending_plan:plans!pending_plan_id(*), addresses(*)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false }),
     admin
@@ -797,6 +798,8 @@ export async function getAdminCustomerDetail(
 
   const cycles = (cyclesRes.data ?? []) as SubscriptionCycle[];
 
+  const planChanges = await listAdminCustomerPlanChanges(admin, userId);
+
   return {
     profile: profile as AdminCustomerDetail['profile'],
     addresses: addressesRes.data ?? [],
@@ -804,7 +807,45 @@ export async function getAdminCustomerDetail(
     payments: (paymentsRes.data ?? []) as Payment[],
     cycles,
     referralAttribution,
+    planChanges,
   };
+}
+
+export async function listAdminCustomerPlanChanges(
+  admin: SupabaseClient,
+  userId: string
+): Promise<AdminCustomerPlanChange[]> {
+  const { data, error } = await admin
+    .from('subscription_plan_changes')
+    .select(
+      `
+      id,
+      subscription_id,
+      event,
+      actor,
+      created_at,
+      from_plan:plans!from_plan_id(name),
+      to_plan:plans!to_plan_id(name)
+    `
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error('[admin] listAdminCustomerPlanChanges:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    subscription_id: row.subscription_id as string,
+    event: row.event as AdminCustomerPlanChange['event'],
+    actor: row.actor as AdminCustomerPlanChange['actor'],
+    created_at: row.created_at as string,
+    fromPlanName: relOne(row.from_plan as { name: string } | { name: string }[] | null)?.name ?? null,
+    toPlanName: relOne(row.to_plan as { name: string } | { name: string }[] | null)?.name ?? null,
+  }));
 }
 
 export async function listAdminSubscriptions(

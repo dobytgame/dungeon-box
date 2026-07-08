@@ -70,7 +70,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
     shippingTotalCents;
 
   return (
-    <aside className="lg:sticky lg:top-28 lg:self-start">
+    <aside className="min-w-0 lg:sticky lg:top-[calc(var(--site-header-offset)+1rem)] lg:self-start">
       <div className="overflow-hidden rounded-sm border border-white/[0.08] bg-stone-950/60 backdrop-blur-sm">
         <div className="h-1 w-full bg-ember" aria-hidden="true" />
 

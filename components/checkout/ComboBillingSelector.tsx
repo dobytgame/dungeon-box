@@ -72,7 +72,7 @@ export default function ComboBillingSelector({
                   installmentCount: 1,
                 }))
               }
-              className={`relative cursor-pointer rounded-sm border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`relative cursor-pointer rounded-sm border p-4 pr-20 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 selected
                   ? 'border-gold/40 bg-gold/10'
                   : 'border-white/[0.08] bg-stone-950/40 hover:border-white/15'

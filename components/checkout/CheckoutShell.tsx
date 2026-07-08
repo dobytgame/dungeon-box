@@ -14,7 +14,7 @@ interface Props {
 
 export default function CheckoutShell({ step, data, addresses, children }: Props) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
+    <div className="relative min-h-screen overflow-x-clip bg-stone-950 bg-grid noise">
       <div
         className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-frost/5 blur-[120px]"
         aria-hidden="true"
@@ -24,19 +24,21 @@ export default function CheckoutShell({ step, data, addresses, children }: Props
         aria-hidden="true"
       />
 
-      <header className="fixed left-4 right-4 top-4 z-50 mx-auto max-w-6xl">
-        <div className="flex items-center justify-between rounded-sm border border-white/10 bg-stone-950/90 px-5 py-3 backdrop-blur-md">
-          <Logo variant="nav" />
+      <header className="fixed inset-x-0 top-0 z-[var(--z-site-header)] px-3 pt-3 sm:px-4 sm:pt-4">
+        <div className="mx-auto flex max-w-6xl min-w-0 items-center justify-between rounded-sm border border-white/10 bg-stone-950/90 px-4 py-2.5 backdrop-blur-md sm:px-5 sm:py-3">
+          <div className="min-w-0 shrink">
+            <Logo variant="nav" />
+          </div>
           <Link
             href="/"
-            className="cursor-pointer text-xs uppercase tracking-widest text-stone-500 transition-colors duration-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+            className="shrink-0 cursor-pointer text-xs uppercase tracking-widest text-stone-500 transition-colors duration-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
           >
             Voltar ao site
           </Link>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-20 pt-[calc(var(--site-header-offset)+1.5rem)] sm:px-6 lg:px-8">
         <div className="max-w-2xl lg:max-w-none">
           <p className="font-display text-xs uppercase tracking-[0.35em] text-frost">
             Assinatura

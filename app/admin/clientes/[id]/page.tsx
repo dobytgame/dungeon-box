@@ -22,10 +22,15 @@ import { comboInstallmentLabel } from '@/lib/checkout/combo-billing';
 import {
   formatCpf,
   formatDate,
+  formatDateTime,
   formatMoney,
   formatPhone,
   relOne,
 } from '@/lib/dashboard/format';
+import {
+  PLAN_CHANGE_ACTOR_LABELS,
+  PLAN_CHANGE_EVENT_LABELS,
+} from '@/lib/subscriptions/plan-change-log';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -62,7 +67,7 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
     }
   }
 
-  const { profile, addresses, subscriptions, payments, cycles, referralAttribution } =
+  const { profile, addresses, subscriptions, payments, cycles, referralAttribution, planChanges } =
     detail;
   const name = profile.full_name ?? profile.display_name ?? profile.email;
   const isPartner = subscriptions.some(
@@ -195,6 +200,22 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
                 ),
               },
               {
+                key: 'upgrade',
+                header: 'Upgrade',
+                cell: (row) => {
+                  const pendingPlan = relOne(row.pending_plan);
+                  if (!pendingPlan) {
+                    return <span className="text-stone-600">—</span>;
+                  }
+
+                  return (
+                    <span className="rounded-sm border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-100">
+                      → {pendingPlan.name}
+                    </span>
+                  );
+                },
+              },
+              {
                 key: 'cycle',
                 header: 'Ciclo',
                 cell: (row) =>
@@ -221,6 +242,63 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
               },
             ]}
             emptyMessage="Nenhuma assinatura."
+          />
+        </div>
+      </section>
+
+      <section>
+        <h3 className="font-display text-sm uppercase tracking-widest text-stone-400">
+          Histórico de upgrade de plano
+        </h3>
+        <div className="mt-4">
+          <AdminTable
+            rows={planChanges.map((change) => ({ ...change, id: change.id }))}
+            columns={[
+              {
+                key: 'event',
+                header: 'Evento',
+                cell: (row) => PLAN_CHANGE_EVENT_LABELS[row.event],
+              },
+              {
+                key: 'change',
+                header: 'Mudança',
+                cell: (row) => {
+                  if (row.fromPlanName && row.toPlanName) {
+                    return `${row.fromPlanName} → ${row.toPlanName}`;
+                  }
+                  if (row.toPlanName) {
+                    return `→ ${row.toPlanName}`;
+                  }
+                  if (row.fromPlanName) {
+                    return `${row.fromPlanName} → —`;
+                  }
+                  return '—';
+                },
+              },
+              {
+                key: 'actor',
+                header: 'Origem',
+                cell: (row) => PLAN_CHANGE_ACTOR_LABELS[row.actor],
+              },
+              {
+                key: 'subscription',
+                header: 'Assinatura',
+                cell: (row) => (
+                  <Link
+                    href={`/admin/assinaturas/${row.subscription_id}`}
+                    className="font-mono text-xs text-console hover:underline"
+                  >
+                    {row.subscription_id.slice(0, 8)}…
+                  </Link>
+                ),
+              },
+              {
+                key: 'date',
+                header: 'Data',
+                cell: (row) => formatDateTime(row.created_at),
+              },
+            ]}
+            emptyMessage="Nenhum upgrade registrado para este cliente."
           />
         </div>
       </section>

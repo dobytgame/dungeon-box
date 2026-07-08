@@ -240,6 +240,17 @@ export interface AdminCustomerDetail {
   payments: Payment[];
   cycles: SubscriptionCycle[];
   referralAttribution: AdminCustomerReferralAttribution | null;
+  planChanges: AdminCustomerPlanChange[];
+}
+
+export interface AdminCustomerPlanChange {
+  id: string;
+  subscription_id: string;
+  event: 'scheduled' | 'applied' | 'cancelled';
+  actor: 'user' | 'admin' | 'system';
+  created_at: string;
+  fromPlanName: string | null;
+  toPlanName: string | null;
 }
 
 export type AdminListFilters = {

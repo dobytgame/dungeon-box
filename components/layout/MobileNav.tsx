@@ -34,7 +34,7 @@ export function MobileNavToggle({
   return (
     <button
       type="button"
-      className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-300 transition-colors duration-200 hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember md:hidden"
+      className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-300 transition-colors duration-200 hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember md:hidden"
       aria-expanded={open}
       aria-controls="mobile-nav-panel"
       aria-label={open ? 'Fechar menu' : 'Abrir menu'}
@@ -60,6 +60,7 @@ export default function MobileNavPanel({
     ctaLabel ?? (isLoggedIn ? 'Ir para o dashboard' : 'Assinar agora');
   const primaryCtaHref =
     ctaHref ?? (isLoggedIn ? '/dashboard' : '/checkout?plan=heroi');
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -80,16 +81,16 @@ export default function MobileNavPanel({
   if (!open) return null;
 
   return (
-    <>
+    <div className="fixed inset-0 z-[var(--z-mobile-nav-backdrop)] md:hidden" aria-hidden={false}>
       <button
         type="button"
-        className="fixed inset-0 z-40 cursor-pointer bg-stone-950/80 backdrop-blur-sm md:hidden"
+        className="absolute inset-0 cursor-pointer bg-stone-950/85 backdrop-blur-sm"
         aria-label="Fechar menu"
         onClick={() => onOpenChange(false)}
       />
       <div
         id="mobile-nav-panel"
-        className="fixed left-3 right-3 top-[4.75rem] z-50 overflow-hidden rounded-sm border border-white/10 bg-stone-950/95 shadow-2xl backdrop-blur-md md:hidden"
+        className="absolute inset-x-3 top-[calc(var(--site-header-offset)+0.375rem)] z-[var(--z-mobile-nav-panel)] max-h-[calc(100dvh-var(--site-header-offset)-1rem)] overflow-y-auto rounded-sm border border-white/10 bg-stone-950/98 shadow-2xl backdrop-blur-md"
         role="dialog"
         aria-modal="true"
         aria-label="Menu de navegação"
@@ -135,6 +136,6 @@ export default function MobileNavPanel({
           </div>
         </nav>
       </div>
-    </>
+    </div>
   );
 }

@@ -126,9 +126,9 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
               imageOnLeft ? 'lg:order-1' : 'lg:order-2'
             } lg:sticky lg:top-[calc(var(--site-header-offset)+var(--plans-tier-nav-height)+0.75rem)] lg:self-start`}
           >
-            <div className="relative">
+            <div className="relative overflow-hidden">
               <div
-                className={`pointer-events-none absolute -inset-8 rounded-sm blur-3xl ${theme.glowOrb}`}
+                className={`pointer-events-none absolute -inset-4 rounded-sm blur-3xl lg:-inset-8 ${theme.glowOrb}`}
                 aria-hidden="true"
               />
 

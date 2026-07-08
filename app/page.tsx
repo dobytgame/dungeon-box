@@ -33,7 +33,7 @@ export default async function Home() {
       <JsonLd data={jsonLd} />
       <LandingPageAnalytics />
       <Navbar isLoggedIn={isLoggedIn} userName={userName} />
-      <main id="conteudo-principal">
+      <main id="conteudo-principal" className="overflow-x-clip">
         <Hero isLoggedIn={isLoggedIn} userName={userName} />
         <Marquee />
         <PlansStack />

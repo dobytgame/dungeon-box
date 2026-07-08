@@ -60,10 +60,10 @@ function PlansIntro() {
 function PlansTierNav() {
   return (
     <nav
-      className="sticky z-40 border-y border-white/[0.06] bg-stone-950/95 backdrop-blur-md top-[var(--site-header-offset)]"
+      className="sticky z-[var(--z-plans-tier-nav)] border-y border-white/[0.06] bg-stone-950/95 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-md top-[var(--site-header-offset)]"
       aria-label="Navegação entre planos"
     >
-      <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 scrollbar-none sm:px-6 lg:px-8">
         {plans.map((plan) => {
           const theme = getPlanTheme(plan.accent);
           return (
@@ -110,7 +110,7 @@ function PlansSupportFooter() {
 export default function PlansStack() {
   return (
     <div id="planos" className="scroll-mt-[var(--site-header-offset)] bg-stone-950">
-      <div className="border-b border-white/[0.06] px-4 pb-10 pt-24 sm:px-6 sm:pb-12 lg:px-8 lg:pt-28">
+      <div className="border-b border-white/[0.06] px-4 pb-10 pt-[calc(var(--site-header-offset)+1.5rem)] sm:px-6 sm:pb-12 lg:px-8 lg:pt-[calc(var(--site-header-offset)+2rem)]">
         <PlansIntro />
       </div>
 

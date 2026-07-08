@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { checkoutHref } from '@/lib/checkout/plans';
 import { createClient } from '@/lib/supabase/client';
@@ -42,6 +43,7 @@ function postRegisterRedirect(redirectTo: string) {
 }
 
 export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
+  const router = useRouter();
   const supabase = createClient();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -51,6 +53,11 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
   const [message, setMessage] = useState('');
 
   const callbackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=${encodeURIComponent(redirectTo)}`;
+
+  function redirectAfterAuth(destination: string) {
+    router.refresh();
+    router.push(destination);
+  }
 
   async function handleOAuth(provider: 'google') {
     setLoading(true);
@@ -114,7 +121,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
 
       if (data.session) {
         void fetch('/api/referral/attribute-signup', { method: 'POST' });
-        window.location.href = destination;
+        redirectAfterAuth(destination);
         return;
       }
 
@@ -131,14 +138,14 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
 
       void fetch('/api/referral/attribute-signup', { method: 'POST' });
 
-      window.location.href = destination;
+      redirectAfterAuth(destination);
       return;
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setMessage(error.message);
       } else {
-        window.location.href = redirectTo;
+        redirectAfterAuth(redirectTo);
         return;
       }
     }

@@ -82,7 +82,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
       ref={sectionRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise"
+      className="relative min-h-[100dvh] overflow-x-clip bg-stone-950 bg-grid noise"
     >
       <div className="hero-image-spotlight pointer-events-none absolute inset-0" aria-hidden="true" />
       <GlowOrb color="frost" size="lg" position="-top-20 left-1/2 -translate-x-1/2" />
@@ -166,7 +166,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
         sectionRef={sectionRef}
         mouseX={mouseX}
         mouseY={mouseY}
-        className="right-[3%] bottom-[42%] opacity-50 md:opacity-60"
+        className="right-[3%] bottom-[42%] hidden opacity-60 md:block"
         scrollSpeed={0.6}
         depth={1}
         floatDuration={4.5}
@@ -177,15 +177,15 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
         <D20Icon variant="gold" className="h-11 w-11 md:h-14 md:w-14" />
       </ParallaxFloat>
 
-      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8 lg:px-8 lg:pt-32 xl:gap-12">
+      <div className="relative mx-auto flex min-h-[100dvh] max-w-7xl flex-col justify-center px-4 pb-20 pt-[calc(var(--site-header-offset)+1.25rem)] sm:px-6 sm:pb-20 sm:pt-[calc(var(--site-header-offset)+1.5rem)] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-8 lg:px-8 lg:pt-[calc(var(--site-header-offset)+2rem)] xl:gap-12">
         <motion.div
           variants={container}
           initial="hidden"
           animate="show"
           className="relative z-10"
         >
-          <motion.div variants={item} className="mb-6">
-            <span className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-sm border border-frost/30 bg-frost/5 px-3 py-2 font-display text-[0.65rem] uppercase tracking-[0.2em] text-frost backdrop-blur-sm sm:px-4 sm:text-xs sm:tracking-[0.25em]">
+          <motion.div variants={item} className="mb-4 sm:mb-6">
+            <span className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-sm border border-frost/30 bg-frost/5 px-3 py-2 font-display text-[0.65rem] uppercase tracking-[0.18em] text-frost backdrop-blur-sm sm:px-4 sm:text-xs sm:tracking-[0.25em]">
               <Hexagon className="h-3.5 w-3.5" aria-hidden="true" />
               Assinatura Mensal · Cenários 3D
             </span>
@@ -193,7 +193,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
 
           <motion.h1
             variants={item}
-            className="font-display text-[clamp(2.75rem,11vw,9rem)] leading-[0.85] tracking-tight"
+            className="font-display text-[clamp(2.5rem,10vw,9rem)] leading-[0.88] tracking-tight"
           >
             <span className="block text-white">DUNGEON</span>
             <span className="block text-gradient-ember">BOX</span>
@@ -248,7 +248,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="relative z-10 mt-10 w-full lg:mt-0"
+          className="relative z-10 mt-12 w-full min-w-0 sm:mt-10 lg:mt-0"
         >
           <motion.div
             style={{
@@ -284,7 +284,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
 
       <a
         href="#planos"
-        className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-1.5 text-stone-500 transition-colors hover:text-stone-300 sm:bottom-8 sm:gap-2"
+        className="absolute bottom-4 left-1/2 z-10 hidden -translate-x-1/2 cursor-pointer flex-col items-center gap-1.5 text-stone-500 transition-colors hover:text-stone-300 sm:bottom-8 sm:flex sm:gap-2"
         aria-label="Rolar para ver os planos"
       >
         <span className="font-display text-xs uppercase tracking-[0.3em]">Scroll</span>

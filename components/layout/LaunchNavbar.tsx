@@ -41,17 +41,24 @@ export default function LaunchNavbar({ isLoggedIn = false, userName }: Props) {
   return (
     <>
       <header
-        className={`fixed left-3 right-3 top-3 z-50 mx-auto max-w-7xl rounded-sm border transition-all duration-300 sm:left-4 sm:right-4 sm:top-4 ${
-          scrolled || menuOpen
-            ? 'border-white/10 bg-stone-950/90 backdrop-blur-md'
-            : 'border-transparent bg-transparent'
+        className={`fixed inset-x-0 top-0 px-3 pt-3 transition-[z-index] duration-200 sm:px-4 sm:pt-4 ${
+          menuOpen ? 'z-[52]' : 'z-[var(--z-site-header)]'
         }`}
       >
-        <nav
-          className="flex items-center justify-between gap-3 px-4 py-2.5 sm:gap-4 sm:px-5 sm:py-3 md:px-8 md:py-4"
-          aria-label="Navegação principal"
+        <div
+          className={`mx-auto max-w-7xl rounded-sm border transition-all duration-300 ${
+            scrolled || menuOpen
+              ? 'border-white/10 bg-stone-950/90 backdrop-blur-md'
+              : 'border-transparent bg-transparent'
+          }`}
         >
-          <Logo variant="nav" />
+          <nav
+            className="flex min-w-0 items-center justify-between gap-2 px-3 py-2 sm:gap-4 sm:px-5 sm:py-3 md:px-8 md:py-4"
+            aria-label="Navegação principal"
+          >
+            <div className="min-w-0 shrink">
+              <Logo variant="nav" />
+            </div>
 
           <div className="hidden items-center gap-8 md:flex">
             {navLinks.map((link) => (
@@ -84,6 +91,7 @@ export default function LaunchNavbar({ isLoggedIn = false, userName }: Props) {
             <MobileNavToggle open={menuOpen} onOpenChange={setMenuOpen} />
           </div>
         </nav>
+        </div>
       </header>
 
       <MobileNavPanel

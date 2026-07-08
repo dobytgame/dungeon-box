@@ -10,6 +10,7 @@ import {
   type SubscriptionRecurringContext,
 } from '@/lib/subscriptions/recurring-charge';
 import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
+import { logSubscriptionPlanChange } from '@/lib/subscriptions/plan-change-log';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 type PlanRow = PlanChargeRow & {
@@ -159,7 +160,7 @@ export async function applyPendingPlanUpgrade(
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select(
-      'id, pending_plan_id, plans!plan_id(name), pending_plan:plans!pending_plan_id(name)'
+      'id, user_id, pending_plan_id, plans!plan_id(id, name), pending_plan:plans!pending_plan_id(id, name)'
     )
     .eq('id', subscriptionId)
     .maybeSingle();
@@ -167,13 +168,13 @@ export async function applyPendingPlanUpgrade(
   if (!subscription?.pending_plan_id) return null;
 
   const currentPlan = relOne(
-    subscription.plans as { name: string } | { name: string }[] | null
+    subscription.plans as { id: string; name: string } | { id: string; name: string }[] | null
   );
   const pendingPlan = relOne(
-    subscription.pending_plan as { name: string } | { name: string }[] | null
+    subscription.pending_plan as { id: string; name: string } | { id: string; name: string }[] | null
   );
 
-  if (!currentPlan?.name || !pendingPlan?.name) {
+  if (!currentPlan?.name || !pendingPlan?.name || !currentPlan.id) {
     console.error('[upgrade] apply pending plan: plan names missing:', subscriptionId);
     return null;
   }
@@ -190,6 +191,21 @@ export async function applyPendingPlanUpgrade(
   if (error) {
     console.error('[upgrade] apply pending plan:', error);
     return null;
+  }
+
+  if (subscription.user_id) {
+    await logSubscriptionPlanChange(supabase, {
+      subscriptionId,
+      userId: subscription.user_id,
+      fromPlanId: currentPlan.id,
+      toPlanId: subscription.pending_plan_id,
+      event: 'applied',
+      actor: 'system',
+      metadata: {
+        fromPlanName: currentPlan.name,
+        toPlanName: pendingPlan.name,
+      },
+    });
   }
 
   return {
@@ -270,6 +286,21 @@ export async function scheduleSubscriptionUpgrade(
     return { error: updateError.message };
   }
 
+  await logSubscriptionPlanChange(supabase, {
+    subscriptionId,
+    userId,
+    fromPlanId: currentPlan.id,
+    toPlanId: targetPlan.id,
+    event: 'scheduled',
+    actor: 'user',
+    actorId: userId,
+    metadata: {
+      fromPlanName: currentPlan.name,
+      toPlanName: targetPlan.name,
+      recurringTotalCents: charge.totalCents,
+    },
+  });
+
   if (subscription.asaas_subscription_id) {
     const syncResult = await reconcileAsaasSubscriptionPendingPayment(
       admin,
@@ -294,7 +325,7 @@ export async function cancelPendingSubscriptionUpgrade(
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select(
-      'id, pending_plan_id, asaas_subscription_id, plan_id, promo_code, shipping_cents, special_notes, plans!plan_id(*)'
+      'id, user_id, pending_plan_id, asaas_subscription_id, plan_id, promo_code, shipping_cents, special_notes, plans!plan_id(id, name), pending_plan:plans!pending_plan_id(id, name)'
     )
     .eq('id', subscriptionId)
     .eq('user_id', userId)
@@ -303,6 +334,11 @@ export async function cancelPendingSubscriptionUpgrade(
   if (!subscription?.pending_plan_id) {
     return { error: 'Não há upgrade agendado para esta assinatura.' };
   }
+
+  const currentPlan = relOne(subscription.plans as PlanRow | PlanRow[] | null);
+  const pendingPlan = relOne(
+    subscription.pending_plan as PlanRow | PlanRow[] | null
+  );
 
   const { error } = await supabase
     .from('subscriptions')
@@ -316,6 +352,20 @@ export async function cancelPendingSubscriptionUpgrade(
   if (error) {
     return { error: error.message };
   }
+
+  await logSubscriptionPlanChange(supabase, {
+    subscriptionId,
+    userId,
+    fromPlanId: currentPlan?.id ?? subscription.plan_id ?? null,
+    toPlanId: subscription.pending_plan_id,
+    event: 'cancelled',
+    actor: 'user',
+    actorId: userId,
+    metadata: {
+      fromPlanName: currentPlan?.name ?? null,
+      toPlanName: pendingPlan?.name ?? null,
+    },
+  });
 
   if (subscription.asaas_subscription_id) {
     const admin = createAdminClient();
