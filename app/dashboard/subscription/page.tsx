@@ -19,8 +19,12 @@ import {
 } from '@/lib/dashboard/format';
 import { getManageableSubscriptions, requireDashboardUser } from '@/lib/dashboard/queries';
 import type { Subscription } from '@/lib/dashboard/types';
+import {
+  buildUpgradeOptionsPricing,
+  resolvePendingUpgradePricing,
+} from '@/lib/subscriptions/upgrade';
 
-function SubscriptionDetailCard({
+async function SubscriptionDetailCard({
   subscription,
   showDevMeta,
   paymentLink,
@@ -29,6 +33,10 @@ function SubscriptionDetailCard({
   showDevMeta: boolean;
   paymentLink?: CustomerSubscriptionPaymentLink | null;
 }) {
+  const [upgradeOptions, pendingUpgradePricing] = await Promise.all([
+    buildUpgradeOptionsPricing(subscription),
+    resolvePendingUpgradePricing(subscription),
+  ]);
   const plan = relOne(subscription.plans);
   const address = relOne(subscription.addresses);
   const customerNotes = parseCustomerNotes(subscription.special_notes);
@@ -162,7 +170,16 @@ function SubscriptionDetailCard({
       <DashboardCard title="Gerenciar assinatura" accent="none">
         {!isPending && !isPastDue ? (
           <div className="mb-6">
-            <SubscriptionUpgrade subscription={subscription} />
+            <SubscriptionUpgrade
+              subscription={subscription}
+              upgradeOptions={upgradeOptions}
+              pendingUpgradeTotalCents={
+                pendingUpgradePricing?.totalCents ?? null
+              }
+              pendingUpgradePromoSummary={
+                pendingUpgradePricing?.promoSummary ?? null
+              }
+            />
           </div>
         ) : null}
         <SubscriptionActions subscription={subscription} />

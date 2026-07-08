@@ -1,44 +1,41 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import {
   cancelPendingUpgradeAction,
   scheduleSubscriptionUpgradeAction,
 } from '@/app/dashboard/actions';
-import { getCheckoutPlan, type PlanSlug } from '@/lib/checkout/plans';
 import { formatMoney, relOne } from '@/lib/dashboard/format';
 import type { Subscription } from '@/lib/dashboard/types';
-import { upgradeOptionsForSlug } from '@/lib/subscriptions/plan-tier';
+import type { UpgradeOptionPricing } from '@/lib/subscriptions/upgrade';
 
 interface Props {
   subscription: Subscription;
+  upgradeOptions: UpgradeOptionPricing[];
+  pendingUpgradeTotalCents: number | null;
+  pendingUpgradePromoSummary: string | null;
 }
 
-export default function SubscriptionUpgrade({ subscription }: Props) {
+export default function SubscriptionUpgrade({
+  subscription,
+  upgradeOptions,
+  pendingUpgradeTotalCents,
+  pendingUpgradePromoSummary,
+}: Props) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState('');
 
   const currentPlan = relOne(subscription.plans);
   const pendingPlan = relOne(subscription.pending_plan);
-  const currentSlug = currentPlan?.slug as PlanSlug | undefined;
 
-  const upgradeOptions = useMemo(() => {
-    if (!currentSlug || subscription.status !== 'active') return [];
-    return upgradeOptionsForSlug(currentSlug).map((slug) => {
-      const marketing = getCheckoutPlan(slug);
-      return {
-        slug,
-        name: marketing.name,
-        priceCents: marketing.price * 100,
-      };
-    });
-  }, [currentSlug, subscription.status]);
-
-  if (!currentSlug || subscription.status !== 'active') {
+  if (!currentPlan?.slug || subscription.status !== 'active') {
     return null;
   }
 
   if (pendingPlan) {
+    const pendingTotal =
+      pendingUpgradeTotalCents ?? pendingPlan.price_cents;
+
     return (
       <div className="space-y-3 rounded-sm border border-frost/20 bg-frost/5 p-4">
         <p className="font-display text-sm uppercase tracking-wide text-frost">
@@ -47,8 +44,11 @@ export default function SubscriptionUpgrade({ subscription }: Props) {
         <p className="text-sm text-stone-400">
           No próximo ciclo você passará para{' '}
           <span className="text-white">{pendingPlan.name}</span> (
-          {formatMoney(pendingPlan.price_cents)}/mês). Até lá, continua no plano{' '}
-          {currentPlan?.name ?? 'atual'}.
+          {formatMoney(pendingTotal)}/mês
+          {pendingUpgradePromoSummary
+            ? ` com ${pendingUpgradePromoSummary.toLowerCase()}`
+            : ''}
+          ). Até lá, continua no plano {currentPlan.name ?? 'atual'}.
         </p>
         <button
           type="button"
@@ -85,6 +85,9 @@ export default function SubscriptionUpgrade({ subscription }: Props) {
         <p className="mt-1 text-sm text-stone-500">
           O valor do plano superior passa a valer a partir do próximo ciclo de
           cobrança. Você continua recebendo o plano atual até lá.
+          {subscription.promo_code
+            ? ' Seu cupom será aplicado nas mesmas regras do plano atual.'
+            : ''}
         </p>
       </div>
       <div className="space-y-3">
@@ -96,7 +99,22 @@ export default function SubscriptionUpgrade({ subscription }: Props) {
             <div>
               <p className="text-sm font-medium text-white">{option.name}</p>
               <p className="text-sm text-stone-500">
-                {formatMoney(option.priceCents)}/mês a partir do próximo ciclo
+                {option.promoSummary &&
+                option.totalCents < option.originalTotalCents ? (
+                  <>
+                    <span className="text-stone-600 line-through">
+                      {formatMoney(option.originalTotalCents)}
+                    </span>{' '}
+                    <span className="text-white">
+                      {formatMoney(option.totalCents)}
+                    </span>
+                    /mês a partir do próximo ciclo ({option.promoSummary.toLowerCase()})
+                  </>
+                ) : (
+                  <>
+                    {formatMoney(option.totalCents)}/mês a partir do próximo ciclo
+                  </>
+                )}
               </p>
             </div>
             <button

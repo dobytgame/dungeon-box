@@ -124,6 +124,74 @@ export async function resolveStoredPromoForStorePrice(
   };
 }
 
+export type RecurringPromoBilling = {
+  planCents: number;
+  shippingCents: number;
+  summary: string;
+};
+
+/** Cupom vinculado à assinatura — aplica as mesmas regras do checkout na cobrança recorrente. */
+export async function resolveStoredPromoForRecurringBilling(
+  supabase: SupabaseClient,
+  rawCode: string | null | undefined,
+  planSlug: PlanSlug,
+  planPriceCents: number,
+  shippingCents: number
+): Promise<RecurringPromoBilling | null> {
+  const code = rawCode?.trim() ? normalizePromoCode(rawCode) : '';
+  if (!code) return null;
+
+  const { data: promo, error } = await supabase
+    .from('promo_codes')
+    .select(
+      'id, code, discount_type, discount_value, includes_free_shipping, max_redemptions, times_redeemed, expires_at, active, plan_slugs'
+    )
+    .eq('code', code)
+    .maybeSingle();
+
+  if (error || !promo || !promo.active) return null;
+
+  if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {
+    return null;
+  }
+
+  if (promo.plan_slugs?.length && !promo.plan_slugs.includes(planSlug)) {
+    return null;
+  }
+
+  const normalizedPromo: PromoCodeRow = {
+    ...(promo as PromoCodeRow),
+    includes_free_shipping: promo.includes_free_shipping ?? false,
+  };
+
+  if (promo.discount_type === 'free_shipping') {
+    if (shippingCents <= 0) return null;
+    return {
+      planCents: planPriceCents,
+      shippingCents: 0,
+      summary: formatPromoSummary(normalizedPromo),
+    };
+  }
+
+  const planCents = applyPromoDiscount(planPriceCents, promo);
+  const effectiveShipping = promoGrantsFreeShipping(normalizedPromo)
+    ? 0
+    : shippingCents;
+
+  const hasPlanDiscount = planCents < planPriceCents;
+  const hasFreeShipping = effectiveShipping < shippingCents;
+
+  if (!hasPlanDiscount && !hasFreeShipping) {
+    return null;
+  }
+
+  return {
+    planCents,
+    shippingCents: effectiveShipping,
+    summary: formatPromoSummary(normalizedPromo),
+  };
+}
+
 async function userAlreadyRedeemed(
   supabase: SupabaseClient,
   promoCodeId: string,
