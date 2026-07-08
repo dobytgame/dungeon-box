@@ -315,6 +315,12 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
       return;
     }
 
+    const itemsSnapshot = normalizeCartLines(lines, allProducts);
+    if (itemsSnapshot.length === 0) {
+      setError('Seu carrinho está vazio.');
+      return;
+    }
+
     setError('');
     startTransition(async () => {
       try {
@@ -324,7 +330,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           body: JSON.stringify(
             buildCheckoutPayload(
               method,
-              lines,
+              itemsSnapshot,
               checkoutAddressId,
               hasMonthlyKit
                 ? requiresBundledMonthlyKit
@@ -341,12 +347,12 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
         const payload = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          setError(
+          const message =
             typeof payload.error === 'string'
               ? payload.error
-              : 'Não foi possível concluir a compra.'
-          );
-          return;
+              : 'Não foi possível concluir a compra.';
+          setError(message);
+          throw new Error(message);
         }
 
         if (payload.pending && payload.orderId) {

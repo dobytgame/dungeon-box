@@ -1,6 +1,11 @@
+import { isPlanSlug } from '@/lib/checkout/plans';
 import type { StoreProduct } from '@/lib/store/catalog';
-import { getStoreProduct } from '@/lib/store/catalog';
-import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
+import { getStoreProduct, getStoreProductBySlug } from '@/lib/store/catalog';
+import {
+  isMonthlyKitProductId,
+  monthlyKitProductId,
+  parseMonthlyKitPlanSlug,
+} from '@/lib/store/monthly-kits';
 
 export type CartLine = {
   productId: string;
@@ -30,9 +35,32 @@ function findCatalogProduct(
 ): StoreProduct | undefined {
   return (
     getStoreProduct(productId) ??
+    getStoreProductBySlug(productId) ??
     catalog.find((entry) => entry.id === productId) ??
     catalog.find((entry) => entry.slug === productId)
   );
+}
+
+/** Resolve slug / alias para o ID canônico usado no checkout e no Asaas. */
+export function canonicalizeCartProductId(
+  productId: string,
+  catalog: StoreProduct[] = []
+): string | null {
+  const product = findCatalogProduct(productId, catalog);
+  if (product) return product.id;
+
+  if (isMonthlyKitProductId(productId) && parseMonthlyKitPlanSlug(productId)) {
+    return productId;
+  }
+
+  if (productId.startsWith('kit-avulso-')) {
+    const slug = productId.slice('kit-avulso-'.length);
+    if (isPlanSlug(slug)) {
+      return monthlyKitProductId(slug);
+    }
+  }
+
+  return null;
 }
 
 function maxQuantityForProduct(
@@ -51,22 +79,14 @@ export function normalizeCartLines(
   const merged = new Map<string, number>();
 
   for (const line of lines) {
-    const product = findCatalogProduct(line.productId, catalog);
+    const canonicalId = canonicalizeCartProductId(line.productId, catalog);
+    if (!canonicalId) continue;
 
-    if (!product) {
-      if (
-        isMonthlyKitProductId(line.productId) &&
-        !parseMonthlyKitPlanSlug(line.productId)
-      ) {
-        continue;
-      }
-      if (!isMonthlyKitProductId(line.productId)) continue;
-    }
-
-    const maxQty = maxQuantityForProduct(product, line.productId);
+    const product = findCatalogProduct(canonicalId, catalog);
+    const maxQty = maxQuantityForProduct(product, canonicalId);
     const qty = Math.min(Math.max(Math.floor(line.quantity), 0), maxQty);
     if (qty === 0) continue;
-    merged.set(line.productId, (merged.get(line.productId) ?? 0) + qty);
+    merged.set(canonicalId, (merged.get(canonicalId) ?? 0) + qty);
   }
 
   return Array.from(merged.entries()).map(([productId, quantity]) => ({

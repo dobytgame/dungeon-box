@@ -18,7 +18,7 @@ import type {
 } from '@/lib/asaas/subscription-checkout';
 import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
 import type { CartLine } from '@/lib/store/cart';
-import { normalizeCartLines } from '@/lib/store/cart';
+import { canonicalizeCartProductId, normalizeCartLines } from '@/lib/store/cart';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 import {
   isMonthlyKitProductId,
@@ -139,9 +139,41 @@ async function resolveStoreLines(
 ): Promise<ResolvedStoreLine[] | { error: string }> {
   const normalized = normalizeCartLines(items);
   if (normalized.length === 0) {
-    return { error: 'Seu carrinho está vazio.' };
+    const recovered = items
+      .map((line) => {
+        const productId = canonicalizeCartProductId(line.productId);
+        if (!productId) return null;
+        const qty = Math.min(Math.max(Math.floor(line.quantity), 1), 9);
+        return { productId, quantity: qty };
+      })
+      .filter((line): line is CartLine => line !== null);
+
+    if (recovered.length === 0) {
+      return { error: 'Seu carrinho está vazio.' };
+    }
+
+    return resolveStoreLinesWithItems(
+      supabase,
+      userId,
+      recovered,
+      bundleSubscriptionId
+    );
   }
 
+  return resolveStoreLinesWithItems(
+    supabase,
+    userId,
+    normalized,
+    bundleSubscriptionId
+  );
+}
+
+async function resolveStoreLinesWithItems(
+  supabase: SupabaseClient,
+  userId: string,
+  normalized: CartLine[],
+  bundleSubscriptionId: string | null
+): Promise<ResolvedStoreLine[] | { error: string }> {
   const resolved: ResolvedStoreLine[] = [];
   const admin = createAdminClient();
 

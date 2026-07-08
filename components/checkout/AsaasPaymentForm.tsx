@@ -98,6 +98,7 @@ export default function AsaasPaymentForm({
         onError(
           err instanceof Error ? err.message : 'Não foi possível confirmar o pagamento.'
         );
+      } finally {
         setSubmitting(false);
       }
     },
