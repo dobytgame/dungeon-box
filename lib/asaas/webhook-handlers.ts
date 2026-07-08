@@ -2,8 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveLocalAsaasSubscription } from '@/lib/asaas/resolve-local-subscription';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
+import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
 import { applyPendingPlanUpgrade } from '@/lib/subscriptions/upgrade';
 import {
+  notifyPlanUpgradeApplied,
   notifyPurchaseCompleted,
   notifySubscriptionCancelled,
 } from '@/lib/email/subscription-notify';
@@ -138,7 +140,7 @@ export async function handleAsaasPaymentConfirmed(
     return 'processed';
   }
 
-  await applyPendingPlanUpgrade(supabase, local.id);
+  const appliedUpgrade = await applyPendingPlanUpgrade(supabase, local.id);
 
   const periodEnd = new Date();
   periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -157,7 +159,46 @@ export async function handleAsaasPaymentConfirmed(
     );
   }
 
+  if (appliedUpgrade) {
+    const { data: billingRow } = await supabase
+      .from('subscriptions')
+      .select('next_billing_date')
+      .eq('id', local.id)
+      .maybeSingle();
+
+    void reconcileAsaasSubscriptionPendingPayment(supabase, local.id).catch(
+      (err) => {
+        console.warn('[asaas] post-upgrade pending payment reconcile failed:', err);
+      }
+    );
+
+    void notifyPlanUpgradeApplied(supabase, local.id, {
+      previousPlanName: appliedUpgrade.previousPlanName,
+      newPlanName: appliedUpgrade.newPlanName,
+      nextBillingDate:
+        billingRow?.next_billing_date ?? periodEnd.toISOString(),
+    }).catch((err) => {
+      console.error('[email] plan upgrade applied notify failed:', err);
+    });
+  }
+
   return 'processed';
+}
+
+export async function handleAsaasPaymentCreated(
+  supabase: SupabaseClient,
+  payment: AsaasWebhookPayment
+): Promise<'processed' | 'skipped'> {
+  const local = await resolveLocalAsaasSubscription(supabase, payment);
+  if (!local || local.status !== 'active') return 'skipped';
+
+  const result = await reconcileAsaasSubscriptionPendingPayment(
+    supabase,
+    local.id,
+    payment.id
+  );
+
+  return result === 'skipped' ? 'skipped' : 'processed';
 }
 
 export async function handleAsaasPaymentOverdue(

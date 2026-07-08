@@ -136,7 +136,8 @@ export async function resolveStoredPromoForRecurringBilling(
   rawCode: string | null | undefined,
   planSlug: PlanSlug,
   planPriceCents: number,
-  shippingCents: number
+  shippingCents: number,
+  options?: { boundToSubscription?: boolean }
 ): Promise<RecurringPromoBilling | null> {
   const code = rawCode?.trim() ? normalizePromoCode(rawCode) : '';
   if (!code) return null;
@@ -155,7 +156,11 @@ export async function resolveStoredPromoForRecurringBilling(
     return null;
   }
 
-  if (promo.plan_slugs?.length && !promo.plan_slugs.includes(planSlug)) {
+  if (
+    !options?.boundToSubscription &&
+    promo.plan_slugs?.length &&
+    !promo.plan_slugs.includes(planSlug)
+  ) {
     return null;
   }
 

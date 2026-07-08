@@ -21,6 +21,7 @@ import { getManageableSubscriptions, requireDashboardUser } from '@/lib/dashboar
 import type { Subscription } from '@/lib/dashboard/types';
 import {
   buildUpgradeOptionsPricing,
+  resolveCurrentSubscriptionRecurringPricing,
   resolvePendingUpgradePricing,
 } from '@/lib/subscriptions/upgrade';
 
@@ -33,10 +34,12 @@ async function SubscriptionDetailCard({
   showDevMeta: boolean;
   paymentLink?: CustomerSubscriptionPaymentLink | null;
 }) {
-  const [upgradeOptions, pendingUpgradePricing] = await Promise.all([
-    buildUpgradeOptionsPricing(subscription),
-    resolvePendingUpgradePricing(subscription),
-  ]);
+  const [upgradeOptions, pendingUpgradePricing, currentRecurringPricing] =
+    await Promise.all([
+      buildUpgradeOptionsPricing(subscription),
+      resolvePendingUpgradePricing(subscription),
+      resolveCurrentSubscriptionRecurringPricing(subscription),
+    ]);
   const plan = relOne(subscription.plans);
   const address = relOne(subscription.addresses);
   const customerNotes = parseCustomerNotes(subscription.special_notes);
@@ -92,7 +95,25 @@ async function SubscriptionDetailCard({
                 <span className="text-white">
                   {plan.name}{' '}
                   <span className="text-stone-500">
-                    · {formatMoney(plan.price_cents)}/mês
+                    ·{' '}
+                    {currentRecurringPricing &&
+                    currentRecurringPricing.totalCents <
+                      currentRecurringPricing.originalTotalCents ? (
+                      <>
+                        <span className="line-through">
+                          {formatMoney(currentRecurringPricing.originalTotalCents)}
+                        </span>{' '}
+                        {formatMoney(currentRecurringPricing.totalCents)}
+                      </>
+                    ) : (
+                      formatMoney(
+                        currentRecurringPricing?.totalCents ?? plan.price_cents
+                      )
+                    )}
+                    /mês
+                    {currentRecurringPricing?.promoSummary
+                      ? ` (${currentRecurringPricing.promoSummary.toLowerCase()})`
+                      : ''}
                   </span>
                 </span>
               ) : (
@@ -100,6 +121,9 @@ async function SubscriptionDetailCard({
               )
             }
           />
+          {subscription.promo_code ? (
+            <DataRow label="Cupom" value={subscription.promo_code} />
+          ) : null}
           {customerNotes ? (
             <DataRow label="Observações" value={customerNotes} />
           ) : null}

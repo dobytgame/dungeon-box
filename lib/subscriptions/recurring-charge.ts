@@ -63,7 +63,8 @@ export async function resolveSubscriptionRecurringCharge(
     context.promo_code,
     plan.slug as PlanSlug,
     plan.price_cents,
-    baseShipping
+    baseShipping,
+    { boundToSubscription: true }
   );
 
   const planCents = promo?.planCents ?? plan.price_cents;

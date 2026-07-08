@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   handleAsaasPaymentConfirmed,
+  handleAsaasPaymentCreated,
   handleAsaasPaymentOverdue,
   handleAsaasPaymentRefunded,
   type AsaasWebhookPayment,
@@ -15,6 +16,8 @@ const PAYMENT_CONFIRM_EVENTS = new Set([
   'PAYMENT_RECEIVED',
   'PAYMENT_AUTHORIZED',
 ]);
+
+const PAYMENT_CREATED_EVENTS = new Set(['PAYMENT_CREATED']);
 
 const PAYMENT_OVERDUE_EVENTS = new Set(['PAYMENT_OVERDUE']);
 
@@ -72,6 +75,8 @@ export async function POST(request: Request) {
           externalReference: payment.externalReference,
         });
       }
+    } else if (PAYMENT_CREATED_EVENTS.has(event)) {
+      result = await handleAsaasPaymentCreated(supabase, payment);
     } else if (PAYMENT_OVERDUE_EVENTS.has(event)) {
       result = await handleAsaasPaymentOverdue(supabase, payment);
     } else if (PAYMENT_REFUND_EVENTS.has(event)) {

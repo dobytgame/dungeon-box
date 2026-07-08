@@ -110,6 +110,13 @@ export default function SubscriptionUpgrade({
                     </span>
                     /mês a partir do próximo ciclo ({option.promoSummary.toLowerCase()})
                   </>
+                ) : subscription.promo_code ? (
+                  <>
+                    {formatMoney(option.totalCents)}/mês a partir do próximo ciclo
+                    {option.promoSummary
+                      ? ` (${option.promoSummary.toLowerCase()})`
+                      : ''}
+                  </>
                 ) : (
                   <>
                     {formatMoney(option.totalCents)}/mês a partir do próximo ciclo

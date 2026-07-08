@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  sendPlanUpgradeAppliedEmail,
   sendPurchaseCompletedEmail,
   sendSubscriptionCancelledEmail,
 } from '@/lib/email/send-transactional';
@@ -59,4 +60,34 @@ export async function notifySubscriptionCancelled(
     hasPendingShipment:
       options?.hasPendingShipment ?? Boolean(pendingCycle),
   });
+}
+
+export async function notifyPlanUpgradeApplied(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  input: {
+    previousPlanName: string;
+    newPlanName: string;
+    nextBillingDate?: string | null;
+  }
+): Promise<void> {
+  const ctx = await getSubscriptionEmailContext(supabase, subscriptionId);
+  if (!ctx) return;
+
+  const result = await sendPlanUpgradeAppliedEmail({
+    to: ctx.email,
+    name: ctx.name,
+    previousPlanName: input.previousPlanName,
+    newPlanName: input.newPlanName,
+    nextBillingDate: input.nextBillingDate ?? null,
+  });
+
+  if (!result.sent) {
+    console.warn('[email] plan upgrade applied not sent:', {
+      subscriptionId,
+      to: ctx.email,
+      reason: result.reason,
+      message: result.message,
+    });
+  }
 }

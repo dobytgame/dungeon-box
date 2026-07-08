@@ -223,6 +223,17 @@ export function formatCurrencyBrl(cents: number): string {
   }).format(cents / 100);
 }
 
+export function formatDateBr(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value.includes('T') ? value : `${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
 export function greetingName(name?: string | null): string {
   const trimmed = name?.trim();
   return trimmed || 'Mestre';

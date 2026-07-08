@@ -33,6 +33,11 @@ import {
   subscriptionCancelledText,
 } from '@/lib/email/templates/subscription-cancelled';
 import {
+  PLAN_UPGRADE_APPLIED_SUBJECT,
+  planUpgradeAppliedHtml,
+  planUpgradeAppliedText,
+} from '@/lib/email/templates/plan-upgrade-applied';
+import {
   STORE_ORDER_CONFIRMED_SUBJECT,
   storeOrderConfirmedHtml,
   storeOrderConfirmedText,
@@ -199,6 +204,24 @@ export async function sendSubscriptionCancelledEmail(input: {
     text: subscriptionCancelledText(input),
     replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'subscription_cancelled' }],
+  });
+}
+
+export async function sendPlanUpgradeAppliedEmail(input: {
+  to: string;
+  name?: string | null;
+  previousPlanName: string;
+  newPlanName: string;
+  nextBillingDate?: string | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'billing',
+    to: input.to,
+    subject: PLAN_UPGRADE_APPLIED_SUBJECT,
+    html: planUpgradeAppliedHtml(input),
+    text: planUpgradeAppliedText(input),
+    replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'plan_upgrade_applied' }],
   });
 }
 

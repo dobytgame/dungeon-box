@@ -9,9 +9,7 @@ import {
   type PlanChargeRow,
   type SubscriptionRecurringContext,
 } from '@/lib/subscriptions/recurring-charge';
-import {
-  updateAsaasSubscriptionDetails,
-} from '@/lib/asaas/subscription-api';
+import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 type PlanRow = PlanChargeRow & {
@@ -122,17 +120,63 @@ export async function resolvePendingUpgradePricing(
   };
 }
 
+export async function resolveCurrentSubscriptionRecurringPricing(
+  subscription: SubscriptionUpgradeRow
+): Promise<{
+  totalCents: number;
+  originalTotalCents: number;
+  promoSummary: string | null;
+} | null> {
+  const currentPlan = relOne(subscription.plans);
+  if (!currentPlan) return null;
+
+  const admin = createAdminClient();
+  const context = subscriptionBillingContext(subscription);
+  const [charge, fullCharge] = await Promise.all([
+    resolveSubscriptionRecurringCharge(admin, currentPlan, context),
+    resolveSubscriptionRecurringCharge(admin, currentPlan, {
+      ...context,
+      promo_code: null,
+    }),
+  ]);
+
+  return {
+    totalCents: charge.totalCents,
+    originalTotalCents: fullCharge.totalCents,
+    promoSummary: charge.promoSummary,
+  };
+}
+
+export type AppliedPlanUpgrade = {
+  previousPlanName: string;
+  newPlanName: string;
+};
+
 export async function applyPendingPlanUpgrade(
   supabase: SupabaseClient,
   subscriptionId: string
-): Promise<boolean> {
+): Promise<AppliedPlanUpgrade | null> {
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('id, pending_plan_id')
+    .select(
+      'id, pending_plan_id, plans!plan_id(name), pending_plan:plans!pending_plan_id(name)'
+    )
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (!subscription?.pending_plan_id) return false;
+  if (!subscription?.pending_plan_id) return null;
+
+  const currentPlan = relOne(
+    subscription.plans as { name: string } | { name: string }[] | null
+  );
+  const pendingPlan = relOne(
+    subscription.pending_plan as { name: string } | { name: string }[] | null
+  );
+
+  if (!currentPlan?.name || !pendingPlan?.name) {
+    console.error('[upgrade] apply pending plan: plan names missing:', subscriptionId);
+    return null;
+  }
 
   const { error } = await supabase
     .from('subscriptions')
@@ -145,10 +189,13 @@ export async function applyPendingPlanUpgrade(
 
   if (error) {
     console.error('[upgrade] apply pending plan:', error);
-    return false;
+    return null;
   }
 
-  return true;
+  return {
+    previousPlanName: currentPlan.name,
+    newPlanName: pendingPlan.name,
+  };
 }
 
 export async function scheduleSubscriptionUpgrade(
@@ -210,21 +257,6 @@ export async function scheduleSubscriptionUpgrade(
     subscriptionBillingContext(subscription)
   );
 
-  if (subscription.asaas_subscription_id) {
-    try {
-      await updateAsaasSubscriptionDetails(subscription.asaas_subscription_id, {
-        valueCents: charge.totalCents,
-        description: charge.description,
-      });
-    } catch (error) {
-      console.error('[upgrade] asaas update:', error);
-      return {
-        error:
-          'Não foi possível agendar o upgrade no gateway de pagamento. Tente novamente.',
-      };
-    }
-  }
-
   const { error: updateError } = await supabase
     .from('subscriptions')
     .update({
@@ -236,6 +268,19 @@ export async function scheduleSubscriptionUpgrade(
 
   if (updateError) {
     return { error: updateError.message };
+  }
+
+  if (subscription.asaas_subscription_id) {
+    const syncResult = await reconcileAsaasSubscriptionPendingPayment(
+      admin,
+      subscriptionId
+    );
+    if (syncResult === 'failed') {
+      console.warn('[upgrade] pending payment sync failed after schedule:', {
+        subscriptionId,
+        expectedCents: charge.totalCents,
+      });
+    }
   }
 
   return { success: true };
@@ -259,28 +304,6 @@ export async function cancelPendingSubscriptionUpgrade(
     return { error: 'Não há upgrade agendado para esta assinatura.' };
   }
 
-  const currentPlan = relOne(subscription.plans as PlanRow | PlanRow[] | null);
-
-  if (subscription.asaas_subscription_id && currentPlan) {
-    const charge = await resolveRecurringChargeForPlan(
-      currentPlan,
-      subscription
-    );
-
-    try {
-      await updateAsaasSubscriptionDetails(subscription.asaas_subscription_id, {
-        valueCents: charge.totalCents,
-        description: charge.description,
-      });
-    } catch (error) {
-      console.error('[upgrade] asaas revert:', error);
-      return {
-        error:
-          'Não foi possível cancelar o upgrade no gateway de pagamento. Tente novamente.',
-      };
-    }
-  }
-
   const { error } = await supabase
     .from('subscriptions')
     .update({
@@ -292,6 +315,11 @@ export async function cancelPendingSubscriptionUpgrade(
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (subscription.asaas_subscription_id) {
+    const admin = createAdminClient();
+    await reconcileAsaasSubscriptionPendingPayment(admin, subscriptionId);
   }
 
   return { success: true };
