@@ -2,8 +2,10 @@ import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 
 export type ComboPaymentDetail = {
-  type: 'combo_prepaid';
+  type: 'combo_prepaid' | 'combo_upgrade';
   billing_term?: BillingTerm | null;
+  combo_total_cents?: number;
+  combo_installments?: number;
 };
 
 export type PaymentAmountContext = {
@@ -18,23 +20,6 @@ export type SubscriptionAmountContext = {
   combo_installments?: number | null;
 };
 
-export function parseComboPaymentDetail(
-  statusDetail?: string | null
-): ComboPaymentDetail | null {
-  if (!statusDetail) return null;
-
-  try {
-    const parsed = JSON.parse(statusDetail) as ComboPaymentDetail;
-    return parsed?.type === 'combo_prepaid' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-export function isComboPrepaidPayment(statusDetail?: string | null): boolean {
-  return parseComboPaymentDetail(statusDetail) !== null;
-}
-
 function parsePaymentStatusDetail(
   statusDetail?: string | null
 ): { type?: string } | null {
@@ -44,6 +29,30 @@ function parsePaymentStatusDetail(
   } catch {
     return null;
   }
+}
+
+export function isComboUpgradePayment(statusDetail?: string | null): boolean {
+  return parsePaymentStatusDetail(statusDetail)?.type === 'combo_upgrade';
+}
+
+export function parseComboPaymentDetail(
+  statusDetail?: string | null
+): ComboPaymentDetail | null {
+  if (!statusDetail) return null;
+
+  try {
+    const parsed = JSON.parse(statusDetail) as ComboPaymentDetail;
+    if (parsed?.type === 'combo_prepaid' || parsed?.type === 'combo_upgrade') {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function isComboPrepaidPayment(statusDetail?: string | null): boolean {
+  return parseComboPaymentDetail(statusDetail) !== null;
 }
 
 export function isComboInstallmentSlicePayment(
@@ -71,11 +80,8 @@ export function resolveEffectivePaymentAmountCents(
 ): number {
   const comboDetail = parseComboPaymentDetail(payment.status_detail);
   const detailTotal =
-    comboDetail &&
-    'combo_total_cents' in comboDetail &&
-    typeof (comboDetail as { combo_total_cents?: number }).combo_total_cents ===
-      'number'
-      ? (comboDetail as { combo_total_cents: number }).combo_total_cents
+    comboDetail?.combo_total_cents != null && comboDetail.combo_total_cents > 0
+      ? comboDetail.combo_total_cents
       : null;
   const comboTotal = subscription?.combo_total_cents ?? detailTotal ?? null;
 
@@ -105,6 +111,11 @@ export function resolvePaymentInstallments(
 
   const comboDetail = parseComboPaymentDetail(payment.status_detail);
   if (!comboDetail) return payment.installments ?? null;
+
+  const detailInstallments = comboDetail.combo_installments ?? null;
+  if (detailInstallments != null && detailInstallments > 1) {
+    return detailInstallments;
+  }
 
   const comboInstallments = subscription?.combo_installments ?? null;
   if (comboInstallments != null && comboInstallments > 1) {

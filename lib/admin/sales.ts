@@ -15,10 +15,11 @@ import {
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
 import {
+  isComboInstallmentSlicePayment,
+  isComboUpgradePayment,
   parseComboPaymentDetail,
   resolveEffectivePaymentAmountCents,
   resolvePaymentInstallments,
-  isComboInstallmentSlicePayment,
 } from '@/lib/payments/effective-amount';
 import type { PaymentStatus } from '@/lib/dashboard/types';
 import type {
@@ -285,11 +286,14 @@ export function classifyAdminSale(row: {
         : comboDetail?.billing_term && isComboTerm(comboDetail.billing_term)
           ? getComboTermLabel(comboDetail.billing_term)
           : 'Combo';
+      const upgradePrefix = isComboUpgradePayment(row.status_detail)
+        ? 'Upgrade '
+        : '';
       return {
         saleType: 'assinatura',
         description: row.planName
-          ? `${comboLabel} — ${row.planName}`
-          : comboLabel,
+          ? `${upgradePrefix}${comboLabel} — ${row.planName}`
+          : `${upgradePrefix}${comboLabel}`,
       };
     }
     return {

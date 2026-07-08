@@ -37,7 +37,7 @@ function paymentDayKey(row: RevenuePaymentRow | null | undefined): string | null
   return raw ? raw.slice(0, 10) : null;
 }
 
-/** Primeiro pagamento combo_prepaid aprovado por assinatura (venda inicial do combo). */
+/** Primeiro pagamento combo (pré-pago ou upgrade mensal→combo) aprovado por assinatura. */
 export function buildCanonicalComboPrepaidIndex(
   rows: RevenuePaymentRow[]
 ): Map<string, string> {

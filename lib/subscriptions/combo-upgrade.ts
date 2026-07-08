@@ -621,7 +621,7 @@ export async function upgradeMonthlySubscriptionToCombo(input: {
       ? new Date().toISOString()
       : null;
 
-    const { data: paymentRow } = await input.supabase
+    const { data: paymentRow } = await admin
       .from('payments')
       .upsert(
         {
