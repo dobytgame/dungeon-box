@@ -31,6 +31,9 @@ export default function PromoCodeForm({ promo }: Props) {
   const [discountType, setDiscountType] = useState(
     promo?.discount_type ?? 'percent'
   );
+  const [appliesTo, setAppliesTo] = useState(
+    promo?.applies_to ?? 'subscription'
+  );
   const isFreeShipping = discountType === 'free_shipping';
 
   return (
@@ -106,10 +109,33 @@ export default function PromoCodeForm({ promo }: Props) {
           )}
           {isFreeShipping ? (
             <p className="mt-2 text-xs text-stone-500">
-              O valor da assinatura não muda — o cupom isenta o frete em todos os meses.
+              {appliesTo === 'store'
+                ? 'O cupom isenta o frete avulso da loja — o valor dos produtos não muda.'
+                : 'O valor da assinatura não muda — o cupom isenta o frete em todos os meses.'}
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="applies_to" className={labelClass}>
+          Onde vale
+        </label>
+        <select
+          id="applies_to"
+          name="applies_to"
+          value={appliesTo}
+          onChange={(event) =>
+            setAppliesTo(
+              event.target.value as AdminPromoCodeRow['applies_to']
+            )
+          }
+          className={inputClass}
+        >
+          <option value="subscription">Assinatura (checkout)</option>
+          <option value="store">Loja</option>
+          <option value="both">Assinatura e loja</option>
+        </select>
       </div>
 
       {!isFreeShipping ? (

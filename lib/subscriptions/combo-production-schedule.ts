@@ -159,6 +159,8 @@ export async function seedPrepaidComboProductionSchedule(
     paymentLink: CyclePaymentLink;
     anchorDate?: Date;
     resyncOnly?: boolean;
+    /** Primeiro ciclo do combo (padrão 1; em upgrade mensal→combo use current_cycle + 1). */
+    startCycleNumber?: number;
   }
 ): Promise<number> {
   if (!isComboTerm(input.billingTerm)) return 0;
@@ -166,19 +168,25 @@ export async function seedPrepaidComboProductionSchedule(
   const totalMonths = prepaidMonthsForTerm(input.billingTerm);
   if (!totalMonths || totalMonths < 1) return 0;
 
+  const startCycle = Math.max(1, input.startCycleNumber ?? 1);
   const anchor = input.anchorDate
     ? comboProductionAnchorFromPayment(input.anchorDate)
     : input.paymentLink.paid_at
       ? comboProductionAnchorFromPayment(input.paymentLink.paid_at)
       : comboProductionAnchorFromPayment(new Date());
 
-  for (let cycleNumber = 1; cycleNumber <= totalMonths; cycleNumber += 1) {
+  for (let offset = 0; offset < totalMonths; offset += 1) {
+    const cycleNumber = startCycle + offset;
+    const comboCycleIndex = offset + 1;
     await upsertScheduledComboCycle(supabase, {
       subscriptionId: input.subscriptionId,
       cycleNumber,
-      scheduledMonth: scheduledProductionMonthForComboCycle(anchor, cycleNumber),
+      scheduledMonth: scheduledProductionMonthForComboCycle(
+        anchor,
+        comboCycleIndex
+      ),
       paymentLink: input.paymentLink,
-      activateNow: cycleNumber === 1,
+      activateNow: offset === 0,
       resyncOnly: input.resyncOnly,
     });
   }

@@ -6,6 +6,7 @@ import {
 import { listAsaasCustomerPayments } from '@/lib/asaas/store-order-payment';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
+import { handleComboUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-upgrade';
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
@@ -89,6 +90,15 @@ export async function handleComboPaymentConfirmed(
   payment: AsaasWebhookPayment,
   subscriptionId: string
 ): Promise<'processed' | 'skipped'> {
+  const upgradeResult = await handleComboUpgradePaymentConfirmed(
+    supabase,
+    payment,
+    subscriptionId
+  );
+  if (upgradeResult === 'processed') {
+    return 'processed';
+  }
+
   const { data: local } = await supabase
     .from('subscriptions')
     .select(
@@ -197,11 +207,11 @@ export async function syncComboPaymentIfPending(
 ): Promise<void> {
   const { data: sub } = await supabase
     .from('subscriptions')
-    .select('status, asaas_customer_id')
+    .select('status, asaas_customer_id, pending_billing_term')
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (sub?.status !== 'pending') return;
+  if (sub?.status !== 'pending' && !sub?.pending_billing_term) return;
 
   if (asaasPaymentId) {
     const synced = await syncComboPayment(asaasPaymentId).catch((err) => {

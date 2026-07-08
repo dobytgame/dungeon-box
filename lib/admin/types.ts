@@ -276,6 +276,7 @@ export interface AdminPromoCodeRow {
   expires_at: string | null;
   active: boolean;
   plan_slugs: string[] | null;
+  applies_to: 'subscription' | 'store' | 'both';
   created_at: string;
 }
 

@@ -6,6 +6,7 @@ import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
+import SubscriptionComboUpgrade from '@/components/dashboard/SubscriptionComboUpgrade';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { parseCustomerNotes } from '@/lib/checkout/special-notes';
@@ -20,10 +21,15 @@ import {
 import { getManageableSubscriptions, requireDashboardUser } from '@/lib/dashboard/queries';
 import type { Subscription } from '@/lib/dashboard/types';
 import {
+  buildComboUpgradeOptions,
+  canUpgradeSubscriptionToCombo,
+} from '@/lib/subscriptions/combo-upgrade';
+import {
   buildUpgradeOptionsPricing,
   resolveCurrentSubscriptionRecurringPricing,
   resolvePendingUpgradePricing,
 } from '@/lib/subscriptions/upgrade';
+import { isAsaasCheckout } from '@/lib/payments/provider';
 
 async function SubscriptionDetailCard({
   subscription,
@@ -34,11 +40,14 @@ async function SubscriptionDetailCard({
   showDevMeta: boolean;
   paymentLink?: CustomerSubscriptionPaymentLink | null;
 }) {
-  const [upgradeOptions, pendingUpgradePricing, currentRecurringPricing] =
+  const [upgradeOptions, pendingUpgradePricing, currentRecurringPricing, comboUpgradeOptions] =
     await Promise.all([
       buildUpgradeOptionsPricing(subscription),
       resolvePendingUpgradePricing(subscription),
       resolveCurrentSubscriptionRecurringPricing(subscription),
+      isAsaasCheckout() && canUpgradeSubscriptionToCombo(subscription)
+        ? buildComboUpgradeOptions(subscription)
+        : Promise.resolve([]),
     ]);
   const plan = relOne(subscription.plans);
   const address = relOne(subscription.addresses);
@@ -193,7 +202,7 @@ async function SubscriptionDetailCard({
 
       <DashboardCard title="Gerenciar assinatura" accent="none">
         {!isPending && !isPastDue ? (
-          <div className="mb-6">
+          <div className="mb-6 space-y-6">
             <SubscriptionUpgrade
               subscription={subscription}
               upgradeOptions={upgradeOptions}
@@ -203,6 +212,11 @@ async function SubscriptionDetailCard({
               pendingUpgradePromoSummary={
                 pendingUpgradePricing?.promoSummary ?? null
               }
+            />
+            <SubscriptionComboUpgrade
+              subscriptionId={subscription.id}
+              currentCycle={subscription.current_cycle ?? 1}
+              comboOptions={comboUpgradeOptions}
             />
           </div>
         ) : null}

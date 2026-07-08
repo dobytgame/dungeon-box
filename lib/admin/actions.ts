@@ -865,6 +865,18 @@ export async function savePromoCodeAction(
     };
   }
 
+  const appliesTo = formData.get('applies_to') as
+    | 'subscription'
+    | 'store'
+    | 'both';
+  if (
+    appliesTo !== 'subscription' &&
+    appliesTo !== 'store' &&
+    appliesTo !== 'both'
+  ) {
+    return { error: 'Escopo do cupom inválido.' };
+  }
+
   const payload = {
     code,
     discount_type: discountType,
@@ -876,6 +888,7 @@ export async function savePromoCodeAction(
     expires_at: expiresAt,
     active: formData.get('active') === 'on',
     plan_slugs: planSlugs,
+    applies_to: appliesTo,
   };
 
   if (promoId) {
@@ -947,6 +960,7 @@ export async function duplicatePromoCodeAction(promoId: string) {
       expires_at: source.expires_at,
       active: false,
       plan_slugs: source.plan_slugs,
+      applies_to: source.applies_to ?? 'subscription',
     })
     .select('id')
     .single();

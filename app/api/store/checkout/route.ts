@@ -29,6 +29,7 @@ const sharedCheckoutSchema = z.object({
   items: cartItemsSchema,
   addressId: z.string().uuid(),
   bundleSubscriptionId: z.string().uuid().nullable().optional(),
+  couponCode: z.string().max(64).nullable().optional(),
 });
 
 const bodySchema = z.discriminatedUnion('paymentMethod', [
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
     })),
     addressId: body.addressId,
     bundleSubscriptionId: body.bundleSubscriptionId ?? null,
+    couponCode: body.couponCode ?? null,
   };
 
   if (body.paymentMethod === 'pix') {

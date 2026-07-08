@@ -12,6 +12,7 @@ export type PromoCodeRow = {
   expires_at: string | null;
   active: boolean;
   plan_slugs: string[] | null;
+  applies_to?: 'subscription' | 'store' | 'both';
 };
 
 export type ResolvedPromoCode = {
@@ -227,7 +228,7 @@ export async function resolvePromoCode(
   const { data: promo, error } = await supabase
     .from('promo_codes')
     .select(
-      'id, code, discount_type, discount_value, includes_free_shipping, max_redemptions, times_redeemed, expires_at, active, plan_slugs'
+      'id, code, discount_type, discount_value, includes_free_shipping, max_redemptions, times_redeemed, expires_at, active, plan_slugs, applies_to'
     )
     .eq('code', code)
     .maybeSingle();
@@ -238,6 +239,14 @@ export async function resolvePromoCode(
 
   if (!promo.active) {
     throw new Error('Cupom inválido, expirado ou já utilizado.');
+  }
+
+  const appliesTo = (promo.applies_to ?? 'subscription') as
+    | 'subscription'
+    | 'store'
+    | 'both';
+  if (appliesTo === 'store') {
+    throw new Error('Este cupom é válido apenas na loja.');
   }
 
   if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {

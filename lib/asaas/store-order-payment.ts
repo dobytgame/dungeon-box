@@ -15,6 +15,7 @@ import {
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
+import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
 
 export type StoreOrderMeta = {
   type: 'store_order';
@@ -36,6 +37,11 @@ export type StoreOrderMeta = {
   subtotalCents?: number;
   shippingCents?: number;
   shippingLabel?: string | null;
+  couponCode?: string | null;
+  couponSummary?: string | null;
+  couponDiscountCents?: number;
+  couponFreeShipping?: boolean;
+  couponPromoId?: string | null;
 };
 
 export function buildStoreOrderExternalReference(
@@ -433,6 +439,14 @@ export async function approveStoreOrderPayment(
     meta,
     amountCents ?? paymentRow.amount_cents ?? 0
   );
+
+  if (meta.couponPromoId && meta.couponCode) {
+    await recordStorePromoRedemption(
+      supabase,
+      meta.couponPromoId,
+      paymentRow.user_id
+    );
+  }
 
   return 'processed';
 }

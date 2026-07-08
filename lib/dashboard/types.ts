@@ -141,6 +141,7 @@ export interface Subscription {
   shipping_cents?: number | null;
   shipping_region?: string | null;
   pending_plan_id?: string | null;
+  pending_billing_term?: string | null;
   billing_term?: string | null;
   prepaid_months?: number | null;
   prepaid_until?: string | null;

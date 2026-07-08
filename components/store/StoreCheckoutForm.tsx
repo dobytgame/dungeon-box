@@ -9,6 +9,9 @@ import AsaasPaymentForm, {
 } from '@/components/checkout/AsaasPaymentForm';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import CheckoutStepper from '@/components/shop/CheckoutStepper';
+import StoreCouponField, {
+  type StoreCouponApplyResult,
+} from '@/components/store/StoreCouponField';
 import StorePixPaymentPanel, {
   type StorePixDetails,
 } from '@/components/store/StorePixPaymentPanel';
@@ -46,6 +49,7 @@ function buildCheckoutPayload(
   lines: CartLine[],
   checkoutAddressId: string,
   bundleSubscriptionId: string | null,
+  couponCode: string | null,
   card?: AsaasCardPayload
 ) {
   return {
@@ -53,6 +57,7 @@ function buildCheckoutPayload(
     items: lines,
     addressId: checkoutAddressId,
     bundleSubscriptionId,
+    couponCode,
     ...(paymentMethod === 'credit_card' && card ? { creditCard: card } : {}),
   };
 }
@@ -90,6 +95,10 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     etaDaysMax: number;
   } | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);
+  const [couponCode, setCouponCode] = useState<string | null>(null);
+  const [couponSummary, setCouponSummary] = useState<string | null>(null);
+  const [couponDiscountCents, setCouponDiscountCents] = useState(0);
+  const [couponFreeShipping, setCouponFreeShipping] = useState(false);
   const checkoutTrackedRef = useRef(false);
 
   useEffect(() => {
@@ -171,8 +180,13 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   );
 
   const shippingCents =
-    shippingMode === 'standalone' ? (shippingQuote?.cents ?? 0) : 0;
-  const totalCents = subtotalCents + shippingCents;
+    shippingMode === 'standalone'
+      ? couponFreeShipping
+        ? 0
+        : (shippingQuote?.cents ?? 0)
+      : 0;
+  const discountedSubtotalCents = Math.max(0, subtotalCents - couponDiscountCents);
+  const totalCents = discountedSubtotalCents + shippingCents;
 
   useEffect(() => {
     if (!hydrated || resolved.length === 0 || checkoutTrackedRef.current) return;
@@ -219,6 +233,21 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
       cancelled = true;
     };
   }, [shippingMode, checkoutAddressId]);
+
+  function handleCouponApply(result: StoreCouponApplyResult) {
+    setCouponCode(result.code);
+    setCouponSummary(result.summary);
+    setCouponDiscountCents(result.subtotalDiscountCents);
+    setCouponFreeShipping(result.freeShipping);
+    setError('');
+  }
+
+  function handleCouponRemove() {
+    setCouponCode(null);
+    setCouponSummary(null);
+    setCouponDiscountCents(0);
+    setCouponFreeShipping(false);
+  }
 
   if (!hydrated) {
     return (
@@ -304,6 +333,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
                 : canBundlePaintKit && paintKitBundleSubscriptionId
                   ? paintKitBundleSubscriptionId
                   : null,
+              couponCode,
               card
             )
           ),
@@ -373,6 +403,17 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
                 </li>
               ))}
             </ul>
+            <StoreCouponField
+              subtotalCents={subtotalCents}
+              standaloneShipping={shippingMode === 'standalone'}
+              shippingCents={shippingQuote?.cents ?? 0}
+              couponCode={couponCode}
+              couponSummary={couponSummary}
+              onApply={handleCouponApply}
+              onRemove={handleCouponRemove}
+              onError={setError}
+              disabled={pending}
+            />
             <button
               type="button"
               onClick={goToDeliveryStep}
@@ -693,18 +734,35 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
             <div className="flex justify-between text-sm">
               <span className="text-stone-500">Subtotal</span>
               <span className="font-display text-lg text-white">
-                {formatMoney(subtotalCents)}
+                {formatMoney(discountedSubtotalCents)}
               </span>
             </div>
+            {couponDiscountCents > 0 ? (
+              <div className="mt-2 flex justify-between text-sm text-emerald-400/90">
+                <span>Cupom {couponCode}</span>
+                <span>-{formatMoney(couponDiscountCents)}</span>
+              </div>
+            ) : null}
             {shippingMode === 'standalone' ? (
               <div className="mt-3 flex justify-between text-sm">
                 <span className="text-stone-500">Frete</span>
                 <span className="text-white">
-                  {shippingLoading
-                    ? 'Calculando…'
-                    : shippingQuote
-                      ? formatMoney(shippingQuote.cents)
-                      : '—'}
+                  {couponFreeShipping ? (
+                    <>
+                      <span className="text-stone-600 line-through">
+                        {shippingQuote
+                          ? formatMoney(shippingQuote.cents)
+                          : '—'}
+                      </span>{' '}
+                      Grátis
+                    </>
+                  ) : shippingLoading ? (
+                    'Calculando…'
+                  ) : shippingQuote ? (
+                    formatMoney(shippingQuote.cents)
+                  ) : (
+                    '—'
+                  )}
                 </span>
               </div>
             ) : null}
@@ -717,6 +775,11 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
             {appliedPromoCodes.length > 0 ? (
               <p className="mt-2 text-xs text-gold/80">
                 Cupom da assinatura aplicado: {appliedPromoCodes.join(', ')}
+              </p>
+            ) : null}
+            {couponCode && couponSummary ? (
+              <p className="mt-2 text-xs text-emerald-400/90">
+                Cupom da loja: {couponCode} — {couponSummary}
               </p>
             ) : null}
             <p className="mt-2 text-xs text-stone-600">

@@ -28,6 +28,10 @@ import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
 import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  recordStorePromoRedemption,
+  resolveStorePromoCode,
+} from '@/lib/store/promo-codes';
 
 type AddressRow = {
   recipient: string;
@@ -84,6 +88,7 @@ export type StoreCheckoutInput = {
   addressId: string;
   bundleSubscriptionId?: string | null;
   paymentMethod: StorePaymentMethod;
+  couponCode?: string | null;
   creditCard?: AsaasCreditCardInput;
   creditCardHolderInfo?: AsaasCreditCardHolderInput;
   remoteIp?: string;
@@ -223,8 +228,8 @@ export async function purchaseStoreOrder(
   }
 
   const lines = resolvedResult;
-  const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  if (subtotalCents <= 0) {
+  const rawSubtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
+  if (rawSubtotalCents <= 0) {
     return { error: 'Total inválido.' };
   }
 
@@ -332,6 +337,44 @@ export async function purchaseStoreOrder(
     }
   }
 
+  let subtotalCents = rawSubtotalCents;
+  let couponCode: string | null = null;
+  let couponSummary: string | null = null;
+  let couponDiscountCents = 0;
+  let couponFreeShipping = false;
+  let couponPromoId: string | null = null;
+
+  if (input.couponCode?.trim()) {
+    const admin = createAdminClient();
+    try {
+      const promo = await resolveStorePromoCode(
+        admin,
+        input.couponCode,
+        input.userId,
+        rawSubtotalCents,
+        {
+          standaloneShipping: shippingMode === 'standalone',
+          shippingCents,
+        }
+      );
+      subtotalCents = promo.discountedSubtotalCents;
+      couponCode = promo.promo.code;
+      couponSummary = promo.summary;
+      couponDiscountCents = promo.subtotalDiscountCents;
+      couponFreeShipping = promo.freeShipping;
+      couponPromoId = promo.promo.id;
+
+      if (couponFreeShipping) {
+        shippingCents = 0;
+      }
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error ? error.message : 'Cupom inválido.',
+      };
+    }
+  }
+
   const totalCents = subtotalCents + shippingCents;
 
   const asaasCustomerId = await getOrCreateAsaasCustomer(
@@ -383,6 +426,11 @@ export async function purchaseStoreOrder(
     subtotalCents,
     shippingCents,
     shippingLabel,
+    couponCode,
+    couponSummary,
+    couponDiscountCents,
+    couponFreeShipping,
+    couponPromoId,
   };
 
   try {
@@ -481,6 +529,15 @@ export async function purchaseStoreOrder(
       orderMeta,
       totalCents
     );
+
+    if (couponPromoId && couponCode) {
+      const admin = createAdminClient();
+      await recordStorePromoRedemption(
+        admin,
+        couponPromoId,
+        input.userId
+      );
+    }
 
     return {
       success: true,
