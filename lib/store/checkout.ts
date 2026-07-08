@@ -464,6 +464,7 @@ export async function purchaseStoreOrder(
     couponDiscountCents,
     couponFreeShipping,
     couponPromoId,
+    ...(shippingMode === 'standalone' ? { fulfillmentStatus: 'upcoming' as const } : {}),
   };
 
   try {

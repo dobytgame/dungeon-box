@@ -34,6 +34,11 @@ import {
   syncStoreOrdersFromAsaasForSubscriptions,
 } from '@/lib/asaas/store-order-payment';
 import {
+  advanceStandaloneStoreOrders,
+  isStandaloneStoreCardId,
+  shipStandaloneStoreOrder,
+} from '@/lib/admin/standalone-store-production';
+import {
   advancePrepaidComboCycleAfterShip,
   resolveCyclePaymentLink,
 } from '@/lib/subscriptions/combo-cycle-advance';
@@ -98,6 +103,35 @@ export async function shipSubscriptionCycleAction(
   }
   if ('error' in shippingCost) {
     return shippingCost;
+  }
+
+  if (isStandaloneStoreCardId(cycleId)) {
+    const result = await shipStandaloneStoreOrder(
+      admin,
+      cycleId,
+      trackingCode,
+      carrier,
+      shippingCost.cents
+    );
+    if ('error' in result) {
+      return result;
+    }
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'standalone_store.ship',
+      entityType: 'payment',
+      entityId: cycleId,
+      metadata: {
+        tracking_code: trackingCode,
+        carrier,
+        shipping_cost_cents: shippingCost.cents,
+      },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateCycleBoard();
+    return { success: true as const };
   }
 
   const cycle = await getAdminCycleDetail(admin, cycleId);
@@ -425,6 +459,30 @@ export async function advanceCycleProductionAction(
   const parsedTarget = parseCycleStatus(targetStatus);
   if (!parsedTarget) {
     return { error: 'Status de destino inválido.' };
+  }
+
+  if (isStandaloneStoreCardId(cycleId)) {
+    const result = await advanceStandaloneStoreOrders(
+      admin,
+      cycleId,
+      parsedTarget,
+      formData
+    );
+    if ('error' in result) {
+      return result;
+    }
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: `standalone_store.${parsedTarget}`,
+      entityType: 'payment',
+      entityId: cycleId,
+      metadata: { to: parsedTarget },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateCycleBoard();
+    return { success: true as const };
   }
 
   const { data: cycleRow, error: fetchError } = await admin

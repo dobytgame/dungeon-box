@@ -16,6 +16,7 @@ import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
+import type { CycleStatus } from '@/lib/dashboard/types';
 
 export type StoreOrderMeta = {
   type: 'store_order';
@@ -42,6 +43,16 @@ export type StoreOrderMeta = {
   couponDiscountCents?: number;
   couponFreeShipping?: boolean;
   couponPromoId?: string | null;
+  /** Pipeline de produção (pedidos avulsos standalone). */
+  fulfillmentStatus?: string;
+  /** Agrupa pedidos avulsos no mesmo card de produção. */
+  productionGroupId?: string | null;
+  trackingCode?: string | null;
+  carrier?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  shippingCostCents?: number | null;
+  productionNotes?: string | null;
 };
 
 export function buildStoreOrderExternalReference(
@@ -418,6 +429,30 @@ export async function approveStoreOrderPayment(
     })
     .eq('id', paymentRow.id);
 
+  if (meta.shippingMode === 'standalone') {
+    const { findActiveProductionMergeTargetForUser } = await import(
+      '@/lib/admin/standalone-store-production'
+    );
+    const mergeTarget = await findActiveProductionMergeTargetForUser(
+      supabase,
+      paymentRow.user_id
+    );
+    const fulfillmentPatch: Partial<StoreOrderMeta> = {
+      fulfillmentStatus: 'upcoming',
+    };
+    if (mergeTarget?.kind === 'standalone') {
+      fulfillmentPatch.productionGroupId = mergeTarget.leadPaymentId;
+      fulfillmentPatch.fulfillmentStatus = mergeTarget.status;
+    } else if (mergeTarget?.kind === 'subscription') {
+      fulfillmentPatch.fulfillmentStatus = mergeTarget.status;
+    }
+    await updateStandaloneStoreOrderMeta(
+      supabase,
+      paymentRow.id,
+      fulfillmentPatch
+    );
+  }
+
   await fulfillApprovedStoreOrder(supabase, paymentRow.user_id, meta);
   await notifyStoreOrderConfirmed(
     supabase,
@@ -602,4 +637,60 @@ export async function syncStoreOrderPaymentByOrderId(
   }
 
   return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
+}
+
+const PIPELINE_STATUSES = new Set<CycleStatus>([
+  'upcoming',
+  'production',
+  'preparing',
+  'shipped',
+  'delivered',
+]);
+
+export function parseStandaloneFulfillmentStatus(
+  meta: StoreOrderMeta | null
+): CycleStatus {
+  const raw = meta?.fulfillmentStatus;
+  if (raw && PIPELINE_STATUSES.has(raw as CycleStatus)) {
+    return raw as CycleStatus;
+  }
+  return 'upcoming';
+}
+
+export async function readStoreOrderPaymentMeta(
+  supabase: SupabaseClient,
+  paymentId: string
+): Promise<{ paymentId: string; meta: StoreOrderMeta } | null> {
+  const { data } = await supabase
+    .from('payments')
+    .select('id, status_detail')
+    .eq('id', paymentId)
+    .maybeSingle();
+
+  if (!data) return null;
+  const meta = parseStoreOrderMeta(data.status_detail);
+  if (!meta || meta.shippingMode !== 'standalone') return null;
+  return { paymentId: data.id as string, meta };
+}
+
+export async function updateStandaloneStoreOrderMeta(
+  supabase: SupabaseClient,
+  paymentId: string,
+  patch: Partial<StoreOrderMeta>
+): Promise<StoreOrderMeta | null> {
+  const current = await readStoreOrderPaymentMeta(supabase, paymentId);
+  if (!current) return null;
+
+  const meta: StoreOrderMeta = { ...current.meta, ...patch };
+  const { error } = await supabase
+    .from('payments')
+    .update({ status_detail: JSON.stringify(meta) })
+    .eq('id', paymentId);
+
+  if (error) {
+    console.error('[store] update standalone fulfillment:', paymentId, error);
+    return null;
+  }
+
+  return meta;
 }

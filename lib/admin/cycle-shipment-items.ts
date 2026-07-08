@@ -13,6 +13,7 @@ import {
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
+import type { AdminCycleExtraItem } from '@/lib/admin/types';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
   buildPlanProductionCostMap,
@@ -199,6 +200,21 @@ function itemsFromStoreOrderMeta(
   }
 
   return items;
+}
+
+export function storeOrderMetaToExtraItems(
+  meta: StoreOrderMeta,
+  paymentPending = false
+): AdminCycleExtraItem[] {
+  return itemsFromStoreOrderMeta(meta, paymentPending).map((item) => ({
+    id: item.id,
+    name: item.name,
+    quantity: item.quantity,
+    tag: item.tag,
+    kind: item.kind,
+    source: item.source,
+    paymentPending: item.paymentPending,
+  }));
 }
 
 function orderTimestamp(row: StoreOrderPaymentRow): number {

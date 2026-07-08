@@ -116,7 +116,9 @@ export default function CycleDetailContent({
               Resumo de produção
             </p>
             <h3 className="mt-1 text-base font-medium text-zinc-100">
-              Ciclo #{detail.cycle_number}
+              {detail.isStandaloneStoreOrder
+                ? 'Loja avulsa'
+                : `Ciclo #${detail.cycle_number}`}
               {detail.themeName ? ` · ${detail.themeName}` : ''}
             </h3>
             <p className="mt-1 text-sm text-zinc-400">

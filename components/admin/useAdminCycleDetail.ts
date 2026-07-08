@@ -12,7 +12,7 @@ export function useAdminCycleDetail(cycleId: string | null, enabled: boolean) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/admin/cycles/${id}`);
+      const response = await fetch(`/api/admin/cycles/${encodeURIComponent(id)}`);
       const payload = (await response.json()) as
         | AdminCycleDetailView
         | { error?: string };
@@ -57,6 +57,7 @@ export function cycleDetailTitle(
   detail: AdminCycleDetailView | null,
   loading: boolean
 ): string {
+  if (detail?.isStandaloneStoreOrder) return 'Loja avulsa';
   if (detail) return `Ciclo #${detail.cycle_number}`;
   if (loading) return 'Carregando…';
   return 'Pedido';

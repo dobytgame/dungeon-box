@@ -14,6 +14,10 @@ import {
   listAdminCycles,
   listAdminProductionEnrichedCycles,
 } from '@/lib/admin/queries';
+import {
+  listStandaloneStoreOrdersForProduction,
+  pseudoRowsForStandaloneMonthCounts,
+} from '@/lib/admin/standalone-store-production';
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 
 interface Props {
@@ -35,7 +39,8 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
   const productionMonth =
     parseProductionMonthKey(month) ?? defaultProductionMonthKey();
 
-  const [enrichedCycles, rawCounts, archiveCycles] = await Promise.all([
+  const [enrichedCycles, rawCounts, archiveCycles, standaloneOrders] =
+    await Promise.all([
     showArchiveList
       ? Promise.resolve([])
       : listAdminProductionEnrichedCycles(admin),
@@ -43,13 +48,20 @@ export default async function AdminCyclesPage({ searchParams }: Props) {
     showArchiveList
       ? listAdminCycles(admin, { cycleStatus: status, limit: 100 })
       : Promise.resolve([]),
+    showArchiveList
+      ? Promise.resolve([])
+      : listStandaloneStoreOrdersForProduction(admin),
   ]);
 
-  const calendarMonths = buildProductionMonthNavigator(enrichedCycles);
+  const calendarMonths = buildProductionMonthNavigator([
+    ...enrichedCycles,
+    ...pseudoRowsForStandaloneMonthCounts(standaloneOrders),
+  ]);
   const board = showArchiveList
     ? buildProductionKanbanFromCycles([])
     : buildProductionKanbanFromCycles(enrichedCycles, {
         monthKey: productionMonth,
+        standaloneOrders,
       });
 
   const counts = {

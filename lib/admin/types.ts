@@ -221,6 +221,10 @@ export interface AdminCycleRow {
   hasBundledRevenue: boolean;
   /** Card deve destacar pagamento não confirmado (ciclo ou item bundled). */
   paymentPendingHighlight: boolean;
+  /** Pedido avulso da loja (card próprio na esteira, sem ciclo de assinatura). */
+  isStandaloneStoreOrder?: boolean;
+  /** IDs de pagamentos avulsos agrupados neste card de assinatura. */
+  standaloneStoreOrderIds?: string[];
 }
 
 export interface AdminPaymentRow extends Payment {

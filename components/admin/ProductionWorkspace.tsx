@@ -33,9 +33,15 @@ interface Props {
 }
 
 function cycleLabel(
-  row: Pick<AdminCycleRow, 'cycle_number' | 'customerName'>
+  row: Pick<
+    AdminCycleRow,
+    'cycle_number' | 'customerName' | 'isStandaloneStoreOrder'
+  >
 ) {
   const name = row.customerName ?? 'Cliente';
+  if (row.isStandaloneStoreOrder) {
+    return `Loja avulsa · ${name}`;
+  }
   return `#${row.cycle_number} · ${name}`;
 }
 
@@ -78,10 +84,12 @@ export default function ProductionWorkspace({
   const openShipFromDetail = useCallback((detail: AdminCycleDetailView) => {
     setShipTarget({
       cycleId: detail.id,
-      label: cycleLabel({
-        cycle_number: detail.cycle_number,
-        customerName: detail.customerName,
-      }),
+      label: detail.isStandaloneStoreOrder
+        ? `Loja avulsa · ${detail.customerName ?? 'Cliente'}`
+        : cycleLabel({
+            cycle_number: detail.cycle_number,
+            customerName: detail.customerName,
+          }),
       defaultCarrier: detail.carrier ?? 'Correios',
       defaultShippingCostCents: detail.shippingCostCents,
     });

@@ -62,6 +62,10 @@ import {
   isComboInstallmentSlicePayment,
 } from '@/lib/payments/effective-amount';
 import { sumPaymentRevenueCents, type RevenuePaymentRow } from '@/lib/payments/revenue-aggregation';
+import {
+  integrateStandaloneStoreOrdersIntoBoard,
+  listStandaloneStoreOrdersForProduction,
+} from '@/lib/admin/standalone-store-production';
 
 function daysAgoIso(days: number): string {
   const date = new Date();
@@ -1037,7 +1041,12 @@ export async function listAdminProductionEnrichedCycles(
 
 export function buildProductionKanbanFromCycles(
   enriched: AdminCycleRow[],
-  options?: { monthKey?: string }
+  options?: {
+    monthKey?: string;
+    standaloneOrders?: Awaited<
+      ReturnType<typeof listStandaloneStoreOrdersForProduction>
+    >;
+  }
 ): ProductionKanbanBoard {
   const empty: ProductionKanbanBoard = {
     upcoming: [],
@@ -1047,7 +1056,16 @@ export function buildProductionKanbanFromCycles(
     delivered: [],
   };
 
-  if (enriched.length === 0) return empty;
+  if (enriched.length === 0) {
+    if (options?.monthKey && options?.standaloneOrders?.length) {
+      return integrateStandaloneStoreOrdersIntoBoard(
+        empty,
+        options.standaloneOrders,
+        options.monthKey
+      );
+    }
+    return empty;
+  }
 
   const metaBySubscriptionId = buildProductionSubscriptionMeta(enriched);
 
@@ -1061,19 +1079,34 @@ export function buildProductionKanbanFromCycles(
 
   const board = groupProductionBoardRows(filtered);
 
-  for (const status of Object.keys(board) as Array<keyof ProductionKanbanBoard>) {
-    board[status].sort(compareCyclesByPurchaseOrder);
+  const finalBoard =
+    options?.monthKey && options?.standaloneOrders
+      ? integrateStandaloneStoreOrdersIntoBoard(
+          board,
+          options.standaloneOrders,
+          options.monthKey
+        )
+      : board;
+
+  for (const status of Object.keys(finalBoard) as Array<keyof ProductionKanbanBoard>) {
+    finalBoard[status].sort(compareCyclesByPurchaseOrder);
   }
 
-  return board;
+  return finalBoard;
 }
 
 export async function listAdminProductionKanban(
   admin: SupabaseClient,
   options?: { monthKey?: string }
 ): Promise<ProductionKanbanBoard> {
-  const enriched = await listAdminProductionEnrichedCycles(admin);
-  return buildProductionKanbanFromCycles(enriched, options);
+  const [enriched, standaloneOrders] = await Promise.all([
+    listAdminProductionEnrichedCycles(admin),
+    listStandaloneStoreOrdersForProduction(admin),
+  ]);
+  return buildProductionKanbanFromCycles(enriched, {
+    ...options,
+    standaloneOrders,
+  });
 }
 
 /** Todos os ciclos operacionais para o calendário (inclui combos nos meses futuros). */

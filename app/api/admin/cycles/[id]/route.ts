@@ -8,6 +8,10 @@ import {
 } from '@/lib/admin/cycle-payment-resolve';
 import { toAdminCycleDetailView, type AdminCyclePendingStoreOrder } from '@/lib/admin/cycle-detail-view';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
+import {
+  getStandaloneStoreOrderDetail,
+  isStandaloneStoreCardId,
+} from '@/lib/admin/standalone-store-production';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { relOne } from '@/lib/dashboard/format';
 
@@ -18,7 +22,20 @@ interface RouteContext {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { admin } = await requireAdmin();
-    const { id } = await context.params;
+    const { id: rawId } = await context.params;
+    const id = decodeURIComponent(rawId);
+
+    if (isStandaloneStoreCardId(id)) {
+      const detail = await getStandaloneStoreOrderDetail(admin, id);
+      if (!detail) {
+        return NextResponse.json(
+          { error: 'Pedido avulso não encontrado.' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(detail);
+    }
+
     let cycle = await getAdminCycleDetail(admin, id);
 
     if (!cycle) {

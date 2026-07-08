@@ -90,6 +90,7 @@ export interface AdminCycleDetailView {
   shipmentItems: CycleShipmentItem[];
   productionChecklist: ProductionChecklistItem[];
   hasBundledItems: boolean;
+  isStandaloneStoreOrder?: boolean;
 }
 
 const REGION_LABELS: Record<ShippingRegion, string> = {
@@ -275,5 +276,90 @@ export function toAdminCycleDetailView(
     shipmentItems,
     productionChecklist,
     hasBundledItems: productionChecklist.length > 1 || shipmentItems.length > 0,
+    isStandaloneStoreOrder: false,
+  };
+}
+
+export function toStandaloneStoreOrderDetailView(input: {
+  paymentId: string;
+  status: SubscriptionCycle['status'];
+  amountCents: number;
+  paidAt: string | null;
+  createdAt: string | null;
+  meta: import('@/lib/asaas/store-order-payment').StoreOrderMeta;
+  customerName: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  customerCpf: string | null;
+  userId: string;
+  shipmentItems: CycleShipmentItem[];
+  orderAddress: AdminCycleOrderAddress | null;
+}): AdminCycleDetailView {
+  const { meta } = input;
+  const orderLabel =
+    meta.items.length > 0
+      ? meta.items
+          .map((line) =>
+            line.quantity > 1 ? `${line.name} ×${line.quantity}` : line.name
+          )
+          .join(', ')
+      : 'Loja avulsa';
+
+  const addressLine = input.orderAddress
+    ? input.orderAddress.formattedMultiline.replace(/\n/g, ' · ')
+    : null;
+
+  return {
+    id: `standalone:${input.paymentId}`,
+    cycle_number: 0,
+    status: input.status,
+    amount_cents: input.amountCents,
+    paid_at: input.paidAt ?? input.createdAt,
+    tracking_code: meta.trackingCode ?? null,
+    carrier: meta.carrier ?? null,
+    shipped_at: meta.shippedAt ?? null,
+    delivered_at: meta.deliveredAt ?? null,
+    cancelled_at: null,
+    cancel_reason: null,
+    production_notes: meta.productionNotes ?? null,
+    estimated_delivery: null,
+    themeName: meta.items.find((line) => line.themeName)?.themeName as
+      | string
+      | undefined ?? null,
+    customerName: input.customerName,
+    customerEmail: input.customerEmail,
+    customerPhone: input.customerPhone,
+    customerCpf: input.customerCpf,
+    userId: input.userId,
+    subscriptionId: null,
+    planName: orderLabel,
+    planSlug: null,
+    addressLine,
+    orderPlan: null,
+    orderAddons: [],
+    orderAddress: input.orderAddress,
+    orderPromoCode: meta.couponCode ?? null,
+    orderShippingCents: meta.shippingCents ?? null,
+    orderShippingRegion: meta.shippingLabel ?? null,
+    orderCustomerNotes: null,
+    orderMonthlyTotalCents: null,
+    productionCostCents: null,
+    shippingCostCents: meta.shippingCostCents ?? null,
+    kitMarginCents: null,
+    shipmentFinance: null,
+    pendingBundledOrders: [],
+    isPartner: false,
+    shipmentItems: input.shipmentItems,
+    productionChecklist: input.shipmentItems.map((item) => ({
+      id: item.id,
+      kind: item.kind === 'paint-kit' ? 'paint-kit' : item.kind,
+      name: item.name,
+      tag: item.tag,
+      quantity: item.quantity,
+      detail: item.detail,
+      paymentPending: item.paymentPending,
+    })),
+    hasBundledItems: input.shipmentItems.length > 0,
+    isStandaloneStoreOrder: true,
   };
 }

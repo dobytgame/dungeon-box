@@ -207,9 +207,15 @@ function KanbanCard({
                 Parceiro
               </span>
             ) : null}
-            <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
-              #{row.cycle_number}
-            </span>
+            {row.isStandaloneStoreOrder ? (
+              <span className="rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-sky-300">
+                Loja avulsa
+              </span>
+            ) : (
+              <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+                #{row.cycle_number}
+              </span>
+            )}
           </div>
         </div>
         {row.customerEmail ? (
@@ -400,7 +406,7 @@ export default function ProductionKanban({
 
     void advanceCycleProductionAction(cycleId, target).then((result) => {
       setPendingAction(null);
-      if (result.error) {
+      if ('error' in result && result.error) {
         setOptimisticBoard(null);
         setError(result.error);
         return;
