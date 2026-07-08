@@ -25,6 +25,7 @@ import {
   resolveMonthlyKitOrderItem,
 } from '@/lib/store/monthly-kits';
 import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
+import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -158,6 +159,10 @@ async function resolveStoreLines(
 
   for (const line of normalized) {
     if (isMonthlyKitProductId(line.productId)) {
+      if (!isStorePublic()) {
+        return { error: 'Este produto não está disponível no momento.' };
+      }
+
       const monthly = await resolveMonthlyKitOrderItem(
         supabase,
         userId,
@@ -190,6 +195,10 @@ async function resolveStoreLines(
     const product = await resolveStoreProductForCheckout(admin, line.productId);
     if (!product) {
       return { error: 'Produto inválido no carrinho.' };
+    }
+
+    if (!isStorePublic() && !isPublicStoreProduct(product)) {
+      return { error: 'Este produto não está disponível no momento.' };
     }
 
     resolved.push({

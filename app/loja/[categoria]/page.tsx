@@ -7,6 +7,12 @@ import ShopCategoryHero from '@/components/shop/ShopCategoryHero';
 import ShopSubcategoryRow from '@/components/shop/ShopSubcategoryRow';
 import StoreProductCard from '@/components/store/StoreProductCard';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
+import {
+  isPublicStoreCategorySlug,
+  isStorePublic,
+  profileIsStoreAdmin,
+} from '@/lib/store/access';
 import {
   loadActiveProductsByCategory,
   loadActiveStoreSubcategories,
@@ -26,6 +32,12 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
   const page = parseStorePage(pagina);
 
   const admin = createAdminClient();
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
+
   const { category, products, total } = await loadActiveProductsByCategory(
     admin,
     categoria,
@@ -33,6 +45,10 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
   );
 
   if (!category) notFound();
+
+  if (!isStorePublic() && !isAdmin && !isPublicStoreCategorySlug(categoria)) {
+    notFound();
+  }
 
   const subcategories = category.parentId
     ? await loadActiveStoreSubcategories(admin, category.parentId)

@@ -4,7 +4,7 @@ import Logo from '@/components/ui/Logo';
 import CTAButton from '@/components/ui/CTAButton';
 import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
 import { COMPANY } from '@/lib/legal/constants';
-import { isStorePublic } from '@/lib/store/access';
+import { isStoreLinkVisible } from '@/lib/store/access';
 
 const exploreLinks = [
   { href: '#planos', label: 'Planos' },
@@ -30,7 +30,7 @@ interface FooterProps {
 
 export default function Footer({
   isLoggedIn = false,
-  showStoreLink = isStorePublic(),
+  showStoreLink = isStoreLinkVisible(),
 }: FooterProps) {
   const year = new Date().getFullYear();
   const visibleExploreLinks = exploreLinks.filter(

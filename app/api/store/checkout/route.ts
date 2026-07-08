@@ -5,6 +5,8 @@ import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
 import { isAsaasCheckout } from '@/lib/payments/provider';
 import { purchaseStoreOrder } from '@/lib/store/checkout';
 import { createClient } from '@/lib/supabase/server';
+import { assertPublicStoreCheckoutItems } from '@/lib/store/access';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const cartItemsSchema = z
   .array(
@@ -152,6 +154,14 @@ export async function POST(request: Request) {
   }
 
   const { profile, address, cpf, phone } = validation;
+
+  const checkoutGuard = await assertPublicStoreCheckoutItems(
+    createAdminClient(),
+    body.items.map((item) => item.productId)
+  );
+  if ('error' in checkoutGuard) {
+    return NextResponse.json({ error: checkoutGuard.error }, { status: 403 });
+  }
 
   const sharedInput = {
     supabase,

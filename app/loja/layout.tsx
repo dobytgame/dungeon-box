@@ -4,7 +4,13 @@ import { StoreCatalogProvider } from '@/components/store/StoreCatalogProvider';
 import ShopShell from '@/components/shop/ShopShell';
 import { displayName, getProfile } from '@/lib/dashboard/queries';
 import { buildOpenGraph, buildRobots, buildTwitterCard } from '@/lib/seo/metadata';
-import { isStorePublic } from '@/lib/store/access';
+import {
+  filterPublicStoreCategories,
+  filterPublicStoreProducts,
+  isStoreLinkVisible,
+  isStorePublic,
+  profileIsStoreAdmin,
+} from '@/lib/store/access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { loadActiveStoreCategories, loadAllActiveStoreProducts } from '@/lib/store/load-catalog';
@@ -14,7 +20,7 @@ export const metadata: Metadata = {
   title: 'Loja | DungeonBox',
   description:
     'Kits de pintura, acessórios e extras para sua mesa de RPG. Complemente sua dungeon com a mesma qualidade da assinatura.',
-  robots: buildRobots(isStorePublic()),
+  robots: buildRobots(isStoreLinkVisible()),
   openGraph: buildOpenGraph({
     title: 'Loja DungeonBox — Extras para sua mesa de RPG',
     description:
@@ -38,20 +44,35 @@ export default async function LojaLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
+  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
+
   const [profile, monthlyKits, categories, catalogProducts] = await Promise.all([
     user ? getProfile(user.id) : Promise.resolve(null),
-    user ? getMonthlyKitProductsForUser(user.id, supabase) : Promise.resolve([]),
+    isStorePublic() || isAdmin
+      ? user
+        ? getMonthlyKitProductsForUser(user.id, supabase)
+        : Promise.resolve([])
+      : Promise.resolve([]),
     loadActiveStoreCategories(admin),
     loadAllActiveStoreProducts(admin),
   ]);
 
+  const visibleCategories =
+    isStorePublic() || isAdmin
+      ? categories
+      : filterPublicStoreCategories(categories);
+  const visibleProducts =
+    isStorePublic() || isAdmin
+      ? catalogProducts
+      : filterPublicStoreProducts(catalogProducts);
+
   const userName = user ? displayName(profile, user.email) : null;
 
   return (
-    <StoreCatalogProvider monthlyKits={monthlyKits} catalogProducts={catalogProducts}>
+    <StoreCatalogProvider monthlyKits={monthlyKits} catalogProducts={visibleProducts}>
       <StoreCartProvider>
         <ShopShell
-          categories={categories}
+          categories={visibleCategories}
           isLoggedIn={!!user}
           userName={userName}
         >

@@ -15,7 +15,14 @@ import {
   buildRobots,
   buildTwitterCard,
 } from '@/lib/seo/metadata';
-import { isStorePublic } from '@/lib/store/access';
+import {
+  filterPublicStoreProducts,
+  isPublicStoreProduct,
+  isStoreLinkVisible,
+  isStorePublic,
+  profileIsStoreAdmin,
+} from '@/lib/store/access';
+import { createClient } from '@/lib/supabase/server';
 import {
   getStoreProductBySlugFromDb,
   loadRelatedProducts,
@@ -38,7 +45,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${product.name} | Loja DungeonBox`,
     description: product.tagline,
-    robots: buildRobots(isStorePublic()),
+    robots: buildRobots(isStoreLinkVisible()),
     openGraph: buildOpenGraph({
       title: product.name,
       description: product.tagline,
@@ -54,11 +61,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function LojaProductPage({ params }: Props) {
   const { slug } = await params;
   const admin = createAdminClient();
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
   const product = await getStoreProductBySlugFromDb(admin, slug);
 
   if (!product) notFound();
 
-  const related = await loadRelatedProducts(admin, product);
+  if (!isStorePublic() && !isAdmin && !isPublicStoreProduct(product)) {
+    notFound();
+  }
+
+  const related = filterPublicStoreProducts(
+    await loadRelatedProducts(admin, product)
+  );
   const galleryImages = [
     ...(product.imageUrl ? [product.imageUrl] : []),
     ...(product.galleryUrls ?? []),

@@ -9,6 +9,12 @@ import StoreProductCard from '@/components/store/StoreProductCard';
 import { planSupportCopy } from '@/lib/data';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import {
+  filterPublicStoreCategories,
+  filterPublicStoreProducts,
+  isStorePublic,
+  profileIsStoreAdmin,
+} from '@/lib/store/access';
 import { loadActiveStoreBanners } from '@/lib/store/banners';
 import {
   loadActivePaintKitProducts,
@@ -76,11 +82,14 @@ export default async function LojaHomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
+  const showFullCatalog = isStorePublic() || isAdmin;
+
   const [categories, banners, monthlyKitStore, paintKitProducts, featured, newest] =
     await Promise.all([
       loadActiveStoreCategories(admin),
       loadActiveStoreBanners(admin),
-      user
+      showFullCatalog && user
         ? getMonthlyKitStoreAvailability(user.id, supabase)
         : Promise.resolve({
             products: [],
@@ -89,9 +98,16 @@ export default async function LojaHomePage() {
             issue: 'no_subscription' as const,
           }),
       loadActivePaintKitProducts(admin),
-      loadFeaturedProducts(admin),
-      loadNewestProducts(admin),
+      showFullCatalog ? loadFeaturedProducts(admin) : Promise.resolve([]),
+      showFullCatalog ? loadNewestProducts(admin) : Promise.resolve([]),
     ]);
+
+  const visibleCategories = showFullCatalog
+    ? categories
+    : filterPublicStoreCategories(categories);
+  const visiblePaintKits = showFullCatalog
+    ? paintKitProducts
+    : filterPublicStoreProducts(paintKitProducts);
 
   return (
     <>
@@ -100,10 +116,10 @@ export default async function LojaHomePage() {
       ) : (
         <ShopHero />
       )}
-      <ShopCategorySlider categories={categories} />
+      <ShopCategorySlider categories={visibleCategories} />
 
       <div id="produtos">
-        {monthlyKitStore.products.length > 0 ? (
+        {showFullCatalog && monthlyKitStore.products.length > 0 ? (
           <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
             <div className="mb-8">
               <p className="font-display text-xs uppercase tracking-[0.25em] text-ember">
@@ -123,32 +139,58 @@ export default async function LojaHomePage() {
               ))}
             </div>
           </section>
-        ) : (
+        ) : showFullCatalog ? (
           <div className="py-10">
             <MonthlyKitEmptyState issue={monthlyKitStore.issue} />
           </div>
-        )}
+        ) : null}
 
         <ShopProductGrid
           eyebrow="Acessórios"
           title="Kits de pintura"
-          products={paintKitProducts}
+          products={visiblePaintKits}
           viewAllHref={STORE_ROUTES.category('kits-pintura')}
         />
 
-        <ShopProductGrid
-          eyebrow="Destaque"
-          title="Produtos em destaque"
-          products={featured}
-        />
+        {showFullCatalog ? (
+          <>
+            <ShopProductGrid
+              eyebrow="Destaque"
+              title="Produtos em destaque"
+              products={featured}
+            />
 
-        <ShopIntermediateBanner />
+            <ShopIntermediateBanner />
 
-        <ShopProductGrid
-          eyebrow="Novidades"
-          title="Recém adicionados"
-          products={newest}
-        />
+            <ShopProductGrid
+              eyebrow="Novidades"
+              title="Recém adicionados"
+              products={newest}
+            />
+          </>
+        ) : (
+          <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <div className="rounded-sm border border-ember/20 bg-ember/[0.04] p-6">
+              <p className="font-display text-xs uppercase tracking-[0.25em] text-ember">
+                Assinatura mensal
+              </p>
+              <h2 className="mt-2 font-display text-2xl uppercase tracking-wide text-white">
+                Receba cenários 3D todo mês
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm text-stone-400">
+                Escolha um plano e comece a montar sua dungeon modular. Kits de
+                pintura podem ser adicionados à sua próxima entrega com frete grátis
+                para assinantes.
+              </p>
+              <Link
+                href="/#planos"
+                className="mt-5 inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+              >
+                Ver planos →
+              </Link>
+            </div>
+          </section>
+        )}
       </div>
 
       <ShopSubscriptionBanner />
