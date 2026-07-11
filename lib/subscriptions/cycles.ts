@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { mapRawMonthToProductionMonth } from '@/lib/admin/production-month';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
+import { resolveCycleScheduledMonthKey } from '@/lib/subscriptions/combo-production-schedule';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
@@ -255,6 +257,63 @@ export async function processActiveSubscriptionPayment(
 
   await ensureSubscriptionCycle(supabase, subscriptionId, nextCycle);
   return 'renewal';
+}
+
+/**
+ * Ao cancelar assinatura: remove ciclos futuros sem pagamento e fixa o mês de
+ * produção dos ciclos já pagos para não migrarem para o mês corrente.
+ */
+export async function cleanupSubscriptionCyclesOnCancel(
+  supabase: SupabaseClient,
+  subscriptionId: string
+): Promise<{ removedUnpaidCycles: number; pinnedMonths: number }> {
+  const now = new Date().toISOString();
+
+  const { data: removed } = await supabase
+    .from('subscription_cycles')
+    .delete()
+    .eq('subscription_id', subscriptionId)
+    .eq('status', 'upcoming')
+    .is('payment_id', null)
+    .select('id');
+
+  const { data: paidOpen } = await supabase
+    .from('subscription_cycles')
+    .select('id, paid_at, created_at, scheduled_production_month, payment_id')
+    .eq('subscription_id', subscriptionId)
+    .in('status', ['upcoming', 'production', 'preparing', 'shipped'])
+    .not('payment_id', 'is', null);
+
+  let pinnedMonths = 0;
+
+  for (const cycle of paidOpen ?? []) {
+    if (cycle.scheduled_production_month) continue;
+
+    const rawMonth = resolveCycleScheduledMonthKey({
+      scheduled_production_month: cycle.scheduled_production_month as
+        | string
+        | null,
+      paid_at: cycle.paid_at as string | null,
+      created_at: cycle.created_at as string | null,
+    });
+    if (!rawMonth) continue;
+
+    const pinned = mapRawMonthToProductionMonth(rawMonth);
+    const { error } = await supabase
+      .from('subscription_cycles')
+      .update({
+        scheduled_production_month: `${pinned}-01`,
+        updated_at: now,
+      })
+      .eq('id', cycle.id as string);
+
+    if (!error) pinnedMonths += 1;
+  }
+
+  return {
+    removedUnpaidCycles: removed?.length ?? 0,
+    pinnedMonths,
+  };
 }
 
 /** Remove ciclos duplicados e contadores adiantados por race no 1º pagamento. */

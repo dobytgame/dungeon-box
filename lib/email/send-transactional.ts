@@ -64,6 +64,11 @@ import {
   pendingPaymentText,
 } from '@/lib/email/templates/pending-payment';
 import {
+  SUBSCRIPTION_PIX_PAYMENT_SUBJECT,
+  subscriptionPixPaymentHtml,
+  subscriptionPixPaymentText,
+} from '@/lib/email/templates/subscription-pix-payment';
+import {
   getRoleEmailAddress,
   isEmailConfigured,
   type EmailSenderRole,
@@ -151,6 +156,26 @@ export async function sendPendingPaymentEmail(input: {
     text: pendingPaymentText(input),
     replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'pending_payment_link' }],
+  });
+}
+
+export async function sendSubscriptionPixPaymentEmail(input: {
+  to: string;
+  name?: string | null;
+  planName?: string | null;
+  amountCents: number;
+  paymentUrl: string;
+  pixPayload: string;
+  expirationDate?: string | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'billing',
+    to: input.to,
+    subject: SUBSCRIPTION_PIX_PAYMENT_SUBJECT,
+    html: subscriptionPixPaymentHtml(input),
+    text: subscriptionPixPaymentText(input),
+    replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'subscription_pix_payment' }],
   });
 }
 

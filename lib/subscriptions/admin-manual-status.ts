@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ensureSubscriptionCycle } from '@/lib/subscriptions/cycles';
+import {
+  cleanupSubscriptionCyclesOnCancel,
+  ensureSubscriptionCycle,
+} from '@/lib/subscriptions/cycles';
 
 function addMonths(date: Date, months: number): Date {
   const result = new Date(date);
@@ -116,6 +119,8 @@ export async function manualDeactivateSubscription(
   if (error) {
     return { error: error.message };
   }
+
+  await cleanupSubscriptionCyclesOnCancel(supabase, subscriptionId);
 
   return {};
 }

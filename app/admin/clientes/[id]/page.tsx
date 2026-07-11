@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CustomerPartnerPanel from '@/components/admin/CustomerPartnerPanel';
+import CustomerActivatePlanPanel from '@/components/admin/CustomerActivatePlanPanel';
 import PartnerBadge from '@/components/admin/PartnerBadge';
 import ReferralAttributionBadge from '@/components/admin/ReferralAttributionBadge';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
@@ -94,6 +95,20 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
     isPartner: Boolean(sub.is_partner),
   }));
 
+  const addressOptions = addresses.map((address) => ({
+    id: address.id,
+    isDefault: Boolean(address.is_default),
+    label: [
+      address.recipient,
+      `${address.street}, ${address.number}`,
+      address.complement,
+      `${address.neighborhood} · ${address.city}/${address.state}`,
+      address.zip_code,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  }));
+
   return (
     <div className="space-y-8">
       <Link
@@ -133,6 +148,15 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
         userId={profile.id}
         subscriptions={partnerSubscriptions}
         planOptions={planOptions}
+      />
+
+      <CustomerActivatePlanPanel
+        userId={profile.id}
+        customerName={name}
+        customerCpf={profile.cpf}
+        customerPhone={profile.phone}
+        planOptions={planOptions}
+        addresses={addressOptions}
       />
 
       {addresses.length > 0 ? (

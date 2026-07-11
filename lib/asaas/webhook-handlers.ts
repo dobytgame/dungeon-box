@@ -11,6 +11,7 @@ import {
 } from '@/lib/email/subscription-notify';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
+import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
 import {
   handleComboPaymentConfirmed,
@@ -254,6 +255,7 @@ export async function handleAsaasPaymentRefunded(
 
     await cancelReferralForSubscription(supabase, local.id);
     await cancelPendingRedemptionsForUser(supabase, local.user_id);
+    await cleanupSubscriptionCyclesOnCancel(supabase, local.id);
 
     void notifySubscriptionCancelled(supabase, local.id).catch((err) => {
       console.error('[email] subscription cancelled notify failed:', err);

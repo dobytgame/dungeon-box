@@ -68,6 +68,11 @@ import {
   clearSubscriptionPartnerFlag,
   grantPartnerPlanForUser,
 } from '@/lib/subscriptions/partner';
+import { createAdminSubscriptionWithPix } from '@/lib/admin/admin-subscription-pix';
+import {
+  BILLING_TERMS,
+  type BillingTerm,
+} from '@/lib/checkout/combo-billing';
 
 function revalidateAdmin() {
   revalidatePath('/admin', 'layout');
@@ -794,6 +799,184 @@ export async function grantPartnerPlanAction(
 
   revalidateAdmin();
   return { success: true as const, subscriptionId: result.subscriptionId };
+}
+
+export async function adminSaveCustomerAddressAction(
+  userId: string,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const payload = {
+    user_id: userId,
+    label: (formData.get('label') as string)?.trim() || 'Principal',
+    recipient: (formData.get('recipient') as string)?.trim(),
+    zip_code: (formData.get('zip_code') as string)?.replace(/\D/g, ''),
+    street: (formData.get('street') as string)?.trim(),
+    number: (formData.get('number') as string)?.trim(),
+    complement: (formData.get('complement') as string)?.trim() || null,
+    neighborhood: (formData.get('neighborhood') as string)?.trim(),
+    city: (formData.get('city') as string)?.trim(),
+    state: ((formData.get('state') as string) || '').toUpperCase().slice(0, 2),
+    is_default: formData.get('is_default') === 'on',
+  };
+
+  if (
+    !payload.recipient ||
+    !payload.zip_code ||
+    !payload.street ||
+    !payload.number ||
+    !payload.neighborhood ||
+    !payload.city ||
+    !payload.state
+  ) {
+    return { error: 'Preencha todos os campos obrigatórios do endereço.' };
+  }
+
+  if (payload.is_default) {
+    await admin
+      .from('addresses')
+      .update({ is_default: false })
+      .eq('user_id', userId);
+  }
+
+  const { data, error } = await admin
+    .from('addresses')
+    .insert(payload)
+    .select('id')
+    .single();
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'customer.address_create',
+    entityType: 'address',
+    entityId: data.id,
+    metadata: { user_id: userId },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/clientes/${userId}`);
+
+  return { success: true as const, id: data.id as string };
+}
+
+export async function adminUpdateCustomerBillingProfileAction(
+  userId: string,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const cpf = (formData.get('cpf') as string)?.replace(/\D/g, '') ?? '';
+  const phone = (formData.get('phone') as string)?.replace(/\D/g, '') ?? '';
+
+  if (cpf.length !== 11) {
+    return { error: 'Informe um CPF válido com 11 dígitos.' };
+  }
+
+  if (phone.length < 10) {
+    return { error: 'Informe um telefone válido com DDD.' };
+  }
+
+  const { error } = await admin
+    .from('profiles')
+    .update({
+      cpf,
+      phone,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'customer.billing_profile_update',
+    entityType: 'profile',
+    entityId: userId,
+    metadata: { user_id: userId },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/clientes/${userId}`);
+
+  return { success: true as const };
+}
+
+export async function adminCreateSubscriptionPixAction(
+  userId: string,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const planSlug = (formData.get('plan_slug') as string)?.trim();
+  const addressId = (formData.get('address_id') as string)?.trim();
+  const billingTerm = (formData.get('billing_term') as string)?.trim() as BillingTerm;
+  const couponCode = (formData.get('coupon_code') as string | null)?.trim() || null;
+  const specialNotes = (formData.get('special_notes') as string | null)?.trim() || null;
+
+  if (!planSlug || !PLAN_SLUGS.includes(planSlug as PlanSlug)) {
+    return { error: 'Selecione um plano válido.' };
+  }
+
+  if (!addressId) {
+    return { error: 'Selecione um endereço de entrega.' };
+  }
+
+  if (!BILLING_TERMS.includes(billingTerm)) {
+    return { error: 'Selecione mensal ou combo.' };
+  }
+
+  try {
+    const result = await createAdminSubscriptionWithPix(admin, {
+      userId,
+      planSlug: planSlug as PlanSlug,
+      addressId,
+      billingTerm,
+      couponCode,
+      specialNotes,
+    });
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.admin_pix_create',
+      entityType: 'subscription',
+      entityId: result.subscriptionId,
+      metadata: {
+        user_id: userId,
+        plan_slug: planSlug,
+        billing_term: billingTerm,
+        payment_id: result.paymentId,
+        amount_cents: result.amountCents,
+        email_sent: result.emailSent,
+        coupon_code: couponCode,
+      },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidatePath(`/admin/clientes/${userId}`);
+
+    return {
+      success: true as const,
+      ...result,
+      emailSent: result.emailSent,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível gerar o PIX.',
+    };
+  }
 }
 
 export async function saveThemeAction(themeId: string | null, formData: FormData) {

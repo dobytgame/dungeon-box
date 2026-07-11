@@ -13,6 +13,7 @@ import {
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
+import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 
 export type SubscriptionStatusAction = 'pause' | 'cancel' | 'resume';
 
@@ -154,6 +155,7 @@ export async function applySubscriptionStatusChange(
   if (action === 'cancel') {
     await cancelReferralForSubscription(supabase, subscriptionId);
     await cancelPendingRedemptionsForUser(supabase, row.user_id);
+    await cleanupSubscriptionCyclesOnCancel(supabase, subscriptionId);
   }
 
   return {};

@@ -131,6 +131,11 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                                   Pag. pendente
                                 </span>
                               ) : null}
+                              {row.subscriptionStatus === 'cancelled' ? (
+                                <span className="rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-red-300">
+                                  Cancelado
+                                </span>
+                              ) : null}
                               {row.isPartner ? (
                                 <span className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-violet-300">
                                   Parceiro

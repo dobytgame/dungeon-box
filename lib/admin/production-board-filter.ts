@@ -41,12 +41,26 @@ function cycleHasFulfillmentSignal(row: AdminCycleRow): boolean {
   return Boolean(row.paid_at || row.payment_id);
 }
 
+function hasPaidOpenFulfillment(rows: AdminCycleRow[]): boolean {
+  return rows.some(
+    (row) =>
+      OPEN_CYCLE_STATUSES.includes(row.status) &&
+      cycleHasFulfillmentSignal(row)
+  );
+}
+
 function shouldShowSubscriptionOnBoard(
   meta: ProductionSubscriptionMeta | undefined,
   rows: AdminCycleRow[]
 ): boolean {
   if (!meta) return true;
-  if (subscriptionIsArchived(meta.status)) return false;
+
+  const paidOpen = hasPaidOpenFulfillment(rows);
+
+  if (subscriptionIsArchived(meta.status)) {
+    return paidOpen;
+  }
+
   if (OPERATIONAL_SUBSCRIPTION_STATUSES.has(meta.status)) return true;
 
   return rows.some(
@@ -84,7 +98,20 @@ function pickLatestDelivered(rows: AdminCycleRow[]): AdminCycleRow | null {
   return [...rows].sort((a, b) => b.cycle_number - a.cycle_number)[0] ?? null;
 }
 
-function filterRowsForSubscription(rows: AdminCycleRow[]): AdminCycleRow[] {
+function filterRowsForSubscription(
+  rows: AdminCycleRow[],
+  meta?: ProductionSubscriptionMeta
+): AdminCycleRow[] {
+  if (meta && subscriptionIsArchived(meta.status)) {
+    const paidOpen = rows.filter(
+      (row) =>
+        OPEN_CYCLE_STATUSES.includes(row.status) &&
+        cycleHasFulfillmentSignal(row)
+    );
+    const primary = pickPrimaryOpenCycle(paidOpen);
+    return primary ? [primary] : [];
+  }
+
   const open = rows.filter((row) => OPEN_CYCLE_STATUSES.includes(row.status));
   const delivered = rows.filter((row) => row.status === 'delivered');
   const primaryOpen = pickPrimaryOpenCycle(open);
@@ -190,14 +217,19 @@ export function filterProductionBoardRowsForMonth(
   }
 
   const deduped: AdminCycleRow[] = [];
-  for (const [, subRows] of Array.from(eligibleBySubscription.entries())) {
+  for (const [subscriptionId, subRows] of Array.from(eligibleBySubscription.entries())) {
     const billingTerm = subRows[0]?.subscriptionBillingTerm;
     if (billingTerm && isComboTerm(billingTerm as BillingTerm)) {
       const primary = pickPrimaryOpenCycle(subRows) ?? subRows[0];
       if (primary) deduped.push(primary);
       continue;
     }
-    deduped.push(...filterRowsForSubscription(subRows));
+    deduped.push(
+      ...filterRowsForSubscription(
+        subRows,
+        metaBySubscriptionId.get(subscriptionId)
+      )
+    );
   }
 
   const perUser = keepPrimarySubscriptionPerUser(
@@ -266,8 +298,15 @@ export function filterProductionBoardRows(
   }
 
   const deduped: AdminCycleRow[] = [];
-  for (const [, subRows] of Array.from(eligibleBySubscription.entries())) {
-    deduped.push(...filterRowsForSubscription(subRows));
+  for (const [subscriptionId, subRows] of Array.from(
+    eligibleBySubscription.entries()
+  )) {
+    deduped.push(
+      ...filterRowsForSubscription(
+        subRows,
+        metaBySubscriptionId.get(subscriptionId)
+      )
+    );
   }
 
   const perUser = keepPrimarySubscriptionPerUser(

@@ -4,7 +4,7 @@ import { getStripe } from '@/lib/stripe/server';
 import { getInvoiceSubscriptionId } from '@/lib/stripe/invoice-subscription';
 import { getSubscriptionPeriodEnd } from '@/lib/stripe/subscription-period';
 import { activateSubscriptionFromStripe } from '@/lib/subscriptions/activate-stripe';
-import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
+import { markCyclePreparing, processActiveSubscriptionPayment, cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
 import {
   notifyPurchaseCompleted,
@@ -87,6 +87,7 @@ export async function handleStripeSubscriptionUpdated(
   await supabase.from('subscriptions').update(updates).eq('id', local.id);
 
   if (mapped === 'cancelled' && local.status !== 'cancelled') {
+    await cleanupSubscriptionCyclesOnCancel(supabase, local.id);
     void notifySubscriptionCancelled(supabase, local.id).catch((err) => {
       console.error('[email] subscription cancelled notify failed:', err);
     });
