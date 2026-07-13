@@ -1,8 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mapRawMonthToProductionMonth } from '@/lib/admin/production-month';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
-import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 import { resolveCycleScheduledMonthKey } from '@/lib/subscriptions/combo-production-schedule';
+import {
+  countApprovedSubscriptionPayments,
+  isMonthlySubscription,
+  loyaltyLevelFromApprovedPayments,
+  resolveMonthlyScheduledProductionMonth,
+  resolveRenewalTargetCycleNumberForSubscription,
+} from '@/lib/subscriptions/monthly-production-schedule';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
@@ -159,19 +165,60 @@ export async function markCyclePreparing(
   supabase: SupabaseClient,
   subscriptionId: string,
   cycleNumber: number,
-  payment: CyclePaymentLink
+  payment: CyclePaymentLink,
+  options?: { scheduledProductionMonth?: string }
 ) {
   await ensureSubscriptionCycle(supabase, subscriptionId, cycleNumber);
 
+  const { data: existing } = await supabase
+    .from('subscription_cycles')
+    .select('payment_id, status')
+    .eq('subscription_id', subscriptionId)
+    .eq('cycle_number', cycleNumber)
+    .maybeSingle();
+
+  if (
+    existing?.payment_id &&
+    existing.payment_id !== payment.id &&
+    existing.status !== 'upcoming' &&
+    existing.status !== 'failed'
+  ) {
+    console.warn(
+      '[cycles] markCyclePreparing skipped: cycle already paid',
+      subscriptionId,
+      cycleNumber
+    );
+    return;
+  }
+
+  let scheduledProductionMonth = options?.scheduledProductionMonth;
+  if (!scheduledProductionMonth && payment.paid_at) {
+    const monthly = await isMonthlySubscription(supabase, subscriptionId);
+    if (monthly) {
+      scheduledProductionMonth = await resolveMonthlyScheduledProductionMonth(
+        supabase,
+        subscriptionId,
+        payment.paid_at,
+        cycleNumber
+      );
+    }
+  }
+
+  const patch: Record<string, unknown> = {
+    status: 'upcoming',
+    payment_id: payment.id,
+    paid_at: payment.paid_at,
+    amount_cents: payment.amount_cents,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (scheduledProductionMonth) {
+    patch.scheduled_production_month = scheduledProductionMonth;
+  }
+
   const { error } = await supabase
     .from('subscription_cycles')
-    .update({
-      status: 'upcoming',
-      payment_id: payment.id,
-      paid_at: payment.paid_at,
-      amount_cents: payment.amount_cents,
-      updated_at: new Date().toISOString(),
-    })
+    .update(patch)
     .eq('subscription_id', subscriptionId)
     .eq('cycle_number', cycleNumber)
     .in('status', ['upcoming', 'production', 'preparing', 'failed']);
@@ -232,22 +279,67 @@ export async function processActiveSubscriptionPayment(
       .update({
         status: 'active',
         current_cycle: 1,
+        loyalty_level: loyaltyLevelFromApprovedPayments(approvedCount ?? 1),
         updated_at: now,
       })
       .eq('id', subscriptionId);
     return 'initial';
   }
 
-  const paidCycleNumber = resolvePaidCycleNumber(currentCycle);
-  await markCyclePreparing(supabase, subscriptionId, paidCycleNumber, payment);
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('billing_term')
+    .eq('id', subscriptionId)
+    .maybeSingle();
 
+  const billingTerm = (subscription?.billing_term as BillingTerm | null) ?? 'monthly';
+
+  if (isComboTerm(billingTerm)) {
+    const paidCycleNumber = resolvePaidCycleNumber(currentCycle);
+    const approvedPayments = approvedCount ?? paidCycleNumber;
+    await supabase
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        current_cycle: Math.max(paidCycleNumber + 1, approvedPayments + 1),
+        loyalty_level: loyaltyLevelFromApprovedPayments(approvedPayments),
+        current_period_start: now,
+        current_period_end: periodEndIso,
+        next_billing_date: periodEndIso,
+        updated_at: now,
+      })
+      .eq('id', subscriptionId);
+    return 'renewal';
+  }
+
+  const paidCycleNumber = await resolveRenewalTargetCycleNumberForSubscription(
+    supabase,
+    subscriptionId
+  );
+  const scheduledProductionMonth = payment.paid_at
+    ? await resolveMonthlyScheduledProductionMonth(
+        supabase,
+        subscriptionId,
+        payment.paid_at,
+        paidCycleNumber
+      )
+    : undefined;
+
+  await markCyclePreparing(supabase, subscriptionId, paidCycleNumber, payment, {
+    scheduledProductionMonth,
+  });
+
+  const approvedPayments = await countApprovedSubscriptionPayments(
+    supabase,
+    subscriptionId
+  );
   const nextCycle = paidCycleNumber + 1;
   await supabase
     .from('subscriptions')
     .update({
       status: 'active',
       current_cycle: nextCycle,
-      loyalty_level: calculateLoyaltyLevel(nextCycle - 1),
+      loyalty_level: loyaltyLevelFromApprovedPayments(approvedPayments),
       current_period_start: now,
       current_period_end: periodEndIso,
       next_billing_date: periodEndIso,

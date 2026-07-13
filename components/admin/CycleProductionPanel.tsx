@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
+import { isStandaloneStoreCardId } from '@/lib/admin/standalone-store-production';
 import {
   getAllowedCycleTransitions,
   getCycleRollbackTargets,
@@ -11,6 +12,7 @@ import {
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import CycleShipForm from './CycleShipForm';
+import SendFeedbackEmailButton from './SendFeedbackEmailButton';
 
 interface Props {
   cycleId: string;
@@ -18,6 +20,7 @@ interface Props {
   defaultCarrier?: string;
   cancelReason?: string | null;
   productionNotes?: string | null;
+  feedbackRequestSentAt?: string | null;
   shipMode?: 'inline' | 'modal';
   onShipRequest?: () => void;
   onUpdated?: () => void;
@@ -29,6 +32,7 @@ export default function CycleProductionPanel({
   defaultCarrier = 'Correios',
   cancelReason,
   productionNotes,
+  feedbackRequestSentAt,
   shipMode = 'inline',
   onShipRequest,
   onUpdated,
@@ -335,6 +339,24 @@ export default function CycleProductionPanel({
               {message}
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {status === 'delivered' && !isStandaloneStoreCardId(cycleId) ? (
+        <div className="admin-panel rounded p-5 md:p-6">
+          <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">
+            Avaliação do cliente
+          </h3>
+          <p className="mt-2 text-sm text-zinc-500">
+            Convide o cliente a avaliar a entrega com estrelas e fotos da mesa.
+          </p>
+          <div className="mt-4">
+            <SendFeedbackEmailButton
+              cycleId={cycleId}
+              feedbackRequestSentAt={feedbackRequestSentAt}
+              onSent={onUpdated}
+            />
+          </div>
         </div>
       ) : null}
     </section>

@@ -10,7 +10,8 @@ export async function sendFeedbackRequestForCycle(
     userId: string;
     cycleNumber: number;
     themeName?: string | null;
-  }
+  },
+  options?: { resend?: boolean }
 ): Promise<{ sent: boolean; reason?: string }> {
   const profile = await getUserEmailProfile(supabase, input.userId);
   if (!profile?.email) {
@@ -28,17 +29,29 @@ export async function sendFeedbackRequestForCycle(
     return { sent: false, reason: result.reason };
   }
 
-  const { error } = await supabase
+  await markFeedbackRequestSent(supabase, input.cycleId, Boolean(options?.resend));
+
+  return { sent: true };
+}
+
+async function markFeedbackRequestSent(
+  supabase: SupabaseClient,
+  cycleId: string,
+  resend: boolean
+): Promise<void> {
+  let query = supabase
     .from('subscription_cycles')
     .update({ feedback_request_sent_at: new Date().toISOString() })
-    .eq('id', input.cycleId)
-    .is('feedback_request_sent_at', null);
+    .eq('id', cycleId);
 
+  if (!resend) {
+    query = query.is('feedback_request_sent_at', null);
+  }
+
+  const { error } = await query;
   if (error) {
     console.warn('[feedback] feedback_request_sent_at update failed:', error.message);
   }
-
-  return { sent: true };
 }
 
 export async function sendFeedbackRequestFromCycleRecord(
@@ -51,7 +64,8 @@ export async function sendFeedbackRequestFromCycleRecord(
       | { user_id?: string }
       | { user_id?: string }[]
       | null;
-  }
+  },
+  options?: { resend?: boolean }
 ): Promise<{ sent: boolean; reason?: string }> {
   const subscription = relOne(cycle.subscriptions);
   const theme = relOne(cycle.themes);
@@ -61,12 +75,16 @@ export async function sendFeedbackRequestFromCycleRecord(
     return { sent: false, reason: 'missing_user' };
   }
 
-  return sendFeedbackRequestForCycle(supabase, {
-    cycleId: cycle.id,
-    userId,
-    cycleNumber: cycle.cycle_number,
-    themeName: theme?.name ?? null,
-  });
+  return sendFeedbackRequestForCycle(
+    supabase,
+    {
+      cycleId: cycle.id,
+      userId,
+      cycleNumber: cycle.cycle_number,
+      themeName: theme?.name ?? null,
+    },
+    options
+  );
 }
 
 const FOLLOW_UP_DAYS = 3;

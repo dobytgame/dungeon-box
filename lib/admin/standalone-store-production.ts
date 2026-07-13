@@ -166,6 +166,7 @@ export function buildStandaloneStoreCycleRow(
     paymentPendingHighlight: false,
     isStandaloneStoreOrder: true,
     standaloneStoreOrderIds: [order.paymentId],
+    feedbackRequestSentAt: null,
   };
 }
 

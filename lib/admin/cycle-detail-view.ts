@@ -61,6 +61,7 @@ export interface AdminCycleDetailView {
   cancelled_at: string | null;
   cancel_reason: string | null;
   production_notes: string | null;
+  feedbackRequestSentAt: string | null;
   estimated_delivery: string | null;
   themeName: string | null;
   customerName: string | null;
@@ -247,6 +248,7 @@ export function toAdminCycleDetailView(
     cancelled_at: cycle.cancelled_at,
     cancel_reason: cycle.cancel_reason,
     production_notes: cycle.production_notes,
+    feedbackRequestSentAt: cycle.feedback_request_sent_at ?? null,
     estimated_delivery: cycle.estimated_delivery,
     themeName: theme?.name ?? null,
     customerName:
@@ -322,6 +324,7 @@ export function toStandaloneStoreOrderDetailView(input: {
     cancelled_at: null,
     cancel_reason: null,
     production_notes: meta.productionNotes ?? null,
+    feedbackRequestSentAt: null,
     estimated_delivery: null,
     themeName: meta.items.find((line) => line.themeName)?.themeName as
       | string

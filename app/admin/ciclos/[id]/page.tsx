@@ -126,6 +126,7 @@ export default async function AdminCycleDetailPage({ params }: Props) {
         defaultCarrier={cycle.carrier ?? 'Correios'}
         cancelReason={cycle.cancel_reason}
         productionNotes={cycle.production_notes}
+        feedbackRequestSentAt={cycle.feedback_request_sent_at ?? null}
       />
     </div>
   );

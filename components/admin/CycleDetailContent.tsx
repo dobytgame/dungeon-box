@@ -474,6 +474,7 @@ export default function CycleDetailContent({
         defaultCarrier={detail.carrier ?? 'Correios'}
         cancelReason={detail.cancel_reason}
         productionNotes={detail.production_notes}
+        feedbackRequestSentAt={detail.feedbackRequestSentAt}
         shipMode="modal"
         onShipRequest={() => onShipRequest(detail)}
         onUpdated={() => {

@@ -8,6 +8,7 @@ import { annotateComboInstallmentSlicePayments, dedupeComboPrepaidPayments } fro
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 import { repairAsaasPaymentIncoherencies } from '@/lib/payments/repair-asaas-incoherencies';
 import { backfillMissingCyclePaymentLinks } from '@/lib/subscriptions/cycles';
+import { repairMonthlyProductionMonthsAndLoyalty } from '@/lib/subscriptions/monthly-production-schedule';
 import type { CycleStatus } from '@/lib/dashboard/types';
 
 const OPEN_CYCLE_STATUSES: CycleStatus[] = [
@@ -27,6 +28,9 @@ export type ProductionReconcileResult = {
   storePaymentsSynced: number;
   paymentMetadataFixed: number;
   comboInstallmentSlicesAnnotated: number;
+  monthlyProductionMonthsFixed: number;
+  monthlyLoyaltyFixed: number;
+  monthlyRenewalCyclesAttached: number;
   asaasIncoherenciesRepaired: RepairAsaasIncoherenciesSummary;
 };
 
@@ -411,6 +415,7 @@ export async function reconcileProductionDataCases(
     await annotateComboInstallmentSlicePayments(supabase)
   ).updated;
   const asaasRepair = await repairAsaasPaymentIncoherencies(supabase);
+  const monthlyRepair = await repairMonthlyProductionMonthsAndLoyalty(supabase);
 
   return {
     prematurePaymentsCleared,
@@ -422,6 +427,9 @@ export async function reconcileProductionDataCases(
     storePaymentsSynced,
     paymentMetadataFixed,
     comboInstallmentSlicesAnnotated,
+    monthlyProductionMonthsFixed: monthlyRepair.monthsFixed,
+    monthlyLoyaltyFixed: monthlyRepair.loyaltyFixed,
+    monthlyRenewalCyclesAttached: monthlyRepair.renewalCyclesAttached,
     asaasIncoherenciesRepaired: {
       comboDuplicateRowsFixed: asaasRepair.comboDuplicateRowsFixed,
       comboAmountsFixed: asaasRepair.comboAmountsFixed,

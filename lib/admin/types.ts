@@ -225,6 +225,8 @@ export interface AdminCycleRow {
   isStandaloneStoreOrder?: boolean;
   /** IDs de pagamentos avulsos agrupados neste card de assinatura. */
   standaloneStoreOrderIds?: string[];
+  /** Quando o e-mail de solicitação de feedback foi enviado. */
+  feedbackRequestSentAt: string | null;
 }
 
 export interface AdminPaymentRow extends Payment {

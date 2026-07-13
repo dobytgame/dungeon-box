@@ -180,6 +180,7 @@ const ADMIN_CYCLE_LIST_SELECT = `
   shipping_cost_cents,
   payment_id,
   production_notes,
+  feedback_request_sent_at,
   themes(name),
   subscriptions(
     status,
@@ -268,6 +269,8 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     shipmentMarginCents: null,
     hasBundledRevenue: false,
     paymentPendingHighlight: false,
+    feedbackRequestSentAt:
+      (row.feedback_request_sent_at as string | null) ?? null,
   };
 }
 

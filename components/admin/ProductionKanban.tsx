@@ -22,6 +22,7 @@ import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { adminPlanCardClasses } from '@/lib/plan-theme';
+import SendFeedbackEmailButton from '@/components/admin/SendFeedbackEmailButton';
 
 type BoardColumn = keyof ProductionKanbanBoard;
 
@@ -328,6 +329,16 @@ function KanbanCard({
           </div>
         ) : null}
       </button>
+
+      {row.status === 'delivered' && !row.isStandaloneStoreOrder ? (
+        <div className="mt-3 border-t border-zinc-800/80 pt-3">
+          <SendFeedbackEmailButton
+            cycleId={row.id}
+            feedbackRequestSentAt={row.feedbackRequestSentAt}
+            compact
+          />
+        </div>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-800/80 pt-3">
         {row.status === 'preparing' ? (

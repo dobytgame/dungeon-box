@@ -38,6 +38,7 @@ import {
   isStandaloneStoreCardId,
   shipStandaloneStoreOrder,
 } from '@/lib/admin/standalone-store-production';
+import { sendFeedbackRequestFromCycleRecord } from '@/lib/feedback/request-emails';
 import {
   advancePrepaidComboCycleAfterShip,
   resolveCyclePaymentLink,
@@ -615,6 +616,78 @@ export async function advanceCycleProductionAction(
   await Promise.all(postSave);
 
   revalidateCycleBoard();
+  return { success: true as const };
+}
+
+const FEEDBACK_EMAIL_ERRORS: Record<string, string> = {
+  missing_email: 'Cliente sem e-mail cadastrado.',
+  missing_user: 'Assinatura sem usuário vinculado.',
+};
+
+export async function adminSendFeedbackRequestAction(cycleId: string) {
+  const { user, admin } = await requireAdmin();
+
+  if (isStandaloneStoreCardId(cycleId)) {
+    return {
+      error: 'Pedidos avulsos da loja ainda não têm avaliação por ciclo.',
+    };
+  }
+
+  const { data: cycle, error } = await admin
+    .from('subscription_cycles')
+    .select(
+      `
+      id,
+      cycle_number,
+      status,
+      themes(name),
+      subscriptions(user_id)
+    `
+    )
+    .eq('id', cycleId)
+    .maybeSingle();
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!cycle) {
+    return { error: 'Ciclo não encontrado.' };
+  }
+
+  if (cycle.status !== 'delivered') {
+    return { error: 'Só é possível enviar após marcar como entregue.' };
+  }
+
+  const result = await sendFeedbackRequestFromCycleRecord(
+    admin,
+    {
+      id: cycle.id as string,
+      cycle_number: cycle.cycle_number as number,
+      themes: cycle.themes,
+      subscriptions: cycle.subscriptions,
+    },
+    { resend: true }
+  );
+
+  if (!result.sent) {
+    return {
+      error:
+        FEEDBACK_EMAIL_ERRORS[result.reason ?? ''] ??
+        'Não foi possível enviar o e-mail de avaliação.',
+    };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'cycle.feedback_request_email',
+    entityType: 'subscription_cycle',
+    entityId: cycleId,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateCycleBoard();
+  revalidatePath(`/admin/ciclos/${cycleId}`);
   return { success: true as const };
 }
 

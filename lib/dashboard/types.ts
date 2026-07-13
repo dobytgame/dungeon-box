@@ -108,6 +108,7 @@ export interface SubscriptionCycle {
   cancelled_at: string | null;
   cancel_reason: string | null;
   production_notes: string | null;
+  feedback_request_sent_at?: string | null;
   shipping_cost_cents: number | null;
   created_at: string | null;
   updated_at: string | null;
