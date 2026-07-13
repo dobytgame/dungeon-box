@@ -33,3 +33,15 @@ export function isComboExternalReference(
 ): boolean {
   return Boolean(externalReference?.trim().endsWith(':combo'));
 }
+
+export function isPaintKitExternalReference(
+  externalReference?: string | null
+): boolean {
+  return Boolean(externalReference?.includes(':paint-kit:'));
+}
+
+export function isOneTimeCheckoutExternalReference(
+  externalReference?: string | null
+): boolean {
+  return Boolean(externalReference?.trim().endsWith(':one-time'));
+}

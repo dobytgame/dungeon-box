@@ -26,6 +26,7 @@ export default function SyncCyclesButton() {
               setError('Falha ao sincronizar ciclos.');
               return;
             }
+              const reconcile = result.productionReconcile;
               const parts = [
                 result.removed > 0
                   ? `${result.removed} duplicata(s) removida(s)`
@@ -38,6 +39,12 @@ export default function SyncCyclesButton() {
                   : null,
                 result.subscriptionCountersFixed > 0
                   ? `${result.subscriptionCountersFixed} assinatura(s) com contador ajustado`
+                  : null,
+                reconcile?.monthlyProductionMonthsFixed
+                  ? `${reconcile.monthlyProductionMonthsFixed} mês(es) de produção corrigido(s)`
+                  : null,
+                reconcile?.monthlySpuriousCyclesCleared
+                  ? `${reconcile.monthlySpuriousCyclesCleared} Mês 2+ fantasma(s) removido(s)`
                   : null,
               ].filter(Boolean);
 

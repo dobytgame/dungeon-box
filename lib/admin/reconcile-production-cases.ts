@@ -31,6 +31,7 @@ export type ProductionReconcileResult = {
   monthlyProductionMonthsFixed: number;
   monthlyLoyaltyFixed: number;
   monthlyRenewalCyclesAttached: number;
+  monthlySpuriousCyclesCleared: number;
   asaasIncoherenciesRepaired: RepairAsaasIncoherenciesSummary;
 };
 
@@ -430,6 +431,7 @@ export async function reconcileProductionDataCases(
     monthlyProductionMonthsFixed: monthlyRepair.monthsFixed,
     monthlyLoyaltyFixed: monthlyRepair.loyaltyFixed,
     monthlyRenewalCyclesAttached: monthlyRepair.renewalCyclesAttached,
+    monthlySpuriousCyclesCleared: monthlyRepair.spuriousCyclesCleared,
     asaasIncoherenciesRepaired: {
       comboDuplicateRowsFixed: asaasRepair.comboDuplicateRowsFixed,
       comboAmountsFixed: asaasRepair.comboAmountsFixed,

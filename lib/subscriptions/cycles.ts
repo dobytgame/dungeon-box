@@ -9,6 +9,7 @@ import {
   resolveMonthlyScheduledProductionMonth,
   resolveRenewalTargetCycleNumberForSubscription,
 } from '@/lib/subscriptions/monthly-production-schedule';
+import { prepareBillingCyclePayments } from '@/lib/subscriptions/billing-cycle-payments';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
@@ -108,17 +109,8 @@ export async function backfillMissingCyclePaymentLinks(
         .order('created_at', { ascending: true }),
     ]);
 
-    const approvedPayments = payments ?? [];
-    const earliestPayment = approvedPayments.reduce<
-      (typeof approvedPayments)[number] | null
-    >((best, row) => {
-      const rowAt = (row.paid_at as string | null) ?? (row.created_at as string | null);
-      if (!rowAt) return best;
-      if (!best) return row;
-      const bestAt =
-        (best.paid_at as string | null) ?? (best.created_at as string | null);
-      return bestAt && rowAt < bestAt ? row : best;
-    }, null);
+    const approvedPayments = prepareBillingCyclePayments(payments ?? []);
+    const earliestPayment = approvedPayments[0] ?? null;
 
     const candidates = [
       (subscription?.started_at as string | null) ?? null,
@@ -179,12 +171,10 @@ export async function markCyclePreparing(
 
   if (
     existing?.payment_id &&
-    existing.payment_id !== payment.id &&
-    existing.status !== 'upcoming' &&
-    existing.status !== 'failed'
+    existing.payment_id !== payment.id
   ) {
     console.warn(
-      '[cycles] markCyclePreparing skipped: cycle already paid',
+      '[cycles] markCyclePreparing skipped: cycle already has another payment',
       subscriptionId,
       cycleNumber
     );
@@ -254,11 +244,10 @@ export async function processActiveSubscriptionPayment(
 ): Promise<'initial' | 'renewal'> {
   const now = payment.paid_at ?? new Date().toISOString();
 
-  const { count: approvedCount } = await supabase
-    .from('payments')
-    .select('id', { count: 'exact', head: true })
-    .eq('subscription_id', subscriptionId)
-    .eq('status', 'approved');
+  const approvedCount = await countApprovedSubscriptionPayments(
+    supabase,
+    subscriptionId
+  );
 
   const { data: cycle1 } = await supabase
     .from('subscription_cycles')
@@ -271,7 +260,7 @@ export async function processActiveSubscriptionPayment(
     !cycle1 ||
     (['upcoming', 'failed'].includes(cycle1.status) && !cycle1.payment_id);
 
-  if ((approvedCount ?? 0) <= 1 && cycle1NeedsPayment) {
+  if (approvedCount <= 1 && cycle1NeedsPayment) {
     await markCyclePreparing(supabase, subscriptionId, 1, payment);
     await removePrematureUpcomingCycles(supabase, subscriptionId);
     await supabase
@@ -279,7 +268,7 @@ export async function processActiveSubscriptionPayment(
       .update({
         status: 'active',
         current_cycle: 1,
-        loyalty_level: loyaltyLevelFromApprovedPayments(approvedCount ?? 1),
+        loyalty_level: loyaltyLevelFromApprovedPayments(approvedCount),
         updated_at: now,
       })
       .eq('id', subscriptionId);
@@ -296,7 +285,7 @@ export async function processActiveSubscriptionPayment(
 
   if (isComboTerm(billingTerm)) {
     const paidCycleNumber = resolvePaidCycleNumber(currentCycle);
-    const approvedPayments = approvedCount ?? paidCycleNumber;
+    const approvedPayments = approvedCount;
     await supabase
       .from('subscriptions')
       .update({

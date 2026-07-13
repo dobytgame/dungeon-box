@@ -19,6 +19,7 @@ import ComboBadge from '@/components/admin/ComboBadge';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
+import ProductionMonthBadge from '@/components/admin/ProductionMonthBadge';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { adminPlanCardClasses } from '@/lib/plan-theme';
@@ -218,9 +219,7 @@ function KanbanCard({
                 Loja avulsa
               </span>
             ) : (
-              <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
-                #{row.cycle_number}
-              </span>
+              <ProductionMonthBadge cycleNumber={row.cycle_number} compact />
             )}
           </div>
         </div>

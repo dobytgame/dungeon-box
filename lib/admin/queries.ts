@@ -31,7 +31,6 @@ import {
   filterProductionBoardRowsForMonth,
   groupProductionBoardRows,
 } from '@/lib/admin/production-board-filter';
-import { resolveProductionMonthKey } from '@/lib/admin/production-month';
 import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/lib/dashboard/types';
 import type {
   AdminActivePlanCount,
@@ -216,6 +215,11 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     row.themes as Record<string, unknown> | Record<string, unknown>[] | null
   );
 
+  const scheduledProductionMonth =
+    (row.scheduled_production_month as string | null) ?? null;
+  const paidAt = (row.paid_at as string | null) ?? null;
+  const createdAt = (row.created_at as string | null) ?? null;
+
   return {
     id: row.id as string,
     subscription_id: row.subscription_id as string,
@@ -224,10 +228,9 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     tracking_code: (row.tracking_code as string | null) ?? null,
     carrier: (row.carrier as string | null) ?? null,
     shipped_at: (row.shipped_at as string | null) ?? null,
-    paid_at: (row.paid_at as string | null) ?? null,
-    created_at: (row.created_at as string | null) ?? null,
-    scheduledProductionMonth:
-      (row.scheduled_production_month as string | null) ?? null,
+    paid_at: paidAt,
+    created_at: createdAt,
+    scheduledProductionMonth,
     amount_cents: (row.amount_cents as number | null) ?? null,
     shipping_cost_cents: (row.shipping_cost_cents as number | null) ?? null,
     payment_id: (row.payment_id as string | null) ?? null,

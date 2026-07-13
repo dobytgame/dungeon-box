@@ -10,6 +10,7 @@ import {
 import { formatDate } from '@/lib/dashboard/format';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
+import ProductionMonthBadge from '@/components/admin/ProductionMonthBadge';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
@@ -141,6 +142,10 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                                   Parceiro
                                 </span>
                               ) : null}
+                              <ProductionMonthBadge
+                                cycleNumber={row.cycle_number}
+                                compact
+                              />
                               {row.customerEmail ? (
                                 <span className="truncate font-mono text-[10px] text-zinc-600">
                                   {row.customerEmail}

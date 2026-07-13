@@ -5,6 +5,10 @@ import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 import { resolveCycleScheduledMonthKey } from '@/lib/subscriptions/combo-production-schedule';
+import {
+  prepareBillingCyclePayments,
+  type BillingPaymentRow,
+} from '@/lib/subscriptions/billing-cycle-payments';
 
 const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
   'upcoming',
@@ -51,20 +55,82 @@ export function bumpProductionMonthWhileOccupied(
 
 export function collectOccupiedProductionMonths(
   cycles: CycleMonthRow[],
-  options?: { excludeCycleNumber?: number }
+  options?: { excludeCycleNumber?: number; openOnly?: boolean }
 ): Set<string> {
+  if (options?.openOnly === false) {
+    return collectPaidProductionMonths(cycles, options.excludeCycleNumber);
+  }
+
   const occupied = new Set<string>();
 
   for (const cycle of cycles) {
     if (options?.excludeCycleNumber === cycle.cycle_number) continue;
     if (!cycle.payment_id) continue;
-    if (!OPEN_CYCLE_STATUSES.has(cycle.status as CycleStatus)) continue;
+    if (!OPEN_CYCLE_STATUSES.has(cycle.status as CycleStatus)) {
+      continue;
+    }
 
     const monthKey = resolveCycleProductionMonthKey(cycle);
     if (monthKey) occupied.add(monthKey);
   }
 
   return occupied;
+}
+
+function collectPaidProductionMonths(
+  cycles: CycleMonthRow[],
+  excludeCycleNumber?: number
+): Set<string> {
+  const occupied = new Set<string>();
+
+  for (const cycle of cycles) {
+    if (excludeCycleNumber === cycle.cycle_number) continue;
+    if (!cycle.payment_id && !cycle.scheduled_production_month) continue;
+
+    const monthKey = resolveCycleProductionMonthKey(cycle);
+    if (monthKey) occupied.add(monthKey);
+  }
+
+  return occupied;
+}
+
+/**
+ * Mês 1: mês de produção derivado do pagamento (ex.: jun → jul).
+ * Mês 2+: nunca no mesmo mês de produção de um ciclo anterior — se jul já
+ * estiver ocupado, renovação de jul vai para ago, e assim por diante.
+ */
+export function resolveSequentialProductionMonthKey(
+  cycles: CycleMonthRow[],
+  targetCycleNumber: number,
+  paymentPaidAt: string,
+  options?: { excludeCycleNumber?: number }
+): string {
+  const occupied = collectPaidProductionMonths(
+    cycles,
+    options?.excludeCycleNumber
+  );
+
+  let candidate = mapRawMonthToProductionMonth(
+    monthKeyFromDate(new Date(paymentPaidAt))
+  );
+
+  if (targetCycleNumber > 1) {
+    const previousCycle = cycles.find(
+      (cycle) =>
+        cycle.cycle_number === targetCycleNumber - 1 &&
+        (cycle.payment_id || cycle.scheduled_production_month)
+    );
+    const previousMonth = previousCycle
+      ? resolveCycleProductionMonthKey(previousCycle)
+      : latestOccupiedProductionMonth(occupied);
+
+    if (previousMonth) {
+      const floor = addMonthsToMonthKey(previousMonth, 1);
+      if (candidate < floor) candidate = floor;
+    }
+  }
+
+  return bumpProductionMonthWhileOccupied(candidate, occupied);
 }
 
 export function resolveMonthlyProductionMonthKey(
@@ -74,6 +140,31 @@ export function resolveMonthlyProductionMonthKey(
   const rawMonth = monthKeyFromDate(new Date(paymentPaidAt));
   const candidate = mapRawMonthToProductionMonth(rawMonth);
   return bumpProductionMonthWhileOccupied(candidate, occupied);
+}
+
+/** @deprecated Prefer resolveSequentialProductionMonthKey */
+export function resolveRenewalProductionMonthKey(
+  paymentPaidAt: string,
+  occupied: Set<string>
+): string {
+  if (occupied.size === 0) {
+    return resolveMonthlyProductionMonthKey(paymentPaidAt, occupied);
+  }
+
+  const latestOccupied = Array.from(occupied).sort().at(-1)!;
+  const minimumMonth = addMonthsToMonthKey(latestOccupied, 1);
+  const paymentMonth = mapRawMonthToProductionMonth(
+    monthKeyFromDate(new Date(paymentPaidAt))
+  );
+  const candidate = paymentMonth > minimumMonth ? paymentMonth : minimumMonth;
+  return bumpProductionMonthWhileOccupied(candidate, occupied);
+}
+
+export function latestOccupiedProductionMonth(
+  occupied: Set<string>
+): string | null {
+  if (occupied.size === 0) return null;
+  return Array.from(occupied).sort().at(-1) ?? null;
 }
 
 export function resolveRenewalTargetCycleNumber(
@@ -92,11 +183,12 @@ export function resolveRenewalTargetCycleNumber(
   );
   if (unpaidUpcoming) return unpaidUpcoming.cycle_number;
 
-  const maxCycleNumber = sorted.reduce(
-    (max, cycle) => Math.max(max, cycle.cycle_number),
-    0
-  );
-  return maxCycleNumber + 1;
+  const maxPaidCycle = sorted.reduce((max, cycle) => {
+    if (!cycle.payment_id) return max;
+    return Math.max(max, cycle.cycle_number);
+  }, 0);
+
+  return maxPaidCycle + 1;
 }
 
 export async function loadSubscriptionCycleMonthRows(
@@ -126,10 +218,12 @@ export async function resolveMonthlyScheduledProductionMonth(
   targetCycleNumber: number
 ): Promise<string> {
   const cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
-  const occupied = collectOccupiedProductionMonths(cycles, {
-    excludeCycleNumber: targetCycleNumber,
-  });
-  const monthKey = resolveMonthlyProductionMonthKey(paymentPaidAt, occupied);
+  const monthKey = resolveSequentialProductionMonthKey(
+    cycles,
+    targetCycleNumber,
+    paymentPaidAt,
+    { excludeCycleNumber: targetCycleNumber }
+  );
   return `${monthKey}-01`;
 }
 
@@ -141,22 +235,32 @@ export async function resolveRenewalTargetCycleNumberForSubscription(
   return resolveRenewalTargetCycleNumber(cycles);
 }
 
+export async function loadApprovedBillingPayments(
+  supabase: SupabaseClient,
+  subscriptionId: string
+): Promise<BillingPaymentRow[]> {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, amount_cents, paid_at, created_at')
+    .eq('subscription_id', subscriptionId)
+    .eq('status', 'approved')
+    .order('paid_at', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[monthly-production] load billing payments:', error.message);
+    return [];
+  }
+
+  return prepareBillingCyclePayments((data ?? []) as BillingPaymentRow[]);
+}
+
 export async function countApprovedSubscriptionPayments(
   supabase: SupabaseClient,
   subscriptionId: string
 ): Promise<number> {
-  const { count, error } = await supabase
-    .from('payments')
-    .select('id', { count: 'exact', head: true })
-    .eq('subscription_id', subscriptionId)
-    .eq('status', 'approved');
-
-  if (error) {
-    console.error('[monthly-production] count payments:', error.message);
-    return 0;
-  }
-
-  return count ?? 0;
+  const payments = await loadApprovedBillingPayments(supabase, subscriptionId);
+  return payments.length;
 }
 
 export function loyaltyLevelFromApprovedPayments(approvedPayments: number): number {
@@ -184,6 +288,7 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
   monthsFixed: number;
   loyaltyFixed: number;
   renewalCyclesAttached: number;
+  spuriousCyclesCleared: number;
 }> {
   const { data: subs, error } = await supabase
     .from('subscriptions')
@@ -191,12 +296,18 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
     .in('status', ['active', 'past_due', 'cancelled']);
 
   if (error || !subs?.length) {
-    return { monthsFixed: 0, loyaltyFixed: 0, renewalCyclesAttached: 0 };
+    return {
+      monthsFixed: 0,
+      loyaltyFixed: 0,
+      renewalCyclesAttached: 0,
+      spuriousCyclesCleared: 0,
+    };
   }
 
   let monthsFixed = 0;
   let loyaltyFixed = 0;
   let renewalCyclesAttached = 0;
+  let spuriousCyclesCleared = 0;
   const now = new Date().toISOString();
 
   for (const sub of subs) {
@@ -205,95 +316,161 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
 
     const subscriptionId = sub.id as string;
 
-    const { data: approvedPayments } = await supabase
-      .from('payments')
-      .select('id, amount_cents, paid_at, created_at')
-      .eq('subscription_id', subscriptionId)
-      .eq('status', 'approved')
-      .order('paid_at', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true });
+    const approvedPayments = await loadApprovedBillingPayments(
+      supabase,
+      subscriptionId
+    );
 
-    const linkedPaymentIds = new Set<string>();
+    if (!approvedPayments.length) continue;
+
     let cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
-    for (const cycle of cycles) {
-      if (cycle.payment_id) linkedPaymentIds.add(cycle.payment_id);
-    }
 
-    for (const payment of approvedPayments ?? []) {
-      if (linkedPaymentIds.has(payment.id as string)) continue;
-
+    for (let index = 0; index < approvedPayments.length; index += 1) {
+      const payment = approvedPayments[index]!;
+      const cycleNumber = index + 1;
       const paidAt =
         (payment.paid_at as string | null) ??
         (payment.created_at as string | null) ??
         now;
-      const cycleNumber = resolveRenewalTargetCycleNumber(cycles);
-      const scheduledProductionMonth = await resolveMonthlyScheduledProductionMonth(
-        supabase,
-        subscriptionId,
+      const monthKey = resolveSequentialProductionMonthKey(
+        cycles,
+        cycleNumber,
         paidAt,
-        cycleNumber
+        { excludeCycleNumber: cycleNumber }
       );
+      const scheduledProductionMonth = `${monthKey}-01`;
 
-      await supabase.from('subscription_cycles').upsert(
-        {
-          subscription_id: subscriptionId,
-          cycle_number: cycleNumber,
-          status: 'upcoming',
-          payment_id: payment.id,
-          paid_at: paidAt,
-          amount_cents: payment.amount_cents,
-          scheduled_production_month: scheduledProductionMonth,
-          updated_at: now,
-        },
-        { onConflict: 'subscription_id,cycle_number' }
-      );
+      const { data: existing } = await supabase
+        .from('subscription_cycles')
+        .select('payment_id, scheduled_production_month, status')
+        .eq('subscription_id', subscriptionId)
+        .eq('cycle_number', cycleNumber)
+        .maybeSingle();
 
-      linkedPaymentIds.add(payment.id as string);
-      cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
-      renewalCyclesAttached += 1;
-    }
+      const needsUpdate =
+        existing?.payment_id !== payment.id ||
+        existing?.scheduled_production_month !== scheduledProductionMonth;
 
-    const paidCycles = cycles.filter((cycle) => Boolean(cycle.payment_id));
+      if (!needsUpdate) continue;
 
-    const occupied = new Set<string>();
-    for (const cycle of [...paidCycles].sort(
-      (a, b) => a.cycle_number - b.cycle_number
-    )) {
-      const paymentAnchor = cycle.paid_at ?? cycle.created_at;
-      if (!paymentAnchor) continue;
+      const patch: Record<string, unknown> = {
+        payment_id: payment.id,
+        paid_at: paidAt,
+        amount_cents: payment.amount_cents,
+        scheduled_production_month: scheduledProductionMonth,
+        updated_at: now,
+      };
 
-      const monthKey = resolveMonthlyProductionMonthKey(paymentAnchor, occupied);
-      occupied.add(monthKey);
+      if (!existing) {
+        const { error: insertError } = await supabase
+          .from('subscription_cycles')
+          .insert({
+            subscription_id: subscriptionId,
+            cycle_number: cycleNumber,
+            status: 'upcoming',
+            ...patch,
+          });
 
-      const scheduled = `${monthKey}-01`;
-      if (cycle.scheduled_production_month === scheduled) continue;
+        if (!insertError) {
+          monthsFixed += 1;
+          if (index > 0) renewalCyclesAttached += 1;
+          cycles.push({
+            cycle_number: cycleNumber,
+            status: 'upcoming',
+            paid_at: paidAt,
+            created_at: null,
+            scheduled_production_month: scheduledProductionMonth,
+            payment_id: payment.id,
+          });
+          cycles.sort((a, b) => a.cycle_number - b.cycle_number);
+        }
+        continue;
+      }
 
       const { error: updateError } = await supabase
         .from('subscription_cycles')
+        .update(patch)
+        .eq('subscription_id', subscriptionId)
+        .eq('cycle_number', cycleNumber);
+
+      if (!updateError) {
+        monthsFixed += 1;
+        if (index > 0 && existing.payment_id !== payment.id) {
+          renewalCyclesAttached += 1;
+        }
+      }
+
+      const localIndex = cycles.findIndex(
+        (cycle) => cycle.cycle_number === cycleNumber
+      );
+      const localRow: CycleMonthRow = {
+        cycle_number: cycleNumber,
+        status: (existing?.status as string | null) ?? 'upcoming',
+        paid_at: paidAt,
+        created_at: null,
+        scheduled_production_month: scheduledProductionMonth,
+        payment_id: payment.id,
+      };
+      if (localIndex >= 0) {
+        cycles[localIndex] = { ...cycles[localIndex]!, ...localRow };
+      } else {
+        cycles.push(localRow);
+        cycles.sort((a, b) => a.cycle_number - b.cycle_number);
+      }
+    }
+
+    const billingPaymentCount = approvedPayments.length;
+    const { data: strayCycles } = await supabase
+      .from('subscription_cycles')
+      .select('cycle_number, payment_id, scheduled_production_month')
+      .eq('subscription_id', subscriptionId)
+      .gt('cycle_number', billingPaymentCount);
+
+    for (const stray of strayCycles ?? []) {
+      if (
+        !stray.payment_id &&
+        !stray.scheduled_production_month
+      ) {
+        continue;
+      }
+
+      const { error: clearError } = await supabase
+        .from('subscription_cycles')
         .update({
-          scheduled_production_month: scheduled,
+          payment_id: null,
+          paid_at: null,
+          amount_cents: null,
+          scheduled_production_month: null,
           updated_at: now,
         })
         .eq('subscription_id', subscriptionId)
-        .eq('cycle_number', cycle.cycle_number);
+        .eq('cycle_number', stray.cycle_number as number);
 
-      if (!updateError) monthsFixed += 1;
+      if (!clearError) spuriousCyclesCleared += 1;
     }
 
-    const approvedPaymentCount = await countApprovedSubscriptionPayments(
-      supabase,
-      subscriptionId
-    );
-    if (approvedPaymentCount <= 0) continue;
-
+    const approvedPaymentCount = approvedPayments.length;
     const expectedLoyalty = loyaltyLevelFromApprovedPayments(approvedPaymentCount);
-    if ((sub.loyalty_level as number) === expectedLoyalty) continue;
+    const expectedCurrentCycle = approvedPaymentCount + 1;
+
+    const { data: currentSub } = await supabase
+      .from('subscriptions')
+      .select('loyalty_level, current_cycle')
+      .eq('id', subscriptionId)
+      .maybeSingle();
+
+    if (
+      currentSub?.loyalty_level === expectedLoyalty &&
+      currentSub?.current_cycle === expectedCurrentCycle
+    ) {
+      continue;
+    }
 
     const { error: loyaltyError } = await supabase
       .from('subscriptions')
       .update({
         loyalty_level: expectedLoyalty,
-        current_cycle: approvedPaymentCount + 1,
+        current_cycle: expectedCurrentCycle,
         updated_at: now,
       })
       .eq('id', subscriptionId);
@@ -301,5 +478,5 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
     if (!loyaltyError) loyaltyFixed += 1;
   }
 
-  return { monthsFixed, loyaltyFixed, renewalCyclesAttached };
+  return { monthsFixed, loyaltyFixed, renewalCyclesAttached, spuriousCyclesCleared };
 }

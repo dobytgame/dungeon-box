@@ -83,6 +83,12 @@ function isPrematureUpcoming(
   );
 }
 
+function isUnpaidMonthlyRenewalPlaceholder(row: AdminCycleRow): boolean {
+  if (row.subscriptionBillingTerm !== 'monthly') return false;
+  if (row.cycle_number <= 1) return false;
+  return !row.payment_id && !row.paid_at;
+}
+
 function pickPrimaryOpenCycle(rows: AdminCycleRow[]): AdminCycleRow | null {
   if (rows.length === 0) return null;
 
@@ -206,6 +212,7 @@ export function filterProductionBoardRowsForMonth(
     }
 
     if (isPrematureUpcoming(row, siblings)) continue;
+    if (isUnpaidMonthlyRenewalPlaceholder(row)) continue;
     eligible.push(row);
   }
 
@@ -286,6 +293,7 @@ export function filterProductionBoardRows(
 
     for (const row of subRows) {
       if (isPrematureUpcoming(row, subRows)) continue;
+      if (isUnpaidMonthlyRenewalPlaceholder(row)) continue;
       eligible.push(row);
     }
   }

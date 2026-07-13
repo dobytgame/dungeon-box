@@ -24,6 +24,7 @@ import {
 } from '@/lib/asaas/store-order-payment';
 import { isComboInstallmentSlicePayment } from '@/lib/payments/effective-amount';
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
+import { isNonBillingAsaasPayment } from '@/lib/subscriptions/billing-cycle-payments';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -122,6 +123,15 @@ export async function handleAsaasPaymentConfirmed(
     )
     .select('id, amount_cents')
     .single();
+
+  if (
+    isNonBillingAsaasPayment({
+      externalReference: payment.externalReference,
+      amountCents,
+    })
+  ) {
+    return 'processed';
+  }
 
   if (local.status === 'pending') {
     const activated = await activateSubscriptionFromAsaas(supabase, local.id);

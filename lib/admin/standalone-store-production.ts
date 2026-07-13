@@ -123,6 +123,8 @@ export function buildStandaloneStoreCycleRow(
 ): AdminCycleRow {
   const extraItems = storeOrderMetaToExtraItems(order.meta, false);
 
+  const productionMonthKey = standaloneOrderProductionMonthKey(order);
+
   return {
     id: standaloneStoreCardId(order.paymentId),
     subscription_id: order.paymentId,
@@ -133,7 +135,7 @@ export function buildStandaloneStoreCycleRow(
     shipped_at: order.meta.shippedAt ?? null,
     paid_at: order.paidAt,
     created_at: order.createdAt,
-    scheduledProductionMonth: standaloneOrderProductionMonthKey(order),
+    scheduledProductionMonth: productionMonthKey,
     amount_cents: order.amountCents,
     shipping_cost_cents: order.meta.shippingCostCents ?? null,
     payment_id: order.paymentId,
