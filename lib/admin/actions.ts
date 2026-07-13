@@ -196,6 +196,7 @@ export async function shipSubscriptionCycleAction(
       notifyCycleStatusFromRecord(
         admin,
         {
+          id: cycleId,
           cycle_number: cycle.cycle_number,
           status: 'shipped',
           tracking_code: trackingCode,
@@ -562,6 +563,7 @@ export async function advanceCycleProductionAction(
     .from('subscription_cycles')
     .select(
       `
+      id,
       cycle_number,
       status,
       tracking_code,

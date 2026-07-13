@@ -109,6 +109,14 @@ export const ADMIN_NAV = [
     group: 'comunicacao',
   },
   {
+    href: '/admin/feedbacks',
+    label: 'Feedbacks',
+    eyebrow: 'Clientes',
+    description: 'Avaliações pós-entrega com nota, comentários e fotos.',
+    icon: 'star',
+    group: 'comunicacao',
+  },
+  {
     href: '/admin/ferramentas/qr',
     label: 'QR Code',
     eyebrow: 'Comunicação',

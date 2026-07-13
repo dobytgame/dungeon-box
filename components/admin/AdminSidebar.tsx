@@ -15,6 +15,7 @@ import {
   Repeat,
   ScrollText,
   ShoppingBag,
+  Star,
   Terminal,
   Ticket,
   Users,
@@ -39,6 +40,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   palette: Palette,
   'qr-code': QrCode,
   ticket: Ticket,
+  star: Star,
   'scroll-text': ScrollText,
 };
 

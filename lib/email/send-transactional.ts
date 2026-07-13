@@ -69,6 +69,12 @@ import {
   subscriptionPixPaymentText,
 } from '@/lib/email/templates/subscription-pix-payment';
 import {
+  FEEDBACK_REQUEST_SUBJECT,
+  feedbackRequestHtml,
+  feedbackRequestText,
+  type FeedbackRequestTemplateData,
+} from '@/lib/email/templates/feedback-request';
+import {
   getRoleEmailAddress,
   isEmailConfigured,
   type EmailSenderRole,
@@ -211,6 +217,21 @@ export async function sendCycleStatusUpdateEmail(
       { name: 'category', value: 'cycle_status_update' },
       { name: 'status', value: data.status },
     ],
+  });
+}
+
+export async function sendFeedbackRequestEmail(
+  to: string,
+  data: FeedbackRequestTemplateData
+): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to,
+    subject: FEEDBACK_REQUEST_SUBJECT,
+    html: feedbackRequestHtml(data),
+    text: feedbackRequestText(data),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'feedback_request' }],
   });
 }
 

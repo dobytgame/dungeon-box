@@ -385,3 +385,29 @@ export interface AdminFinancialDashboard {
   movements: AdminFinancialMovementRow[];
   categories: AdminFinancialCategoryRow[];
 }
+
+export interface AdminFeedbackRow {
+  id: string;
+  userId: string;
+  cycleId: string;
+  rating: number;
+  message: string | null;
+  imageCount: number;
+  createdAt: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  cycleNumber: number | null;
+  themeName: string | null;
+  themeEmoji: string | null;
+}
+
+export interface AdminFeedbackDetail extends AdminFeedbackRow {
+  imagePaths: string[];
+  imageUrls: string[];
+}
+
+export interface AdminFeedbackStats {
+  total: number;
+  averageRating: number | null;
+  withPhotos: number;
+}

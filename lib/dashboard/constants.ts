@@ -36,6 +36,13 @@ export const DASHBOARD_NAV = [
     description: 'Ciclos mensais, temas, rastreio e histórico de envios.',
   },
   {
+    href: '/dashboard/feedback',
+    label: 'Avaliar',
+    icon: 'star',
+    eyebrow: 'Sua opinião',
+    description: 'Nota com estrelas e fotos das entregas já recebidas.',
+  },
+  {
     href: '/loja',
     label: 'Loja',
     icon: 'shop',

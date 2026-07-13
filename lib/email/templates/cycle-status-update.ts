@@ -9,6 +9,7 @@ import {
 
 export type CycleStatusEmailContext = {
   name?: string | null;
+  cycleId?: string | null;
   cycleNumber: number;
   planName?: string | null;
   themeName?: string | null;
@@ -18,6 +19,11 @@ export type CycleStatusEmailContext = {
   estimatedDelivery?: string | null;
   cancelReason?: string | null;
 };
+
+function feedbackHref(cycleId?: string | null): string {
+  const base = `${getSiteUrl()}/dashboard/feedback`;
+  return cycleId ? `${base}?cycle=${cycleId}` : base;
+}
 
 type StatusCopy = {
   subject: string;
@@ -110,7 +116,7 @@ function statusCopy(ctx: CycleStatusEmailContext): StatusCopy | null {
     case 'delivered':
       return {
         subject: 'Entrega confirmada — boa aventura! · DungeonBox',
-        preheader: `${cycleLabel} entregue`,
+        preheader: `${cycleLabel} entregue — avalie com estrelas`,
         eyebrow: 'Entrega',
         headline: 'Chegou na sua mesa.',
         headlineAccent: 'mesa',
@@ -118,6 +124,7 @@ function statusCopy(ctx: CycleStatusEmailContext): StatusCopy | null {
           `${name}, registramos a entrega do <strong style="color:#fff;">${cycleLabel}</strong>.`,
           plan,
           'Monte, pinte e convoque o grupo — sua próxima sessão está mais épica.',
+          'Quando puder, deixe uma nota com estrelas e, se quiser, envie fotos da mesa. Sua opinião guia a próxima forja.',
         ].filter(Boolean) as string[],
         callout: {
           title: 'Precisa de ajuda?',
@@ -167,6 +174,18 @@ export function cycleStatusUpdateHtml(ctx: CycleStatusEmailContext): string {
     });
   }
 
+  const deliveriesHref = `${getSiteUrl()}/dashboard/deliveries`;
+  const deliveredCta =
+    ctx.status === 'delivered'
+      ? {
+          cta: {
+            label: 'Avaliar minha caixa',
+            href: feedbackHref(ctx.cycleId),
+          },
+          secondaryCta: { label: 'Ver entregas', href: deliveriesHref },
+        }
+      : { cta: { label: 'Ver entregas', href: deliveriesHref } };
+
   return buildEmailHtml({
     subject: copy.subject,
     preheader: copy.preheader,
@@ -174,7 +193,7 @@ export function cycleStatusUpdateHtml(ctx: CycleStatusEmailContext): string {
     headline: copy.headline,
     headlineAccent: copy.headlineAccent,
     paragraphs: copy.paragraphs,
-    cta: { label: 'Ver entregas', href: `${getSiteUrl()}/dashboard/deliveries` },
+    ...deliveredCta,
     callout: copy.callout,
     footerNote: copy.footerNote,
   });
@@ -196,6 +215,9 @@ export function cycleStatusUpdateText(ctx: CycleStatusEmailContext): string {
   const lines = [`${name}, ${cycleLabel}.`, ...copy.paragraphs.map((p) => p.replace(/<[^>]+>/g, ''))];
   if (ctx.trackingCode) {
     lines.push(`Rastreio: ${ctx.trackingCode}`);
+  }
+  if (ctx.status === 'delivered') {
+    lines.push(`Avaliar: ${feedbackHref(ctx.cycleId)}`);
   }
   lines.push(`Painel: ${siteUrl}/dashboard/deliveries`);
   return buildEmailText(lines);

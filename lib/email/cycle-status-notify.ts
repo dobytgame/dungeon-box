@@ -16,6 +16,7 @@ export async function notifyCycleStatusChange(
   supabase: SupabaseClient,
   input: {
     userId: string;
+    cycleId?: string | null;
     cycleNumber: number;
     planName?: string | null;
     themeName?: string | null;
@@ -42,6 +43,7 @@ export async function notifyCycleStatusChange(
 
   const result = await sendCycleStatusUpdateEmail(profile.email, {
     name: profile.name,
+    cycleId: input.cycleId,
     cycleNumber: input.cycleNumber,
     planName: input.planName,
     themeName: input.themeName,
@@ -57,12 +59,25 @@ export async function notifyCycleStatusChange(
     return { sent: false, reason: result.reason };
   }
 
+  if (input.status === 'delivered' && input.cycleId) {
+    const { error } = await supabase
+      .from('subscription_cycles')
+      .update({ feedback_request_sent_at: new Date().toISOString() })
+      .eq('id', input.cycleId)
+      .is('feedback_request_sent_at', null);
+
+    if (error) {
+      console.warn('[feedback] feedback_request_sent_at update failed:', error.message);
+    }
+  }
+
   return { sent: true };
 }
 
 export async function notifyCycleStatusFromRecord(
   supabase: SupabaseClient,
   cycle: {
+    id?: string;
     cycle_number: number;
     status: CycleStatus;
     tracking_code?: string | null;
@@ -96,6 +111,7 @@ export async function notifyCycleStatusFromRecord(
 
   return notifyCycleStatusChange(supabase, {
     userId,
+    cycleId: cycle.id ?? null,
     cycleNumber: cycle.cycle_number,
     planName: plan?.name ?? null,
     themeName: theme?.name ?? null,
