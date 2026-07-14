@@ -10,6 +10,7 @@ const DEFAULT_LINKS = [
   { href: '#planos', label: 'Planos' },
   { href: '#fidelidade', label: 'Fidelidade' },
   { href: '#temas', label: 'Temas' },
+  { href: '/loja', label: 'Loja' },
   { href: '#faq', label: 'FAQ' },
 ] as const;
 

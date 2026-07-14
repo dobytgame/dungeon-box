@@ -72,6 +72,12 @@ export default function Navbar({ isLoggedIn = false, userName }: NavbarProps) {
               Temas
             </Link>
             <Link
+              href="/loja"
+              className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
+            >
+              Loja
+            </Link>
+            <Link
               href="#faq"
               className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
             >

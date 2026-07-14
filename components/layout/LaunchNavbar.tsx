@@ -11,6 +11,7 @@ import { siteNavLinkClassName } from '@/lib/ui/site-nav';
 const navLinks = [
   { href: '#planos', label: 'Planos' },
   { href: '#solucao', label: 'Como funciona' },
+  { href: '/loja', label: 'Loja' },
   { href: '#captura', label: 'Entrar na Guilda' },
   { href: '#faq', label: 'FAQ' },
 ] as const;
