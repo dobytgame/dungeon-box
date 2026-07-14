@@ -1,13 +1,22 @@
 import Link from 'next/link';
 import type { LegalDocument } from '@/lib/legal/types';
+import { LegalTableView } from '@/components/legal/LegalTableView';
 
 interface Props {
   document: LegalDocument;
   lastUpdated: string;
   version: string;
+  showRelatedLinks?: boolean;
+  footerNote?: string;
 }
 
-export default function LegalDocumentView({ document, lastUpdated, version }: Props) {
+export default function LegalDocumentView({
+  document,
+  lastUpdated,
+  version,
+  showRelatedLinks = true,
+  footerNote,
+}: Props) {
   return (
     <article className="legal-prose">
       <header className="border-b border-white/[0.06] pb-8">
@@ -46,6 +55,10 @@ export default function LegalDocumentView({ document, lastUpdated, version }: Pr
               </ul>
             ) : null}
 
+            {section.tables?.map((table, tableIndex) => (
+              <LegalTableView key={tableIndex} table={table} />
+            ))}
+
             {section.subsections?.map((sub) => (
               <div key={sub.title} className="mt-6 rounded-sm border border-white/[0.06] bg-white/[0.02] p-4 sm:p-5">
                 <h3 className="font-display text-sm uppercase tracking-widest text-stone-200">
@@ -63,6 +76,9 @@ export default function LegalDocumentView({ document, lastUpdated, version }: Pr
                     ))}
                   </ul>
                 ) : null}
+                {sub.tables?.map((table, tableIndex) => (
+                  <LegalTableView key={tableIndex} table={table} />
+                ))}
               </div>
             ))}
           </section>
@@ -70,18 +86,23 @@ export default function LegalDocumentView({ document, lastUpdated, version }: Pr
       </div>
 
       <footer className="mt-12 border-t border-white/[0.06] pt-8">
-        <p className="text-sm text-stone-500">
-          Documento relacionado:{' '}
-          {document.title.includes('Privacidade') ? (
-            <Link href="/termos" className="text-ember hover:underline">
-              Termos de Uso
-            </Link>
-          ) : (
-            <Link href="/privacidade" className="text-ember hover:underline">
-              Política de Privacidade
-            </Link>
-          )}
-        </p>
+        {footerNote ? (
+          <p className="text-xs leading-relaxed text-stone-600">{footerNote}</p>
+        ) : null}
+        {showRelatedLinks ? (
+          <p className={`text-sm text-stone-500 ${footerNote ? 'mt-4' : ''}`}>
+            Documento relacionado:{' '}
+            {document.title.includes('Privacidade') ? (
+              <Link href="/termos" className="text-ember hover:underline">
+                Termos de Uso
+              </Link>
+            ) : (
+              <Link href="/privacidade" className="text-ember hover:underline">
+                Política de Privacidade
+              </Link>
+            )}
+          </p>
+        ) : null}
       </footer>
     </article>
   );

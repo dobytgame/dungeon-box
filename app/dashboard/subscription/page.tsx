@@ -242,12 +242,16 @@ async function SubscriptionDetailCard({
 export default async function SubscriptionPage({
   searchParams,
 }: {
-  searchParams?: { referral?: string };
+  searchParams?: { referral?: string; terms?: string };
 }) {
   const { user } = await requireDashboardUser();
   const subscriptions = await getManageableSubscriptions(user.id);
   const isDev = process.env.NODE_ENV === 'development';
   const referralBlocked = searchParams?.referral === 'inactive';
+  const termsBlocked = searchParams?.terms === 'inactive';
+  const hasActiveSubscription = subscriptions.some(
+    (subscription) => subscription.status === 'active'
+  );
 
   const payableIds = subscriptions
     .filter((sub) => sub.status === 'pending' || sub.status === 'past_due')
@@ -268,6 +272,15 @@ export default async function SubscriptionPage({
           >
             O programa Indique e Ganhe está disponível apenas para assinantes com
             assinatura ativa.
+          </p>
+        ) : null}
+        {termsBlocked ? (
+          <p
+            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
+            role="status"
+          >
+            Os Termos e Condições de Compra estão disponíveis apenas para assinantes
+            com assinatura ativa.
           </p>
         ) : null}
         <EmptyState
@@ -291,6 +304,15 @@ export default async function SubscriptionPage({
           assinatura ativa.
         </p>
       ) : null}
+      {termsBlocked ? (
+        <p
+          className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
+          role="status"
+        >
+          Os Termos e Condições de Compra estão disponíveis apenas para assinantes
+          com assinatura ativa.
+        </p>
+      ) : null}
       {subscriptions.length > 1 ? (
         <p className="text-sm text-stone-400">
           Você tem {subscriptions.length} assinaturas ativas. Cada plano é cobrado e
@@ -312,6 +334,23 @@ export default async function SubscriptionPage({
           />
         </section>
       ))}
+
+      {hasActiveSubscription ? (
+        <DashboardCard title="Termos e Condições de Compra" accent="none">
+          <p className="text-sm text-stone-400">
+            Consulte o contrato completo da sua assinatura e produtos avulsos, com
+            prazos de produção, garantia, frete e políticas de cancelamento.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-4">
+            <Link
+              href="/dashboard/subscription/termos"
+              className="inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+            >
+              Ver termos →
+            </Link>
+          </div>
+        </DashboardCard>
+      ) : null}
 
       <DashboardCard title="Assinar outro plano" accent="none">
         <p className="text-sm text-stone-400">

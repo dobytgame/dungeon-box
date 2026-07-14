@@ -547,4 +547,86 @@
       min-height: 36rem;
     }
   }
+
+  .legal-prose {
+    @apply text-stone-300;
+  }
+
+  .legal-prose h1,
+  .legal-prose h2,
+  .legal-prose h3 {
+    @apply text-white;
+  }
+}
+
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .purchase-terms-print-root,
+  .purchase-terms-print-root * {
+    visibility: visible;
+  }
+
+  .purchase-terms-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .purchase-terms-no-print {
+    display: none !important;
+  }
+
+  .purchase-terms-print-root .legal-prose header {
+    border-color: #d4d4d8 !important;
+  }
+
+  .purchase-terms-print-root .legal-prose h1,
+  .purchase-terms-print-root .legal-prose h2,
+  .purchase-terms-print-root .legal-prose h3,
+  .purchase-terms-print-root .legal-prose p,
+  .purchase-terms-print-root .legal-prose li,
+  .purchase-terms-print-root .legal-prose footer p {
+    color: #111 !important;
+  }
+
+  .purchase-terms-print-root .legal-prose p,
+  .purchase-terms-print-root .legal-prose li {
+    color: #333 !important;
+  }
+
+  .purchase-terms-print-root .rounded-sm.border {
+    border-color: #e4e4e7 !important;
+    background: #fafafa !important;
+  }
+
+  .purchase-terms-print-root .legal-table th {
+    background: #f4f4f5 !important;
+    color: #111 !important;
+    border-color: #d4d4d8 !important;
+  }
+
+  .purchase-terms-print-root .legal-table td {
+    color: #333 !important;
+    border-color: #d4d4d8 !important;
+  }
+
+  .purchase-terms-print-root section {
+    break-inside: avoid-page;
+  }
 }
