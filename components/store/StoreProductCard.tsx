@@ -8,6 +8,8 @@ import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import type { StoreProduct } from '@/lib/store/catalog';
 import {
+  formatSubscriberDiscountBadge,
+  formatSubscriberDiscountSummary,
   SUBSCRIBER_STORE_DISCOUNT_BADGE,
   SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
 } from '@/lib/store/subscriber-discount';
@@ -44,6 +46,12 @@ export default function StoreProductCard({ product }: Props) {
     product.originalPriceCents !== undefined &&
     product.originalPriceCents > product.priceCents;
   const showSubscriberBadge = product.subscriberDiscount && onSale;
+  const subscriberBadgeLabel = product.subscriberDiscountAppliedPercent
+    ? formatSubscriberDiscountBadge(product.subscriberDiscountAppliedPercent)
+    : SUBSCRIBER_STORE_DISCOUNT_BADGE;
+  const subscriberSummary = product.subscriberDiscountAppliedPercent
+    ? formatSubscriberDiscountSummary(product.subscriberDiscountAppliedPercent)
+    : SUBSCRIBER_STORE_DISCOUNT_SUMMARY;
 
   function updateQuantity(next: number) {
     const clamped = Math.min(Math.max(next, 1), maxQty);
@@ -75,7 +83,7 @@ export default function StoreProductCard({ product }: Props) {
       ) : null}
       {showSubscriberBadge ? (
         <span className="absolute left-4 top-4 rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
-          {SUBSCRIBER_STORE_DISCOUNT_BADGE}
+          {subscriberBadgeLabel}
         </span>
       ) : onSale ? (
         <span className="absolute left-4 top-4 rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">
@@ -140,7 +148,7 @@ export default function StoreProductCard({ product }: Props) {
           <p className="font-display text-2xl text-gold">{product.priceLabel}</p>
         )}
         {product.subscriberDiscount ? (
-          <p className="mt-1 text-xs text-gold/80">{SUBSCRIBER_STORE_DISCOUNT_SUMMARY}</p>
+          <p className="mt-1 text-xs text-gold/80">{subscriberSummary}</p>
         ) : product.promoCode ? (
           <p className="mt-1 text-xs text-gold/80">
             Cupom {product.promoCode} — {product.promoSummary}

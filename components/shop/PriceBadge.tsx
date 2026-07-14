@@ -1,5 +1,8 @@
 import { formatMoney } from '@/lib/dashboard/format';
-import { SUBSCRIBER_STORE_DISCOUNT_BADGE } from '@/lib/store/subscriber-discount';
+import {
+  formatSubscriberDiscountBadge,
+  SUBSCRIBER_STORE_DISCOUNT_BADGE,
+} from '@/lib/store/subscriber-discount';
 
 interface Props {
   priceCents: number;
@@ -7,6 +10,7 @@ interface Props {
   originalPriceCents?: number;
   featured?: boolean;
   subscriberDiscount?: boolean;
+  subscriberDiscountPercent?: number;
   size?: 'sm' | 'lg';
 }
 
@@ -16,10 +20,14 @@ export default function PriceBadge({
   originalPriceCents,
   featured,
   subscriberDiscount,
+  subscriberDiscountPercent,
   size = 'lg',
 }: Props) {
   const onSale =
     originalPriceCents !== undefined && originalPriceCents > priceCents;
+  const subscriberBadgeLabel = subscriberDiscountPercent
+    ? formatSubscriberDiscountBadge(subscriberDiscountPercent)
+    : SUBSCRIBER_STORE_DISCOUNT_BADGE;
   const priceClass =
     size === 'lg' ? 'font-display text-3xl text-ember' : 'font-display text-2xl text-gold';
   const strikeClass =
@@ -31,7 +39,7 @@ export default function PriceBadge({
         <>
           {subscriberDiscount ? (
             <span className="rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
-              {SUBSCRIBER_STORE_DISCOUNT_BADGE}
+              {subscriberBadgeLabel}
             </span>
           ) : (
             <span className="rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">

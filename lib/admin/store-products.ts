@@ -35,6 +35,7 @@ export interface AdminStoreProductRow {
   created_at: string | null;
   variations_enabled: boolean;
   variations: StoreProductVariation[];
+  subscriber_discount_percent: number | null;
 }
 
 export async function listAdminStoreProducts(
@@ -90,6 +91,8 @@ export async function listAdminStoreProducts(
     created_at: (row.created_at as string | null) ?? null,
     variations_enabled: Boolean(row.variations_enabled),
     variations: parseStoreProductVariations(row.variations),
+    subscriber_discount_percent:
+      (row.subscriber_discount_percent as number | null) ?? null,
   }));
 }
 
@@ -161,10 +164,11 @@ export type MonthlyKitStoreProductConfig = {
   store_category_id: string | null;
   store_category_slug: string | null;
   store_category_name: string | null;
+  subscriber_discount_percent: number | null;
 };
 
 const MONTHLY_KIT_STORE_SELECT =
-  'plan_slug, slug, name, tagline, price_cents, includes, image_url, gallery_urls, page_content_html, featured, max_quantity, store_category_id, store_categories(slug, name)';
+  'plan_slug, slug, name, tagline, price_cents, includes, image_url, gallery_urls, page_content_html, featured, max_quantity, store_category_id, subscriber_discount_percent, store_categories(slug, name)';
 
 export async function loadActiveMonthlyKitStoreProductsMap(
   admin: SupabaseClient
@@ -220,6 +224,8 @@ export async function loadActiveMonthlyKitStoreProductsMap(
       store_category_id: storeCategoryId,
       store_category_slug: (storeCategory?.slug as string | null) ?? null,
       store_category_name: (storeCategory?.name as string | null) ?? null,
+      subscriber_discount_percent:
+        (row.subscriber_discount_percent as number | null) ?? null,
     });
   }
 

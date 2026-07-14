@@ -32,6 +32,7 @@ import { STORE_ROUTES } from '@/lib/store/routes';
 import {
   enrichStoreProductForSubscriber,
   enrichStoreProductsForSubscriber,
+  formatSubscriberDiscountSummary,
   SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
 } from '@/lib/store/subscriber-discount';
 
@@ -182,12 +183,17 @@ export default async function LojaProductPage({ params }: Props) {
               originalPriceCents={product.originalPriceCents}
               featured={product.featured}
               subscriberDiscount={product.subscriberDiscount}
+              subscriberDiscountPercent={product.subscriberDiscountAppliedPercent}
             />
           </div>
 
           {product.subscriberDiscount ? (
             <p className="mt-2 text-xs text-gold/80">
-              {SUBSCRIBER_STORE_DISCOUNT_SUMMARY}
+              {product.subscriberDiscountAppliedPercent
+                ? formatSubscriberDiscountSummary(
+                    product.subscriberDiscountAppliedPercent
+                  )
+                : SUBSCRIBER_STORE_DISCOUNT_SUMMARY}
             </p>
           ) : product.promoCode ? (
             <p className="mt-2 text-xs text-ember/80">

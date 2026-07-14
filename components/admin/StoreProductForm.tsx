@@ -17,6 +17,7 @@ import {
   STORE_PRODUCT_CATEGORY_LABELS,
   type StoreProductCategory,
 } from '@/lib/store/catalog';
+import { SUBSCRIBER_STORE_DISCOUNT_PERCENT } from '@/lib/store/subscriber-discount';
 
 const inputClass =
   'mt-2 w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white';
@@ -314,6 +315,31 @@ export default function StoreProductForm({
             className={inputClass}
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="subscriber_discount_percent" className={labelClass}>
+          Desconto para assinantes (%)
+        </label>
+        <input
+          id="subscriber_discount_percent"
+          name="subscriber_discount_percent"
+          type="number"
+          min={0}
+          max={100}
+          step={1}
+          placeholder={String(SUBSCRIBER_STORE_DISCOUNT_PERCENT)}
+          defaultValue={
+            product?.subscriber_discount_percent != null
+              ? product.subscriber_discount_percent
+              : ''
+          }
+          className={inputClass}
+        />
+        <p className="mt-1 text-xs text-stone-500">
+          Deixe em branco para usar o padrão de {SUBSCRIBER_STORE_DISCOUNT_PERCENT}%
+          para assinantes ativos. Use 0 para desativar o desconto neste produto.
+        </p>
       </div>
 
       {!isMonthlyKit ? (

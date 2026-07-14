@@ -7,7 +7,10 @@ import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { STORE_ROUTES } from '@/lib/store/routes';
-import { SUBSCRIBER_STORE_DISCOUNT_BADGE } from '@/lib/store/subscriber-discount';
+import {
+  formatSubscriberDiscountBadge,
+  SUBSCRIBER_STORE_DISCOUNT_BADGE,
+} from '@/lib/store/subscriber-discount';
 
 interface Props {
   product: StoreProduct;
@@ -21,6 +24,9 @@ export default function StoreProductFeatureCard({ product }: Props) {
     product.originalPriceCents !== undefined &&
     product.originalPriceCents > product.priceCents;
   const showSubscriberBadge = product.subscriberDiscount && onSale;
+  const subscriberBadgeLabel = product.subscriberDiscountAppliedPercent
+    ? formatSubscriberDiscountBadge(product.subscriberDiscountAppliedPercent)
+    : SUBSCRIBER_STORE_DISCOUNT_BADGE;
 
   function handleAdd(e: MouseEvent) {
     e.preventDefault();
@@ -51,7 +57,7 @@ export default function StoreProductFeatureCard({ product }: Props) {
 
         {showSubscriberBadge ? (
           <span className="absolute left-2 top-2 rounded-sm bg-gold/90 px-1.5 py-0.5 font-display text-[9px] uppercase tracking-wider text-stone-950">
-            {SUBSCRIBER_STORE_DISCOUNT_BADGE}
+            {subscriberBadgeLabel}
           </span>
         ) : onSale ? (
           <span className="absolute left-2 top-2 rounded-sm bg-ember/90 px-1.5 py-0.5 font-display text-[9px] uppercase tracking-wider text-stone-950">

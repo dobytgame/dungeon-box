@@ -43,6 +43,7 @@ export interface DbStoreProductRow {
   sort_order: number;
   variations_enabled: boolean;
   variations: unknown;
+  subscriber_discount_percent: number | null;
   store_categories?: {
     slug: string;
     name: string;
@@ -104,6 +105,7 @@ function mapDbRowToStoreProduct(row: DbStoreProductRow): StoreProduct {
     planSlug: row.plan_slug ?? undefined,
     variationsEnabled: Boolean(row.variations_enabled),
     variations: parseStoreProductVariations(row.variations),
+    subscriberDiscountPercent: row.subscriber_discount_percent ?? null,
   };
 }
 

@@ -262,6 +262,7 @@ function buildMonthlyKitProduct(
     planSlug,
     featured: storeRow.featured,
     maxQuantity: storeRow.max_quantity,
+    subscriberDiscountPercent: storeRow.subscriber_discount_percent ?? null,
   };
 }
 

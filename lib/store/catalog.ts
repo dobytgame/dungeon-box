@@ -56,7 +56,11 @@ export type StoreProduct = {
   originalPriceCents?: number;
   promoCode?: string;
   promoSummary?: string;
+  /** Percentual configurado no admin (null/undefined = 5% padrão). */
+  subscriberDiscountPercent?: number | null;
   subscriberDiscount?: boolean;
+  /** Percentual efetivamente aplicado após enriquecimento para assinante. */
+  subscriberDiscountAppliedPercent?: number;
   variationsEnabled?: boolean;
   variations?: StoreProductVariation[];
   storeCategoryId?: string;

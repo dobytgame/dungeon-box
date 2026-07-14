@@ -1952,6 +1952,20 @@ export async function saveStoreProductAction(
     }
   }
 
+  const subscriberDiscountPercentRaw = (
+    formData.get('subscriber_discount_percent') as string
+  )?.trim();
+  let subscriber_discount_percent: number | null = null;
+  if (subscriberDiscountPercentRaw) {
+    const parsed = parseInt(subscriberDiscountPercentRaw, 10);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
+      return {
+        error: 'Desconto para assinantes deve ser um número entre 0 e 100.',
+      };
+    }
+    subscriber_discount_percent = parsed;
+  }
+
   const payload = {
     slug,
     name,
@@ -1972,6 +1986,7 @@ export async function saveStoreProductAction(
     featured: formData.get('featured') === 'on',
     is_active: formData.get('is_active') === 'on',
     sort_order: sortOrder.value,
+    subscriber_discount_percent,
     updated_at: new Date().toISOString(),
   };
 

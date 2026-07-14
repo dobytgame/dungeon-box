@@ -13,6 +13,24 @@ export function formatStorePriceLabel(cents: number): string {
   });
 }
 
+export function resolveSubscriberDiscountPercent(
+  product: Pick<StoreProduct, 'subscriberDiscountPercent'>
+): number {
+  const configured = product.subscriberDiscountPercent;
+  if (configured === null || configured === undefined) {
+    return SUBSCRIBER_STORE_DISCOUNT_PERCENT;
+  }
+  return Math.min(100, Math.max(0, configured));
+}
+
+export function formatSubscriberDiscountBadge(percent: number): string {
+  return `${percent}% Assinante`;
+}
+
+export function formatSubscriberDiscountSummary(percent: number): string {
+  return `${percent}% off para assinantes ativos`;
+}
+
 export function subscriptionStatusEligibleForStoreDiscount(status: string): boolean {
   return status === 'active' || status === 'past_due';
 }
@@ -36,25 +54,31 @@ export async function userHasActiveStoreSubscription(
 }
 
 export function calculateSubscriberStoreDiscountPriceCents(
-  basePriceCents: number
+  basePriceCents: number,
+  discountPercent: number = SUBSCRIBER_STORE_DISCOUNT_PERCENT
 ): number {
-  if (basePriceCents <= 0) return basePriceCents;
-  return Math.max(
-    1,
-    Math.round(basePriceCents * (1 - SUBSCRIBER_STORE_DISCOUNT_RATE))
-  );
+  if (basePriceCents <= 0 || discountPercent <= 0) return basePriceCents;
+  const rate = discountPercent / 100;
+  return Math.max(1, Math.round(basePriceCents * (1 - rate)));
 }
 
 export function applySubscriberDiscountToStoreProduct(
   product: StoreProduct
 ): StoreProduct {
+  const discountPercent = resolveSubscriberDiscountPercent(product);
+  if (discountPercent <= 0) return product;
+
   const basePriceCents = product.originalPriceCents ?? product.priceCents;
-  const discountedPriceCents =
-    calculateSubscriberStoreDiscountPriceCents(basePriceCents);
+  const discountedPriceCents = calculateSubscriberStoreDiscountPriceCents(
+    basePriceCents,
+    discountPercent
+  );
 
   if (discountedPriceCents >= product.priceCents) {
     return product;
   }
+
+  const summary = formatSubscriberDiscountSummary(discountPercent);
 
   return {
     ...product,
@@ -62,7 +86,8 @@ export function applySubscriberDiscountToStoreProduct(
     priceCents: discountedPriceCents,
     priceLabel: formatStorePriceLabel(discountedPriceCents),
     subscriberDiscount: true,
-    promoSummary: product.promoSummary ?? SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
+    subscriberDiscountAppliedPercent: discountPercent,
+    promoSummary: product.promoSummary ?? summary,
   };
 }
 
