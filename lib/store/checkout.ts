@@ -5,7 +5,11 @@ import {
   createAsaasPixPayment,
   type AsaasPixQrCode,
 } from '@/lib/asaas/one-time-payment';
-import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
+import {
+  isAsaasPaymentConfirmed,
+  userFacingStoreCardPaymentError,
+} from '@/lib/asaas/payment-status';
+import { isAsaasPaymentPending } from '@/lib/asaas/payment-details';
 import {
   buildStoreOrderExternalReference,
   fulfillApprovedStoreOrder,
@@ -107,6 +111,7 @@ export type StoreCheckoutResult =
       paymentId: string;
       orderId: string;
       pix?: AsaasPixQrCode;
+      awaitingReview?: boolean;
     }
   | { error: string };
 
@@ -143,33 +148,31 @@ async function resolveStoreLines(
   items: CartLine[],
   bundleSubscriptionId: string | null
 ): Promise<ResolvedStoreLine[] | { error: string }> {
-  const normalized = normalizeCartLines(items);
-  if (normalized.length === 0) {
-    const recovered = items
-      .map((line) => {
-        const productId = canonicalizeCartProductId(line.productId);
-        if (!productId) return null;
-        const qty = Math.min(Math.max(Math.floor(line.quantity), 1), 9);
-        return { productId, quantity: qty };
-      })
-      .filter((line): line is CartLine => line !== null);
+  const sanitized: CartLine[] = [];
 
-    if (recovered.length === 0) {
-      return { error: 'Seu carrinho está vazio.' };
-    }
+  for (const line of items) {
+    const qty = Math.min(Math.max(Math.floor(line.quantity), 1), 9);
+    if (qty === 0) continue;
 
-    return resolveStoreLinesWithItems(
-      supabase,
-      userId,
-      recovered,
-      bundleSubscriptionId
-    );
+    const productId =
+      canonicalizeCartProductId(line.productId) ?? line.productId.trim();
+    if (!productId) continue;
+
+    sanitized.push({
+      productId,
+      quantity: qty,
+      ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
+    });
+  }
+
+  if (sanitized.length === 0) {
+    return { error: 'Seu carrinho está vazio.' };
   }
 
   return resolveStoreLinesWithItems(
     supabase,
     userId,
-    normalized,
+    sanitized,
     bundleSubscriptionId
   );
 }
@@ -574,6 +577,21 @@ export async function purchaseStoreOrder(
     }
 
     if (!approved) {
+      if (input.paymentMethod === 'credit_card') {
+        if (isAsaasPaymentPending(payment.status)) {
+          return {
+            pending: true,
+            paymentId: paymentRow?.id ?? payment.id,
+            orderId,
+            awaitingReview: true,
+          };
+        }
+
+        return {
+          error: userFacingStoreCardPaymentError(payment.status),
+        };
+      }
+
       return {
         pending: true,
         paymentId: paymentRow?.id ?? payment.id,

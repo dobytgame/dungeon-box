@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { validateCreditCard } from '@/lib/payments/card-validation';
 
 export type AsaasCardPayload = {
   holderName: string;
@@ -66,20 +67,21 @@ export default function AsaasPaymentForm({
       const parsedExpiry = parseExpiry(expiry);
       const cardNumber = digitsOnly(number);
 
-      if (!holderName.trim()) {
-        onError('Informe o nome impresso no cartão.');
-        return;
-      }
-      if (cardNumber.length < 13) {
-        onError('Número do cartão inválido.');
-        return;
-      }
       if (!parsedExpiry) {
         onError('Validade do cartão inválida.');
         return;
       }
-      if (ccv.replace(/\D/g, '').length < 3) {
-        onError('CVV inválido.');
+
+      const validation = validateCreditCard({
+        holderName,
+        number: cardNumber,
+        expiryMonth: parsedExpiry.month,
+        expiryYear: parsedExpiry.year,
+        ccv,
+      });
+
+      if (!validation.ok) {
+        onError(validation.error);
         return;
       }
 
@@ -87,13 +89,7 @@ export default function AsaasPaymentForm({
       onError('');
 
       try {
-        await onSubmit({
-          holderName: holderName.trim(),
-          number: cardNumber,
-          expiryMonth: parsedExpiry.month,
-          expiryYear: parsedExpiry.year,
-          ccv: digitsOnly(ccv),
-        });
+        await onSubmit(validation.normalized);
       } catch (err) {
         onError(
           err instanceof Error ? err.message : 'Não foi possível confirmar o pagamento.'

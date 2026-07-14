@@ -7,6 +7,10 @@ import { purchaseStoreOrder } from '@/lib/store/checkout';
 import { createClient } from '@/lib/supabase/server';
 import { assertPublicStoreCheckoutItems } from '@/lib/store/access';
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  digitsOnly,
+  validateCreditCard,
+} from '@/lib/payments/card-validation';
 
 const cartItemsSchema = z
   .array(
@@ -44,22 +48,7 @@ const bodySchema = z.discriminatedUnion('paymentMethod', [
 ]);
 
 function normalizeCardNumber(value: string): string {
-  return value.replace(/\D/g, '');
-}
-
-function normalizeExpiryMonth(value: string): string {
-  const month = Number.parseInt(value.replace(/\D/g, ''), 10);
-  if (month < 1 || month > 12) {
-    throw new Error('Mês de validade inválido.');
-  }
-  return String(month).padStart(2, '0');
-}
-
-function normalizeExpiryYear(value: string): string {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 2) return `20${digits}`;
-  if (digits.length === 4) return digits;
-  throw new Error('Ano de validade inválido.');
+  return digitsOnly(value);
 }
 
 async function validateProfileAndAddress(
@@ -195,6 +184,7 @@ export async function POST(request: Request) {
           orderId: result.orderId,
           paymentId: result.paymentId,
           pix: result.pix,
+          awaitingReview: result.awaitingReview ?? false,
         });
       }
 
@@ -205,29 +195,20 @@ export async function POST(request: Request) {
       });
     }
 
-    let expiryMonth: string;
-    let expiryYear: string;
-    try {
-      expiryMonth = normalizeExpiryMonth(body.creditCard.expiryMonth);
-      expiryYear = normalizeExpiryYear(body.creditCard.expiryYear);
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof Error ? error.message : 'Validade do cartão inválida.',
-        },
-        { status: 400 }
-      );
-    }
-
     const holderName = body.creditCard.holderName.trim();
-    const creditCard = {
+    const cardValidation = validateCreditCard({
       holderName,
       number: normalizeCardNumber(body.creditCard.number),
-      expiryMonth,
-      expiryYear,
-      ccv: body.creditCard.ccv.replace(/\D/g, ''),
-    };
+      expiryMonth: body.creditCard.expiryMonth,
+      expiryYear: body.creditCard.expiryYear,
+      ccv: body.creditCard.ccv,
+    });
+
+    if (!cardValidation.ok) {
+      return NextResponse.json({ error: cardValidation.error }, { status: 400 });
+    }
+
+    const creditCard = cardValidation.normalized;
 
     const creditCardHolderInfo = {
       name: profile!.full_name?.trim() || holderName,
@@ -257,6 +238,7 @@ export async function POST(request: Request) {
         orderId: result.orderId,
         paymentId: result.paymentId,
         pix: result.pix,
+        awaitingReview: result.awaitingReview ?? false,
       });
     }
 

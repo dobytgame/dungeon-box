@@ -452,9 +452,14 @@ export default function StoreCheckoutForm({
             return;
           }
 
-          clearCart();
-          router.push(STORE_ROUTES.success(payload.orderId));
-          router.refresh();
+          if (payload.awaitingReview) {
+            setError(
+              'Pagamento em análise. Aguarde a confirmação antes de tentar novamente.'
+            );
+            return;
+          }
+
+          setError('Não foi possível confirmar o pagamento. Tente outro cartão.');
           return;
         }
 
