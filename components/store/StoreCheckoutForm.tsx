@@ -440,7 +440,7 @@ export default function StoreCheckoutForm({
               ? payload.error
               : 'Não foi possível concluir a compra.';
           setError(message);
-          throw new Error(message);
+          return;
         }
 
         if (payload.pending && payload.orderId) {
@@ -463,8 +463,9 @@ export default function StoreCheckoutForm({
           typeof payload.orderId === 'string' ? payload.orderId : 'ok';
         router.push(STORE_ROUTES.success(orderId));
         router.refresh();
-      } catch {
-        setError('Erro de conexão. Tente novamente.');
+      } catch (error) {
+        console.error('[store] checkout request failed:', error);
+        setError((current) => current || 'Erro de conexão. Tente novamente.');
       }
     });
   }

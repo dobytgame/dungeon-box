@@ -429,12 +429,6 @@ export async function purchaseStoreOrder(
 
   const totalCents = subtotalCents + shippingCents;
 
-  const asaasCustomerId = await getOrCreateAsaasCustomer(
-    input.supabase,
-    profileRow,
-    addressRow
-  );
-
   const externalReference = buildStoreOrderExternalReference(
     input.userId,
     orderId
@@ -490,6 +484,12 @@ export async function purchaseStoreOrder(
   };
 
   try {
+    const asaasCustomerId = await getOrCreateAsaasCustomer(
+      input.supabase,
+      profileRow,
+      addressRow
+    );
+
     if (input.paymentMethod === 'pix') {
       const payment = await createAsaasPixPayment({
         customerId: asaasCustomerId,

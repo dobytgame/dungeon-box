@@ -70,6 +70,34 @@ export async function fetchAsaasPixQrCode(
   return asaasRequest<AsaasPixQrCode>(`/payments/${paymentId}/pixQrCode`);
 }
 
+async function fetchAsaasPixQrCodeWithRetry(
+  paymentId: string,
+  attempts = 4
+): Promise<AsaasPixQrCode> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const pix = await fetchAsaasPixQrCode(paymentId);
+      if (pix.payload?.trim()) {
+        return pix;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error('Não foi possível gerar o QR Code PIX. Tente novamente.');
+}
+
 export async function createAsaasPixPayment(
   input: CreateAsaasPixPaymentInput
 ): Promise<AsaasPixPaymentResult> {
@@ -84,12 +112,12 @@ export async function createAsaasPixPayment(
       billingType: 'PIX',
       dueDate: formatAsaasDate(new Date()),
       value: centsToReais(input.valueCents),
-      description: input.description,
+      description: input.description.slice(0, 500),
       externalReference: input.externalReference,
     },
   });
 
-  const pix = await fetchAsaasPixQrCode(payment.id);
+  const pix = await fetchAsaasPixQrCodeWithRetry(payment.id);
 
   return {
     ...payment,

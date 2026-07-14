@@ -171,16 +171,80 @@ export async function POST(request: Request) {
     items: body.items.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
+      ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {}),
     })),
     addressId: body.addressId,
     bundleSubscriptionId: body.bundleSubscriptionId ?? null,
     couponCode: body.couponCode ?? null,
   };
 
-  if (body.paymentMethod === 'pix') {
+  try {
+    if (body.paymentMethod === 'pix') {
+      const result = await purchaseStoreOrder({
+        ...sharedInput,
+        paymentMethod: 'pix',
+      });
+
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+
+      if ('pending' in result) {
+        return NextResponse.json({
+          pending: true,
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          pix: result.pix,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        orderId: result.orderId,
+        paymentId: result.paymentId,
+      });
+    }
+
+    let expiryMonth: string;
+    let expiryYear: string;
+    try {
+      expiryMonth = normalizeExpiryMonth(body.creditCard.expiryMonth);
+      expiryYear = normalizeExpiryYear(body.creditCard.expiryYear);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error ? error.message : 'Validade do cartão inválida.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const holderName = body.creditCard.holderName.trim();
+    const creditCard = {
+      holderName,
+      number: normalizeCardNumber(body.creditCard.number),
+      expiryMonth,
+      expiryYear,
+      ccv: body.creditCard.ccv.replace(/\D/g, ''),
+    };
+
+    const creditCardHolderInfo = {
+      name: profile!.full_name?.trim() || holderName,
+      email: profile!.email,
+      cpfCnpj: cpf!,
+      postalCode: address!.zip_code.replace(/\D/g, ''),
+      addressNumber: address!.number,
+      addressComplement: address!.complement ?? undefined,
+      phone: phone!,
+    };
+
     const result = await purchaseStoreOrder({
       ...sharedInput,
-      paymentMethod: 'pix',
+      paymentMethod: 'credit_card',
+      creditCard,
+      creditCardHolderInfo,
+      remoteIp: getClientIpFromRequest(request),
     });
 
     if ('error' in result) {
@@ -201,66 +265,16 @@ export async function POST(request: Request) {
       orderId: result.orderId,
       paymentId: result.paymentId,
     });
-  }
-
-  let expiryMonth: string;
-  let expiryYear: string;
-  try {
-    expiryMonth = normalizeExpiryMonth(body.creditCard.expiryMonth);
-    expiryYear = normalizeExpiryYear(body.creditCard.expiryYear);
   } catch (error) {
+    console.error('[store] checkout api:', error);
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Validade do cartão inválida.',
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível processar o pagamento.',
       },
-      { status: 400 }
+      { status: 500 }
     );
   }
-
-  const holderName = body.creditCard.holderName.trim();
-  const creditCard = {
-    holderName,
-    number: normalizeCardNumber(body.creditCard.number),
-    expiryMonth,
-    expiryYear,
-    ccv: body.creditCard.ccv.replace(/\D/g, ''),
-  };
-
-  const creditCardHolderInfo = {
-    name: profile!.full_name?.trim() || holderName,
-    email: profile!.email,
-    cpfCnpj: cpf!,
-    postalCode: address!.zip_code.replace(/\D/g, ''),
-    addressNumber: address!.number,
-    addressComplement: address!.complement ?? undefined,
-    phone: phone!,
-  };
-
-  const result = await purchaseStoreOrder({
-    ...sharedInput,
-    paymentMethod: 'credit_card',
-    creditCard,
-    creditCardHolderInfo,
-    remoteIp: getClientIpFromRequest(request),
-  });
-
-  if ('error' in result) {
-    return NextResponse.json({ error: result.error }, { status: 400 });
-  }
-
-  if ('pending' in result) {
-    return NextResponse.json({
-      pending: true,
-      orderId: result.orderId,
-      paymentId: result.paymentId,
-      pix: result.pix,
-    });
-  }
-
-  return NextResponse.json({
-    success: true,
-    orderId: result.orderId,
-    paymentId: result.paymentId,
-  });
 }
