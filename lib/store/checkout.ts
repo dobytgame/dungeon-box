@@ -27,6 +27,7 @@ import {
 import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
 import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
+import { formatProductNameWithVariations, validateSelectedProductOptions } from '@/lib/store/product-variations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   recordStorePromoRedemption,
@@ -60,7 +61,12 @@ type ResolvedStoreLine =
       quantity: number;
       name: string;
       lineTotalCents: number;
+      priceCents: number;
+      originalPriceCents: number;
+      promoCode?: string;
+      promoSummary?: string;
       bundleSubscriptionId: string | null;
+      selectedOptions?: Record<string, string>;
     }
   | {
       kind: 'monthly-kit';
@@ -208,7 +214,10 @@ async function resolveStoreLinesWithItems(
       continue;
     }
 
-    const product = await resolveStoreProductForCheckout(admin, line.productId);
+    const product = await resolveStoreProductForCheckout(admin, line.productId, {
+      userId,
+      userSupabase: supabase,
+    });
     if (!product) {
       return { error: 'Produto inválido no carrinho.' };
     }
@@ -217,14 +226,24 @@ async function resolveStoreLinesWithItems(
       return { error: 'Este produto não está disponível no momento.' };
     }
 
+    const validation = validateSelectedProductOptions(product, line.selectedOptions);
+    if (!validation.ok) {
+      return { error: validation.error };
+    }
+
     resolved.push({
       kind: 'catalog',
       productId: line.productId as StoreCatalogProductId,
       quantity: line.quantity,
-      name: product.name,
+      name: formatProductNameWithVariations(product.name, line.selectedOptions),
       lineTotalCents: product.priceCents * line.quantity,
+      priceCents: product.priceCents,
+      originalPriceCents: product.originalPriceCents ?? product.priceCents,
+      promoCode: product.subscriberDiscount ? 'ASSINANTE' : product.promoCode,
+      promoSummary: product.promoSummary,
       bundleSubscriptionId:
         product.paintKitBumpId && bundleSubscriptionId ? bundleSubscriptionId : null,
+      ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
     });
   }
 
@@ -451,6 +470,9 @@ export async function purchaseStoreOrder(
             name: line.name,
             lineTotalCents: line.lineTotalCents,
             bundleSubscriptionId: line.bundleSubscriptionId,
+            ...(line.selectedOptions
+              ? { selectedOptions: line.selectedOptions }
+              : {}),
           }
     ),
     addressId,

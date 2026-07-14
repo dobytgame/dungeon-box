@@ -9,12 +9,12 @@ import {
   filterPublicStoreProducts,
   isStoreLinkVisible,
   isStorePublic,
-  profileIsStoreAdmin,
 } from '@/lib/store/access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { loadActiveStoreCategories, loadAllActiveStoreProducts } from '@/lib/store/load-catalog';
+import { loadActiveStoreCategories, loadAllActiveStoreProducts, filterStoreProductsForVitrine } from '@/lib/store/load-catalog';
 import { getMonthlyKitProductsForUser, getPublicMonthlyKitProducts } from '@/lib/store/monthly-kits';
+import { enrichStoreProductsForSubscriber } from '@/lib/store/subscriber-discount';
 
 export const metadata: Metadata = {
   title: 'Loja | DungeonBox',
@@ -44,13 +44,13 @@ export default async function LojaLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
+  const showFullCatalog = isStorePublic();
 
-  const [profile, publicMonthlyKits, subscriberMonthlyKits, categories, catalogProducts] =
+  const [profile, publicMonthlyKits, userBundleMonthlyKits, categories, catalogProducts] =
     await Promise.all([
       user ? getProfile(user.id) : Promise.resolve(null),
       getPublicMonthlyKitProducts(admin),
-      isStorePublic() || isAdmin
+      isStorePublic()
         ? user
           ? getMonthlyKitProductsForUser(user.id, supabase)
           : Promise.resolve([])
@@ -61,7 +61,7 @@ export default async function LojaLayout({
 
   const monthlyKits = (() => {
     const byId = new Map<string, (typeof publicMonthlyKits)[number]>();
-    for (const product of subscriberMonthlyKits) {
+    for (const product of userBundleMonthlyKits) {
       byId.set(product.id, product);
     }
     for (const product of publicMonthlyKits) {
@@ -76,19 +76,27 @@ export default async function LojaLayout({
     return Array.from(byId.values());
   })();
 
-  const visibleCategories =
-    isStorePublic() || isAdmin
-      ? categories
-      : filterPublicStoreCategories(categories);
-  const visibleProducts =
-    isStorePublic() || isAdmin
-      ? catalogProducts
-      : filterPublicStoreProducts(catalogProducts);
+  const [visibleCatalogProducts, visibleMonthlyKits] = await Promise.all([
+    filterStoreProductsForVitrine(admin, catalogProducts),
+    filterStoreProductsForVitrine(admin, monthlyKits),
+  ]);
+
+  const [subscriberCatalogProducts, subscriberMonthlyKits] = await Promise.all([
+    enrichStoreProductsForSubscriber(supabase, user?.id, visibleCatalogProducts),
+    enrichStoreProductsForSubscriber(supabase, user?.id, visibleMonthlyKits),
+  ]);
+
+  const visibleCategories = isStorePublic()
+    ? categories
+    : filterPublicStoreCategories(categories);
+  const visibleProducts = isStorePublic()
+    ? subscriberCatalogProducts
+    : filterPublicStoreProducts(subscriberCatalogProducts);
 
   const userName = user ? displayName(profile, user.email) : null;
 
   return (
-    <StoreCatalogProvider monthlyKits={monthlyKits} catalogProducts={visibleProducts}>
+    <StoreCatalogProvider monthlyKits={subscriberMonthlyKits} catalogProducts={visibleProducts}>
       <StoreCartProvider>
         <ShopShell
           categories={visibleCategories}

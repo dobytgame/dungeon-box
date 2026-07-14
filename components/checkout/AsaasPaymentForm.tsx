@@ -44,7 +44,7 @@ function parseExpiry(expiry: string): { month: string; year: string } | null {
 }
 
 const inputClassName =
-  'w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:border-ember/50 focus:outline-none focus:ring-1 focus:ring-ember/30 disabled:opacity-50';
+  'w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-base text-white placeholder:text-stone-600 focus:border-ember/50 focus:outline-none focus:ring-1 focus:ring-ember/30 disabled:opacity-50 sm:text-sm';
 
 export default function AsaasPaymentForm({
   disabled,

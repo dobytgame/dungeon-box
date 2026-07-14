@@ -16,6 +16,7 @@ import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
+import { formatVariationSummary } from '@/lib/store/product-variations';
 import type { CycleStatus } from '@/lib/dashboard/types';
 
 export type StoreOrderMeta = {
@@ -343,16 +344,30 @@ export async function notifyStoreOrderConfirmed(
       to: profile.email,
       name: profile.full_name,
       orderId: meta.orderId,
-      items: meta.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        lineTotalCents: item.lineTotalCents,
-      })),
+      items: meta.items.map((item) => {
+        const selectedOptions =
+          typeof item.selectedOptions === 'object' && item.selectedOptions !== null
+            ? (item.selectedOptions as Record<string, string>)
+            : undefined;
+
+        return {
+          name: item.name,
+          quantity: item.quantity,
+          unitPriceCents:
+            item.quantity > 0
+              ? Math.round(item.lineTotalCents / item.quantity)
+              : item.lineTotalCents,
+          lineTotalCents: item.lineTotalCents,
+          variationSummary: formatVariationSummary(selectedOptions),
+        };
+      }),
       subtotalCents,
       shippingCents: meta.shippingCents ?? 0,
       shippingLabel: meta.shippingLabel,
       amountCents,
       bundledWithSubscription: meta.shippingMode === 'with_subscription',
+      couponCode: meta.couponCode,
+      couponDiscountCents: meta.couponDiscountCents,
     });
   } catch (error) {
     console.error('[store] order confirmed email:', error);

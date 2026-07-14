@@ -5,6 +5,11 @@ import { listAdminStoreCategories } from '@/lib/admin/store-categories';
 import { listAdminStoreProducts } from '@/lib/admin/store-products';
 import { formatMoney } from '@/lib/dashboard/format';
 import { STORE_PRODUCT_CATEGORY_LABELS } from '@/lib/store/catalog';
+import { storeProductThumbClassName } from '@/lib/store/product-media';
+
+function productThumbUrl(imageUrl: string | null, galleryUrls: string[]) {
+  return imageUrl ?? galleryUrls[0] ?? null;
+}
 
 export default async function AdminStorePage() {
   const { admin } = await requireAdmin();
@@ -51,6 +56,31 @@ export default async function AdminStorePage() {
         getRowHref={(row) => `/admin/loja/${row.id}`}
         columns={[
           {
+            key: 'thumb',
+            header: '',
+            className: 'w-16',
+            cell: (row) => {
+              const thumbUrl = productThumbUrl(row.image_url, row.gallery_urls);
+              return thumbUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={thumbUrl}
+                  alt=""
+                  width={56}
+                  height={56}
+                  className={`${storeProductThumbClassName} h-14 w-14 rounded-sm border border-zinc-800/80 bg-zinc-900/60`}
+                />
+              ) : (
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-sm border border-dashed border-zinc-800/80 bg-zinc-900/40 text-[10px] uppercase tracking-widest text-zinc-600"
+                  aria-hidden="true"
+                >
+                  —
+                </div>
+              );
+            },
+          },
+          {
             key: 'name',
             header: 'Produto',
             cell: (row) => (
@@ -76,12 +106,9 @@ export default async function AdminStorePage() {
             cell: (row) => formatMoney(row.price_cents),
           },
           {
-            key: 'media',
-            header: 'Mídia',
-            cell: (row) =>
-              row.image_url || row.gallery_urls.length > 0 || row.page_content_html
-                ? 'Sim'
-                : '—',
+            key: 'content',
+            header: 'Página',
+            cell: (row) => (row.page_content_html ? 'HTML' : '—'),
           },
           {
             key: 'active',

@@ -9,6 +9,7 @@ import {
 } from '@/lib/admin/actions';
 import AdminHtmlEditor from '@/components/admin/AdminHtmlEditor';
 import StoreProductMediaFields from '@/components/admin/StoreProductMediaFields';
+import StoreProductVariationsFields from '@/components/admin/StoreProductVariationsFields';
 import type { AdminStoreProductRow } from '@/lib/admin/store-products';
 import { formatMoney } from '@/lib/dashboard/format';
 import { generateSeoSlug } from '@/lib/seo/slug';
@@ -285,7 +286,7 @@ export default function StoreProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="price_reais" className={labelClass}>
-            Preço referência (R$)
+            {isMonthlyKit ? 'Preço na loja (R$)' : 'Preço referência (R$)'}
           </label>
           <input
             id="price_reais"
@@ -296,7 +297,8 @@ export default function StoreProductForm({
           />
           {isMonthlyKit ? (
             <p className="mt-1 text-xs text-stone-500">
-              Referência administrativa — checkout usa preço do plano.
+              Valor cobrado na loja para este kit. Independente do preço da
+              assinatura em Planos.
             </p>
           ) : null}
         </div>
@@ -327,6 +329,13 @@ export default function StoreProductForm({
             className={inputClass}
           />
         </div>
+      ) : null}
+
+      {isStoreItem ? (
+        <StoreProductVariationsFields
+          enabled={product?.variations_enabled ?? false}
+          variations={product?.variations ?? []}
+        />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">

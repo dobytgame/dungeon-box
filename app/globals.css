@@ -16,6 +16,7 @@
     --z-mobile-nav-backdrop: 45;
     --z-mobile-nav-panel: 48;
     --z-plans-tier-nav: 30;
+    --z-lightbox: 200;
   }
 
   @media (min-width: 640px) {
@@ -77,6 +78,18 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .bottom-safe-offset {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   }
 
   .text-gradient-frost {

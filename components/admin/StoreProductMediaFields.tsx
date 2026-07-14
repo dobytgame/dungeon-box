@@ -1,11 +1,12 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
+import { ImagePlus, Images, Loader2, Trash2 } from 'lucide-react';
+import AdminStoreImageField from '@/components/admin/AdminStoreImageField';
+import AdminStoreMediaGallery from '@/components/admin/AdminStoreMediaGallery';
+import { uploadStoreMedia } from '@/lib/admin/store-media-client';
 import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 
-const inputClass =
-  'mt-2 w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white';
 const labelClass =
   'block font-display text-xs uppercase tracking-widest text-stone-400';
 
@@ -14,56 +15,22 @@ interface Props {
   galleryUrls: string[];
 }
 
-async function uploadImage(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('folder', 'products');
-
-  const response = await fetch('/api/admin/store/upload', {
-    method: 'POST',
-    body: formData,
-  });
-
-  const payload = (await response.json()) as { url?: string; error?: string };
-  if (!response.ok || !payload.url) {
-    throw new Error(payload.error ?? 'Falha no upload.');
-  }
-
-  return payload.url;
-}
-
 export default function StoreProductMediaFields({
   imageUrl: initialImageUrl,
   galleryUrls: initialGalleryUrls,
 }: Props) {
   const [imageUrl, setImageUrl] = useState(initialImageUrl ?? '');
   const [galleryUrls, setGalleryUrls] = useState<string[]>(initialGalleryUrls);
-  const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [error, setError] = useState('');
-  const mainInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-
-  async function handleMainUpload(file: File) {
-    setUploadingMain(true);
-    setError('');
-    try {
-      const url = await uploadImage(file);
-      setImageUrl(url);
-    } catch (uploadError) {
-      setError(
-        uploadError instanceof Error ? uploadError.message : 'Falha no upload.'
-      );
-    } finally {
-      setUploadingMain(false);
-    }
-  }
 
   async function handleGalleryUpload(file: File) {
     setUploadingGallery(true);
     setError('');
     try {
-      const url = await uploadImage(file);
+      const url = await uploadStoreMedia(file, 'products');
       setGalleryUrls((current) => [...current, url]);
     } catch (uploadError) {
       setError(
@@ -83,67 +50,14 @@ export default function StoreProductMediaFields({
         value={JSON.stringify(galleryUrls)}
       />
 
-      <div>
-        <p className={labelClass}>Imagem principal</p>
-        <p className="mt-1 text-xs text-stone-500">
-          Quadrado {STORE_PRODUCT_IMAGE_SIZE}×{STORE_PRODUCT_IMAGE_SIZE}px recomendado.
-        </p>
-        <div className="mt-3 flex flex-wrap items-start gap-4">
-          <div className="flex aspect-square h-36 w-36 items-center justify-center overflow-hidden rounded-sm border border-white/10 bg-stone-900/60">
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imageUrl}
-                alt="Imagem principal do produto"
-                width={STORE_PRODUCT_IMAGE_SIZE}
-                height={STORE_PRODUCT_IMAGE_SIZE}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="px-2 text-center text-xs text-stone-600">
-                Sem imagem
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <input
-              ref={mainInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void handleMainUpload(file);
-                event.target.value = '';
-              }}
-            />
-            <button
-              type="button"
-              disabled={uploadingMain}
-              onClick={() => mainInputRef.current?.click()}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-xs uppercase tracking-widest text-stone-300 hover:border-white/20"
-            >
-              {uploadingMain ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ImagePlus className="h-4 w-4" />
-              )}
-              Enviar imagem
-            </button>
-            {imageUrl ? (
-              <button
-                type="button"
-                onClick={() => setImageUrl('')}
-                className="inline-flex cursor-pointer items-center gap-2 text-xs text-red-400 hover:text-red-300"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Remover
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <AdminStoreImageField
+        label="Imagem principal"
+        hint={`Quadrado ${STORE_PRODUCT_IMAGE_SIZE}×${STORE_PRODUCT_IMAGE_SIZE}px recomendado.`}
+        value={imageUrl}
+        onChange={setImageUrl}
+        uploadFolder="products"
+        showManualUrl
+      />
 
       <div>
         <p className={labelClass}>Galeria</p>
@@ -193,32 +107,29 @@ export default function StoreProductMediaFields({
             event.target.value = '';
           }}
         />
-        <button
-          type="button"
-          disabled={uploadingGallery}
-          onClick={() => galleryInputRef.current?.click()}
-          className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-xs uppercase tracking-widest text-stone-300 hover:border-white/20"
-        >
-          {uploadingGallery ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ImagePlus className="h-4 w-4" />
-          )}
-          Adicionar à galeria
-        </button>
-      </div>
-
-      <div>
-        <label htmlFor="image_url_manual" className={labelClass}>
-          URL manual (opcional)
-        </label>
-        <input
-          id="image_url_manual"
-          value={imageUrl}
-          onChange={(event) => setImageUrl(event.target.value)}
-          placeholder="https://..."
-          className={inputClass}
-        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={uploadingGallery}
+            onClick={() => galleryInputRef.current?.click()}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-xs uppercase tracking-widest text-stone-300 hover:border-white/20"
+          >
+            {uploadingGallery ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ImagePlus className="h-4 w-4" />
+            )}
+            Enviar imagem
+          </button>
+          <button
+            type="button"
+            onClick={() => setGalleryOpen(true)}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-xs uppercase tracking-widest text-stone-300 hover:border-white/20"
+          >
+            <Images className="h-4 w-4" />
+            Escolher da galeria
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -226,6 +137,18 @@ export default function StoreProductMediaFields({
           {error}
         </p>
       ) : null}
+
+      <AdminStoreMediaGallery
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onSelect={(url) => {
+          setGalleryUrls((current) =>
+            current.includes(url) ? current : [...current, url]
+          );
+        }}
+        title="Adicionar à galeria do produto"
+        description="Selecione imagens já enviadas ao bucket store-media."
+      />
     </div>
   );
 }

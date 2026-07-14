@@ -12,6 +12,7 @@ import {
 } from '@/lib/asaas/store-order-payment';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
 import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
+import { formatVariationSummary } from '@/lib/store/product-variations';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import type { AdminCycleExtraItem } from '@/lib/admin/types';
 import type { CycleStatus } from '@/lib/dashboard/types';
@@ -187,13 +188,18 @@ function itemsFromStoreOrderMeta(
         ? 'monthly-kit'
         : 'store';
 
+    const variationDetail =
+      line.selectedOptions && typeof line.selectedOptions === 'object'
+        ? formatVariationSummary(line.selectedOptions as Record<string, string>)
+        : null;
+
     items.push({
-      id: `store:${line.productId}:${line.quantity}`,
+      id: `store:${line.productId}:${line.quantity}:${variationDetail ?? ''}`,
       kind,
       name: line.name,
       tag: itemTag(kind, line.quantity),
       quantity: line.quantity,
-      detail: null,
+      detail: variationDetail ?? null,
       source: 'store_order',
       paymentPending,
     });

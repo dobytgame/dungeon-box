@@ -1,5 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StoreProductCategory } from '@/lib/store/catalog';
+import {
+  isStoreProductVisibleInVitrine,
+  loadStoreCategoryVisibilityContext,
+} from '@/lib/store/category-visibility';
+import { normalizeStoreGalleryUrls } from '@/lib/store/product-media';
+import {
+  normalizeStoreProductVariations,
+  parseStoreProductVariations,
+  type StoreProductVariation,
+} from '@/lib/store/product-variations';
 
 export interface AdminStoreProductRow {
   id: string;
@@ -23,6 +33,8 @@ export interface AdminStoreProductRow {
   is_active: boolean;
   sort_order: number;
   created_at: string | null;
+  variations_enabled: boolean;
+  variations: StoreProductVariation[];
 }
 
 export async function listAdminStoreProducts(
@@ -76,6 +88,8 @@ export async function listAdminStoreProducts(
     is_active: Boolean(row.is_active),
     sort_order: row.sort_order as number,
     created_at: (row.created_at as string | null) ?? null,
+    variations_enabled: Boolean(row.variations_enabled),
+    variations: parseStoreProductVariations(row.variations),
   }));
 }
 
@@ -130,4 +144,84 @@ export async function listActiveMonthlyKitPlanSlugs(
       .map((row) => row.plan_slug as string | null)
       .filter((slug): slug is string => Boolean(slug))
   );
+}
+
+export type MonthlyKitStoreProductConfig = {
+  plan_slug: string;
+  slug: string;
+  name: string;
+  tagline: string | null;
+  price_cents: number;
+  includes: string[];
+  image_url: string | null;
+  gallery_urls: string[];
+  page_content_html: string | null;
+  featured: boolean;
+  max_quantity: number;
+  store_category_id: string | null;
+  store_category_slug: string | null;
+  store_category_name: string | null;
+};
+
+const MONTHLY_KIT_STORE_SELECT =
+  'plan_slug, slug, name, tagline, price_cents, includes, image_url, gallery_urls, page_content_html, featured, max_quantity, store_category_id, store_categories(slug, name)';
+
+export async function loadActiveMonthlyKitStoreProductsMap(
+  admin: SupabaseClient
+): Promise<Map<string, MonthlyKitStoreProductConfig>> {
+  const { data, error } = await admin
+    .from('store_products')
+    .select(MONTHLY_KIT_STORE_SELECT)
+    .eq('category', 'monthly-kit')
+    .eq('is_active', true);
+
+  if (error) {
+    console.error('[admin] loadActiveMonthlyKitStoreProductsMap:', error.message);
+    return new Map();
+  }
+
+  const visibility = await loadStoreCategoryVisibilityContext(admin);
+  const map = new Map<string, MonthlyKitStoreProductConfig>();
+
+  for (const row of data ?? []) {
+    const planSlug = row.plan_slug as string | null;
+    if (!planSlug) continue;
+
+    const storeCategoryId = (row.store_category_id as string | null) ?? null;
+    const storeCategory = Array.isArray(row.store_categories)
+      ? row.store_categories[0]
+      : row.store_categories;
+
+    if (
+      !isStoreProductVisibleInVitrine(
+        {
+          storeCategoryId,
+          storeCategorySlug: (storeCategory?.slug as string | null) ?? null,
+          category: 'monthly-kit',
+        },
+        visibility
+      )
+    ) {
+      continue;
+    }
+
+    map.set(planSlug, {
+      plan_slug: planSlug,
+      slug: row.slug as string,
+      name: row.name as string,
+      tagline: (row.tagline as string | null) ?? null,
+      price_cents: row.price_cents as number,
+      includes: (row.includes as string[] | null) ?? [],
+      image_url: (row.image_url as string | null) ?? null,
+      gallery_urls: normalizeStoreGalleryUrls(row.gallery_urls),
+      page_content_html: (row.page_content_html as string | null) ?? null,
+      featured: Boolean(row.featured),
+      max_quantity: row.max_quantity as number,
+      store_category_id: storeCategoryId,
+      store_category_slug: (storeCategory?.slug as string | null) ?? null,
+      store_category_name: (storeCategory?.name as string | null) ?? null,
+    });
+  }
+
+  return map;
 }

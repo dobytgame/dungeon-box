@@ -29,6 +29,7 @@ export interface EmailLayoutOptions {
   headline: string;
   headlineAccent?: string;
   paragraphs: string[];
+  bodyHtml?: string;
   bullets?: string[];
   cta?: EmailCta;
   secondaryCta?: EmailCta;
@@ -173,6 +174,7 @@ export function buildEmailHtml(options: EmailLayoutOptions): string {
                     ${renderParagraphs(options.paragraphs)}
                   </td>
                 </tr>
+                ${options.bodyHtml ? `<tr><td style="padding:0 28px 8px;">${options.bodyHtml}</td></tr>` : ''}
                 ${options.bullets?.length ? `<tr><td style="padding:0 28px;">${renderBullets(options.bullets)}</td></tr>` : ''}
                 <tr>
                   <td style="padding:8px 28px 28px;">

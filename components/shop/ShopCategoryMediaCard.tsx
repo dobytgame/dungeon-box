@@ -48,7 +48,7 @@ export default function ShopCategoryMediaCard({ category, className = '' }: Prop
             {category.name}
           </p>
           {descriptionPreview ? (
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-400 opacity-0 transition duration-300 group-hover:opacity-100 sm:text-sm">
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-400 opacity-90 sm:opacity-0 sm:transition sm:duration-300 sm:group-hover:opacity-100 sm:text-sm">
               {descriptionPreview}
             </p>
           ) : null}

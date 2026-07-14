@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Minus, Plus, Trash2 } from 'lucide-react';
+import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import ShopCard from '@/components/shop/ShopCard';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
@@ -10,6 +10,7 @@ import { formatMoney } from '@/lib/dashboard/format';
 import { cartHasMonthlyKits, resolveCartLines } from '@/lib/store/cart';
 import { STORE_ROUTES } from '@/lib/store/routes';
 import StoreNavLink from '@/components/shop/StoreNavLink';
+import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 
 interface Props {
   embedded?: boolean;
@@ -74,15 +75,51 @@ export default function StoreCartView({ embedded = false }: Props) {
     <div className="space-y-6">
       <CartShell title="Seu carrinho" embedded={embedded}>
         <ul className="divide-y divide-white/[0.06]">
-          {resolved.map((line) => (
+          {resolved.map((line) => {
+            const productHref = line.slug
+              ? STORE_ROUTES.product(line.slug)
+              : STORE_ROUTES.home;
+
+            return (
             <li
-              key={line.productId}
+              key={line.lineId}
               className="flex flex-col gap-4 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
-                <p className="font-medium text-white">{line.name}</p>
+              <div className="flex min-w-0 flex-1 gap-4">
+                <Link
+                  href={productHref}
+                  className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-sm bg-stone-900"
+                >
+                  {line.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={line.imageUrl}
+                      alt=""
+                      width={STORE_PRODUCT_IMAGE_SIZE}
+                      height={STORE_PRODUCT_IMAGE_SIZE}
+                      className="h-full w-full object-cover transition hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 items-center justify-center">
+                      <ShoppingBag
+                        className="h-6 w-6 text-stone-600"
+                        aria-hidden="true"
+                      />
+                    </div>
+                  )}
+                </Link>
+
+                <div className="min-w-0">
+                <p className="font-medium text-white">
+                  <Link href={productHref} className="hover:text-ember">
+                    {line.name}
+                  </Link>
+                </p>
                 {line.themeName ? (
                   <p className="mt-1 text-xs text-gold">Tema: {line.themeName}</p>
+                ) : null}
+                {line.variationSummary ? (
+                  <p className="mt-1 text-xs text-stone-400">{line.variationSummary}</p>
                 ) : null}
                 <p className="mt-1 text-sm text-stone-500">
                   {line.originalPriceCents &&
@@ -103,21 +140,22 @@ export default function StoreCartView({ embedded = false }: Props) {
                     {line.promoSummary ? ` — ${line.promoSummary}` : ''}
                   </p>
                 ) : null}
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto">
                 <div className="flex items-center rounded-sm border border-white/10">
                   <button
                     type="button"
                     aria-label="Diminuir quantidade"
                     onClick={() => {
                       if (line.quantity <= 1) {
-                        removeItem(line.productId);
+                        removeItem(line.lineId);
                         return;
                       }
-                      setQuantity(line.productId, line.quantity - 1);
+                      setQuantity(line.lineId, line.quantity - 1);
                     }}
-                    className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
+                    className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -130,11 +168,11 @@ export default function StoreCartView({ embedded = false }: Props) {
                     disabled={line.quantity >= (line.maxQuantity ?? 9)}
                     onClick={() =>
                       setQuantity(
-                        line.productId,
+                        line.lineId,
                         Math.min(line.maxQuantity ?? 9, line.quantity + 1)
                       )
                     }
-                    className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
+                    className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -147,14 +185,15 @@ export default function StoreCartView({ embedded = false }: Props) {
                 <button
                   type="button"
                   aria-label={`Remover ${line.name}`}
-                  onClick={() => removeItem(line.productId)}
+                  onClick={() => removeItem(line.lineId)}
                   className="cursor-pointer text-stone-500 transition hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
 
         <div className="mt-6 flex flex-col gap-4 border-t border-white/[0.06] pt-6 sm:flex-row sm:items-center sm:justify-between">

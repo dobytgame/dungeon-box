@@ -10,7 +10,7 @@ export default function CookieBanner() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-[90] border-t border-white/10 bg-stone-950/95 p-4 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] backdrop-blur-md sm:p-5"
+      className="fixed bottom-0 left-0 right-0 z-[90] border-t border-white/10 bg-stone-950/95 p-4 pb-safe shadow-[0_-8px_32px_rgba(0,0,0,0.5)] backdrop-blur-md sm:p-5"
       role="region"
       aria-label="Aviso de cookies e privacidade"
     >

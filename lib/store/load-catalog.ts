@@ -8,6 +8,19 @@ import {
   type StoreCatalogProductId,
   type StoreProduct,
 } from '@/lib/store/catalog';
+import { getPublicMonthlyKitProducts } from '@/lib/store/monthly-kits';
+import {
+  filterStoreProductsByVisibleCategory,
+  intersectCategoryIdsWithVisible,
+  isStoreProductVisibleInVitrine,
+  loadStoreCategoryVisibilityContext,
+  type StoreCategoryVisibilityContext,
+} from '@/lib/store/category-visibility';
+import {
+  normalizeStoreGalleryUrls,
+  resolveStoreProductPrimaryImageUrl,
+} from '@/lib/store/product-media';
+import { parseStoreProductVariations } from '@/lib/store/product-variations';
 
 export interface DbStoreProductRow {
   id: string;
@@ -28,6 +41,8 @@ export interface DbStoreProductRow {
   featured: boolean;
   is_active: boolean;
   sort_order: number;
+  variations_enabled: boolean;
+  variations: unknown;
   store_categories?: {
     slug: string;
     name: string;
@@ -78,19 +93,71 @@ function mapDbRowToStoreProduct(row: DbStoreProductRow): StoreProduct {
     category: row.category,
     storeCategorySlug: storeCategory?.slug,
     storeCategoryName: storeCategory?.name,
+    storeCategoryId: row.store_category_id ?? undefined,
     storeParentCategorySlug: parentCategory?.slug,
     storeParentCategoryName: parentCategory?.name,
-    imageUrl: row.image_url ?? undefined,
-    galleryUrls: row.gallery_urls ?? [],
+    imageUrl: resolveStoreProductPrimaryImageUrl(row.image_url, row.gallery_urls),
+    galleryUrls: normalizeStoreGalleryUrls(row.gallery_urls),
     pageContentHtml: row.page_content_html ?? undefined,
     paintKitBumpId: row.paint_kit_bump_id ?? bump?.id,
     maxQuantity: row.max_quantity,
     planSlug: row.plan_slug ?? undefined,
+    variationsEnabled: Boolean(row.variations_enabled),
+    variations: parseStoreProductVariations(row.variations),
   };
+}
+
+async function enrichMonthlyKitProducts(
+  admin: SupabaseClient,
+  products: StoreProduct[]
+): Promise<StoreProduct[]> {
+  const hasMonthlyKit = products.some((product) => product.category === 'monthly-kit');
+  if (!hasMonthlyKit) return products;
+
+  const enrichedKits = await getPublicMonthlyKitProducts(admin);
+  const enrichedBySlug = new Map(enrichedKits.map((kit) => [kit.slug, kit]));
+
+  return products.flatMap((product) => {
+    if (product.category !== 'monthly-kit') return [product];
+    const enriched = enrichedBySlug.get(product.slug);
+    return enriched ? [enriched] : [];
+  });
 }
 
 const PRODUCT_CATEGORY_SELECT =
   '*, store_categories(slug, name, parent_id, parent:parent_id(slug, name))';
+
+async function mapVisibleStoreProductRows(
+  admin: SupabaseClient,
+  rows: DbStoreProductRow[],
+  context?: StoreCategoryVisibilityContext
+): Promise<StoreProduct[]> {
+  const visibility =
+    context ?? (await loadStoreCategoryVisibilityContext(admin));
+
+  return rows
+    .filter((row) =>
+      isStoreProductVisibleInVitrine(
+        {
+          storeCategoryId: row.store_category_id,
+          storeCategorySlug: Array.isArray(row.store_categories)
+            ? row.store_categories[0]?.slug
+            : row.store_categories?.slug,
+          category: row.category,
+        },
+        visibility
+      )
+    )
+    .map(mapDbRowToStoreProduct);
+}
+
+export async function filterStoreProductsForVitrine(
+  admin: SupabaseClient,
+  products: StoreProduct[]
+): Promise<StoreProduct[]> {
+  const context = await loadStoreCategoryVisibilityContext(admin);
+  return filterStoreProductsByVisibleCategory(products, context);
+}
 
 export async function loadActivePaintKitProducts(
   admin: SupabaseClient
@@ -103,10 +170,10 @@ export async function loadActivePaintKitProducts(
     .order('sort_order', { ascending: true });
 
   if (error || !data?.length) {
-    return [...STORE_PRODUCTS];
+    return [];
   }
 
-  return (data as DbStoreProductRow[]).map(mapDbRowToStoreProduct);
+  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
 }
 
 export async function loadAllActiveStoreProducts(
@@ -116,11 +183,12 @@ export async function loadAllActiveStoreProducts(
     .from('store_products')
     .select(PRODUCT_CATEGORY_SELECT)
     .eq('is_active', true)
+    .neq('category', 'monthly-kit')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
-  if (error || !data?.length) return [...STORE_PRODUCTS];
-  return (data as DbStoreProductRow[]).map(mapDbRowToStoreProduct);
+  if (error || !data?.length) return [];
+  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
 }
 
 export async function getStoreProductBySlugFromDb(
@@ -135,7 +203,25 @@ export async function getStoreProductBySlugFromDb(
     .maybeSingle();
 
   if (error || !data) return null;
-  return mapDbRowToStoreProduct(data as DbStoreProductRow);
+
+  const visibility = await loadStoreCategoryVisibilityContext(admin);
+  const row = data as DbStoreProductRow;
+  if (
+    !isStoreProductVisibleInVitrine(
+      {
+        storeCategoryId: row.store_category_id,
+        storeCategorySlug: Array.isArray(row.store_categories)
+          ? row.store_categories[0]?.slug
+          : row.store_categories?.slug,
+        category: row.category,
+      },
+      visibility
+    )
+  ) {
+    return null;
+  }
+
+  return mapDbRowToStoreProduct(row);
 }
 
 export async function getStoreProductProductionCostCents(
@@ -275,16 +361,26 @@ export async function loadActiveProductsByCategory(
   }
 
   const category = mapStoreCategoryRow(categoryRow as DbStoreCategoryRow);
-  const allCategoryRows = await loadAllActiveCategoryRows(admin);
-  const categoryIds = collectDescendantCategoryIds(
-    category.id,
-    allCategoryRows.map((row) => ({
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      parent_id: row.parent_id,
-    }))
+  const [allCategoryRows, visibility] = await Promise.all([
+    loadAllActiveCategoryRows(admin),
+    loadStoreCategoryVisibilityContext(admin),
+  ]);
+  const categoryIds = intersectCategoryIdsWithVisible(
+    collectDescendantCategoryIds(
+      category.id,
+      allCategoryRows.map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        parent_id: row.parent_id,
+      }))
+    ),
+    visibility.visibleCategoryIds
   );
+
+  if (categoryIds.length === 0) {
+    return { category, products: [], total: 0 };
+  }
 
   const orderColumn =
     sort === 'menor-preco' || sort === 'maior-preco' ? 'price_cents' : 'created_at';
@@ -305,10 +401,15 @@ export async function loadActiveProductsByCategory(
     return { category, products: [], total: count ?? 0 };
   }
 
+  const products = await enrichMonthlyKitProducts(
+    admin,
+    await mapVisibleStoreProductRows(admin, data as DbStoreProductRow[], visibility)
+  );
+
   return {
     category,
-    products: (data as DbStoreProductRow[]).map(mapDbRowToStoreProduct),
-    total: count ?? data.length,
+    products,
+    total: products.length > 0 ? count ?? products.length : 0,
   };
 }
 
@@ -320,11 +421,12 @@ export async function loadFeaturedProducts(
     .select(PRODUCT_CATEGORY_SELECT)
     .eq('is_active', true)
     .eq('featured', true)
+    .neq('category', 'monthly-kit')
     .order('sort_order', { ascending: true })
     .limit(8);
 
   if (error || !data?.length) return [];
-  return (data as DbStoreProductRow[]).map(mapDbRowToStoreProduct);
+  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
 }
 
 export async function loadNewestProducts(
@@ -335,11 +437,12 @@ export async function loadNewestProducts(
     .from('store_products')
     .select(PRODUCT_CATEGORY_SELECT)
     .eq('is_active', true)
+    .neq('category', 'monthly-kit')
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error || !data?.length) return [];
-  return (data as DbStoreProductRow[]).map(mapDbRowToStoreProduct);
+  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
 }
 
 export async function loadRelatedProducts(
@@ -352,16 +455,24 @@ export async function loadRelatedProducts(
   const category = await getStoreCategoryBySlug(admin, product.storeCategorySlug);
   if (!category) return [];
 
-  const allCategoryRows = await loadAllActiveCategoryRows(admin);
-  const categoryIds = collectDescendantCategoryIds(
-    category.id,
-    allCategoryRows.map((row) => ({
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      parent_id: row.parent_id,
-    }))
+  const [allCategoryRows, visibility] = await Promise.all([
+    loadAllActiveCategoryRows(admin),
+    loadStoreCategoryVisibilityContext(admin),
+  ]);
+  const categoryIds = intersectCategoryIdsWithVisible(
+    collectDescendantCategoryIds(
+      category.id,
+      allCategoryRows.map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        parent_id: row.parent_id,
+      }))
+    ),
+    visibility.visibleCategoryIds
   );
+
+  if (categoryIds.length === 0) return [];
 
   const { data, error } = await admin
     .from('store_products')
@@ -374,5 +485,8 @@ export async function loadRelatedProducts(
     .limit(limit);
 
   if (error || !data?.length) return [];
-  return (data as DbStoreProductRow[]).map(mapDbRowToStoreProduct);
+  return enrichMonthlyKitProducts(
+    admin,
+    await mapVisibleStoreProductRows(admin, data as DbStoreProductRow[], visibility)
+  );
 }

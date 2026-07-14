@@ -20,15 +20,20 @@ import {
   isPublicStoreProduct,
   isStoreLinkVisible,
   isStorePublic,
-  profileIsStoreAdmin,
 } from '@/lib/store/access';
 import { createClient } from '@/lib/supabase/server';
 import {
   getStoreProductBySlugFromDb,
   loadRelatedProducts,
 } from '@/lib/store/load-catalog';
-import { getPublicMonthlyKitProducts } from '@/lib/store/monthly-kits';
+import { resolveStoreMonthlyKitBySlug } from '@/lib/store/monthly-kits';
+import { STORE_PRODUCTION_LEAD_TIME_LABEL } from '@/lib/store/production-lead-time';
 import { STORE_ROUTES } from '@/lib/store/routes';
+import {
+  enrichStoreProductForSubscriber,
+  enrichStoreProductsForSubscriber,
+  SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
+} from '@/lib/store/subscriber-discount';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -38,11 +43,13 @@ async function resolveStoreProductPage(
   admin: ReturnType<typeof createAdminClient>,
   slug: string
 ) {
-  return (
-    (await getStoreProductBySlugFromDb(admin, slug)) ??
-    (await getPublicMonthlyKitProducts(admin)).find((entry) => entry.slug === slug) ??
-    null
-  );
+  const monthlyKit = await resolveStoreMonthlyKitBySlug(admin, slug);
+  if (monthlyKit) return monthlyKit;
+
+  const dbProduct = await getStoreProductBySlugFromDb(admin, slug);
+  if (dbProduct?.category === 'monthly-kit') return null;
+
+  return dbProduct;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -77,17 +84,26 @@ export default async function LojaProductPage({ params }: Props) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
-  const product = await resolveStoreProductPage(admin, slug);
+  const rawProduct = await resolveStoreProductPage(admin, slug);
 
-  if (!product) notFound();
+  if (!rawProduct) notFound();
 
-  if (!isStorePublic() && !isAdmin && !isPublicStoreProduct(product)) {
+  if (!isStorePublic() && !isPublicStoreProduct(rawProduct)) {
     notFound();
   }
 
+  const product = await enrichStoreProductForSubscriber(
+    supabase,
+    user?.id,
+    rawProduct
+  );
+
   const related = filterPublicStoreProducts(
-    await loadRelatedProducts(admin, product)
+    await enrichStoreProductsForSubscriber(
+      supabase,
+      user?.id,
+      await loadRelatedProducts(admin, rawProduct)
+    )
   );
   const galleryImages = [
     ...(product.imageUrl ? [product.imageUrl] : []),
@@ -165,10 +181,15 @@ export default async function LojaProductPage({ params }: Props) {
               priceLabel={product.priceLabel}
               originalPriceCents={product.originalPriceCents}
               featured={product.featured}
+              subscriberDiscount={product.subscriberDiscount}
             />
           </div>
 
-          {product.promoCode ? (
+          {product.subscriberDiscount ? (
+            <p className="mt-2 text-xs text-gold/80">
+              {SUBSCRIBER_STORE_DISCOUNT_SUMMARY}
+            </p>
+          ) : product.promoCode ? (
             <p className="mt-2 text-xs text-ember/80">
               Cupom {product.promoCode}
               {product.promoSummary ? ` — ${product.promoSummary}` : ''}
@@ -177,6 +198,7 @@ export default async function LojaProductPage({ params }: Props) {
 
           <ul className="mt-6 space-y-2 border-t border-white/[0.06] pt-6 text-sm text-stone-400">
             <li>✓ Produção sob demanda</li>
+            <li>✓ {STORE_PRODUCTION_LEAD_TIME_LABEL}</li>
             <li>✓ Sistema OpenLOCK compatível</li>
             <li>✓ Escala 28mm</li>
             {product.category === 'monthly-kit' ? (

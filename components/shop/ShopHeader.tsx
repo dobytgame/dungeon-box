@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, User } from 'lucide-react';
 import CartDrawer from '@/components/shop/CartDrawer';
 import Logo from '@/components/ui/Logo';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
@@ -64,6 +64,14 @@ export default function ShopHeader({
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Link
+            href={isLoggedIn ? '/dashboard' : '/auth'}
+            className="inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-400 transition hover:border-ember/40 hover:text-ember sm:hidden"
+            aria-label={isLoggedIn ? 'Minha conta' : 'Entrar'}
+          >
+            <User className="h-4 w-4" aria-hidden="true" />
+          </Link>
+
+          <Link
             href="/#planos"
             className="hidden rounded-sm border border-white/10 px-3 py-2 font-display text-[10px] uppercase tracking-widest text-stone-300 transition hover:border-ember/40 hover:text-ember sm:inline-flex"
           >
@@ -89,7 +97,7 @@ export default function ShopHeader({
           <button
             type="button"
             onClick={openCartDrawer}
-            className="relative inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-sm text-stone-300 transition hover:border-ember/40 hover:text-ember"
+            className="relative inline-flex min-h-[44px] min-w-[44px] cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-sm text-stone-300 transition hover:border-ember/40 hover:text-ember"
             aria-label={`Carrinho${hydrated && itemCount > 0 ? `, ${itemCount} itens` : ''}`}
           >
             <ShoppingBag
@@ -123,7 +131,7 @@ export default function ShopHeader({
               <Link
                 key={category.slug}
                 href={href}
-                className={`shrink-0 rounded-sm px-3 py-1.5 transition ${siteNavLinkClassName} ${
+                className={`shrink-0 rounded-sm px-3 py-2.5 transition ${siteNavLinkClassName} ${
                   active
                     ? 'bg-ember/15 text-ember'
                     : 'border border-white/10 text-stone-400'

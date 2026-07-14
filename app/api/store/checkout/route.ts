@@ -13,6 +13,7 @@ const cartItemsSchema = z
     z.object({
       productId: z.string().min(1),
       quantity: z.number().int().min(1).max(9),
+      selectedOptions: z.record(z.string(), z.string()).optional(),
     })
   )
   .min(1);

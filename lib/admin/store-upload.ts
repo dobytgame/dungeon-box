@@ -69,3 +69,62 @@ export function parseGalleryUrls(raw: string | null | undefined): string[] {
     .map((line) => line.trim())
     .filter(Boolean);
 }
+
+export type StoreMediaFile = {
+  path: string;
+  url: string;
+  name: string;
+  folder: string;
+  updatedAt: string | null;
+};
+
+const MEDIA_LIST_MAX_FILES = 240;
+
+export async function listStoreMediaFiles(
+  admin: SupabaseClient,
+  options?: { maxFiles?: number }
+): Promise<StoreMediaFile[]> {
+  const maxFiles = options?.maxFiles ?? MEDIA_LIST_MAX_FILES;
+  const files: StoreMediaFile[] = [];
+
+  async function walk(prefix: string): Promise<void> {
+    if (files.length >= maxFiles) return;
+
+    const { data, error } = await admin.storage.from(STORE_MEDIA_BUCKET).list(prefix, {
+      limit: 100,
+      sortBy: { column: 'updated_at', order: 'desc' },
+    });
+
+    if (error) {
+      console.error('[store] listStoreMediaFiles:', prefix, error.message);
+      return;
+    }
+
+    for (const entry of data ?? []) {
+      if (files.length >= maxFiles) break;
+
+      const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const isFolder = !entry.id;
+
+      if (isFolder) {
+        await walk(entryPath);
+        continue;
+      }
+
+      const { data: publicData } = admin.storage
+        .from(STORE_MEDIA_BUCKET)
+        .getPublicUrl(entryPath);
+
+      files.push({
+        path: entryPath,
+        url: publicData.publicUrl,
+        name: entry.name,
+        folder: prefix || '/',
+        updatedAt: entry.updated_at ?? entry.created_at ?? null,
+      });
+    }
+  }
+
+  await walk('');
+  return files;
+}

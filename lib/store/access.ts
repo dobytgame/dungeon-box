@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StoreProductCategory } from '@/lib/store/catalog';
 import type { StoreCategory } from '@/lib/store/load-catalog';
 
-/** Quando true, toda a vitrine e APIs da loja ficam abertas. */
+/** Loja aberta para todos (vitrine completa e APIs). */
 export function isStorePublic(): boolean {
-  return process.env.STORE_PUBLIC === 'true';
+  return true;
 }
 
 /** Categorias de vitrine visíveis mesmo com a loja fechada. */
@@ -34,7 +34,7 @@ export function isStoreLinkVisible(): boolean {
   return isStorePublic() || hasPublicStoreCatalog();
 }
 
-/** Há seções públicas da loja (kits de pintura) mesmo com STORE_PUBLIC=false. */
+/** Há seções públicas da loja (kits de pintura). */
 export function hasPublicStoreCatalog(): boolean {
   return true;
 }

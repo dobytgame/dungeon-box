@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Loader2 } from 'lucide-react';
+import AdminStoreImageField from '@/components/admin/AdminStoreImageField';
 import {
   deleteStoreBannerAction,
   saveStoreBannerAction,
@@ -23,6 +24,7 @@ export default function StoreBannerForm({ banner }: Props) {
   const [pending, startTransition] = useTransition();
   const [deletePending, setDeletePending] = useState(false);
   const [error, setError] = useState('');
+  const [imageUrl, setImageUrl] = useState(banner?.image_url ?? '');
 
   return (
     <form
@@ -98,21 +100,18 @@ export default function StoreBannerForm({ banner }: Props) {
         </div>
       </div>
 
-      <div>
-        <label htmlFor="image_url" className={labelClass}>
-          URL da imagem de fundo
-        </label>
-        <input
-          id="image_url"
+      <div className="rounded-sm border border-white/10 bg-stone-950/40 p-4">
+        <AdminStoreImageField
+          label="Imagem de fundo"
+          hint="Opcional. Recomendado 1920×1080px ou proporção widescreen. Sem imagem, usa gradiente escuro padrão."
+          value={imageUrl}
+          onChange={setImageUrl}
+          uploadFolder="banners"
           name="image_url"
-          type="url"
-          defaultValue={banner?.image_url ?? ''}
-          className={inputClass}
-          placeholder="https://..."
+          previewClassName="h-40 w-full max-w-2xl"
+          previewAspectClassName="aspect-[21/9]"
+          emptyLabel="Sem imagem"
         />
-        <p className="mt-2 text-xs text-stone-600">
-          Opcional. Sem imagem, usa gradiente escuro padrão.
-        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

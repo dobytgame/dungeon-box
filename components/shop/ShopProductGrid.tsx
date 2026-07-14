@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import StoreProductCard from '@/components/store/StoreProductCard';
+import StoreProductFeatureCard from '@/components/store/StoreProductFeatureCard';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
@@ -8,6 +9,10 @@ interface Props {
   eyebrow?: string;
   products: StoreProduct[];
   viewAllHref?: string;
+  /** Cards compactos para listagens densas (categorias, relacionados). */
+  variant?: 'full' | 'compact';
+  /** Sem section wrapper nem padding vertical (uso em páginas de categoria). */
+  embedded?: boolean;
 }
 
 export default function ShopProductGrid({
@@ -15,10 +20,32 @@ export default function ShopProductGrid({
   eyebrow,
   products,
   viewAllHref,
+  variant = 'full',
+  embedded = false,
 }: Props) {
   if (products.length === 0) return null;
 
   const showHeader = Boolean(title || eyebrow || viewAllHref);
+
+  const grid = (
+    <div
+      className={
+        variant === 'compact'
+          ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+          : 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+      }
+    >
+      {products.map((product) =>
+        variant === 'compact' ? (
+          <StoreProductFeatureCard key={product.id} product={product} />
+        ) : (
+          <StoreProductCard key={product.id} product={product} />
+        )
+      )}
+    </div>
+  );
+
+  if (embedded) return grid;
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -47,11 +74,7 @@ export default function ShopProductGrid({
       </div>
       ) : null}
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {products.map((product) => (
-          <StoreProductCard key={product.id} product={product} />
-        ))}
-      </div>
+      {grid}
     </section>
   );
 }

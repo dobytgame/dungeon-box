@@ -1,10 +1,12 @@
 import { formatMoney } from '@/lib/dashboard/format';
+import { SUBSCRIBER_STORE_DISCOUNT_BADGE } from '@/lib/store/subscriber-discount';
 
 interface Props {
   priceCents: number;
   priceLabel: string;
   originalPriceCents?: number;
   featured?: boolean;
+  subscriberDiscount?: boolean;
   size?: 'sm' | 'lg';
 }
 
@@ -13,23 +15,30 @@ export default function PriceBadge({
   priceLabel,
   originalPriceCents,
   featured,
+  subscriberDiscount,
   size = 'lg',
 }: Props) {
   const onSale =
     originalPriceCents !== undefined && originalPriceCents > priceCents;
   const priceClass =
     size === 'lg' ? 'font-display text-3xl text-ember' : 'font-display text-2xl text-gold';
+  const strikeClass =
+    size === 'lg' ? 'font-display text-base text-stone-500 line-through' : 'font-display text-sm text-stone-500 line-through';
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       {onSale ? (
         <>
-          <span className="rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">
-            Oferta
-          </span>
-          <p className="font-display text-lg text-stone-500 line-through">
-            {formatMoney(originalPriceCents)}
-          </p>
+          {subscriberDiscount ? (
+            <span className="rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
+              {SUBSCRIBER_STORE_DISCOUNT_BADGE}
+            </span>
+          ) : (
+            <span className="rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">
+              Oferta
+            </span>
+          )}
+          <p className={strikeClass}>{formatMoney(originalPriceCents)}</p>
         </>
       ) : null}
       {featured && !onSale ? (

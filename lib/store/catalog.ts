@@ -1,4 +1,5 @@
 import { PAINT_KIT_BUMPS } from '@/lib/checkout/order-bumps';
+import type { StoreProductVariation } from '@/lib/store/product-variations';
 
 export type StoreCatalogProductId = 'paint-kit-amador' | 'paint-kit-profissional';
 
@@ -55,7 +56,13 @@ export type StoreProduct = {
   originalPriceCents?: number;
   promoCode?: string;
   promoSummary?: string;
+  subscriberDiscount?: boolean;
+  variationsEnabled?: boolean;
+  variations?: StoreProductVariation[];
+  storeCategoryId?: string;
 };
+
+export type { StoreProductVariation } from '@/lib/store/product-variations';
 
 export const STORE_PRODUCTS: StoreProduct[] = [
   {

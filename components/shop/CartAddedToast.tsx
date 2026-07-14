@@ -34,7 +34,7 @@ export default function CartAddedToast() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 16, scale: 0.96 }}
           transition={{ type: 'spring', stiffness: 420, damping: 28 }}
-          className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-md sm:left-auto sm:right-6"
+          className="pointer-events-auto fixed bottom-safe-offset left-4 right-4 z-[100] mx-auto max-w-md sm:left-auto sm:right-6"
         >
           <div className="overflow-hidden rounded-sm border border-ember/30 bg-[#0A0C10]/95 shadow-[0_20px_60px_-12px_rgba(249,115,22,0.35)] backdrop-blur-md">
             <div className="flex items-start gap-3 p-4">
@@ -78,7 +78,7 @@ export default function CartAddedToast() {
               <button
                 type="button"
                 onClick={dismissAddFeedback}
-                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-sm text-stone-500 transition hover:bg-white/5 hover:text-white"
+                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-sm text-stone-500 transition hover:bg-white/5 hover:text-white"
                 aria-label="Fechar aviso"
               >
                 <X className="h-4 w-4" />

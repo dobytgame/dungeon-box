@@ -9,6 +9,12 @@ import AsaasPaymentForm, {
 } from '@/components/checkout/AsaasPaymentForm';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import CheckoutStepper from '@/components/shop/CheckoutStepper';
+import StoreCheckoutAddressSection from '@/components/store/StoreCheckoutAddressSection';
+import StoreCheckoutLineItems, {
+  storeCheckoutItemCount,
+} from '@/components/store/StoreCheckoutLineItems';
+import StoreCheckoutMobileBar from '@/components/store/StoreCheckoutMobileBar';
+import StoreCheckoutTotals from '@/components/store/StoreCheckoutTotals';
 import StoreCouponField, {
   type StoreCouponApplyResult,
 } from '@/components/store/StoreCouponField';
@@ -17,7 +23,7 @@ import StorePixPaymentPanel, {
 } from '@/components/store/StorePixPaymentPanel';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
-import { formatMoney, formatZip, relOne } from '@/lib/dashboard/format';
+import { relOne } from '@/lib/dashboard/format';
 import type { Address, Subscription } from '@/lib/dashboard/types';
 import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
 import { subscriptionEligibleForMonthlyKit } from '@/lib/store/monthly-kits';
@@ -35,11 +41,13 @@ import {
   trackStoreBeginCheckout,
 } from '@/lib/analytics/store-events';
 import { STORE_ROUTES } from '@/lib/store/routes';
+import type { StorePaymentConfig } from '@/lib/store/payment-config';
 
 interface Props {
   addresses: Address[];
   subscriptions: Subscription[];
   embedded?: boolean;
+  paymentConfig?: StorePaymentConfig;
 }
 
 type StorePaymentMethod = 'credit_card' | 'pix';
@@ -62,13 +70,21 @@ function buildCheckoutPayload(
   };
 }
 
-export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
+export default function StoreCheckoutForm({
+  addresses,
+  subscriptions,
+  paymentConfig,
+}: Props) {
   const router = useRouter();
   const { allProducts } = useStoreCatalog();
   const { lines, subtotalCents, clearCart, hydrated } = useStoreCart();
+  const [checkoutAddresses, setCheckoutAddresses] = useState(addresses);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
-  const [addressId, setAddressId] = useState(addresses[0]?.id ?? '');
+  const [addressId, setAddressId] = useState(
+    () =>
+      addresses.find((address) => address.is_default)?.id ?? addresses[0]?.id ?? ''
+  );
 
   const eligibleMonthlyKitSubs = useMemo(
     () => subscriptions.filter(subscriptionEligibleForMonthlyKit),
@@ -100,6 +116,8 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   const [couponDiscountCents, setCouponDiscountCents] = useState(0);
   const [couponFreeShipping, setCouponFreeShipping] = useState(false);
   const checkoutTrackedRef = useRef(false);
+  const paymentFormRef = useRef<HTMLDivElement>(null);
+  const paymentsReady = paymentConfig?.ready ?? true;
 
   useEffect(() => {
     if (
@@ -160,7 +178,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   const checkoutAddressId =
     requiresBundledMonthlyKit && selectedMonthlySub?.address_id
       ? selectedMonthlySub.address_id
-      : addressId || addresses[0]?.id || '';
+      : addressId || checkoutAddresses[0]?.id || '';
 
   const analyticsItems = useMemo(
     () =>
@@ -187,12 +205,74 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
       : 0;
   const discountedSubtotalCents = Math.max(0, subtotalCents - couponDiscountCents);
   const totalCents = discountedSubtotalCents + shippingCents;
+  const checkoutItemCount = storeCheckoutItemCount(resolved);
+
+  const totalsProps = {
+    originalSubtotalCents,
+    hasPromoDiscount,
+    discountedSubtotalCents,
+    couponDiscountCents,
+    couponCode,
+    couponSummary,
+    shippingMode,
+    shippingCents,
+    shippingLoading,
+    shippingQuote,
+    couponFreeShipping,
+    totalCents,
+    appliedPromoCodes,
+    hasMonthlyKit,
+  } as const;
 
   useEffect(() => {
     if (!hydrated || resolved.length === 0 || checkoutTrackedRef.current) return;
     checkoutTrackedRef.current = true;
     trackStoreBeginCheckout(analyticsItems, subtotalCents / 100);
   }, [hydrated, resolved.length, analyticsItems, subtotalCents]);
+
+  useEffect(() => {
+    if (!couponCode) return;
+
+    let cancelled = false;
+
+    void fetch('/api/store/coupon/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: couponCode,
+        subtotalCents,
+        standaloneShipping: shippingMode === 'standalone',
+        shippingCents: shippingQuote?.cents ?? 0,
+      }),
+    })
+      .then((response) => response.json())
+      .then(
+        (payload: StoreCouponApplyResult & { valid?: boolean; error?: string }) => {
+          if (cancelled) return;
+
+          if (!payload.valid) {
+            handleCouponRemove();
+            if (payload.error) {
+              setError(payload.error);
+            }
+            return;
+          }
+
+          setCouponDiscountCents(payload.subtotalDiscountCents ?? 0);
+          setCouponFreeShipping(Boolean(payload.freeShipping));
+          if (payload.summary) {
+            setCouponSummary(payload.summary);
+          }
+        }
+      )
+      .catch(() => {
+        if (!cancelled) handleCouponRemove();
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [couponCode, subtotalCents, shippingMode, shippingQuote?.cents]);
 
   useEffect(() => {
     if (shippingMode !== 'standalone' || !checkoutAddressId) {
@@ -277,6 +357,10 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
   }
 
   function goToPaymentStep() {
+    if (!paymentsReady) {
+      setError('Pagamentos da loja indisponíveis no momento. Tente novamente mais tarde.');
+      return;
+    }
     if (requiresBundledMonthlyKit && !monthlyKitBundleSubscriptionId) {
       setError('Selecione com qual assinatura enviar os kits do mês.');
       return;
@@ -298,6 +382,10 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     method: StorePaymentMethod,
     card?: AsaasCardPayload
   ) {
+    if (!paymentsReady) {
+      setError('Pagamentos da loja indisponíveis no momento.');
+      return;
+    }
     if (requiresBundledMonthlyKit && !monthlyKitBundleSubscriptionId) {
       setError('Selecione com qual assinatura enviar os kits do mês.');
       return;
@@ -397,40 +485,52 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
     }
   }
 
+  function scrollToPaymentForm() {
+    paymentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   return (
-    <div>
-      <CheckoutStepper currentStep={step} />
+    <div className={step >= 2 ? 'pb-28 md:pb-0' : undefined}>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+        {step > 1 ? (
+          <button
+            type="button"
+            onClick={() => setStep((step - 1) as 1 | 2)}
+            className="inline-flex shrink-0 cursor-pointer items-center font-display text-xs uppercase tracking-widest text-stone-500 transition hover:text-white"
+          >
+            ← {step === 3 ? 'Voltar para entrega' : 'Voltar ao resumo'}
+          </button>
+        ) : null}
+        <CheckoutStepper currentStep={step} className="mb-0 min-w-0 flex-1" />
+      </div>
       <div className="grid gap-6 lg:grid-cols-5">
       <div className="space-y-6 lg:col-span-3">
         {step === 1 ? (
-          <DashboardCard title="Resumo do pedido" accent="gold">
-            <ul className="space-y-3 text-sm text-stone-400">
-              {resolved.map((line) => (
-                <li key={line.productId} className="flex justify-between gap-3">
-                  <span>
-                    {line.quantity}x {line.name}
-                  </span>
-                  <span className="text-white">
-                    {formatMoney(line.lineTotalCents)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <StoreCouponField
-              subtotalCents={subtotalCents}
-              standaloneShipping={shippingMode === 'standalone'}
-              shippingCents={shippingQuote?.cents ?? 0}
-              couponCode={couponCode}
-              couponSummary={couponSummary}
-              onApply={handleCouponApply}
-              onRemove={handleCouponRemove}
-              onError={setError}
-              disabled={pending}
-            />
+          <DashboardCard
+            title="Resumo do pedido"
+            accent="gold"
+            description={`${checkoutItemCount} ${
+              checkoutItemCount === 1 ? 'item' : 'itens'
+            } no carrinho`}
+          >
+            <StoreCheckoutLineItems lines={resolved} variant="detailed" editable />
+            <div className="mt-6 border-t border-white/[0.06] pt-6">
+              <StoreCouponField
+                subtotalCents={subtotalCents}
+                standaloneShipping={shippingMode === 'standalone'}
+                shippingCents={shippingQuote?.cents ?? 0}
+                couponCode={couponCode}
+                couponSummary={couponSummary}
+                onApply={handleCouponApply}
+                onRemove={handleCouponRemove}
+                onError={setError}
+                disabled={pending}
+              />
+            </div>
             <button
               type="button"
               onClick={goToDeliveryStep}
-              className="mt-6 inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+              className="mt-6 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright sm:w-auto"
             >
               Continuar para entrega →
             </button>
@@ -489,7 +589,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
               {resolved
                 .filter((line) => line.category === 'monthly-kit')
                 .map((line) => (
-                  <li key={line.productId}>
+                  <li key={line.lineId}>
                     {line.quantity}x {line.name}
                   </li>
                 ))}
@@ -504,45 +604,13 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           </DashboardCard>
         ) : (
           <DashboardCard title="Entrega" accent="frost">
-            {addresses.length === 0 ? (
-              <p className="text-sm text-stone-400">
-                Cadastre um endereço em{' '}
-                <Link href="/dashboard/addresses" className="text-ember hover:underline">
-                  Endereços
-                </Link>{' '}
-                antes de finalizar.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {addresses.map((address) => (
-                  <label
-                    key={address.id}
-                    className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
-                      addressId === address.id
-                        ? 'border-frost/40 bg-frost/5'
-                        : 'border-white/[0.06] hover:border-white/15'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="store-address"
-                      checked={addressId === address.id}
-                      onChange={() => setAddressId(address.id)}
-                      className="mt-1"
-                    />
-                    <span className="text-sm text-stone-300">
-                      <span className="text-white">{address.recipient}</span>
-                      <br />
-                      {address.street}, {address.number}
-                      {address.complement ? ` — ${address.complement}` : ''}
-                      <br />
-                      {address.neighborhood}, {address.city}/{address.state} ·{' '}
-                      {formatZip(address.zip_code)}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
+            <StoreCheckoutAddressSection
+              addresses={checkoutAddresses}
+              selectedAddressId={addressId}
+              onSelectAddress={setAddressId}
+              onAddressesChange={setCheckoutAddresses}
+              onError={setError}
+            />
           </DashboardCard>
         )}
 
@@ -615,7 +683,8 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
           <button
             type="button"
             onClick={goToPaymentStep}
-            className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+            disabled={!paymentsReady}
+            className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50"
           >
             Continuar para pagamento →
           </button>
@@ -624,14 +693,7 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
         ) : null}
 
         {step === 3 ? (
-        <>
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="mb-4 inline-flex min-h-[40px] cursor-pointer items-center font-display text-xs uppercase tracking-widest text-stone-500 hover:text-white"
-        >
-          ← Voltar para entrega
-        </button>
+        <div ref={paymentFormRef} id="checkout-payment-form">
         <DashboardCard title="Pagamento" accent="ember">
           {pixCheckout ? (
             <StorePixPaymentPanel
@@ -670,8 +732,9 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
               {paymentMethod === 'credit_card' ? (
                 <AsaasPaymentForm
                   disabled={
+                    !paymentsReady ||
                     pending ||
-                    (!hasMonthlyKit && addresses.length === 0) ||
+                    (!hasMonthlyKit && checkoutAddresses.length === 0) ||
                     (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
                   }
                   submitLabel="Pagar com cartão"
@@ -687,8 +750,9 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
                   <button
                     type="button"
                     disabled={
+                      !paymentsReady ||
                       pending ||
-                      (!hasMonthlyKit && addresses.length === 0) ||
+                      (!hasMonthlyKit && checkoutAddresses.length === 0) ||
                       (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
                     }
                     onClick={() => void handlePixPay()}
@@ -719,93 +783,51 @@ export default function StoreCheckoutForm({ addresses, subscriptions }: Props) {
             </p>
           ) : null}
         </DashboardCard>
-        </>
+        </div>
         ) : null}
       </div>
 
       <div className="lg:col-span-2">
-        <DashboardCard title="Resumo" accent="none">
-          <ul className="space-y-3 text-sm text-stone-400">
-            {resolved.map((line) => (
-              <li key={line.productId} className="flex justify-between gap-3">
-                <span>
-                  {line.quantity}x {line.name}
-                </span>
-                <span className="text-white">{formatMoney(line.lineTotalCents)}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-6 border-t border-white/[0.06] pt-4">
-            {hasPromoDiscount ? (
-              <div className="mb-4 flex justify-between text-sm text-stone-500">
-                <span>Subtotal sem cupom</span>
-                <span className="line-through">
-                  {formatMoney(originalSubtotalCents)}
-                </span>
+        <div className="md:sticky md:top-24 md:z-10">
+          <DashboardCard
+            title="Resumo"
+            accent="none"
+            description={
+              step === 1
+                ? `${checkoutItemCount} ${
+                    checkoutItemCount === 1 ? 'produto' : 'produtos'
+                  }`
+                : undefined
+            }
+          >
+            {step > 1 ? (
+              <div className="mb-6">
+                <StoreCheckoutLineItems
+                  lines={resolved}
+                  variant="compact"
+                  editable
+                />
               </div>
             ) : null}
-            <div className="flex justify-between text-sm">
-              <span className="text-stone-500">Subtotal</span>
-              <span className="font-display text-lg text-white">
-                {formatMoney(discountedSubtotalCents)}
-              </span>
-            </div>
-            {couponDiscountCents > 0 ? (
-              <div className="mt-2 flex justify-between text-sm text-emerald-400/90">
-                <span>Cupom {couponCode}</span>
-                <span>-{formatMoney(couponDiscountCents)}</span>
-              </div>
-            ) : null}
-            {shippingMode === 'standalone' ? (
-              <div className="mt-3 flex justify-between text-sm">
-                <span className="text-stone-500">Frete</span>
-                <span className="text-white">
-                  {couponFreeShipping ? (
-                    <>
-                      <span className="text-stone-600 line-through">
-                        {shippingQuote
-                          ? formatMoney(shippingQuote.cents)
-                          : '—'}
-                      </span>{' '}
-                      Grátis
-                    </>
-                  ) : shippingLoading ? (
-                    'Calculando…'
-                  ) : shippingQuote ? (
-                    formatMoney(shippingQuote.cents)
-                  ) : (
-                    '—'
-                  )}
-                </span>
-              </div>
-            ) : null}
-            <div className="mt-4 flex justify-between border-t border-white/[0.06] pt-4 text-sm">
-              <span className="text-stone-500">Total</span>
-              <span className="font-display text-xl text-ember">
-                {formatMoney(totalCents)}
-              </span>
-            </div>
-            {appliedPromoCodes.length > 0 ? (
-              <p className="mt-2 text-xs text-gold/80">
-                Cupom da assinatura aplicado: {appliedPromoCodes.join(', ')}
-              </p>
-            ) : null}
-            {couponCode && couponSummary ? (
-              <p className="mt-2 text-xs text-emerald-400/90">
-                Cupom da loja: {couponCode} — {couponSummary}
-              </p>
-            ) : null}
-            <p className="mt-2 text-xs text-stone-600">
-              {hasMonthlyKit || shippingMode === 'with_subscription'
-                ? 'Frete grátis — enviado com a próxima caixa da assinatura.'
-                : shippingQuote
-                  ? `${shippingQuote.label}. Entrega em ${shippingQuote.etaDaysMin}–${shippingQuote.etaDaysMax} dias úteis.`
-                  : 'Frete calculado conforme região do endereço.'}
-            </p>
-          </div>
-        </DashboardCard>
+            <StoreCheckoutTotals {...totalsProps} />
+          </DashboardCard>
+        </div>
       </div>
     </div>
+
+      {step === 2 || step === 3 ? (
+        <StoreCheckoutMobileBar
+          step={step}
+          totalCents={totalCents}
+          itemCount={checkoutItemCount}
+          shippingLoading={shippingLoading}
+          paymentMethod={paymentMethod}
+          pending={pending}
+          onContinueToPayment={goToPaymentStep}
+          onPixPay={handlePixPay}
+          onScrollToCardForm={scrollToPaymentForm}
+        />
+      ) : null}
     </div>
   );
 }

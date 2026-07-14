@@ -18,6 +18,7 @@ import {
   STORE_CART_STORAGE_KEY,
   type CartLine,
 } from '@/lib/store/cart';
+import { cartLineId } from '@/lib/store/product-variations';
 
 export type CartAddFeedback = {
   id: number;
@@ -34,10 +35,11 @@ type StoreCartContextValue = {
   addItem: (
     productId: string,
     quantity?: number,
-    feedback?: Omit<CartAddFeedback, 'id'>
+    feedback?: Omit<CartAddFeedback, 'id'>,
+    selectedOptions?: Record<string, string>
   ) => void;
-  setQuantity: (productId: string, quantity: number) => void;
-  removeItem: (productId: string) => void;
+  setQuantity: (lineId: string, quantity: number) => void;
+  removeItem: (lineId: string) => void;
   clearCart: () => void;
   hydrated: boolean;
   cartDrawerOpen: boolean;
@@ -98,25 +100,31 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
     (
       productId: string,
       quantity = 1,
-      feedback?: Omit<CartAddFeedback, 'id'>
+      feedback?: Omit<CartAddFeedback, 'id'>,
+      selectedOptions?: Record<string, string>
     ) => {
       setLines((current) => {
         const normalized = normalizeCartLines(current, allProducts);
-        const existing = normalized.find((line) => line.productId === productId);
+        const nextLine: CartLine = {
+          productId,
+          quantity,
+          ...(selectedOptions ? { selectedOptions } : {}),
+        };
+        const lineId = cartLineId(nextLine);
+        const existing = normalized.find((line) => cartLineId(line) === lineId);
+
         if (existing) {
           return normalizeCartLines(
             normalized.map((line) =>
-              line.productId === productId
+              cartLineId(line) === lineId
                 ? { ...line, quantity: line.quantity + quantity }
                 : line
             ),
             allProducts
           );
         }
-        return normalizeCartLines(
-          [...normalized, { productId, quantity }],
-          allProducts
-        );
+
+        return normalizeCartLines([...normalized, nextLine], allProducts);
       });
 
       if (feedback) {
@@ -134,11 +142,11 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
   );
 
   const setQuantity = useCallback(
-    (productId: string, quantity: number) => {
+    (lineId: string, quantity: number) => {
       setLines((current) =>
         normalizeCartLines(
           current.map((line) =>
-            line.productId === productId ? { ...line, quantity } : line
+            cartLineId(line) === lineId ? { ...line, quantity } : line
           ),
           allProducts
         )
@@ -148,10 +156,10 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
   );
 
   const removeItem = useCallback(
-    (productId: string) => {
+    (lineId: string) => {
       setLines((current) =>
         normalizeCartLines(
-          current.filter((line) => line.productId !== productId),
+          current.filter((line) => cartLineId(line) !== lineId),
           allProducts
         )
       );

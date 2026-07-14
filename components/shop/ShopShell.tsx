@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
+import Footer from '@/components/layout/Footer';
 import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
 import ShopPromoBar from '@/components/shop/ShopPromoBar';
 import StoreCartFeedback from '@/components/shop/StoreCartFeedback';
-import ShopFooter from '@/components/shop/ShopFooter';
 import ShopHeader from '@/components/shop/ShopHeader';
 import type { StoreCategory } from '@/lib/store/load-catalog';
 
@@ -42,10 +42,12 @@ export default function ShopShell({
             isLoggedIn={isLoggedIn}
             userName={userName}
           />
-          <main id="conteudo-principal" className="relative flex-1">
+          <main id="conteudo-principal" className="relative flex-1 overflow-x-clip">
             {children}
           </main>
-          <ShopFooter isLoggedIn={isLoggedIn} />
+          <div className="relative mt-auto">
+            <Footer isLoggedIn={isLoggedIn} showStoreLink={false} />
+          </div>
           <StoreCartFeedback />
         </div>
       </div>

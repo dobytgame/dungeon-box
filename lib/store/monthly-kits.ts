@@ -1,13 +1,24 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import { campaignMonths } from '@/lib/campaign-calendar';
-import { plans as staticPlans } from '@/lib/data';
 import { relOne } from '@/lib/dashboard/format';
-import type { Plan, Subscription, Theme } from '@/lib/dashboard/types';
+import type { Subscription, Theme } from '@/lib/dashboard/types';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { listActiveMonthlyKitPlanSlugs } from '@/lib/admin/store-products';
+import {
+  loadActiveMonthlyKitStoreProductsMap,
+  type MonthlyKitStoreProductConfig,
+} from '@/lib/admin/store-products';
+import {
+  filterStoreProductsByVisibleCategory,
+  isStoreProductVisibleInVitrine,
+  loadStoreCategoryVisibilityContext,
+} from '@/lib/store/category-visibility';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { resolveBestSubscriptionPromoForStorePlan } from '@/lib/store/subscription-promo';
+import {
+  normalizeStoreGalleryUrls,
+  resolveStoreProductPrimaryImageUrl,
+} from '@/lib/store/product-media';
 
 /** UUID fixo só para metadados quando o tema vem do calendário editorial. */
 const CALENDAR_FALLBACK_THEME_ID = '00000000-0000-4000-8000-000000000001';
@@ -48,75 +59,32 @@ function formatPriceLabel(cents: number): string {
   });
 }
 
-function fallbackPlanFromStatic(slug: string): Plan | null {
-  const staticPlan = staticPlans.find((plan) => plan.id === slug);
-  if (!staticPlan) return null;
+async function fetchPlanNamesBySlug(
+  admin: SupabaseClient,
+  planSlugs: string[]
+): Promise<Map<string, string>> {
+  if (planSlugs.length === 0) return new Map();
 
-  const piecesMatch = staticPlan.pieces.match(/(\d+)/);
-  const pieces = piecesMatch ? Number.parseInt(piecesMatch[1]!, 10) : 60;
-
-  return {
-    id: slug,
-    slug,
-    name: staticPlan.name,
-    description: staticPlan.tagline ?? null,
-    price_cents: staticPlan.price * 100,
-    pieces_min: pieces,
-    pieces_max: pieces,
-    color_choices: 1,
-    freight_free: false,
-    freight_regions: null,
-    store_discount: 0,
-    has_vip_group: false,
-    has_vote: false,
-    accent_color: null,
-    production_cost_cents: 0,
-  };
-}
-
-async function fetchAllSellablePlans(admin: SupabaseClient): Promise<Plan[]> {
   const { data, error } = await admin
     .from('plans')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .select('slug, name')
+    .in('slug', planSlugs);
 
   if (error) {
-    console.error('[store] fetchAllSellablePlans:', error.message);
+    console.error('[store] fetchPlanNamesBySlug:', error.message);
+    return new Map();
   }
 
-  const dbPlans = (data ?? []) as Plan[];
-  const result: Plan[] = [];
-
-  for (const slug of PLAN_SLUGS) {
-    const fromDb = dbPlans.find((plan) => plan.slug === slug);
-    if (fromDb?.price_cents && fromDb.price_cents > 0) {
-      result.push(fromDb);
-      continue;
-    }
-    const fallback = fallbackPlanFromStatic(slug);
-    if (fallback) result.push(fallback);
-  }
-
-  return result;
+  return new Map(
+    (data ?? []).map((row) => [row.slug as string, row.name as string])
+  );
 }
 
-async function resolvePlanBySlug(
-  admin: SupabaseClient,
-  planSlug: PlanSlug
-): Promise<Plan | null> {
-  const { data } = await admin
-    .from('plans')
-    .select('*')
-    .eq('slug', planSlug)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (data?.price_cents && data.price_cents > 0) {
-    return data as Plan;
-  }
-
-  return fallbackPlanFromStatic(planSlug);
+async function loadActiveMonthlyKitStoreRows(
+  admin: SupabaseClient
+): Promise<MonthlyKitStoreProductConfig[]> {
+  const storeProductsByPlan = await loadActiveMonthlyKitStoreProductsMap(admin);
+  return Array.from(storeProductsByPlan.values());
 }
 
 function fallbackThemeFromCalendar(): Theme {
@@ -230,63 +198,91 @@ export async function getCurrentMonthlyTheme(
   return fallbackThemeFromCalendar();
 }
 
-function buildMonthlyKitProduct(
-  plan: Plan,
+function buildMonthlyKitIncludes(
+  storeRow: MonthlyKitStoreProductConfig,
   theme: Theme,
+  bundledWithSubscription: boolean
+): string[] {
+  const themeLine = bundledWithSubscription
+    ? `Tema: ${theme.name}`
+    : `Tema do mês: ${theme.name}`;
+  const shippingLine = bundledWithSubscription
+    ? 'Enviado junto com sua próxima caixa — sem frete'
+    : 'Compra avulsa — frete calculado no checkout';
+
+  if (storeRow.includes.length > 0) {
+    return [...storeRow.includes, themeLine, shippingLine];
+  }
+
+  return [
+    `Conteúdo do kit ${storeRow.name}`,
+    themeLine,
+    shippingLine,
+  ];
+}
+
+function buildMonthlyKitProduct(
+  storeRow: MonthlyKitStoreProductConfig,
+  theme: Theme,
+  planName: string,
   options?: { bundledWithSubscription?: boolean }
-): StoreProduct {
+): StoreProduct | null {
   const bundledWithSubscription = options?.bundledWithSubscription ?? true;
-  const staticPlan = staticPlans.find((entry) => entry.id === plan.slug);
-  const planName = staticPlan?.name ?? plan.name;
+  const planSlug = storeRow.plan_slug as PlanSlug;
+
+  if (!planSlug || storeRow.price_cents <= 0) return null;
+
+  const galleryUrls = normalizeStoreGalleryUrls(storeRow.gallery_urls);
+  const imageUrl = resolveStoreProductPrimaryImageUrl(
+    storeRow.image_url,
+    storeRow.gallery_urls
+  );
 
   return {
-    id: monthlyKitProductId(plan.slug as PlanSlug),
-    slug: `kit-avulso-${plan.slug}`,
-    name: bundledWithSubscription ? planName : `Kit avulso — ${planName}`,
-    tagline:
-      staticPlan?.tagline ??
-      plan.description ??
-      `Cenário 3D do tema ${theme.name}`,
-    priceCents: plan.price_cents,
-    priceLabel: formatPriceLabel(plan.price_cents),
-    includes: bundledWithSubscription
-      ? staticPlan
-        ? [
-            staticPlan.pieces,
-            ...staticPlan.perks,
-            `Tema: ${theme.name}`,
-            'Enviado junto com sua próxima caixa — sem frete',
-          ]
-        : [
-            `Conteúdo completo do plano ${planName}`,
-            `Tema: ${theme.name}`,
-            'Enviado junto com sua próxima caixa — sem frete',
-          ]
-      : staticPlan
-        ? [
-            staticPlan.pieces,
-            ...staticPlan.perks,
-            `Tema do mês: ${theme.name}`,
-            'Compra avulsa — frete calculado no checkout',
-          ]
-        : [
-            `Conteúdo completo do plano ${planName}`,
-            `Tema do mês: ${theme.name}`,
-            'Compra avulsa — frete calculado no checkout',
-          ],
+    id: monthlyKitProductId(planSlug),
+    slug: storeRow.slug,
+    name: storeRow.name,
+    tagline: storeRow.tagline?.trim() || `Kit do tema ${theme.name}`,
+    priceCents: storeRow.price_cents,
+    priceLabel: formatPriceLabel(storeRow.price_cents),
+    includes: buildMonthlyKitIncludes(storeRow, theme, bundledWithSubscription),
     category: 'monthly-kit',
-    storeCategorySlug: 'kits-mes',
-    storeCategoryName: 'Kits do mês',
+    storeCategorySlug: storeRow.store_category_slug ?? 'kits-mes',
+    storeCategoryName: storeRow.store_category_name ?? 'Kits do mês',
+    storeCategoryId: storeRow.store_category_id ?? undefined,
+    imageUrl,
+    galleryUrls: galleryUrls.length ? galleryUrls : undefined,
+    pageContentHtml: storeRow.page_content_html ?? undefined,
     subscriberOnly: bundledWithSubscription,
     requiresSubscriptionBundle: bundledWithSubscription,
     themeId: theme.id,
     themeName: theme.name,
     themeEmoji: theme.emoji,
     planName,
-    planSlug: plan.slug,
-    featured: staticPlan?.featured ?? plan.slug === 'heroi',
-    maxQuantity: 9,
+    planSlug,
+    featured: storeRow.featured,
+    maxQuantity: storeRow.max_quantity,
   };
+}
+
+async function buildMonthlyKitProductsFromStore(
+  admin: SupabaseClient,
+  theme: Theme,
+  options?: { bundledWithSubscription?: boolean }
+): Promise<StoreProduct[]> {
+  const storeRows = await loadActiveMonthlyKitStoreRows(admin);
+  if (storeRows.length === 0) return [];
+
+  const planNames = await fetchPlanNamesBySlug(
+    admin,
+    storeRows.map((row) => row.plan_slug)
+  );
+
+  return storeRows.flatMap((storeRow) => {
+    const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
+    const product = buildMonthlyKitProduct(storeRow, theme, planName, options);
+    return product ? [product] : [];
+  });
 }
 
 async function applySubscriptionPromoToProduct(
@@ -361,22 +357,18 @@ export async function getMonthlyKitStoreAvailability(
     };
   }
 
-  const plans = await fetchAllSellablePlans(admin);
-  const activeSlugs = await listActiveMonthlyKitPlanSlugs(admin);
-  const sellablePlans =
-    activeSlugs.size > 0
-      ? plans.filter((plan) => activeSlugs.has(plan.slug))
-      : plans;
-  const baseProducts = sellablePlans.map((plan) =>
-    buildMonthlyKitProduct(plan, theme, { bundledWithSubscription: true })
-  );
+  const baseProducts = await buildMonthlyKitProductsFromStore(admin, theme, {
+    bundledWithSubscription: true,
+  });
   const products = await applySubscriptionPromosToProducts(
     admin,
     baseProducts,
     subscriptions
   );
+  const context = await loadStoreCategoryVisibilityContext(admin);
+  const visibleProducts = filterStoreProductsByVisibleCategory(products, context);
 
-  if (products.length === 0) {
+  if (visibleProducts.length === 0) {
     return {
       products: [],
       hasEligibleSubscription: true,
@@ -386,7 +378,7 @@ export async function getMonthlyKitStoreAvailability(
   }
 
   return {
-    products,
+    products: visibleProducts,
     hasEligibleSubscription: true,
     hasTheme: true,
   };
@@ -398,16 +390,37 @@ export async function getPublicMonthlyKitProducts(
   const theme = await getCurrentMonthlyTheme(admin, []);
   if (!theme) return [];
 
-  const plans = await fetchAllSellablePlans(admin);
-  const activeSlugs = await listActiveMonthlyKitPlanSlugs(admin);
-  const sellablePlans =
-    activeSlugs.size > 0
-      ? plans.filter((plan) => activeSlugs.has(plan.slug))
-      : plans;
+  const products = await buildMonthlyKitProductsFromStore(admin, theme, {
+    bundledWithSubscription: false,
+  });
+  const context = await loadStoreCategoryVisibilityContext(admin);
+  return filterStoreProductsByVisibleCategory(products, context);
+}
 
-  return sellablePlans.map((plan) =>
-    buildMonthlyKitProduct(plan, theme, { bundledWithSubscription: false })
+export async function resolveStoreMonthlyKitBySlug(
+  admin: SupabaseClient,
+  slug: string,
+  options?: { bundledWithSubscription?: boolean }
+): Promise<StoreProduct | null> {
+  const storeProductsByPlan = await loadActiveMonthlyKitStoreProductsMap(admin);
+  const storeRow = Array.from(storeProductsByPlan.values()).find(
+    (row) => row.slug === slug
   );
+  if (!storeRow) return null;
+
+  const theme = await getCurrentMonthlyTheme(admin, []);
+  if (!theme) return null;
+
+  const planNames = await fetchPlanNamesBySlug(admin, [storeRow.plan_slug]);
+  const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
+
+  const product = buildMonthlyKitProduct(storeRow, theme, planName, {
+    bundledWithSubscription: options?.bundledWithSubscription ?? false,
+  });
+  if (!product) return null;
+
+  const context = await loadStoreCategoryVisibilityContext(admin);
+  return isStoreProductVisibleInVitrine(product, context) ? product : null;
 }
 
 export async function getMonthlyKitProductsForUser(
@@ -481,9 +494,11 @@ export async function resolveMonthlyKitOrderItem(
   }
 
   const admin = createAdminClient();
-  const plan = await resolvePlanBySlug(admin, planSlug);
-  if (!plan || plan.price_cents <= 0) {
-    return { error: 'Não foi possível calcular o preço do kit do mês.' };
+  const storeProductsByPlan = await loadActiveMonthlyKitStoreProductsMap(admin);
+  const storeRow = storeProductsByPlan.get(planSlug) ?? null;
+
+  if (!storeRow) {
+    return { error: 'Kit do mês indisponível na loja.' };
   }
 
   const theme = await getCurrentMonthlyTheme(
@@ -514,9 +529,15 @@ export async function resolveMonthlyKitOrderItem(
     userSupabase ?? supabase
   );
 
-  const product = buildMonthlyKitProduct(plan, theme, {
+  const planNames = await fetchPlanNamesBySlug(admin, [storeRow.plan_slug]);
+  const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
+
+  const product = buildMonthlyKitProduct(storeRow, theme, planName, {
     bundledWithSubscription: requireBundle,
   });
+  if (!product) {
+    return { error: 'Não foi possível calcular o preço do kit do mês.' };
+  }
   const qty = Math.min(Math.max(Math.floor(quantity), 1), product.maxQuantity ?? 9);
   const pricedProduct = requireBundle
     ? await applySubscriptionPromoToProduct(admin, product, subscriptions)
@@ -530,7 +551,7 @@ export async function resolveMonthlyKitOrderItem(
     bundleSubscriptionId: bundleResult,
     themeId: theme.id,
     themeName: theme.name,
-    planName: pricedProduct.planName ?? plan.name,
+    planName: pricedProduct.planName ?? planName,
     priceCents: unitPrice,
     originalPriceCents: pricedProduct.originalPriceCents ?? unitPrice,
     lineTotalCents: unitPrice * qty,

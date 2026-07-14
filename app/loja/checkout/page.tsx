@@ -4,6 +4,7 @@ import {
   getAddresses,
   getManageableSubscriptions,
 } from '@/lib/dashboard/queries';
+import { getStorePaymentConfig } from '@/lib/store/payment-config';
 import { createClient } from '@/lib/supabase/server';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
@@ -22,6 +23,8 @@ export default async function LojaCheckoutPage() {
     getManageableSubscriptions(user.id),
   ]);
 
+  const paymentConfig = getStorePaymentConfig();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <div className="mb-8">
@@ -32,7 +35,21 @@ export default async function LojaCheckoutPage() {
           Finalizar compra
         </h1>
       </div>
-      <StoreCheckoutForm addresses={addresses} subscriptions={subscriptions} embedded />
+      {!paymentConfig.ready ? (
+        <div
+          className="mb-6 rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+          role="alert"
+        >
+          Pagamentos da loja temporariamente indisponíveis.
+          {paymentConfig.issue ? ` ${paymentConfig.issue}` : ''}
+        </div>
+      ) : null}
+      <StoreCheckoutForm
+        addresses={addresses}
+        subscriptions={subscriptions}
+        paymentConfig={paymentConfig}
+        embedded
+      />
     </div>
   );
 }

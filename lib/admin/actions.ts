@@ -51,6 +51,11 @@ import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending
 import type { StoreProductCategory } from '@/lib/store/catalog';
 import { STORE_PRODUCTS } from '@/lib/store/catalog';
 import {
+  normalizeStoreProductVariations,
+  parseStoreProductVariations,
+  type StoreProductVariation,
+} from '@/lib/store/product-variations';
+import {
   ensureUniqueSeoSlug,
   generateSeoSlug,
   isValidSeoSlug,
@@ -1926,6 +1931,27 @@ export async function saveStoreProductAction(
     return { error: 'Selecione o plano do kit avulso.' };
   }
 
+  const variationsEnabled =
+    category === 'store-item' && formData.get('variations_enabled') === 'on';
+  const variationsRaw = (formData.get('variations') as string)?.trim() ?? '[]';
+  let parsedVariations: StoreProductVariation[] = [];
+
+  if (variationsEnabled) {
+    try {
+      parsedVariations = parseStoreProductVariations(JSON.parse(variationsRaw));
+    } catch {
+      return { error: 'Formato de variações inválido.' };
+    }
+
+    parsedVariations = normalizeStoreProductVariations(parsedVariations);
+
+    if (parsedVariations.length === 0) {
+      return {
+        error: 'Adicione ao menos uma variação com nome e opções para ativar variações.',
+      };
+    }
+  }
+
   const payload = {
     slug,
     name,
@@ -1940,6 +1966,8 @@ export async function saveStoreProductAction(
     includes,
     paint_kit_bump_id: category === 'paint-kit' ? paintKitBumpId : null,
     plan_slug: category === 'monthly-kit' ? planSlug : null,
+    variations_enabled: variationsEnabled,
+    variations: variationsEnabled ? parsedVariations : [],
     max_quantity: maxQuantity.value,
     featured: formData.get('featured') === 'on',
     is_active: formData.get('is_active') === 'on',

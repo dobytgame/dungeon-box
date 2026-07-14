@@ -1,39 +1,76 @@
 'use client';
 
-import { Check, Minus, Plus, ShoppingCart } from 'lucide-react';
+import { Check } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import StoreProductPurchaseActions from '@/components/store/StoreProductPurchaseActions';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import type { StoreProduct } from '@/lib/store/catalog';
+import {
+  cartLineId,
+  productHasVariations,
+  validateSelectedProductOptions,
+} from '@/lib/store/product-variations';
+import { STORE_PRODUCTION_LEAD_TIME_LABEL } from '@/lib/store/production-lead-time';
 
 interface Props {
   product: StoreProduct;
 }
 
 export default function StoreProductPurchasePanel({ product }: Props) {
-  const { setQuantity, lines } = useStoreCart();
+  const { lines, setQuantity } = useStoreCart();
   const addToCart = useAddToStoreCart(product);
   const [added, setAdded] = useState(false);
   const [localQuantity, setLocalQuantity] = useState(1);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    for (const variation of product.variations ?? []) {
+      initial[variation.name] = variation.options[0] ?? '';
+    }
+    return initial;
+  });
+  const [selectionError, setSelectionError] = useState('');
+
   const isMonthlyKit = product.category === 'monthly-kit';
   const isStandaloneMonthlyKit =
     isMonthlyKit && !product.requiresSubscriptionBundle;
+  const hasVariations = productHasVariations(product);
   const maxQty = product.maxQuantity ?? 9;
-  const cartLine = lines.find((line) => line.productId === product.id);
-  const quantity = cartLine?.quantity ?? localQuantity;
+
+  const currentLine = useMemo(() => {
+    if (!hasVariations) {
+      return lines.find((line) => line.productId === product.id);
+    }
+
+    const candidate: { productId: string; selectedOptions: Record<string, string> } = {
+      productId: product.id,
+      selectedOptions,
+    };
+    const lineId = cartLineId(candidate);
+    return lines.find((line) => cartLineId(line) === lineId);
+  }, [hasVariations, lines, product.id, selectedOptions]);
+
+  const quantity = currentLine?.quantity ?? localQuantity;
 
   function updateQuantity(next: number) {
     const clamped = Math.min(Math.max(next, 1), maxQty);
-    if (cartLine) {
-      setQuantity(product.id, clamped);
+    if (currentLine) {
+      setQuantity(cartLineId(currentLine), clamped);
     } else {
       setLocalQuantity(clamped);
     }
   }
 
   function handleAdd() {
-    addToCart(isMonthlyKit ? quantity : 1);
+    const validation = validateSelectedProductOptions(product, selectedOptions);
+    if (!validation.ok) {
+      setSelectionError(validation.error);
+      return;
+    }
+
+    setSelectionError('');
+    addToCart(quantity, hasVariations ? selectedOptions : undefined);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1800);
   }
@@ -49,74 +86,57 @@ export default function StoreProductPurchasePanel({ product }: Props) {
         ))}
       </ul>
 
-      {isMonthlyKit ? (
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
-              Quantidade
-            </p>
-            <div className="mt-2 flex items-center rounded-sm border border-white/10">
-              <button
-                type="button"
-                aria-label="Diminuir quantidade"
-                onClick={() => updateQuantity(quantity - 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
+      {hasVariations ? (
+        <div className="space-y-4 border-t border-white/[0.06] pt-4">
+          {(product.variations ?? []).map((variation) => (
+            <div key={variation.name}>
+              <label
+                htmlFor={`variation-${variation.name}`}
+                className="font-display text-[10px] uppercase tracking-widest text-stone-500"
               >
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="min-w-[2rem] text-center text-sm text-white">
-                {quantity}
-              </span>
-              <button
-                type="button"
-                aria-label="Aumentar quantidade"
-                onClick={() => updateQuantity(quantity + 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
+                {variation.name}
+              </label>
+              <select
+                id={`variation-${variation.name}`}
+                value={selectedOptions[variation.name] ?? ''}
+                onChange={(event) => {
+                  setSelectedOptions((current) => ({
+                    ...current,
+                    [variation.name]: event.target.value,
+                  }));
+                  setSelectionError('');
+                }}
+                className="mt-2 w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white"
               >
-                <Plus className="h-4 w-4" />
-              </button>
+                {variation.options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="inline-flex min-h-[44px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-          >
-            {added ? (
-              <>
-                <Check className="h-4 w-4" aria-hidden="true" />
-                Adicionado
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-                Adicionar
-              </>
-            )}
-          </button>
+          ))}
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-        >
-          {added ? (
-            <>
-              <Check className="h-4 w-4" aria-hidden="true" />
-              Adicionado
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-              Adicionar ao carrinho
-            </>
-          )}
-        </button>
-      )}
+      ) : null}
 
-      <p className="text-xs text-stone-600">
+      {selectionError ? (
+        <p className="text-sm text-red-400" role="alert">
+          {selectionError}
+        </p>
+      ) : null}
+
+      <StoreProductPurchaseActions
+        quantity={quantity}
+        maxQty={maxQty}
+        onQuantityChange={updateQuantity}
+        onAdd={handleAdd}
+        added={added}
+        addLabel={isMonthlyKit ? 'Adicionar' : 'Adicionar ao carrinho'}
+        variant="panel"
+      />
+
+      <p className="text-xs leading-relaxed text-stone-600">
+        {STORE_PRODUCTION_LEAD_TIME_LABEL}.{' '}
         {isMonthlyKit ? (
           isStandaloneMonthlyKit ? (
             <>Frete calculado por região no checkout.</>
@@ -127,10 +147,12 @@ export default function StoreProductPurchasePanel({ product }: Props) {
           <>Frete calculado por região no checkout.</>
         ) : (
           <>
+            {' '}
             Assinantes: frete grátis na{' '}
             <Link href="/dashboard/subscription" className="text-ember hover:underline">
               próxima caixa
             </Link>
+            .
           </>
         )}
       </p>

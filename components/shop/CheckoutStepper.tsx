@@ -6,12 +6,13 @@ const STEPS = [
 
 interface Props {
   currentStep: 1 | 2 | 3;
+  className?: string;
 }
 
-export default function CheckoutStepper({ currentStep }: Props) {
+export default function CheckoutStepper({ currentStep, className = '' }: Props) {
   return (
     <nav
-      className="mb-8 flex items-center gap-2 sm:gap-4"
+      className={`mb-8 flex items-center gap-2 sm:gap-4 ${className}`}
       aria-label="Etapas do checkout"
     >
       {STEPS.map((step, index) => {
@@ -32,6 +33,13 @@ export default function CheckoutStepper({ currentStep }: Props) {
                 aria-current={active ? 'step' : undefined}
               >
                 {step.id}
+              </span>
+              <span
+                className={`truncate font-display text-[9px] uppercase tracking-widest max-[380px]:inline sm:hidden ${
+                  active ? 'text-white' : 'text-stone-500'
+                }`}
+              >
+                {step.label}
               </span>
               <span
                 className={`hidden truncate font-display text-[10px] uppercase tracking-widest sm:inline ${

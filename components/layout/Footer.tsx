@@ -7,15 +7,15 @@ import { COMPANY } from '@/lib/legal/constants';
 import { isStoreLinkVisible } from '@/lib/store/access';
 
 const exploreLinks = [
-  { href: '#planos', label: 'Planos' },
-  { href: '#fidelidade', label: 'Fidelidade' },
-  { href: '#temas', label: 'Temas' },
+  { href: '/#planos', label: 'Planos' },
+  { href: '/#fidelidade', label: 'Fidelidade' },
+  { href: '/#temas', label: 'Temas' },
   { href: '/loja', label: 'Loja', storeOnly: true },
 ] as const;
 
 const supportLinks = [
-  { href: '#faq', label: 'Perguntas frequentes' },
-  { href: '#faq', label: 'Cancelar assinatura' },
+  { href: '/#faq', label: 'Perguntas frequentes' },
+  { href: '/#faq', label: 'Cancelar assinatura' },
 ];
 
 const legalLinks = [

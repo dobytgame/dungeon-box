@@ -1,12 +1,18 @@
 'use client';
 
-import { Check, Minus, Plus, ShoppingCart } from 'lucide-react';
+import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import StoreProductPurchaseActions from '@/components/store/StoreProductPurchaseActions';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import type { StoreProduct } from '@/lib/store/catalog';
+import {
+  SUBSCRIBER_STORE_DISCOUNT_BADGE,
+  SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
+} from '@/lib/store/subscriber-discount';
 import { formatMoney } from '@/lib/dashboard/format';
+import { cartLineId } from '@/lib/store/product-variations';
 
 import { STORE_ROUTES } from '@/lib/store/routes';
 import {
@@ -30,24 +36,26 @@ export default function StoreProductCard({ product }: Props) {
   const maxQty = product.maxQuantity ?? 9;
   const cartLine = lines.find((line) => line.productId === product.id);
   const quantity = cartLine?.quantity ?? localQuantity;
+  const primaryImageUrl = product.imageUrl ?? product.galleryUrls?.[0];
   const hoverImageUrl =
-    product.galleryUrls?.find((url) => url !== product.imageUrl) ??
+    product.galleryUrls?.find((url) => url !== primaryImageUrl) ??
     product.galleryUrls?.[0];
   const onSale =
     product.originalPriceCents !== undefined &&
     product.originalPriceCents > product.priceCents;
+  const showSubscriberBadge = product.subscriberDiscount && onSale;
 
   function updateQuantity(next: number) {
     const clamped = Math.min(Math.max(next, 1), maxQty);
     if (cartLine) {
-      setQuantity(product.id, clamped);
+      setQuantity(cartLineId(cartLine), clamped);
     } else {
       setLocalQuantity(clamped);
     }
   }
 
   function handleAdd() {
-    addToCart(isMonthlyKit ? quantity : 1);
+    addToCart(quantity);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1800);
   }
@@ -65,7 +73,11 @@ export default function StoreProductCard({ product }: Props) {
           Destaque
         </span>
       ) : null}
-      {onSale ? (
+      {showSubscriberBadge ? (
+        <span className="absolute left-4 top-4 rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
+          {SUBSCRIBER_STORE_DISCOUNT_BADGE}
+        </span>
+      ) : onSale ? (
         <span className="absolute left-4 top-4 rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">
           Oferta
         </span>
@@ -76,7 +88,7 @@ export default function StoreProductCard({ product }: Props) {
         </span>
       ) : null}
 
-      {product.imageUrl ? (
+      {primaryImageUrl ? (
         <Link
           href={STORE_ROUTES.product(product.slug)}
           className="group/image relative mb-4 block overflow-hidden rounded-sm"
@@ -86,7 +98,7 @@ export default function StoreProductCard({ product }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={
-              imageHover && hoverImageUrl ? hoverImageUrl : product.imageUrl
+              imageHover && hoverImageUrl ? hoverImageUrl : primaryImageUrl
             }
             alt={product.name}
             width={STORE_PRODUCT_IMAGE_SIZE}
@@ -119,15 +131,17 @@ export default function StoreProductCard({ product }: Props) {
         {product.originalPriceCents &&
         product.originalPriceCents > product.priceCents ? (
           <div className="flex flex-wrap items-baseline gap-2">
-            <p className="font-display text-lg text-stone-500 line-through">
+            <p className="font-display text-sm text-stone-500 line-through">
               {formatMoney(product.originalPriceCents)}
             </p>
-            <p className="font-display text-2xl text-gold">{product.priceLabel}</p>
+            <p className="font-display text-2xl text-ember">{product.priceLabel}</p>
           </div>
         ) : (
           <p className="font-display text-2xl text-gold">{product.priceLabel}</p>
         )}
-        {product.promoCode ? (
+        {product.subscriberDiscount ? (
+          <p className="mt-1 text-xs text-gold/80">{SUBSCRIBER_STORE_DISCOUNT_SUMMARY}</p>
+        ) : product.promoCode ? (
           <p className="mt-1 text-xs text-gold/80">
             Cupom {product.promoCode} — {product.promoSummary}
           </p>
@@ -143,72 +157,16 @@ export default function StoreProductCard({ product }: Props) {
         ))}
       </ul>
 
-      {isMonthlyKit ? (
-        <div className="mt-6 flex items-center justify-between gap-4">
-          <div>
-            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
-              Quantidade
-            </p>
-            <div className="mt-2 flex items-center rounded-sm border border-white/10">
-              <button
-                type="button"
-                aria-label="Diminuir quantidade"
-                onClick={() => updateQuantity(quantity - 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="min-w-[2rem] text-center text-sm text-white">
-                {quantity}
-              </span>
-              <button
-                type="button"
-                aria-label="Aumentar quantidade"
-                onClick={() => updateQuantity(quantity + 1)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="inline-flex min-h-[44px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-          >
-            {added ? (
-              <>
-                <Check className="h-4 w-4" aria-hidden="true" />
-                Adicionado
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-                Adicionar
-              </>
-            )}
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="mt-6 inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-        >
-          {added ? (
-            <>
-              <Check className="h-4 w-4" aria-hidden="true" />
-              Adicionado
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-              Adicionar ao carrinho
-            </>
-          )}
-        </button>
-      )}
+      <StoreProductPurchaseActions
+        className="mt-6"
+        quantity={quantity}
+        maxQty={maxQty}
+        onQuantityChange={updateQuantity}
+        onAdd={handleAdd}
+        added={added}
+        addLabel={isMonthlyKit ? 'Adicionar' : 'Adicionar ao carrinho'}
+        variant="card"
+      />
 
       <p className="mt-3 text-center text-xs text-stone-600">
         {isMonthlyKit ? (

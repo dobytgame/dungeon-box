@@ -1,22 +1,20 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import CategoryFilters from '@/components/shop/CategoryFilters';
+import CategoryListingToolbar from '@/components/shop/CategoryListingToolbar';
 import ProductDescriptionContent from '@/components/shop/ProductDescriptionContent';
 import ShopCategoryHero from '@/components/shop/ShopCategoryHero';
-import ShopSubcategoryRow from '@/components/shop/ShopSubcategoryRow';
-import StoreProductCard from '@/components/store/StoreProductCard';
+import ShopProductGrid from '@/components/shop/ShopProductGrid';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import {
   isPublicStoreCategorySlug,
   isStorePublic,
-  profileIsStoreAdmin,
 } from '@/lib/store/access';
 import {
   loadActiveProductsByCategory,
   loadActiveStoreSubcategories,
 } from '@/lib/store/load-catalog';
+import { enrichStoreProductsForSubscriber } from '@/lib/store/subscriber-discount';
 import { parseStorePage, parseStoreSort } from '@/lib/store/sort';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
@@ -36,9 +34,8 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
 
-  const { category, products, total } = await loadActiveProductsByCategory(
+  const { category, products: rawProducts, total } = await loadActiveProductsByCategory(
     admin,
     categoria,
     { sort, page }
@@ -46,9 +43,15 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
 
   if (!category) notFound();
 
-  if (!isStorePublic() && !isAdmin && !isPublicStoreCategorySlug(categoria)) {
+  if (!isStorePublic() && !isPublicStoreCategorySlug(categoria)) {
     notFound();
   }
+
+  const products = await enrichStoreProductsForSubscriber(
+    supabase,
+    user?.id,
+    rawProducts
+  );
 
   const subcategories = category.parentId
     ? await loadActiveStoreSubcategories(admin, category.parentId)
@@ -69,6 +72,14 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
         }
       : category;
 
+  const breadcrumb = [
+    { href: STORE_ROUTES.home, label: 'Loja' },
+    ...(category.parentSlug && category.parentName
+      ? [{ href: STORE_ROUTES.category(category.parentSlug), label: category.parentName }]
+      : []),
+    { label: category.name },
+  ];
+
   const hasHero = Boolean(category.bannerUrl || category.thumbUrl);
 
   return (
@@ -76,30 +87,8 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
       {hasHero ? <ShopCategoryHero category={category} /> : null}
 
       <div className="mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8">
-        <nav
-          className="mb-8 flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-stone-500"
-          aria-label="Breadcrumb"
-        >
-          <Link href={STORE_ROUTES.home} className="hover:text-ember">
-            Loja
-          </Link>
-          {category.parentSlug ? (
-            <>
-              <span aria-hidden="true">/</span>
-              <Link
-                href={STORE_ROUTES.category(category.parentSlug)}
-                className="hover:text-ember"
-              >
-                {category.parentName}
-              </Link>
-            </>
-          ) : null}
-          <span aria-hidden="true">/</span>
-          <span className="text-stone-400">{category.name}</span>
-        </nav>
-
         {!hasHero ? (
-          <header className="mb-6 border-b border-white/[0.06] pb-8">
+          <header className="mb-4 border-b border-white/[0.06] pb-6">
             <p className="font-display text-xs uppercase tracking-[0.25em] text-stone-500">
               {category.parentName ? 'Subcategoria' : 'Categoria'}
             </p>
@@ -115,26 +104,19 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
           </header>
         ) : null}
 
-        <ShopSubcategoryRow
-          parentCategory={parentCategory}
-          subcategories={subcategories}
-          activeSlug={category.slug}
-        />
-
         <Suspense fallback={null}>
-          <CategoryFilters
-            categorySlug={categoria}
+          <CategoryListingToolbar
+            parentCategory={parentCategory}
+            subcategories={subcategories}
+            activeSlug={category.slug}
+            breadcrumb={breadcrumb}
             total={total}
             currentPage={page}
           />
         </Suspense>
 
         {products.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {products.map((product) => (
-              <StoreProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <ShopProductGrid products={products} variant="compact" embedded />
         ) : (
           <p className="text-sm text-stone-500">
             Nenhum produto disponível nesta categoria no momento.

@@ -45,23 +45,22 @@ export default function CartDrawer({ open, onClose }: Props) {
   }, [open, onClose]);
 
   function decreaseQuantity(
-    productId: string,
-    currentQuantity: number,
-    maxQuantity: number
+    lineId: string,
+    currentQuantity: number
   ) {
     if (currentQuantity <= 1) {
-      removeItem(productId);
+      removeItem(lineId);
       return;
     }
-    setQuantity(productId, currentQuantity - 1);
+    setQuantity(lineId, currentQuantity - 1);
   }
 
   function increaseQuantity(
-    productId: string,
+    lineId: string,
     currentQuantity: number,
     maxQuantity: number
   ) {
-    setQuantity(productId, Math.min(maxQuantity, currentQuantity + 1));
+    setQuantity(lineId, Math.min(maxQuantity, currentQuantity + 1));
   }
 
   if (!mounted) return null;
@@ -139,11 +138,11 @@ export default function CartDrawer({ open, onClose }: Props) {
                       : STORE_ROUTES.home;
 
                     return (
-                      <li key={line.productId} className="flex gap-3 py-4">
+                      <li key={line.lineId} className="flex gap-3 py-4">
                         <Link
                           href={productHref}
                           onClick={onClose}
-                          className="relative shrink-0 overflow-hidden rounded-sm bg-stone-900"
+                          className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-sm bg-stone-900"
                         >
                           {line.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -152,7 +151,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                               alt=""
                               width={STORE_PRODUCT_IMAGE_SIZE}
                               height={STORE_PRODUCT_IMAGE_SIZE}
-                              className="aspect-square h-20 w-20 object-cover transition hover:scale-105"
+                              className="h-full w-full object-cover transition hover:scale-105"
                             />
                           ) : (
                             <div className="flex h-20 w-20 items-center justify-center">
@@ -179,8 +178,25 @@ export default function CartDrawer({ open, onClose }: Props) {
                                   Tema: {line.themeName}
                                 </p>
                               ) : null}
+                              {line.variationSummary ? (
+                                <p className="mt-0.5 text-xs text-stone-400">
+                                  {line.variationSummary}
+                                </p>
+                              ) : null}
                               <p className="mt-1 text-xs text-stone-500">
-                                {formatMoney(line.priceCents)} cada
+                                {line.originalPriceCents &&
+                                line.originalPriceCents > line.priceCents ? (
+                                  <>
+                                    <span className="mr-1.5 line-through">
+                                      {formatMoney(line.originalPriceCents)}
+                                    </span>
+                                    <span className="text-ember">
+                                      {formatMoney(line.priceCents)} cada
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>{formatMoney(line.priceCents)} cada</>
+                                )}
                               </p>
                             </div>
                             <p className="shrink-0 font-display text-sm text-ember">
@@ -198,13 +214,9 @@ export default function CartDrawer({ open, onClose }: Props) {
                                     : 'Diminuir quantidade'
                                 }
                                 onClick={() =>
-                                  decreaseQuantity(
-                                    line.productId,
-                                    line.quantity,
-                                    maxQty
-                                  )
+                                  decreaseQuantity(line.lineId, line.quantity)
                                 }
-                                className="flex h-9 w-9 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white"
+                                className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white"
                               >
                                 {line.quantity <= 1 ? (
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -221,12 +233,12 @@ export default function CartDrawer({ open, onClose }: Props) {
                                 disabled={line.quantity >= maxQty}
                                 onClick={() =>
                                   increaseQuantity(
-                                    line.productId,
+                                    line.lineId,
                                     line.quantity,
                                     maxQty
                                   )
                                 }
-                                className="flex h-9 w-9 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 <Plus className="h-3.5 w-3.5" />
                               </button>
@@ -234,7 +246,7 @@ export default function CartDrawer({ open, onClose }: Props) {
 
                             <button
                               type="button"
-                              onClick={() => removeItem(line.productId)}
+                              onClick={() => removeItem(line.lineId)}
                               className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-stone-500 transition hover:text-red-300"
                               aria-label={`Remover ${line.name}`}
                             >
@@ -251,7 +263,7 @@ export default function CartDrawer({ open, onClose }: Props) {
             </div>
 
             {hydrated && resolved.length > 0 ? (
-              <div className="shrink-0 border-t border-white/[0.08] bg-[#0A0C10] px-5 py-4">
+              <div className="shrink-0 border-t border-white/[0.08] bg-[#0A0C10] px-5 py-4 pb-safe">
                 <div className="mb-4 flex justify-between text-sm">
                   <span className="text-stone-500">Subtotal</span>
                   <span className="font-display text-lg text-white">

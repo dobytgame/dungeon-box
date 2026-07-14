@@ -9,6 +9,7 @@ interface Props {
   onClose: () => void;
   title: string;
   description?: string;
+  size?: 'md' | 'lg';
   children: React.ReactNode;
 }
 
@@ -17,6 +18,7 @@ export default function AdminModal({
   onClose,
   title,
   description,
+  size = 'md',
   children,
 }: Props) {
   useAdminOverlay(open, onClose);
@@ -39,7 +41,9 @@ export default function AdminModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-modal-title"
-        className="relative z-10 w-full max-w-md overflow-hidden rounded border border-zinc-800 bg-zinc-950 shadow-2xl sm:rounded-lg"
+        className={`relative z-10 w-full overflow-hidden rounded border border-zinc-800 bg-zinc-950 shadow-2xl sm:rounded-lg ${
+          size === 'lg' ? 'max-w-3xl' : 'max-w-md'
+        }`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
           <div>

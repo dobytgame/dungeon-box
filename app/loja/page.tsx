@@ -4,6 +4,7 @@ import ShopHero from '@/components/shop/ShopHero';
 import ShopHeroSlider from '@/components/shop/ShopHeroSlider';
 import ShopIntermediateBanner from '@/components/shop/ShopIntermediateBanner';
 import ShopProductGrid from '@/components/shop/ShopProductGrid';
+import ShopProductSlider from '@/components/shop/ShopProductSlider';
 import ShopSubscriptionBanner from '@/components/shop/ShopSubscriptionBanner';
 import StoreProductCard from '@/components/store/StoreProductCard';
 import { planSupportCopy } from '@/lib/data';
@@ -13,7 +14,6 @@ import {
   filterPublicStoreCategories,
   filterPublicStoreProducts,
   isStorePublic,
-  profileIsStoreAdmin,
 } from '@/lib/store/access';
 import { loadActiveStoreBanners } from '@/lib/store/banners';
 import {
@@ -21,11 +21,13 @@ import {
   loadActiveStoreCategories,
   loadFeaturedProducts,
   loadNewestProducts,
+  filterStoreProductsForVitrine,
 } from '@/lib/store/load-catalog';
 import {
   getMonthlyKitStoreAvailability,
   getPublicMonthlyKitProducts,
 } from '@/lib/store/monthly-kits';
+import { enrichStoreProductsForSubscriber } from '@/lib/store/subscriber-discount';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
 function MonthlyKitEmptyState({
@@ -85,8 +87,7 @@ export default async function LojaHomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAdmin = user ? await profileIsStoreAdmin(supabase, user.id) : false;
-  const showFullCatalog = isStorePublic() || isAdmin;
+  const showFullCatalog = isStorePublic();
 
   const [categories, banners, monthlyKitStore, publicMonthlyKits, paintKitProducts, featured, newest] =
     await Promise.all([
@@ -111,14 +112,34 @@ export default async function LojaHomePage() {
       ? monthlyKitStore.products
       : publicMonthlyKits;
 
+  const [visiblePlanKits, visiblePaintKits, visibleFeatured, visibleNewest] =
+    await Promise.all([
+      filterStoreProductsForVitrine(admin, planKits),
+      filterStoreProductsForVitrine(
+        admin,
+        showFullCatalog ? paintKitProducts : filterPublicStoreProducts(paintKitProducts)
+      ),
+      filterStoreProductsForVitrine(admin, featured),
+      filterStoreProductsForVitrine(admin, newest),
+    ]);
+
+  const [
+    subscriberPlanKits,
+    subscriberPaintKits,
+    subscriberFeatured,
+    subscriberNewest,
+  ] = await Promise.all([
+    enrichStoreProductsForSubscriber(supabase, user?.id, visiblePlanKits),
+    enrichStoreProductsForSubscriber(supabase, user?.id, visiblePaintKits),
+    enrichStoreProductsForSubscriber(supabase, user?.id, visibleFeatured),
+    enrichStoreProductsForSubscriber(supabase, user?.id, visibleNewest),
+  ]);
+
   const visibleCategories = showFullCatalog
     ? categories
     : filterPublicStoreCategories(categories);
-  const visiblePaintKits = showFullCatalog
-    ? paintKitProducts
-    : filterPublicStoreProducts(paintKitProducts);
   const showSubscriberMonthlyKits =
-    showFullCatalog && monthlyKitStore.products.length > 0;
+    showFullCatalog && visiblePlanKits.length > 0 && monthlyKitStore.products.length > 0;
 
   return (
     <>
@@ -130,7 +151,7 @@ export default async function LojaHomePage() {
       <ShopCategorySlider categories={visibleCategories} />
 
       <div id="produtos">
-        {planKits.length > 0 ? (
+        {visiblePlanKits.length > 0 ? (
           <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
             <div className="mb-8">
               <p className="font-display text-xs uppercase tracking-[0.25em] text-ember">
@@ -146,7 +167,7 @@ export default async function LojaHomePage() {
               </p>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {planKits.map((product) => (
+              {subscriberPlanKits.map((product) => (
                 <StoreProductCard key={product.id} product={product} />
               ))}
             </div>
@@ -169,16 +190,16 @@ export default async function LojaHomePage() {
         <ShopProductGrid
           eyebrow="Acessórios"
           title="Kits de pintura"
-          products={visiblePaintKits}
+          products={subscriberPaintKits}
           viewAllHref={STORE_ROUTES.category('kits-pintura')}
         />
 
         {showFullCatalog ? (
           <>
-            <ShopProductGrid
+            <ShopProductSlider
               eyebrow="Destaque"
               title="Produtos em destaque"
-              products={featured}
+              products={subscriberFeatured}
             />
 
             <ShopIntermediateBanner />
@@ -186,7 +207,7 @@ export default async function LojaHomePage() {
             <ShopProductGrid
               eyebrow="Novidades"
               title="Recém adicionados"
-              products={newest}
+              products={subscriberNewest}
             />
           </>
         ) : null}

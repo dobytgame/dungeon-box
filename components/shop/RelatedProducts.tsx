@@ -14,6 +14,7 @@ export default function RelatedProducts({ products }: Props) {
         eyebrow="Você também pode gostar"
         title="Produtos relacionados"
         products={products}
+        variant="compact"
       />
     </div>
   );

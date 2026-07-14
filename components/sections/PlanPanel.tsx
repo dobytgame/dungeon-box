@@ -1,12 +1,12 @@
 'use client';
 
-import Image from 'next/image';
 import { Check, Star } from 'lucide-react';
 import { plans, planSupportCopy } from '@/lib/data';
 import { getPlanTheme } from '@/lib/plan-theme';
 import CTAButton from '@/components/ui/CTAButton';
 import { checkoutHref } from '@/lib/checkout/plans';
 import PlanBadge from '@/components/ui/PlanBadge';
+import PlanGallery from '@/components/sections/PlanGallery';
 import { COMBO_BILLING_ENABLED } from '@/lib/checkout/combo-billing';
 import PlanComboCallout from '@/components/sections/PlanComboCallout';
 import type { PlanSlug } from '@/lib/checkout/plans';
@@ -141,18 +141,11 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
                 </span>
               )}
 
-              <div className="relative overflow-hidden rounded-sm border border-white/[0.1] shadow-[0_32px_80px_rgba(0,0,0,0.45)]">
-                <Image
-                  src={plan.image}
-                  alt={`Plano ${plan.name} — cenários 3D DungeonBox`}
-                  width={2528}
-                  height={1686}
-                  priority={isFirst}
-                  className="relative z-10 h-auto w-full object-cover"
-                  sizes="(max-width: 1024px) 100vw, 40vw"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-stone-950/40 via-transparent to-transparent" />
-              </div>
+              <PlanGallery
+                planName={plan.name}
+                images={plan.images ?? [plan.image]}
+                priority={isFirst}
+              />
             </div>
           </div>
 

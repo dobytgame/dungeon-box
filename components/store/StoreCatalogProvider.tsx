@@ -6,7 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { STORE_PRODUCTS, type StoreProduct } from '@/lib/store/catalog';
+import type { StoreProduct } from '@/lib/store/catalog';
 
 type StoreCatalogContextValue = {
   monthlyKits: StoreProduct[];
@@ -33,11 +33,6 @@ export function StoreCatalogProvider({
     }
     for (const product of monthlyKits) {
       byId.set(product.id, product);
-    }
-    for (const product of STORE_PRODUCTS) {
-      if (!byId.has(product.id)) {
-        byId.set(product.id, product);
-      }
     }
 
     const allProducts = Array.from(byId.values());
