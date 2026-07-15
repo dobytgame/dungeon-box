@@ -3,6 +3,7 @@ import type {
   ProductionChecklistItem,
 } from '@/lib/admin/cycle-shipment-items';
 import type { CycleShipmentFinance } from '@/lib/admin/cycle-shipment-finance';
+import { resolveProductionMonthKey, mapRawMonthToProductionMonth } from '@/lib/admin/production-month';
 import type { Address, SubscriptionCycle } from '@/lib/dashboard/types';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import {
@@ -92,6 +93,10 @@ export interface AdminCycleDetailView {
   productionChecklist: ProductionChecklistItem[];
   hasBundledItems: boolean;
   isStandaloneStoreOrder?: boolean;
+  /** Valor bruto em `subscription_cycles.scheduled_production_month` (YYYY-MM-01). */
+  scheduledProductionMonth: string | null;
+  /** Mês efetivo no kanban (YYYY-MM), considerando fallback de pagamento. */
+  productionMonthKey: string | null;
 }
 
 const REGION_LABELS: Record<ShippingRegion, string> = {
@@ -235,6 +240,15 @@ export function toAdminCycleDetailView(
     ? orderAddress.formattedMultiline.replace(/\n/g, ' · ')
     : null;
 
+  const scheduledProductionMonth =
+    (cycle as { scheduled_production_month?: string | null })
+      .scheduled_production_month ?? null;
+  const productionMonthKey = resolveProductionMonthKey({
+    scheduledProductionMonth,
+    paid_at: cycle.paid_at,
+    created_at: cycle.created_at,
+  });
+
   return {
     id: cycle.id,
     cycle_number: cycle.cycle_number,
@@ -279,6 +293,8 @@ export function toAdminCycleDetailView(
     productionChecklist,
     hasBundledItems: productionChecklist.length > 1 || shipmentItems.length > 0,
     isStandaloneStoreOrder: false,
+    scheduledProductionMonth,
+    productionMonthKey,
   };
 }
 
@@ -364,5 +380,12 @@ export function toStandaloneStoreOrderDetailView(input: {
     })),
     hasBundledItems: input.shipmentItems.length > 0,
     isStandaloneStoreOrder: true,
+    scheduledProductionMonth: null,
+    productionMonthKey:
+      input.paidAt || input.createdAt
+        ? mapRawMonthToProductionMonth(
+            (input.paidAt ?? input.createdAt)!.slice(0, 7)
+          )
+        : null,
   };
 }

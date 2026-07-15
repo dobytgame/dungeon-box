@@ -7,6 +7,7 @@ import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
 import CycleProductionNotesForm from '@/components/admin/CycleProductionNotesForm';
+import CycleScheduleForm from '@/components/admin/CycleScheduleForm';
 import CycleShippingCostForm from '@/components/admin/CycleShippingCostForm';
 import ProductionChecklist from '@/components/admin/ProductionChecklist';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
@@ -15,6 +16,7 @@ import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
 import { adminPlanCardClasses } from '@/lib/plan-theme';
 import { formatDate, formatDateTime, formatMoney, formatPhone, formatCpf } from '@/lib/dashboard/format';
+import { productionMonthLabel } from '@/lib/admin/production-month';
 
 interface Props {
   cycleId: string | null;
@@ -372,6 +374,30 @@ export default function CycleDetailContent({
           Dados do pedido
         </p>
 
+        {!detail.isStandaloneStoreOrder ? (
+          <div className="mt-4 border-b border-zinc-800/80 pb-5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+              Agendamento manual
+            </p>
+            <p className="mt-1 text-sm text-zinc-500">
+              Corrija o número do ciclo ou o mês em que o pedido aparece no
+              kanban de produção.
+            </p>
+            <div className="mt-4">
+              <CycleScheduleForm
+                cycleId={detail.id}
+                cycleNumber={detail.cycle_number}
+                productionMonthKey={detail.productionMonthKey}
+                scheduledProductionMonth={detail.scheduledProductionMonth}
+                onSuccess={() => {
+                  onUpdated?.();
+                  onReload?.(detail.id);
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+
         <dl className="mt-4 grid gap-0 md:grid-cols-2 md:gap-x-6">
           <DataRow
             label="Cliente"
@@ -406,6 +432,22 @@ export default function CycleDetailContent({
               mono
             />
           ) : null}
+          <DataRow
+            label="Ciclo"
+            value={
+              detail.isStandaloneStoreOrder
+                ? '—'
+                : `#${detail.cycle_number}`
+            }
+          />
+          <DataRow
+            label="Mês de produção"
+            value={
+              detail.productionMonthKey
+                ? productionMonthLabel(detail.productionMonthKey)
+                : '—'
+            }
+          />
           <DataRow
             label="Assinatura"
             value={

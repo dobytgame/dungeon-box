@@ -18,6 +18,7 @@ import { logAdminAction } from '@/lib/admin/audit';
 import { requireAdmin } from '@/lib/admin/auth';
 import type { MarketingAudience } from '@/lib/admin/types';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
+import { parseProductionMonthKey } from '@/lib/admin/production-month';
 import { relOne } from '@/lib/dashboard/format';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
@@ -331,6 +332,99 @@ export async function updateCycleProductionNotesAction(
     entityType: 'subscription_cycle',
     entityId: cycleId,
     metadata: { production_notes: notes || null },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateCycleBoard();
+  return { success: true as const };
+}
+
+export async function updateCycleScheduleAction(
+  cycleId: string,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  if (isStandaloneStoreCardId(cycleId)) {
+    return { error: 'Pedidos avulsos da loja não têm ciclo de assinatura.' };
+  }
+
+  const cycleNumberRaw = (formData.get('cycle_number') as string) ?? '';
+  const cycleNumber = Number.parseInt(cycleNumberRaw, 10);
+  if (!Number.isFinite(cycleNumber) || cycleNumber < 1) {
+    return { error: 'Informe um número de ciclo válido (mínimo 1).' };
+  }
+
+  const productionMonthRaw = (formData.get('production_month') as string) ?? '';
+  const productionMonthKey = parseProductionMonthKey(productionMonthRaw.trim());
+  if (!productionMonthKey) {
+    return { error: 'Informe um mês de produção válido.' };
+  }
+
+  const cycle = await getAdminCycleDetail(admin, cycleId);
+  if (!cycle) {
+    return { error: 'Ciclo não encontrado.' };
+  }
+
+  const subscription = relOne(cycle.subscriptions);
+  const subscriptionId = subscription?.id ?? cycle.subscription_id;
+  if (!subscriptionId) {
+    return { error: 'Assinatura do ciclo não encontrada.' };
+  }
+
+  const scheduledProductionMonth = `${productionMonthKey}-01`;
+  const previousScheduledMonth =
+    (cycle as { scheduled_production_month?: string | null })
+      .scheduled_production_month ?? null;
+
+  if (
+    cycle.cycle_number === cycleNumber &&
+    previousScheduledMonth === scheduledProductionMonth
+  ) {
+    return { error: 'Nenhuma alteração para salvar.' };
+  }
+
+  if (cycle.cycle_number !== cycleNumber) {
+    const { data: conflict } = await admin
+      .from('subscription_cycles')
+      .select('id')
+      .eq('subscription_id', subscriptionId)
+      .eq('cycle_number', cycleNumber)
+      .neq('id', cycleId)
+      .maybeSingle();
+
+    if (conflict) {
+      return {
+        error: `A assinatura já possui o ciclo #${cycleNumber}. Escolha outro número.`,
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from('subscription_cycles')
+    .update({
+      cycle_number: cycleNumber,
+      scheduled_production_month: scheduledProductionMonth,
+      updated_at: now,
+    })
+    .eq('id', cycleId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'cycle.schedule',
+    entityType: 'subscription_cycle',
+    entityId: cycleId,
+    metadata: {
+      previous_cycle_number: cycle.cycle_number,
+      cycle_number: cycleNumber,
+      previous_scheduled_production_month: previousScheduledMonth,
+      scheduled_production_month: scheduledProductionMonth,
+    },
     ipAddress: await clientIp(),
   });
 
