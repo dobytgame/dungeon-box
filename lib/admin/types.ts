@@ -395,6 +395,7 @@ export interface AdminFeedbackRow {
   rating: number;
   message: string | null;
   imageCount: number;
+  featuredOnLp: boolean;
   createdAt: string;
   customerName: string | null;
   customerEmail: string | null;

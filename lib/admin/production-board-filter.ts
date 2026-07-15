@@ -150,17 +150,25 @@ function keepPrimarySubscriptionPerUser(
       continue;
     }
 
-    const operationalIds = Array.from(subscriptionIds).filter((id) => {
+    for (const id of Array.from(subscriptionIds)) {
       const status = metaBySubscriptionId.get(id)?.status ?? '';
-      return !subscriptionIsArchived(status);
-    });
 
-    if (operationalIds.length <= 1) {
-      operationalIds.forEach((id) => allowedSubscriptionIds.add(id));
-      continue;
+      if (!subscriptionIsArchived(status)) {
+        allowedSubscriptionIds.add(id);
+        continue;
+      }
+
+      const hasOpenFulfillmentOnBoard = rows.some(
+        (row) =>
+          row.subscription_id === id &&
+          OPEN_CYCLE_STATUSES.includes(row.status) &&
+          cycleHasFulfillmentSignal(row)
+      );
+
+      if (hasOpenFulfillmentOnBoard) {
+        allowedSubscriptionIds.add(id);
+      }
     }
-
-    operationalIds.forEach((id) => allowedSubscriptionIds.add(id));
   }
 
   return rows.filter((row) => {

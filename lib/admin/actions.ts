@@ -28,6 +28,7 @@ import {
   consolidateSubscriptionCycles,
 } from '@/lib/subscriptions/cycles';
 import { reconcileProductionDataCases } from '@/lib/admin/reconcile-production-cases';
+import { repairMonthlyProductionForSubscription } from '@/lib/subscriptions/monthly-production-schedule';
 import { backfillPrepaidComboProductionSchedules } from '@/lib/subscriptions/combo-production-schedule';
 import {
   syncPendingBundledStoreOrders,
@@ -87,6 +88,7 @@ function revalidateAdmin() {
 
 function revalidateCycleBoard() {
   revalidatePath('/admin/ciclos');
+  revalidatePath('/admin/loja/pedidos');
   revalidatePath('/dashboard', 'layout');
 }
 
@@ -377,6 +379,11 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
       reconciled = await reconcilePendingAsaasSubscription(admin, reconcileTarget);
     }
 
+    const productionRepair = await repairMonthlyProductionForSubscription(
+      admin,
+      subscriptionId
+    );
+
     await logAdminAction(admin, {
       actorId: user.id,
       action: 'subscription.sync_asaas',
@@ -386,26 +393,78 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
         mode: 'import_only',
         subscriptionStatus: reconcileTarget.status,
         reconciled,
+        productionRepair,
         ...result,
       },
       ipAddress: await clientIp(),
     });
 
     revalidateAdmin();
+    revalidateCycleBoard();
+    revalidatePath(`/admin/assinaturas/${subscriptionId}`);
 
-    if (result.remoteCount === 0 && !reconciled) {
+    if (result.remoteCount === 0 && !reconciled && productionRepair.skipped === 'no_payments') {
       return { error: 'Nenhuma cobrança encontrada no Asaas para esta assinatura.' };
     }
 
     return {
       success: true as const,
       reconciled,
+      productionRepair,
       ...result,
     };
   } catch (error) {
     console.error('[admin] sync asaas:', error);
     return { error: 'Falha ao sincronizar com o Asaas.' };
   }
+}
+
+export async function repairSubscriptionCyclesAction(subscriptionId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id, billing_term, status')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (!subscription) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  const productionRepair = await repairMonthlyProductionForSubscription(
+    admin,
+    subscriptionId
+  );
+
+  if (productionRepair.skipped === 'not_found') {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  if (productionRepair.skipped === 'combo') {
+    return {
+      error: 'Reparo automático de ciclos mensais não se aplica a combos pré-pagos.',
+    };
+  }
+
+  if (productionRepair.skipped === 'no_payments') {
+    return { error: 'Nenhum pagamento aprovado para vincular aos ciclos.' };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.repair_cycles',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: productionRepair,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidateCycleBoard();
+  revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+
+  return { success: true as const, ...productionRepair };
 }
 
 export async function syncSubscriptionCyclesAction() {
@@ -694,6 +753,53 @@ export async function adminSendFeedbackRequestAction(cycleId: string) {
   revalidateCycleBoard();
   revalidatePath(`/admin/ciclos/${cycleId}`);
   return { success: true as const };
+}
+
+export async function adminSetFeedbackFeaturedOnLpAction(
+  feedbackId: string,
+  featured: boolean
+) {
+  const { user, admin } = await requireAdmin();
+
+  const { data: existing, error: fetchError } = await admin
+    .from('user_feedback')
+    .select('id, message')
+    .eq('id', feedbackId)
+    .maybeSingle();
+
+  if (fetchError) {
+    return { error: fetchError.message };
+  }
+
+  if (!existing) {
+    return { error: 'Feedback não encontrado.' };
+  }
+
+  if (featured && !existing.message?.trim()) {
+    return { error: 'O feedback precisa de comentário para publicar na LP.' };
+  }
+
+  const { error } = await admin
+    .from('user_feedback')
+    .update({ featured_on_lp: featured })
+    .eq('id', feedbackId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: featured ? 'feedback.feature_on_lp' : 'feedback.unfeature_on_lp',
+    entityType: 'user_feedback',
+    entityId: feedbackId,
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath('/admin/feedbacks');
+  revalidatePath(`/admin/feedbacks/${feedbackId}`);
+  revalidatePath('/');
+  return { success: true as const, featured };
 }
 
 /** @deprecated Use advanceCycleProductionAction */

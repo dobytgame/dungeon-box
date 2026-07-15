@@ -3,12 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
+import RepairSubscriptionCyclesButton from '@/components/admin/RepairSubscriptionCyclesButton';
 import {
   adminManualActivateSubscriptionAction,
   adminManualDeactivateSubscriptionAction,
   adminUpdateSubscriptionStatusAction,
 } from '@/lib/admin/actions';
 import type { Subscription, SubscriptionStatus } from '@/lib/dashboard/types';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 
 interface Props {
   subscription: Subscription;
@@ -42,6 +44,11 @@ export default function AdminSubscriptionActions({
     status === 'paused' ||
     status === 'past_due' ||
     status === 'pending';
+  const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
+  const showCycleRepair =
+    !subscription.is_partner &&
+    !isComboTerm(billingTerm) &&
+    (status === 'active' || status === 'past_due' || status === 'cancelled');
 
   function run(action: 'pause' | 'cancel' | 'resume') {
     setMessage('');
@@ -107,6 +114,9 @@ export default function AdminSubscriptionActions({
       <div className="mt-4 flex flex-wrap items-start gap-3">
         {showAsaasSync ? (
           <SyncAsaasButton subscriptionId={subscription.id} />
+        ) : null}
+        {showCycleRepair ? (
+          <RepairSubscriptionCyclesButton subscriptionId={subscription.id} />
         ) : null}
         {canManualActivate ? (
           <button

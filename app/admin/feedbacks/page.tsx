@@ -13,14 +13,15 @@ export default async function AdminFeedbacksPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
   const { q, rating } = await searchParams;
 
-  const [feedbacks, stats] = await Promise.all([
+  const [feedbackResult, stats] = await Promise.all([
     listAdminFeedback(admin, { q, rating, limit: 100 }),
     getAdminFeedbackStats(admin),
   ]);
 
   return (
     <AdminFeedbacksClient
-      feedbacks={feedbacks}
+      feedbacks={feedbackResult.rows}
+      queryError={feedbackResult.queryError}
       stats={stats}
       q={q}
       rating={rating}

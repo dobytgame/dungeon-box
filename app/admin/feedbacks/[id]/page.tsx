@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import AdminFeedbackLpToggle from '@/components/admin/AdminFeedbackLpToggle';
 import AdminStarRating from '@/components/admin/AdminStarRating';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminFeedbackDetail } from '@/lib/admin/feedback';
@@ -111,6 +112,12 @@ export default async function AdminFeedbackDetailPage({ params }: Props) {
             </div>
           </div>
         ) : null}
+
+        <AdminFeedbackLpToggle
+          feedbackId={feedback.id}
+          featuredOnLp={feedback.featuredOnLp}
+          hasMessage={!!feedback.message?.trim()}
+        />
       </div>
     </div>
   );

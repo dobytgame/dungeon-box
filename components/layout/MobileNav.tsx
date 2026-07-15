@@ -9,6 +9,7 @@ import { siteNavLinkClassName } from '@/lib/ui/site-nav';
 const DEFAULT_LINKS = [
   { href: '#planos', label: 'Planos' },
   { href: '#fidelidade', label: 'Fidelidade' },
+  { href: '#depoimentos', label: 'Depoimentos' },
   { href: '#temas', label: 'Temas' },
   { href: '/loja', label: 'Loja' },
   { href: '#faq', label: 'FAQ' },

@@ -9,6 +9,7 @@ import { isStoreLinkVisible } from '@/lib/store/access';
 const exploreLinks = [
   { href: '/#planos', label: 'Planos' },
   { href: '/#fidelidade', label: 'Fidelidade' },
+  { href: '/#depoimentos', label: 'Depoimentos' },
   { href: '/#temas', label: 'Temas' },
   { href: '/loja', label: 'Loja', storeOnly: true },
 ] as const;

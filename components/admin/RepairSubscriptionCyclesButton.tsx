@@ -2,14 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { syncAsaasSubscriptionAction } from '@/lib/admin/actions';
+import { repairSubscriptionCyclesAction } from '@/lib/admin/actions';
 
 interface Props {
   subscriptionId: string;
   compact?: boolean;
 }
 
-export default function SyncAsaasButton({ subscriptionId, compact }: Props) {
+export default function RepairSubscriptionCyclesButton({
+  subscriptionId,
+  compact = false,
+}: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
@@ -31,28 +34,21 @@ export default function SyncAsaasButton({ subscriptionId, compact }: Props) {
           setError('');
           setMessage('');
 
-          void syncAsaasSubscriptionAction(subscriptionId).then((result) => {
+          void repairSubscriptionCyclesAction(subscriptionId).then((result) => {
             setPending(false);
             if ('error' in result && result.error) {
               setError(result.error);
               return;
             }
             if ('success' in result && result.success) {
-              const parts = [
-                `Importadas ${result.upserted} de ${result.remoteCount} cobrança(s) do Asaas.`,
-                result.reconciled
-                  ? 'Assinatura pendente foi ativada com base no pagamento confirmado.'
-                  : 'Status da assinatura não foi alterado.',
-              ];
-              if (
-                result.productionRepair &&
-                !result.productionRepair.skipped &&
-                (result.productionRepair.monthsFixed > 0 ||
-                  result.productionRepair.renewalCyclesAttached > 0)
-              ) {
+              const parts = ['Ciclos sincronizados com os pagamentos aprovados.'];
+              if (result.renewalCyclesAttached > 0) {
                 parts.push(
-                  `Ciclos: ${result.productionRepair.renewalCyclesAttached} renovação(ões) vinculada(s).`
+                  `${result.renewalCyclesAttached} renovação(ões) vinculada(s).`
                 );
+              }
+              if (result.monthsFixed > 0) {
+                parts.push(`${result.monthsFixed} mês(es) de produção corrigido(s).`);
               }
               setMessage(parts.join(' '));
               router.refresh();
@@ -61,7 +57,7 @@ export default function SyncAsaasButton({ subscriptionId, compact }: Props) {
         }}
         className={buttonClass}
       >
-        {pending ? 'Sincronizando…' : compact ? 'Asaas' : 'Sincronizar Asaas'}
+        {pending ? 'Sincronizando…' : compact ? 'Ciclos' : 'Sincronizar ciclos'}
       </button>
       {!compact && error ? (
         <p className="max-w-xs font-mono text-[11px] text-red-400" role="alert">

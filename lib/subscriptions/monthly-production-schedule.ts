@@ -103,12 +103,21 @@ export function resolveSequentialProductionMonthKey(
   cycles: CycleMonthRow[],
   targetCycleNumber: number,
   paymentPaidAt: string,
-  options?: { excludeCycleNumber?: number }
+  options?: {
+    excludeCycleNumber?: number;
+    userOccupiedMonths?: Set<string>;
+  }
 ): string {
   const occupied = collectPaidProductionMonths(
     cycles,
     options?.excludeCycleNumber
   );
+
+  if (options?.userOccupiedMonths) {
+    for (const monthKey of Array.from(options.userOccupiedMonths)) {
+      occupied.add(monthKey);
+    }
+  }
 
   let candidate = mapRawMonthToProductionMonth(
     monthKeyFromDate(new Date(paymentPaidAt))
@@ -211,6 +220,37 @@ export async function loadSubscriptionCycleMonthRows(
   return (data ?? []) as CycleMonthRow[];
 }
 
+/** Meses de produção ocupados por outras assinaturas do mesmo cliente. */
+export async function loadUserOccupiedProductionMonths(
+  supabase: SupabaseClient,
+  userId: string,
+  options?: { excludeSubscriptionId?: string }
+): Promise<Set<string>> {
+  const { data: subs, error: subsError } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', userId);
+
+  if (subsError || !subs?.length) return new Set();
+
+  const subscriptionIds = subs
+    .map((row) => row.id as string)
+    .filter((id) => id !== options?.excludeSubscriptionId);
+
+  if (subscriptionIds.length === 0) return new Set();
+
+  const { data: cycles, error } = await supabase
+    .from('subscription_cycles')
+    .select(
+      'cycle_number, status, paid_at, created_at, scheduled_production_month, payment_id'
+    )
+    .in('subscription_id', subscriptionIds);
+
+  if (error || !cycles?.length) return new Set();
+
+  return collectOccupiedProductionMonths(cycles as CycleMonthRow[]);
+}
+
 export async function resolveMonthlyScheduledProductionMonth(
   supabase: SupabaseClient,
   subscriptionId: string,
@@ -218,11 +258,29 @@ export async function resolveMonthlyScheduledProductionMonth(
   targetCycleNumber: number
 ): Promise<string> {
   const cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
+
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('user_id')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  const userOccupied = subscription?.user_id
+    ? await loadUserOccupiedProductionMonths(
+        supabase,
+        subscription.user_id as string,
+        { excludeSubscriptionId: subscriptionId }
+      )
+    : new Set<string>();
+
   const monthKey = resolveSequentialProductionMonthKey(
     cycles,
     targetCycleNumber,
     paymentPaidAt,
-    { excludeCycleNumber: targetCycleNumber }
+    {
+      excludeCycleNumber: targetCycleNumber,
+      userOccupiedMonths: userOccupied,
+    }
   );
   return `${monthKey}-01`;
 }
@@ -281,19 +339,236 @@ export async function isMonthlySubscription(
   return !isComboTerm(billingTerm);
 }
 
+/** Corrige meses de produção e fidelidade de uma assinatura mensal. */
+export async function repairMonthlyProductionForSubscription(
+  supabase: SupabaseClient,
+  subscriptionId: string
+): Promise<{
+  monthsFixed: number;
+  loyaltyFixed: number;
+  renewalCyclesAttached: number;
+  spuriousCyclesCleared: number;
+  skipped?: 'not_found' | 'combo' | 'no_payments';
+}> {
+  const empty = {
+    monthsFixed: 0,
+    loyaltyFixed: 0,
+    renewalCyclesAttached: 0,
+    spuriousCyclesCleared: 0,
+  };
+
+  const { data: sub, error } = await supabase
+    .from('subscriptions')
+    .select('id, billing_term, loyalty_level, status, user_id')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (error || !sub) {
+    return { ...empty, skipped: 'not_found' as const };
+  }
+
+  const billingTerm = (sub.billing_term as BillingTerm | null) ?? 'monthly';
+  if (isComboTerm(billingTerm)) {
+    return { ...empty, skipped: 'combo' as const };
+  }
+
+  const approvedPayments = await loadApprovedBillingPayments(
+    supabase,
+    subscriptionId
+  );
+
+  if (!approvedPayments.length) {
+    return { ...empty, skipped: 'no_payments' as const };
+  }
+
+  let monthsFixed = 0;
+  let loyaltyFixed = 0;
+  let renewalCyclesAttached = 0;
+  let spuriousCyclesCleared = 0;
+  const now = new Date().toISOString();
+
+  let cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
+  const userOccupied = sub.user_id
+    ? await loadUserOccupiedProductionMonths(
+        supabase,
+        sub.user_id as string,
+        { excludeSubscriptionId: subscriptionId }
+      )
+    : new Set<string>();
+
+  for (let index = 0; index < approvedPayments.length; index += 1) {
+    const payment = approvedPayments[index]!;
+    const cycleNumber = index + 1;
+    const paidAt =
+      (payment.paid_at as string | null) ??
+      (payment.created_at as string | null) ??
+      now;
+    const monthKey = resolveSequentialProductionMonthKey(
+      cycles,
+      cycleNumber,
+      paidAt,
+      {
+        excludeCycleNumber: cycleNumber,
+        userOccupiedMonths: userOccupied,
+      }
+    );
+    const scheduledProductionMonth = `${monthKey}-01`;
+
+    const { data: existing } = await supabase
+      .from('subscription_cycles')
+      .select('payment_id, scheduled_production_month, status')
+      .eq('subscription_id', subscriptionId)
+      .eq('cycle_number', cycleNumber)
+      .maybeSingle();
+
+    const needsUpdate =
+      existing?.payment_id !== payment.id ||
+      existing?.scheduled_production_month !== scheduledProductionMonth;
+
+    if (!needsUpdate) continue;
+
+    const patch: Record<string, unknown> = {
+      payment_id: payment.id,
+      paid_at: paidAt,
+      amount_cents: payment.amount_cents,
+      scheduled_production_month: scheduledProductionMonth,
+      updated_at: now,
+    };
+
+    if (!existing) {
+      const { error: insertError } = await supabase
+        .from('subscription_cycles')
+        .insert({
+          subscription_id: subscriptionId,
+          cycle_number: cycleNumber,
+          status: 'upcoming',
+          ...patch,
+        });
+
+      if (!insertError) {
+        monthsFixed += 1;
+        if (index > 0) renewalCyclesAttached += 1;
+        cycles.push({
+          cycle_number: cycleNumber,
+          status: 'upcoming',
+          paid_at: paidAt,
+          created_at: null,
+          scheduled_production_month: scheduledProductionMonth,
+          payment_id: payment.id,
+        });
+        cycles.sort((a, b) => a.cycle_number - b.cycle_number);
+      }
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from('subscription_cycles')
+      .update(patch)
+      .eq('subscription_id', subscriptionId)
+      .eq('cycle_number', cycleNumber);
+
+    if (!updateError) {
+      monthsFixed += 1;
+      if (index > 0 && existing.payment_id !== payment.id) {
+        renewalCyclesAttached += 1;
+      }
+    }
+
+    const localIndex = cycles.findIndex(
+      (cycle) => cycle.cycle_number === cycleNumber
+    );
+    const localRow: CycleMonthRow = {
+      cycle_number: cycleNumber,
+      status: (existing?.status as string | null) ?? 'upcoming',
+      paid_at: paidAt,
+      created_at: null,
+      scheduled_production_month: scheduledProductionMonth,
+      payment_id: payment.id,
+    };
+    if (localIndex >= 0) {
+      cycles[localIndex] = { ...cycles[localIndex]!, ...localRow };
+    } else {
+      cycles.push(localRow);
+      cycles.sort((a, b) => a.cycle_number - b.cycle_number);
+    }
+  }
+
+  const billingPaymentCount = approvedPayments.length;
+  const { data: strayCycles } = await supabase
+    .from('subscription_cycles')
+    .select('cycle_number, payment_id, scheduled_production_month')
+    .eq('subscription_id', subscriptionId)
+    .gt('cycle_number', billingPaymentCount);
+
+  for (const stray of strayCycles ?? []) {
+    if (!stray.payment_id && !stray.scheduled_production_month) {
+      continue;
+    }
+
+    const { error: clearError } = await supabase
+      .from('subscription_cycles')
+      .update({
+        payment_id: null,
+        paid_at: null,
+        amount_cents: null,
+        scheduled_production_month: null,
+        updated_at: now,
+      })
+      .eq('subscription_id', subscriptionId)
+      .eq('cycle_number', stray.cycle_number as number);
+
+    if (!clearError) spuriousCyclesCleared += 1;
+  }
+
+  const approvedPaymentCount = approvedPayments.length;
+  const expectedLoyalty = loyaltyLevelFromApprovedPayments(approvedPaymentCount);
+  const expectedCurrentCycle = approvedPaymentCount + 1;
+
+  const { data: currentSub } = await supabase
+    .from('subscriptions')
+    .select('loyalty_level, current_cycle')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (
+    currentSub?.loyalty_level !== expectedLoyalty ||
+    currentSub?.current_cycle !== expectedCurrentCycle
+  ) {
+    const { error: loyaltyError } = await supabase
+      .from('subscriptions')
+      .update({
+        loyalty_level: expectedLoyalty,
+        current_cycle: expectedCurrentCycle,
+        updated_at: now,
+      })
+      .eq('id', subscriptionId);
+
+    if (!loyaltyError) loyaltyFixed += 1;
+  }
+
+  return { monthsFixed, loyaltyFixed, renewalCyclesAttached, spuriousCyclesCleared };
+}
+
 /** Corrige meses de produção e fidelidade em assinaturas mensais já afetadas. */
 export async function repairMonthlyProductionMonthsAndLoyalty(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  options?: { subscriptionId?: string }
 ): Promise<{
   monthsFixed: number;
   loyaltyFixed: number;
   renewalCyclesAttached: number;
   spuriousCyclesCleared: number;
 }> {
-  const { data: subs, error } = await supabase
+  let query = supabase
     .from('subscriptions')
     .select('id, billing_term, loyalty_level')
     .in('status', ['active', 'past_due', 'cancelled']);
+
+  if (options?.subscriptionId) {
+    query = query.eq('id', options.subscriptionId);
+  }
+
+  const { data: subs, error } = await query;
 
   if (error || !subs?.length) {
     return {
@@ -308,174 +583,17 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
   let loyaltyFixed = 0;
   let renewalCyclesAttached = 0;
   let spuriousCyclesCleared = 0;
-  const now = new Date().toISOString();
 
   for (const sub of subs) {
-    const billingTerm = (sub.billing_term as BillingTerm | null) ?? 'monthly';
-    if (isComboTerm(billingTerm)) continue;
-
-    const subscriptionId = sub.id as string;
-
-    const approvedPayments = await loadApprovedBillingPayments(
+    const result = await repairMonthlyProductionForSubscription(
       supabase,
-      subscriptionId
+      sub.id as string
     );
-
-    if (!approvedPayments.length) continue;
-
-    let cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
-
-    for (let index = 0; index < approvedPayments.length; index += 1) {
-      const payment = approvedPayments[index]!;
-      const cycleNumber = index + 1;
-      const paidAt =
-        (payment.paid_at as string | null) ??
-        (payment.created_at as string | null) ??
-        now;
-      const monthKey = resolveSequentialProductionMonthKey(
-        cycles,
-        cycleNumber,
-        paidAt,
-        { excludeCycleNumber: cycleNumber }
-      );
-      const scheduledProductionMonth = `${monthKey}-01`;
-
-      const { data: existing } = await supabase
-        .from('subscription_cycles')
-        .select('payment_id, scheduled_production_month, status')
-        .eq('subscription_id', subscriptionId)
-        .eq('cycle_number', cycleNumber)
-        .maybeSingle();
-
-      const needsUpdate =
-        existing?.payment_id !== payment.id ||
-        existing?.scheduled_production_month !== scheduledProductionMonth;
-
-      if (!needsUpdate) continue;
-
-      const patch: Record<string, unknown> = {
-        payment_id: payment.id,
-        paid_at: paidAt,
-        amount_cents: payment.amount_cents,
-        scheduled_production_month: scheduledProductionMonth,
-        updated_at: now,
-      };
-
-      if (!existing) {
-        const { error: insertError } = await supabase
-          .from('subscription_cycles')
-          .insert({
-            subscription_id: subscriptionId,
-            cycle_number: cycleNumber,
-            status: 'upcoming',
-            ...patch,
-          });
-
-        if (!insertError) {
-          monthsFixed += 1;
-          if (index > 0) renewalCyclesAttached += 1;
-          cycles.push({
-            cycle_number: cycleNumber,
-            status: 'upcoming',
-            paid_at: paidAt,
-            created_at: null,
-            scheduled_production_month: scheduledProductionMonth,
-            payment_id: payment.id,
-          });
-          cycles.sort((a, b) => a.cycle_number - b.cycle_number);
-        }
-        continue;
-      }
-
-      const { error: updateError } = await supabase
-        .from('subscription_cycles')
-        .update(patch)
-        .eq('subscription_id', subscriptionId)
-        .eq('cycle_number', cycleNumber);
-
-      if (!updateError) {
-        monthsFixed += 1;
-        if (index > 0 && existing.payment_id !== payment.id) {
-          renewalCyclesAttached += 1;
-        }
-      }
-
-      const localIndex = cycles.findIndex(
-        (cycle) => cycle.cycle_number === cycleNumber
-      );
-      const localRow: CycleMonthRow = {
-        cycle_number: cycleNumber,
-        status: (existing?.status as string | null) ?? 'upcoming',
-        paid_at: paidAt,
-        created_at: null,
-        scheduled_production_month: scheduledProductionMonth,
-        payment_id: payment.id,
-      };
-      if (localIndex >= 0) {
-        cycles[localIndex] = { ...cycles[localIndex]!, ...localRow };
-      } else {
-        cycles.push(localRow);
-        cycles.sort((a, b) => a.cycle_number - b.cycle_number);
-      }
-    }
-
-    const billingPaymentCount = approvedPayments.length;
-    const { data: strayCycles } = await supabase
-      .from('subscription_cycles')
-      .select('cycle_number, payment_id, scheduled_production_month')
-      .eq('subscription_id', subscriptionId)
-      .gt('cycle_number', billingPaymentCount);
-
-    for (const stray of strayCycles ?? []) {
-      if (
-        !stray.payment_id &&
-        !stray.scheduled_production_month
-      ) {
-        continue;
-      }
-
-      const { error: clearError } = await supabase
-        .from('subscription_cycles')
-        .update({
-          payment_id: null,
-          paid_at: null,
-          amount_cents: null,
-          scheduled_production_month: null,
-          updated_at: now,
-        })
-        .eq('subscription_id', subscriptionId)
-        .eq('cycle_number', stray.cycle_number as number);
-
-      if (!clearError) spuriousCyclesCleared += 1;
-    }
-
-    const approvedPaymentCount = approvedPayments.length;
-    const expectedLoyalty = loyaltyLevelFromApprovedPayments(approvedPaymentCount);
-    const expectedCurrentCycle = approvedPaymentCount + 1;
-
-    const { data: currentSub } = await supabase
-      .from('subscriptions')
-      .select('loyalty_level, current_cycle')
-      .eq('id', subscriptionId)
-      .maybeSingle();
-
-    if (
-      currentSub?.loyalty_level === expectedLoyalty &&
-      currentSub?.current_cycle === expectedCurrentCycle
-    ) {
-      continue;
-    }
-
-    const { error: loyaltyError } = await supabase
-      .from('subscriptions')
-      .update({
-        loyalty_level: expectedLoyalty,
-        current_cycle: expectedCurrentCycle,
-        updated_at: now,
-      })
-      .eq('id', subscriptionId);
-
-    if (!loyaltyError) loyaltyFixed += 1;
+    if (result.skipped) continue;
+    monthsFixed += result.monthsFixed;
+    loyaltyFixed += result.loyaltyFixed;
+    renewalCyclesAttached += result.renewalCyclesAttached;
+    spuriousCyclesCleared += result.spuriousCyclesCleared;
   }
 
   return { monthsFixed, loyaltyFixed, renewalCyclesAttached, spuriousCyclesCleared };

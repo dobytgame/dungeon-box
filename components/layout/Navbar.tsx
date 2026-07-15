@@ -66,6 +66,12 @@ export default function Navbar({ isLoggedIn = false, userName }: NavbarProps) {
               Fidelidade
             </Link>
             <Link
+              href="#depoimentos"
+              className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
+            >
+              Depoimentos
+            </Link>
+            <Link
               href="#temas"
               className={`cursor-pointer text-stone-300 transition-colors hover:text-white ${siteNavLinkClassName}`}
             >

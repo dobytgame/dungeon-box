@@ -3,6 +3,7 @@ import Footer from '@/components/layout/Footer';
 import Hero from '@/components/sections/Hero';
 import Marquee from '@/components/sections/Marquee';
 import PlansStack from '@/components/sections/PlansStack';
+import Depoimentos from '@/components/sections/Depoimentos';
 import Fidelidade from '@/components/sections/Fidelidade';
 import Temas from '@/components/sections/Temas';
 import FAQ from '@/components/sections/FAQ';
@@ -38,6 +39,7 @@ export default async function Home() {
         <Marquee />
         <PlansStack />
         <Fidelidade />
+        <Depoimentos />
         <Temas />
         <FAQ />
       </main>

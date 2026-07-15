@@ -10,9 +10,48 @@ import { USER_FEEDBACK_BUCKET } from '@/lib/feedback/upload';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
+export { SIGNED_URL_TTL_SECONDS };
+
 export type AdminFeedbackFilters = AdminListFilters & {
   rating?: string;
 };
+
+export type AdminFeedbackListResult = {
+  rows: AdminFeedbackRow[];
+  queryError: string | null;
+};
+
+const FEEDBACK_ADMIN_EMBEDS = `
+      profiles(full_name, display_name, email),
+      subscription_cycles(cycle_number, themes(name, emoji))
+`;
+
+const FEEDBACK_ADMIN_SELECT_WITH_FEATURED = `
+      id,
+      user_id,
+      subscription_cycle_id,
+      rating,
+      message,
+      image_paths,
+      featured_on_lp,
+      created_at,
+      ${FEEDBACK_ADMIN_EMBEDS}
+`;
+
+const FEEDBACK_ADMIN_SELECT_LEGACY = `
+      id,
+      user_id,
+      subscription_cycle_id,
+      rating,
+      message,
+      image_paths,
+      created_at,
+      ${FEEDBACK_ADMIN_EMBEDS}
+`;
+
+function isFeaturedColumnError(message: string): boolean {
+  return /featured_on_lp/i.test(message);
+}
 
 type FeedbackRecord = {
   id: string;
@@ -21,6 +60,7 @@ type FeedbackRecord = {
   rating: number;
   message: string | null;
   image_paths: string[] | null;
+  featured_on_lp?: boolean | null;
   created_at: string;
   profiles?:
     | {
@@ -65,6 +105,7 @@ function mapFeedbackRow(row: FeedbackRecord): AdminFeedbackRow {
     rating: row.rating,
     message: row.message,
     imageCount: imagePaths.length,
+    featuredOnLp: row.featured_on_lp ?? false,
     createdAt: row.created_at,
     customerName: profile?.full_name ?? profile?.display_name ?? null,
     customerEmail: profile?.email ?? null,
@@ -115,61 +156,63 @@ export async function getAdminFeedbackStats(
 export async function listAdminFeedback(
   admin: SupabaseClient,
   filters: AdminFeedbackFilters = {}
-): Promise<AdminFeedbackRow[]> {
+): Promise<AdminFeedbackListResult> {
   const limit = filters.limit ?? 100;
 
-  let query = admin
-    .from('user_feedback')
-    .select(
-      `
-      id,
-      user_id,
-      subscription_cycle_id,
-      rating,
-      message,
-      image_paths,
-      created_at,
-      profiles(full_name, display_name, email),
-      subscription_cycles(cycle_number, themes(name, emoji))
-    `
-    )
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  async function runQuery(select: string) {
+    let query = admin
+      .from('user_feedback')
+      .select(select)
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-  const rating = filters.rating?.trim();
-  if (rating && /^[1-5]$/.test(rating)) {
-    query = query.eq('rating', Number(rating));
-  }
-
-  const q = filters.q?.trim();
-  if (q) {
-    const userIds = await resolveMatchingUserIds(admin, q);
-    if (userIds && userIds.length > 0) {
-      query = query.in('user_id', userIds);
-    } else {
-      query = query.ilike('message', `%${q}%`);
+    const rating = filters.rating?.trim();
+    if (rating && /^[1-5]$/.test(rating)) {
+      query = query.eq('rating', Number(rating));
     }
+
+    const q = filters.q?.trim();
+    if (q) {
+      const userIds = await resolveMatchingUserIds(admin, q);
+      if (userIds && userIds.length > 0) {
+        query = query.in('user_id', userIds);
+      } else {
+        query = query.ilike('message', `%${q}%`);
+      }
+    }
+
+    return query;
   }
 
-  const { data, error } = await query;
+  let { data, error } = await runQuery(FEEDBACK_ADMIN_SELECT_WITH_FEATURED);
+
+  if (error && isFeaturedColumnError(error.message)) {
+    console.warn('[admin] listAdminFeedback: featured_on_lp missing, using legacy select');
+    ({ data, error } = await runQuery(FEEDBACK_ADMIN_SELECT_LEGACY));
+  }
+
   if (error) {
     console.error('[admin] listAdminFeedback:', error.message);
-    return [];
+    return { rows: [], queryError: error.message };
   }
 
-  return (data ?? []).map((row) => mapFeedbackRow(row as FeedbackRecord));
+  return {
+    rows: (data ?? []).map((row) => mapFeedbackRow(row as unknown as FeedbackRecord)),
+    queryError: null,
+  };
 }
 
 export async function getFeedbackImageSignedUrls(
   admin: SupabaseClient,
-  paths: string[]
+  paths: string[],
+  ttlSeconds = SIGNED_URL_TTL_SECONDS
 ): Promise<string[]> {
   const urls: string[] = [];
 
   for (const path of paths) {
     const { data, error } = await admin.storage
       .from(USER_FEEDBACK_BUCKET)
-      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+      .createSignedUrl(path, ttlSeconds);
 
     if (error) {
       console.warn('[admin] signed url failed:', path, error.message);
@@ -188,23 +231,20 @@ export async function getAdminFeedbackDetail(
   admin: SupabaseClient,
   feedbackId: string
 ): Promise<AdminFeedbackDetail | null> {
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from('user_feedback')
-    .select(
-      `
-      id,
-      user_id,
-      subscription_cycle_id,
-      rating,
-      message,
-      image_paths,
-      created_at,
-      profiles(full_name, display_name, email),
-      subscription_cycles(cycle_number, themes(name, emoji))
-    `
-    )
+    .select(FEEDBACK_ADMIN_SELECT_WITH_FEATURED)
     .eq('id', feedbackId)
     .maybeSingle();
+
+  if (error && isFeaturedColumnError(error.message)) {
+    console.warn('[admin] getAdminFeedbackDetail: featured_on_lp missing, using legacy select');
+    ({ data, error } = await admin
+      .from('user_feedback')
+      .select(FEEDBACK_ADMIN_SELECT_LEGACY)
+      .eq('id', feedbackId)
+      .maybeSingle());
+  }
 
   if (error || !data) {
     if (error) console.error('[admin] getAdminFeedbackDetail:', error.message);

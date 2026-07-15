@@ -80,6 +80,7 @@ export const ADMIN_NAV = [
     group: 'catalogo',
     children: [
       { href: '/admin/loja', label: 'Produtos' },
+      { href: '/admin/loja/pedidos', label: 'Pedidos' },
       { href: '/admin/loja/categorias', label: 'Categorias' },
       { href: '/admin/loja/banners', label: 'Banners' },
     ],

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import AdminFeedbackLpToggle from '@/components/admin/AdminFeedbackLpToggle';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminStarRating from '@/components/admin/AdminStarRating';
 import AdminTable from '@/components/admin/AdminTable';
@@ -9,6 +10,7 @@ import { formatDateTime } from '@/lib/dashboard/format';
 
 interface Props {
   feedbacks: AdminFeedbackRow[];
+  queryError?: string | null;
   stats: AdminFeedbackStats;
   q?: string;
   rating?: string;
@@ -22,12 +24,31 @@ function truncateMessage(message: string | null, max = 80): string {
 
 export default function AdminFeedbacksClient({
   feedbacks,
+  queryError,
   stats,
   q,
   rating,
 }: Props) {
   return (
     <div className="space-y-6">
+      {queryError ? (
+        <div
+          className="rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          role="alert"
+        >
+          Não foi possível carregar os feedbacks: {queryError}
+        </div>
+      ) : null}
+
+      {stats.total > 0 && feedbacks.length === 0 && !queryError ? (
+        <div
+          className="rounded border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+          role="status"
+        >
+          Existem {stats.total} feedback(s) no banco, mas a listagem veio vazia. Rode no SQL
+          Editor: <code className="text-amber-50">NOTIFY pgrst, &apos;reload schema&apos;;</code>
+        </div>
+      ) : null}
       <div className="admin-panel grid gap-4 rounded p-4 sm:grid-cols-3">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
@@ -121,6 +142,18 @@ export default function AdminFeedbacksClient({
             header: 'Comentário',
             cell: (row) => (
               <span className="text-zinc-400">{truncateMessage(row.message)}</span>
+            ),
+          },
+          {
+            key: 'lp',
+            header: 'Publicar',
+            cell: (row) => (
+              <AdminFeedbackLpToggle
+                compact
+                feedbackId={row.id}
+                featuredOnLp={row.featuredOnLp}
+                hasMessage={!!row.message?.trim()}
+              />
             ),
           },
           {
