@@ -11,6 +11,7 @@ import CycleScheduleForm from '@/components/admin/CycleScheduleForm';
 import CycleShippingCostForm from '@/components/admin/CycleShippingCostForm';
 import ProductionChecklist from '@/components/admin/ProductionChecklist';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
+import StoreOrderItemsSection from '@/components/admin/StoreOrderItemsSection';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
@@ -143,6 +144,30 @@ export default function CycleDetailContent({
           </div>
         ) : null}
       </section>
+
+      {detail.storeOrderPurchases.length > 0 ? (
+        <section className="admin-panel rounded p-4 md:p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+            {detail.isStandaloneStoreOrder
+              ? 'Itens do pedido'
+              : 'Compras na loja'}
+          </p>
+          <p className="mt-1 text-sm text-zinc-500">
+            {detail.isStandaloneStoreOrder
+              ? 'Produtos adquiridos neste pedido avulso.'
+              : 'Add-ons e produtos comprados na loja para este ciclo.'}
+          </p>
+          <div className="mt-4">
+            <StoreOrderItemsSection
+              purchases={detail.storeOrderPurchases}
+              showOrderId={
+                detail.isStandaloneStoreOrder &&
+                detail.storeOrderPurchases.length > 1
+              }
+            />
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className={`admin-panel rounded p-4 ${subscriptionPanelClass}`}>

@@ -7,6 +7,7 @@ import {
   resolveCycleEffectivePaidAt,
 } from '@/lib/admin/cycle-payment-resolve';
 import { toAdminCycleDetailView, type AdminCyclePendingStoreOrder } from '@/lib/admin/cycle-detail-view';
+import type { AdminStoreOrderPurchaseView } from '@/lib/admin/store-order-lines';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
 import {
   getStandaloneStoreOrderDetail,
@@ -83,6 +84,7 @@ export async function GET(_request: Request, context: RouteContext) {
     let productionChecklist: ProductionChecklistItem[] = [];
     let shipmentFinance = null;
     let pendingBundledOrders: AdminCyclePendingStoreOrder[] = [];
+    let storeOrderPurchases: AdminStoreOrderPurchaseView[] = [];
 
     if (subscriptionId) {
       const resolved = await resolveCycleProductionDataWithFinance(admin, {
@@ -118,6 +120,7 @@ export async function GET(_request: Request, context: RouteContext) {
       productionChecklist = resolved.productionChecklist;
       shipmentFinance = resolved.finance;
       pendingBundledOrders = resolved.pendingBundledOrders;
+      storeOrderPurchases = resolved.storeOrderPurchases;
     }
 
     return NextResponse.json(
@@ -126,7 +129,8 @@ export async function GET(_request: Request, context: RouteContext) {
         shipmentItems,
         productionChecklist,
         shipmentFinance,
-        pendingBundledOrders
+        pendingBundledOrders,
+        storeOrderPurchases
       )
     );
   } catch {

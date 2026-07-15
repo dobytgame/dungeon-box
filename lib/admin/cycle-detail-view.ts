@@ -3,6 +3,7 @@ import type {
   ProductionChecklistItem,
 } from '@/lib/admin/cycle-shipment-items';
 import type { CycleShipmentFinance } from '@/lib/admin/cycle-shipment-finance';
+import type { AdminStoreOrderPurchaseView } from '@/lib/admin/store-order-lines';
 import { resolveProductionMonthKey, mapRawMonthToProductionMonth } from '@/lib/admin/production-month';
 import type { Address, SubscriptionCycle } from '@/lib/dashboard/types';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
@@ -97,6 +98,8 @@ export interface AdminCycleDetailView {
   scheduledProductionMonth: string | null;
   /** Mês efetivo no kanban (YYYY-MM), considerando fallback de pagamento. */
   productionMonthKey: string | null;
+  /** Compras na loja vinculadas a este pedido (avulso ou add-ons na assinatura). */
+  storeOrderPurchases: AdminStoreOrderPurchaseView[];
 }
 
 const REGION_LABELS: Record<ShippingRegion, string> = {
@@ -180,7 +183,8 @@ export function toAdminCycleDetailView(
   shipmentItems: CycleShipmentItem[] = [],
   productionChecklist: ProductionChecklistItem[] = [],
   shipmentFinance: CycleShipmentFinance | null = null,
-  pendingBundledOrders: AdminCyclePendingStoreOrder[] = []
+  pendingBundledOrders: AdminCyclePendingStoreOrder[] = [],
+  storeOrderPurchases: AdminStoreOrderPurchaseView[] = []
 ): AdminCycleDetailView {
   const subscription = relOne(cycle.subscriptions);
   const plan = subscription ? relOne(subscription.plans) : null;
@@ -295,6 +299,7 @@ export function toAdminCycleDetailView(
     isStandaloneStoreOrder: false,
     scheduledProductionMonth,
     productionMonthKey,
+    storeOrderPurchases,
   };
 }
 
@@ -312,6 +317,7 @@ export function toStandaloneStoreOrderDetailView(input: {
   userId: string;
   shipmentItems: CycleShipmentItem[];
   orderAddress: AdminCycleOrderAddress | null;
+  storeOrderPurchases?: AdminStoreOrderPurchaseView[];
 }): AdminCycleDetailView {
   const { meta } = input;
   const orderLabel =
@@ -387,5 +393,6 @@ export function toStandaloneStoreOrderDetailView(input: {
             (input.paidAt ?? input.createdAt)!.slice(0, 7)
           )
         : null,
+    storeOrderPurchases: input.storeOrderPurchases ?? [],
   };
 }

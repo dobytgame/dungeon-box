@@ -6,6 +6,7 @@ import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import { storeOrderMetaToExtraItems } from '@/lib/admin/cycle-shipment-items';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import type { AdminCycleExtraItem, AdminCycleRow } from '@/lib/admin/types';
+import { storeOrderPurchaseFromMeta } from '@/lib/admin/store-order-lines';
 import {
   toStandaloneStoreOrderDetailView,
   type AdminCycleDetailView,
@@ -516,11 +517,19 @@ export async function getStandaloneStoreOrderDetail(
   let totalCents = 0;
   const extraItems: AdminCycleExtraItem[] = [];
   const seenItemIds = new Set<string>();
+  const storeOrderPurchases = [];
 
   for (const row of payments) {
     const meta = parseStoreOrderMeta(row.status_detail);
     if (!meta) continue;
     totalCents += (row.amount_cents as number) ?? 0;
+    storeOrderPurchases.push(
+      storeOrderPurchaseFromMeta(
+        row.id as string,
+        meta,
+        (row.amount_cents as number) ?? 0
+      )
+    );
     for (const item of storeOrderMetaToExtraItems(meta, false)) {
       if (!seenItemIds.has(item.id)) {
         extraItems.push(item);
@@ -591,6 +600,7 @@ export async function getStandaloneStoreOrderDetail(
       planSlug: null,
     })),
     orderAddress,
+    storeOrderPurchases,
   });
 }
 

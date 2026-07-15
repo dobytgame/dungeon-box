@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
 import CycleShipForm from '@/components/admin/CycleShipForm';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
+import StoreOrderItemsSection from '@/components/admin/StoreOrderItemsSection';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminStoreOrderDetail } from '@/lib/admin/store-orders';
+import { storeOrderPurchaseFromMeta } from '@/lib/admin/store-order-lines';
 import {
   formatDate,
   formatDateTime,
@@ -18,12 +20,14 @@ import { cycleStatusLabel } from '@/lib/subscriptions/cycle-production';
 
 interface Props {
   order: AdminStoreOrderDetail;
+  onUpdated?: () => void;
 }
 
-export default function StoreOrderDetailPanel({ order }: Props) {
+export default function StoreOrderDetailPanel({ order, onUpdated }: Props) {
   const router = useRouter();
 
   function refresh() {
+    onUpdated?.();
     router.refresh();
   }
 
@@ -41,8 +45,9 @@ export default function StoreOrderDetailPanel({ order }: Props) {
                 Pedido avulso
               </p>
               <h2 className="mt-1 font-mono text-lg font-medium text-zinc-100">
-                {detail.shipmentItems.map((item) => item.name).join(', ') ||
-                  'Loja avulsa'}
+                {detail.storeOrderPurchases
+                  .flatMap((purchase) => purchase.items.map((item) => item.name))
+                  .join(', ') || 'Loja avulsa'}
               </h2>
             </div>
             <StatusBadge kind="cycle" status={detail.status} />
@@ -87,22 +92,17 @@ export default function StoreOrderDetailPanel({ order }: Props) {
           </dl>
         </section>
 
-        {detail.shipmentItems.length > 0 ? (
+        {detail.storeOrderPurchases.length > 0 ? (
           <section className="admin-panel rounded p-5 md:p-6">
             <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">
               Itens do pedido
             </h3>
-            <ul className="mt-4 space-y-2 text-sm text-zinc-300">
-              {detail.shipmentItems.map((item) => (
-                <li key={item.id} className="flex justify-between gap-4">
-                  <span>
-                    {item.name}
-                    {item.quantity > 1 ? ` ×${item.quantity}` : ''}
-                  </span>
-                  <span className="shrink-0 text-zinc-500">{item.tag}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4">
+              <StoreOrderItemsSection
+                purchases={detail.storeOrderPurchases}
+                showOrderId={detail.storeOrderPurchases.length > 1}
+              />
+            </div>
           </section>
         ) : null}
 
@@ -217,27 +217,17 @@ export default function StoreOrderDetailPanel({ order }: Props) {
         <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">
           Itens do pedido
         </h3>
-        <ul className="mt-4 space-y-2 text-sm text-zinc-300">
-          {order.meta.items.map((item, index) => (
-            <li key={`${item.productId}-${index}`} className="flex justify-between gap-4">
-              <span>
-                {item.name}
-                {item.quantity > 1 ? ` ×${item.quantity}` : ''}
-              </span>
-              <span className="shrink-0 text-zinc-500">
-                {formatMoney(item.lineTotalCents)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {order.meta.shippingLabel ? (
-          <p className="mt-4 text-xs text-zinc-500">
-            Frete: {order.meta.shippingLabel}
-            {order.meta.shippingCents
-              ? ` · ${formatMoney(order.meta.shippingCents)}`
-              : ''}
-          </p>
-        ) : null}
+        <div className="mt-4">
+          <StoreOrderItemsSection
+            purchases={[
+              storeOrderPurchaseFromMeta(
+                order.paymentId,
+                order.meta,
+                order.amountCents
+              ),
+            ]}
+          />
+        </div>
         <p className="mt-4 text-xs text-zinc-600">
           Pedido em {order.createdAt ? formatDate(order.createdAt) : '—'}
         </p>

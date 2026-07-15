@@ -15,6 +15,10 @@ import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/mont
 import { formatVariationSummary } from '@/lib/store/product-variations';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import type { AdminCycleExtraItem } from '@/lib/admin/types';
+import {
+  storeOrderPurchaseFromMeta,
+  type AdminStoreOrderPurchaseView,
+} from '@/lib/admin/store-order-lines';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
   buildPlanProductionCostMap,
@@ -283,6 +287,25 @@ export function assignStoreOrderToCycle(
   }
 
   return sorted[sorted.length - 1] ?? null;
+}
+
+export function bundledStoreOrderPurchasesForCycle(
+  cycle: CycleShipmentContext,
+  siblingCycles: CycleShipmentContext[],
+  storeOrders: StoreOrderPaymentRow[]
+): AdminStoreOrderPurchaseView[] {
+  const purchases: AdminStoreOrderPurchaseView[] = [];
+
+  for (const order of storeOrders) {
+    if (order.paymentStatus !== 'approved') continue;
+    const assigned = assignStoreOrderToCycle(order, siblingCycles);
+    if (assigned?.cycleId !== cycle.cycleId) continue;
+    purchases.push(
+      storeOrderPurchaseFromMeta(order.id, order.meta, order.amount_cents)
+    );
+  }
+
+  return purchases;
 }
 
 /** Atribui pedidos da loja ao ciclo de envio correspondente. */
@@ -895,5 +918,19 @@ export async function resolveCycleProductionDataWithFinance(
     fallbackMonthlyRevenueCents: input.fallbackMonthlyRevenueCents,
   });
 
-  return { shipmentItems, productionChecklist, finance, pendingBundledOrders: describePendingStoreOrdersForCycle(cycle, siblingCycles, storeOrders) };
+  return {
+    shipmentItems,
+    productionChecklist,
+    finance,
+    pendingBundledOrders: describePendingStoreOrdersForCycle(
+      cycle,
+      siblingCycles,
+      storeOrders
+    ),
+    storeOrderPurchases: bundledStoreOrderPurchasesForCycle(
+      cycle,
+      siblingCycles,
+      storeOrders
+    ),
+  };
 }
