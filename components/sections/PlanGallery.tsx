@@ -12,6 +12,8 @@ interface Props {
   priority?: boolean;
 }
 
+const MAX_THUMBNAILS = 3;
+
 export default function PlanGallery({
   planName,
   images,
@@ -169,7 +171,7 @@ export default function PlanGallery({
 
       {hasMultiple ? (
         <ul className="mt-3 grid grid-cols-3 gap-2">
-          {gallery.map((url, index) => (
+          {gallery.slice(0, MAX_THUMBNAILS).map((url, index) => (
             <li key={`${url}-${index}`}>
               <button
                 type="button"
