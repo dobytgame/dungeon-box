@@ -146,6 +146,22 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
             label="Membro desde"
             value={formatDate(subscription.started_at)}
           />
+          {subscription.cancelled_at ? (
+            <DataRow
+              label="Cancelada em"
+              value={formatDateTime(subscription.cancelled_at)}
+            />
+          ) : null}
+          {subscription.cancel_reason ? (
+            <DataRow
+              label="Motivo do cancelamento"
+              value={
+                <span className="block max-w-prose whitespace-pre-wrap text-stone-300">
+                  {subscription.cancel_reason}
+                </span>
+              }
+            />
+          ) : null}
           <DataRow
             label="Frete"
             value={formatMoney(subscription.shipping_cents ?? 0)}

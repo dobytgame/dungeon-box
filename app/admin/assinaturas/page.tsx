@@ -153,6 +153,18 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
             cell: (row) => formatDate(row.next_billing_date),
           },
           {
+            key: 'cancel_reason',
+            header: 'Motivo cancelamento',
+            cell: (row) =>
+              row.cancel_reason ? (
+                <p className="max-w-xs text-sm text-stone-400" title={row.cancel_reason}>
+                  {row.cancel_reason}
+                </p>
+              ) : (
+                '—'
+              ),
+          },
+          {
             key: 'asaas',
             header: 'Asaas',
             cell: (row) =>

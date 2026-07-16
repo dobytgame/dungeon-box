@@ -881,6 +881,8 @@ export async function listAdminSubscriptions(
       combo_total_cents,
       combo_installments,
       prepaid_until,
+      cancelled_at,
+      cancel_reason,
       profiles(full_name, display_name, email),
       plans!plan_id(name, slug)
     `
@@ -927,6 +929,8 @@ export async function listAdminSubscriptions(
       comboTotalCents: (row.combo_total_cents as number | null) ?? null,
       comboInstallments: (row.combo_installments as number | null) ?? null,
       prepaidUntil: (row.prepaid_until as string | null) ?? null,
+      cancelled_at: (row.cancelled_at as string | null) ?? null,
+      cancel_reason: (row.cancel_reason as string | null) ?? null,
     };
   });
 }

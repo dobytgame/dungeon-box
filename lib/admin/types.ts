@@ -165,6 +165,8 @@ export interface AdminSubscriptionRow {
   comboTotalCents: number | null;
   comboInstallments: number | null;
   prepaidUntil: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
 }
 
 export interface AdminCycleBundledTag {
