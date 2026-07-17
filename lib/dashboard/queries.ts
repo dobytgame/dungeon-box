@@ -12,7 +12,22 @@ import type {
   Profile,
   Subscription,
   SubscriptionCycle,
+  SubscriptionStatus,
 } from './types';
+
+export type AsaasCardUpdateSubscription = {
+  id: string;
+  planName: string;
+  status: SubscriptionStatus;
+  cardLast4: string | null;
+  cardBrand: string | null;
+};
+
+const ASAAS_CARD_UPDATE_STATUSES = new Set<SubscriptionStatus>([
+  'active',
+  'past_due',
+  'paused',
+]);
 
 export async function requireDashboardUser() {
   const supabase = createClient();
@@ -198,6 +213,62 @@ export async function getPayments(userId: string): Promise<Payment[]> {
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   return data ?? [];
+}
+
+function relOnePlanName(subscription: Subscription): string {
+  const plan = Array.isArray(subscription.plans)
+    ? subscription.plans[0]
+    : subscription.plans;
+  return plan?.name ?? 'Assinatura';
+}
+
+/** Assinaturas Asaas elegíveis para troca de cartão no painel financeiro. */
+export async function getAsaasCardUpdateSubscriptions(
+  userId: string
+): Promise<AsaasCardUpdateSubscription[]> {
+  const subscriptions = await getManageableSubscriptions(userId);
+  const eligible = subscriptions.filter(
+    (sub) =>
+      sub.asaas_subscription_id &&
+      ASAAS_CARD_UPDATE_STATUSES.has(sub.status)
+  );
+
+  if (eligible.length === 0) return [];
+
+  const supabase = createClient();
+  const subscriptionIds = eligible.map((sub) => sub.id);
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('subscription_id, card_last4, card_brand, paid_at, created_at')
+    .in('subscription_id', subscriptionIds)
+    .not('card_last4', 'is', null)
+    .order('paid_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  const cardBySubscription = new Map<
+    string,
+    { cardLast4: string; cardBrand: string | null }
+  >();
+
+  for (const payment of payments ?? []) {
+    if (!payment.subscription_id || !payment.card_last4) continue;
+    if (cardBySubscription.has(payment.subscription_id)) continue;
+    cardBySubscription.set(payment.subscription_id, {
+      cardLast4: payment.card_last4,
+      cardBrand: payment.card_brand,
+    });
+  }
+
+  return eligible.map((sub) => {
+    const card = cardBySubscription.get(sub.id);
+    return {
+      id: sub.id,
+      planName: relOnePlanName(sub),
+      status: sub.status,
+      cardLast4: card?.cardLast4 ?? null,
+      cardBrand: card?.cardBrand ?? null,
+    };
+  });
 }
 
 export async function getAddresses(userId: string): Promise<Address[]> {

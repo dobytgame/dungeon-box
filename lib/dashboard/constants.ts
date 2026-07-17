@@ -54,7 +54,7 @@ export const DASHBOARD_NAV = [
     label: 'Pagamentos',
     icon: 'payment',
     eyebrow: 'Cofre',
-    description: 'Histórico de cobranças e detalhes de cada pagamento.',
+    description: 'Histórico de cobranças, troca de cartão da assinatura e detalhes de cada pagamento.',
   },
   {
     href: '/dashboard/profile',

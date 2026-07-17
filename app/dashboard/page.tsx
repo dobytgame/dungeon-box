@@ -170,7 +170,7 @@ export default async function DashboardPage() {
           {[
             { href: '/dashboard/profile', label: 'Editar perfil', desc: 'CPF, telefone e dados' },
             { href: '/dashboard/addresses', label: 'Endereços', desc: 'Entrega e padrão' },
-            { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e cartão' },
+            { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e troca de cartão' },
             { href: '/dashboard/loyalty', label: 'Fidelidade', desc: 'Níveis e votos' },
           ].map((item) => (
             <Link
