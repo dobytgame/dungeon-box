@@ -18,6 +18,8 @@ import {
 } from '@/lib/checkout/combo-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
 import type { PlanSlug } from '@/lib/checkout/plans';
+import { getPaintKitBump, type PaintKitBumpId } from '@/lib/checkout/order-bumps';
+import { buildSpecialNotes } from '@/lib/checkout/special-notes';
 import {
   recordPromoRedemption,
   resolvePromoCode,
@@ -36,6 +38,8 @@ export type AdminCreateSubscriptionPixInput = {
   billingTerm: BillingTerm;
   couponCode?: string | null;
   specialNotes?: string | null;
+  paintKitBump?: PaintKitBumpId | null;
+  paintKitBumpRecurring?: boolean;
 };
 
 export type AdminCreateSubscriptionPixResult = {
@@ -190,6 +194,18 @@ export async function createAdminSubscriptionWithPix(
 
   chargePriceCents += freightMonthlyCents;
 
+  const bump = getPaintKitBump(input.paintKitBump ?? null);
+  const bumpRecurring = Boolean(input.paintKitBumpRecurring && bump);
+  const bumpOneTimeCents = bump && !bumpRecurring ? bump.priceCents : 0;
+  const bumpMonthlyCents = bump && bumpRecurring ? bump.priceCents : 0;
+  chargePriceCents += bumpMonthlyCents;
+
+  const builtSpecialNotes = buildSpecialNotes(
+    input.paintKitBump ?? null,
+    input.specialNotes ?? '',
+    bumpRecurring
+  );
+
   const isCombo = isComboTerm(input.billingTerm);
   let chargeTotalCents = chargePriceCents;
 
@@ -198,14 +214,14 @@ export async function createAdminSubscriptionWithPix(
       planSlugs: [input.planSlug],
       billingTerm: input.billingTerm,
       installmentCount: 1,
-      paintKitBump: null,
-      paintKitBumpRecurring: false,
+      paintKitBump: input.paintKitBump ?? null,
+      paintKitBumpRecurring: bumpRecurring,
       addressId: input.addressId,
       specialNotes: input.specialNotes ?? '',
       discountedPlanCentsByPlan: resolvedCoupon
         ? {
             [input.planSlug]:
-              chargePriceCents - freightMonthlyCents,
+              chargePriceCents - freightMonthlyCents - bumpMonthlyCents,
           }
         : undefined,
       shippingByPlan: {
@@ -223,6 +239,8 @@ export async function createAdminSubscriptionWithPix(
       checkoutSnapshot,
       input.billingTerm as Exclude<BillingTerm, 'monthly'>
     );
+  } else {
+    chargeTotalCents += bumpOneTimeCents;
   }
 
   if (chargeTotalCents <= 0) {
@@ -250,7 +268,7 @@ export async function createAdminSubscriptionWithPix(
   const subscriptionRow = {
     plan_id: plan.id,
     address_id: input.addressId,
-    special_notes: input.specialNotes?.trim() || null,
+    special_notes: builtSpecialNotes,
     status: 'pending' as const,
     asaas_customer_id: asaasCustomerId,
     asaas_subscription_id: null,
@@ -300,8 +318,8 @@ export async function createAdminSubscriptionWithPix(
   }
 
   const description = isCombo
-    ? `DungeonBox — ${comboLabel(input.billingTerm)} (${plan.name})`
-    : `DungeonBox — ${plan.name}`;
+    ? `DungeonBox — ${comboLabel(input.billingTerm)} (${plan.name}${bump ? ` + ${bump.name}` : ''})`
+    : `DungeonBox — ${plan.name}${bump ? ` + ${bump.name}` : ''}`;
 
   const externalReference = isCombo
     ? `${subscriptionId}:combo`

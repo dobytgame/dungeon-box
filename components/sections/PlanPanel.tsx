@@ -51,7 +51,10 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
       : '—';
   const tableShort =
     'table' in plan && plan.table ? plan.table.replace(/^Mesa:\s*/i, '') : '—';
-  const piecesShort = plan.pieces.replace(/\s*peças/i, '');
+  const piecesMetric =
+    'pieceCount' in plan && typeof plan.pieceCount === 'number'
+      ? String(plan.pieceCount)
+      : plan.pieces.replace(/^Aproximadamente\s+/i, '').replace(/\s*peças.*/, '');
 
   return (
     <section
@@ -197,7 +200,7 @@ export default function PlanPanel({ planId, isFirst = false }: Props) {
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <PlanMetric
                 label="Peças"
-                value={`${piecesShort} peças`}
+                value={`aprox. ${piecesMetric} peças`}
                 accentClass={theme.nameClass}
               />
               <PlanMetric

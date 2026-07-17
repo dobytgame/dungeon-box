@@ -1201,6 +1201,14 @@ export async function adminCreateSubscriptionPixAction(
   const billingTerm = (formData.get('billing_term') as string)?.trim() as BillingTerm;
   const couponCode = (formData.get('coupon_code') as string | null)?.trim() || null;
   const specialNotes = (formData.get('special_notes') as string | null)?.trim() || null;
+  const paintKitBumpRaw = (formData.get('paint_kit_bump') as string | null)?.trim();
+  const paintKitBump =
+    paintKitBumpRaw === 'amador' || paintKitBumpRaw === 'profissional'
+      ? paintKitBumpRaw
+      : null;
+  const paintKitBumpRecurring =
+    formData.get('paint_kit_bump_recurring') === '1' ||
+    formData.get('paint_kit_bump_recurring') === 'true';
 
   if (!planSlug || !PLAN_SLUGS.includes(planSlug as PlanSlug)) {
     return { error: 'Selecione um plano válido.' };
@@ -1222,6 +1230,8 @@ export async function adminCreateSubscriptionPixAction(
       billingTerm,
       couponCode,
       specialNotes,
+      paintKitBump,
+      paintKitBumpRecurring,
     });
 
     await logAdminAction(admin, {
@@ -1237,6 +1247,8 @@ export async function adminCreateSubscriptionPixAction(
         amount_cents: result.amountCents,
         email_sent: result.emailSent,
         coupon_code: couponCode,
+        paint_kit_bump: paintKitBump,
+        paint_kit_bump_recurring: paintKitBumpRecurring,
       },
       ipAddress: await clientIp(),
     });

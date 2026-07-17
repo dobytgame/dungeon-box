@@ -8,11 +8,14 @@ import AdminCustomerBillingProfileForm, {
   hasValidCpf,
   hasValidPhone,
 } from '@/components/admin/AdminCustomerBillingProfileForm';
+import OrderBumpCard from '@/components/checkout/OrderBumpCard';
 import { adminCreateSubscriptionPixAction } from '@/lib/admin/actions';
 import {
   COMBO_OPTIONS,
   type BillingTerm,
 } from '@/lib/checkout/combo-billing';
+import type { PaintKitBumpId } from '@/lib/checkout/order-bumps';
+import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { formatMoney } from '@/lib/dashboard/format';
 
@@ -81,6 +84,8 @@ export default function CustomerActivatePlanPanel({
   const [billingTerm, setBillingTerm] = useState<BillingTerm>('monthly');
   const [couponCode, setCouponCode] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
+  const [paintKitBump, setPaintKitBump] = useState<PaintKitBumpId | null>(null);
+  const [paintKitBumpRecurring, setPaintKitBumpRecurring] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(addresses.length === 0);
 
   const profileComplete =
@@ -115,6 +120,8 @@ export default function CustomerActivatePlanPanel({
     [billingTerm]
   );
 
+  const selectedPaintKit = getPaintKitBump(paintKitBump);
+
   function submit() {
     setMessage('');
     setError('');
@@ -129,6 +136,12 @@ export default function CustomerActivatePlanPanel({
     }
     if (specialNotes.trim()) {
       formData.set('special_notes', specialNotes.trim());
+    }
+    if (paintKitBump) {
+      formData.set('paint_kit_bump', paintKitBump);
+      if (paintKitBumpRecurring) {
+        formData.set('paint_kit_bump_recurring', '1');
+      }
     }
 
     startTransition(async () => {
@@ -367,6 +380,26 @@ export default function CustomerActivatePlanPanel({
         </div>
       </div>
 
+      <div className="mt-5 rounded-sm border border-white/[0.08] bg-stone-950/40 p-4">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-stone-500">
+          Kit de tinta (opcional)
+        </p>
+        <p className="mt-1 text-sm text-stone-500">
+          Inclui o kit na assinatura e ajusta o valor do PIX automaticamente.
+        </p>
+        <div className={`mt-4 ${pending || result ? 'pointer-events-none opacity-60' : ''}`}>
+          <OrderBumpCard
+            selected={paintKitBump}
+            recurring={paintKitBumpRecurring}
+            onSelect={(id) => {
+              setPaintKitBump(id);
+              if (!id) setPaintKitBumpRecurring(false);
+            }}
+            onRecurringChange={setPaintKitBumpRecurring}
+          />
+        </div>
+      </div>
+
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -391,6 +424,8 @@ export default function CustomerActivatePlanPanel({
               setResult(null);
               setMessage('');
               setError('');
+              setPaintKitBump(null);
+              setPaintKitBumpRecurring(false);
             }}
             className="rounded-sm border border-white/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300 hover:border-white/20"
           >
@@ -415,6 +450,7 @@ export default function CustomerActivatePlanPanel({
               </p>
               <p className="mt-1 text-sm text-stone-200">
                 {result.planName}
+                {selectedPaintKit ? ` + ${selectedPaintKit.name}` : ''}
                 {billingLabel ? ` · ${billingLabel}` : ''}
               </p>
               <p className="mt-1 font-mono text-lg text-white">
