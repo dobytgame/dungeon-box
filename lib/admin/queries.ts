@@ -50,6 +50,10 @@ import type {
   AdminUserPlanStats,
 } from './types';
 import {
+  parseAdminListPagination,
+  type AdminPaginatedResult,
+} from '@/lib/admin/list-pagination';
+import {
   getAdminPartnerReferralStats,
   loadReferralAttributionByReferredIds,
 } from '@/lib/admin/referral-attribution';
@@ -861,8 +865,31 @@ export async function listAdminCustomerPlanChanges(
 export async function listAdminSubscriptions(
   admin: SupabaseClient,
   filters: AdminListFilters = {}
-): Promise<AdminSubscriptionRow[]> {
-  const limit = filters.limit ?? 50;
+): Promise<AdminPaginatedResult<AdminSubscriptionRow>> {
+  const pagination = parseAdminListPagination(
+    {
+      page: filters.page != null ? String(filters.page) : undefined,
+      pageSize: filters.pageSize != null ? String(filters.pageSize) : undefined,
+      sort: filters.sort,
+      order: filters.order,
+    },
+    {
+      defaultSort: 'created_at',
+      defaultOrder: 'desc',
+      allowedSorts: [
+        'created_at',
+        'started_at',
+        'next_billing_date',
+        'cancelled_at',
+        'current_cycle',
+      ],
+    }
+  );
+
+  const pageSize = pagination.pageSize;
+  const rangeFrom = (pagination.page - 1) * pageSize;
+  const rangeTo = rangeFrom + pageSize - 1;
+
   let query = admin
     .from('subscriptions')
     .select(
@@ -873,6 +900,7 @@ export async function listAdminSubscriptions(
       current_cycle,
       next_billing_date,
       started_at,
+      created_at,
       asaas_subscription_id,
       asaas_customer_id,
       stripe_subscription_id,
@@ -885,10 +913,14 @@ export async function listAdminSubscriptions(
       cancel_reason,
       profiles(full_name, display_name, email),
       plans!plan_id(name, slug)
-    `
+    `,
+      { count: 'exact' }
     )
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order(pagination.sort, {
+      ascending: pagination.order === 'asc',
+      nullsFirst: pagination.order === 'asc',
+    })
+    .range(rangeFrom, rangeTo);
 
   if (filters.status) {
     query = query.eq('status', filters.status);
@@ -901,9 +933,15 @@ export async function listAdminSubscriptions(
     );
   }
 
-  const { data } = await query;
+  const { data, count, error } = await query;
+  if (error) {
+    console.error('[admin] listAdminSubscriptions:', error.message);
+  }
 
-  return (data ?? []).map((row) => {
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const items = (data ?? []).map((row) => {
     const profileData = Array.isArray(row.profiles)
       ? row.profiles[0]
       : row.profiles;
@@ -933,6 +971,14 @@ export async function listAdminSubscriptions(
       cancel_reason: (row.cancel_reason as string | null) ?? null,
     };
   });
+
+  return {
+    items,
+    total,
+    page: Math.min(pagination.page, totalPages),
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function getAdminSubscriptionDetail(

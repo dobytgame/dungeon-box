@@ -265,7 +265,18 @@ export type AdminListFilters = {
   q?: string;
   status?: string;
   limit?: number;
+  page?: number;
+  pageSize?: number;
+  sort?: AdminSubscriptionSortField;
+  order?: 'asc' | 'desc';
 };
+
+export type AdminSubscriptionSortField =
+  | 'created_at'
+  | 'started_at'
+  | 'next_billing_date'
+  | 'cancelled_at'
+  | 'current_cycle';
 
 export interface AdminPlanRow extends Plan {
   is_active: boolean;

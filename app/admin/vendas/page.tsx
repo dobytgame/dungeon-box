@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import AdminDailySalesChart from '@/components/admin/AdminDailySalesChart';
 import AdminSubscriptionMetricsChart from '@/components/admin/AdminSubscriptionMetricsChart';
+import AdminListPagination from '@/components/admin/AdminListPagination';
 import AdminSalesFiltersForm from '@/components/admin/AdminSalesFiltersForm';
 import AdminSalesTable from '@/components/admin/AdminSalesTable';
 import AdminSection from '@/components/admin/AdminSection';
@@ -39,6 +40,9 @@ export default async function AdminSalesPage({ searchParams }: Props) {
           salesYear: chartFilters.year,
           salesMonth: chartFilters.month,
           salesPeriod: chartFilters.period,
+          sort: filters.sort ?? 'paid_at',
+          order: filters.order ?? 'desc',
+          pageSize: filters.pageSize ?? 25,
         }}
         availableYears={chartData.availableYears}
       />
@@ -154,7 +158,10 @@ export default async function AdminSalesPage({ searchParams }: Props) {
 
       <AdminSection title="Lista de vendas">
         <div className="mb-3 px-1 font-mono text-[11px] text-zinc-600">
-          {summary.visibleCount} venda(s) exibida(s)
+          {summary.total} venda(s) no período
+          {summary.totalPages > 1
+            ? ` · exibindo ${sales.length} na página ${summary.page}`
+            : ''}
           {summary.hiddenInstallmentCount > 0
             ? ` · ${summary.hiddenInstallmentCount} parcela(s) de combo recolhida(s)`
             : ''}{' '}
@@ -169,6 +176,13 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         </div>
 
         <AdminSalesTable sales={sales} />
+
+        <AdminListPagination
+          basePath="/admin/vendas"
+          result={summary}
+          searchParams={params}
+          noun="venda"
+        />
       </AdminSection>
 
       <p className="font-mono text-[11px] text-zinc-600">

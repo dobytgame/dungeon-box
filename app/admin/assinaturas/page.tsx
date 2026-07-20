@@ -1,11 +1,14 @@
 import Link from 'next/link';
-import AdminSearchForm from '@/components/admin/AdminSearchForm';
+import AdminListPagination from '@/components/admin/AdminListPagination';
+import AdminSubscriptionsFiltersForm from '@/components/admin/AdminSubscriptionsFiltersForm';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
+import { parseAdminListPagination } from '@/lib/admin/list-pagination';
 import { listAdminSubscriptions } from '@/lib/admin/queries';
+import type { AdminSubscriptionSortField } from '@/lib/admin/types';
 import {
   reconcileAllPendingAsaasSubscriptions,
   reconcilePendingAsaasSubscriptions,
@@ -15,34 +18,48 @@ import { isComboTerm } from '@/lib/checkout/combo-billing';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'Todos' },
-  { value: 'active', label: 'Ativa' },
-  { value: 'pending', label: 'Pendente' },
-  { value: 'paused', label: 'Pausada' },
-  { value: 'past_due', label: 'Em atraso' },
-  { value: 'cancelled', label: 'Cancelada' },
-];
-
 interface Props {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
+}
+
+function parseSubscriptionFilters(
+  searchParams: Record<string, string | undefined>
+) {
+  const pagination = parseAdminListPagination(searchParams, {
+    defaultSort: 'created_at',
+    defaultOrder: 'desc',
+    allowedSorts: [
+      'created_at',
+      'started_at',
+      'next_billing_date',
+      'cancelled_at',
+      'current_cycle',
+    ] satisfies AdminSubscriptionSortField[],
+  });
+
+  return {
+    q: searchParams.q?.trim() || undefined,
+    status: searchParams.status?.trim() || undefined,
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    sort: pagination.sort as AdminSubscriptionSortField,
+    order: pagination.order,
+  };
 }
 
 export default async function AdminSubscriptionsPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
-  const { q, status } = await searchParams;
-  let subscriptions = await listAdminSubscriptions(admin, {
-    q,
-    status: status || undefined,
-    limit: 100,
-  });
+  const params = await searchParams;
+  const filters = parseSubscriptionFilters(params);
 
-  if (status === 'pending') {
+  let result = await listAdminSubscriptions(admin, filters);
+
+  if (filters.status === 'pending') {
     await reconcileAllPendingAsaasSubscriptions(admin);
-  } else if (subscriptions.some((row) => row.status === 'pending')) {
+  } else if (result.items.some((row) => row.status === 'pending')) {
     await reconcilePendingAsaasSubscriptions(
       admin,
-      subscriptions.map((row) => ({
+      result.items.map((row) => ({
         id: row.id,
         user_id: row.user_id,
         status: row.status,
@@ -53,38 +70,26 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
     );
   }
 
-  if (status === 'pending' || subscriptions.some((row) => row.status === 'pending')) {
-    subscriptions = await listAdminSubscriptions(admin, {
-      q,
-      status: status || undefined,
-      limit: 100,
-    });
+  if (
+    filters.status === 'pending' ||
+    result.items.some((row) => row.status === 'pending')
+  ) {
+    result = await listAdminSubscriptions(admin, filters);
   }
+
+  const subscriptions = result.items;
 
   return (
     <div className="space-y-6">
-      <AdminSearchForm
-        defaultValue={q ?? ''}
-        placeholder="ID Asaas, Stripe ou cupom"
-      >
-        <div>
-          <label htmlFor="status" className="sr-only">
-            Status
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={status ?? ''}
-            className="rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value || 'all'} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </AdminSearchForm>
+      <AdminSubscriptionsFiltersForm
+        values={{
+          q: filters.q,
+          status: filters.status,
+          sort: filters.sort,
+          order: filters.order,
+          pageSize: filters.pageSize,
+        }}
+      />
 
       <AdminTable
         rows={subscriptions}
@@ -177,8 +182,14 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
         ]}
       />
 
+      <AdminListPagination
+        basePath="/admin/assinaturas"
+        result={result}
+        searchParams={params}
+        noun="assinatura"
+      />
+
       <p className="text-xs text-stone-500">
-        {subscriptions.length} registro(s).{' '}
         <Link href="/admin/assinaturas" className="text-console hover:underline">
           Limpar filtros
         </Link>

@@ -8,6 +8,10 @@ import {
   resolveDailySalesBounds,
 } from '@/lib/admin/daily-sales';
 import {
+  parseAdminListPagination,
+  paginateList,
+} from '@/lib/admin/list-pagination';
+import {
   buildCanonicalComboPrepaidIndex,
   buildComboPrepaidDayBySubscription,
   resolvePaymentRevenueCents,
@@ -27,6 +31,7 @@ import type {
   AdminSaleType,
   AdminSalesListFilters,
   AdminSalesPageSummary,
+  AdminSalesSortField,
   AdminSaleTableGroup,
 } from '@/lib/admin/sales-types';
 import { groupAdminSalesRows } from '@/lib/admin/sales-grouping';
@@ -90,6 +95,11 @@ export function parseAdminSalesListFilters(
 ): AdminSalesListFilters {
   const chartFilters = parseDailySalesFilters(searchParams);
   const { from, to, periodLabel } = resolveDailySalesBounds(chartFilters);
+  const pagination = parseAdminListPagination(searchParams, {
+    defaultSort: 'paid_at',
+    defaultOrder: 'desc',
+    allowedSorts: ['paid_at', 'created_at', 'amount', 'customer'] satisfies AdminSalesSortField[],
+  });
 
   const typeRaw = searchParams.type?.trim();
   const saleType =
@@ -107,7 +117,58 @@ export function parseAdminSalesListFilters(
     from,
     to,
     periodLabel,
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    sort: pagination.sort as AdminSalesSortField,
+    order: pagination.order,
   };
+}
+
+function saleSortTimestamp(row: AdminSaleRow): number {
+  const raw = row.paid_at ?? row.created_at;
+  if (!raw) return 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function sortAdminSales(
+  rows: AdminSaleRow[],
+  sort: AdminSalesSortField = 'paid_at',
+  order: 'asc' | 'desc' = 'desc'
+): AdminSaleRow[] {
+  const direction = order === 'asc' ? 1 : -1;
+
+  return [...rows].sort((a, b) => {
+    let cmp = 0;
+
+    switch (sort) {
+      case 'created_at':
+        cmp = saleSortTimestamp(a) - saleSortTimestamp(b);
+        if (cmp === 0) {
+          cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '');
+        }
+        break;
+      case 'amount':
+        cmp = a.effectiveAmountCents - b.effectiveAmountCents;
+        break;
+      case 'customer': {
+        const aName = (a.customerName ?? a.customerEmail ?? '').toLowerCase();
+        const bName = (b.customerName ?? b.customerEmail ?? '').toLowerCase();
+        cmp = aName.localeCompare(bName, 'pt-BR');
+        break;
+      }
+      case 'paid_at':
+      default:
+        cmp = saleSortTimestamp(a) - saleSortTimestamp(b);
+        break;
+    }
+
+    if (cmp === 0) {
+      cmp = a.id.localeCompare(b.id);
+    }
+
+    return cmp * direction;
+  });
 }
 
 export function filterAdminSales(
@@ -125,7 +186,7 @@ export function filterAdminSales(
 
 export function summarizeAdminSales(rows: AdminSaleRow[]): Omit<
   AdminSalesPageSummary,
-  'periodLabel' | 'from' | 'to'
+  'periodLabel' | 'from' | 'to' | 'page' | 'pageSize' | 'total' | 'totalPages'
 > {
   const groups = groupAdminSalesRows(rows);
   const hiddenInstallmentCount = groups.reduce(
@@ -390,15 +451,28 @@ export async function getAdminSalesPageData(
   summary: AdminSalesPageSummary;
 }> {
   const filters = parseAdminSalesListFilters(searchParams);
-  const sales = await listAdminSales(admin, filters);
+  const allSales = sortAdminSales(
+    await listAdminSales(admin, filters),
+    filters.sort,
+    filters.order
+  );
+  const paginated = paginateList(
+    allSales,
+    filters.page ?? 1,
+    filters.pageSize ?? 25
+  );
   const summary = {
-    ...summarizeAdminSales(sales),
+    ...summarizeAdminSales(allSales),
     periodLabel: filters.periodLabel,
     from: filters.from,
     to: filters.to,
+    page: paginated.page,
+    pageSize: paginated.pageSize,
+    total: paginated.total,
+    totalPages: paginated.totalPages,
   };
 
-  return { filters, sales, summary };
+  return { filters, sales: paginated.items, summary };
 }
 
 export async function getAdminSalesSummary(

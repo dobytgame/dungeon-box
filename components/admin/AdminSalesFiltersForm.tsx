@@ -1,4 +1,5 @@
-import type { AdminSaleType } from '@/lib/admin/sales-types';
+import AdminListSortFields from '@/components/admin/AdminListSortFields';
+import type { AdminSaleType, AdminSalesSortField } from '@/lib/admin/sales-types';
 import type { DailySalesPeriod } from '@/lib/admin/daily-sales';
 
 const STATUS_OPTIONS = [
@@ -24,6 +25,13 @@ const PERIOD_OPTIONS: { value: DailySalesPeriod; label: string }[] = [
   { value: 'year', label: 'Ano inteiro' },
 ];
 
+const SORT_OPTIONS: { value: AdminSalesSortField; label: string }[] = [
+  { value: 'paid_at', label: 'Data do pagamento' },
+  { value: 'created_at', label: 'Data de criação' },
+  { value: 'amount', label: 'Valor' },
+  { value: 'customer', label: 'Cliente' },
+];
+
 const MONTH_OPTIONS = [
   { value: '', label: 'Todos os meses' },
   ...Array.from({ length: 12 }, (_, index) => {
@@ -41,6 +49,9 @@ interface Props {
     salesYear: number;
     salesMonth?: number | null;
     salesPeriod: DailySalesPeriod;
+    sort: AdminSalesSortField;
+    order: 'asc' | 'desc';
+    pageSize: number;
   };
   availableYears: number[];
 }
@@ -153,6 +164,16 @@ export default function AdminSalesFiltersForm({ values, availableYears }: Props)
           ))}
         </select>
       </div>
+
+      <AdminListSortFields
+        sort={values.sort}
+        order={values.order}
+        pageSize={values.pageSize}
+        sortOptions={SORT_OPTIONS}
+        sortId="sales-sort"
+        orderId="sales-order"
+        pageSizeId="sales-page-size"
+      />
 
       <div className="flex items-end gap-2 md:col-span-2 xl:col-span-4">
         <button

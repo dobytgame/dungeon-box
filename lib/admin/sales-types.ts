@@ -37,7 +37,17 @@ export interface AdminSalesListFilters {
   to: string;
   periodLabel: string;
   limit?: number;
+  page?: number;
+  pageSize?: number;
+  sort?: AdminSalesSortField;
+  order?: 'asc' | 'desc';
 }
+
+export type AdminSalesSortField =
+  | 'paid_at'
+  | 'created_at'
+  | 'amount'
+  | 'customer';
 
 export interface AdminSalesPageSummary {
   periodLabel: string;
@@ -50,6 +60,10 @@ export interface AdminSalesPageSummary {
   pendingCount: number;
   revenueCents: number;
   byType: Record<AdminSaleType, { count: number; revenueCents: number }>;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface AdminSaleTableGroup {
