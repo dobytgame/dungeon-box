@@ -231,7 +231,8 @@ export default function StoreCheckoutForm({
   }, [hydrated, resolved.length, analyticsItems, subtotalCents]);
 
   useEffect(() => {
-    if (!couponCode) return;
+    if (!couponCode || subtotalCents <= 0) return;
+    if (shippingMode === 'standalone' && shippingLoading) return;
 
     let cancelled = false;
 
@@ -245,34 +246,41 @@ export default function StoreCheckoutForm({
         shippingCents: shippingQuote?.cents ?? 0,
       }),
     })
-      .then((response) => response.json())
-      .then(
-        (payload: StoreCouponApplyResult & { valid?: boolean; error?: string }) => {
-          if (cancelled) return;
+      .then(async (response) => {
+        const payload = (await response.json()) as StoreCouponApplyResult & {
+          valid?: boolean;
+          error?: string;
+        };
+        if (cancelled) return;
 
-          if (!payload.valid) {
-            handleCouponRemove();
-            if (payload.error) {
-              setError(payload.error);
-            }
-            return;
+        if (!response.ok || !payload.valid) {
+          handleCouponRemove();
+          if (payload.error) {
+            setError(payload.error);
           }
-
-          setCouponDiscountCents(payload.subtotalDiscountCents ?? 0);
-          setCouponFreeShipping(Boolean(payload.freeShipping));
-          if (payload.summary) {
-            setCouponSummary(payload.summary);
-          }
+          return;
         }
-      )
+
+        setCouponDiscountCents(payload.subtotalDiscountCents ?? 0);
+        setCouponFreeShipping(Boolean(payload.freeShipping));
+        if (payload.summary) {
+          setCouponSummary(payload.summary);
+        }
+      })
       .catch(() => {
-        if (!cancelled) handleCouponRemove();
+        if (!cancelled) return;
       });
 
     return () => {
       cancelled = true;
     };
-  }, [couponCode, subtotalCents, shippingMode, shippingQuote?.cents]);
+  }, [
+    couponCode,
+    subtotalCents,
+    shippingMode,
+    shippingQuote?.cents,
+    shippingLoading,
+  ]);
 
   useEffect(() => {
     if (shippingMode !== 'standalone' || !checkoutAddressId) {

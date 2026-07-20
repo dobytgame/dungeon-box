@@ -179,18 +179,25 @@ export default function PromoCodeForm({ promo }: Props) {
         </div>
       </div>
 
-      <div>
-        <label htmlFor="plan_slugs" className={labelClass}>
-          Planos elegíveis
-        </label>
-        <input
-          id="plan_slugs"
-          name="plan_slugs"
-          placeholder={`Vazio = todos. Ex: ${PLAN_SLUGS.join(', ')}`}
-          defaultValue={promo?.plan_slugs?.join(', ') ?? ''}
-          className={inputClass}
-        />
-      </div>
+      {appliesTo !== 'store' ? (
+        <div>
+          <label htmlFor="plan_slugs" className={labelClass}>
+            Planos elegíveis
+          </label>
+          <input
+            id="plan_slugs"
+            name="plan_slugs"
+            placeholder={`Vazio = todos. Ex: ${PLAN_SLUGS.join(', ')}`}
+            defaultValue={promo?.plan_slugs?.join(', ') ?? ''}
+            className={inputClass}
+          />
+          {appliesTo === 'both' ? (
+            <p className="mt-2 text-xs text-stone-500">
+              Restrição de plano vale só no checkout de assinatura.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <label className="flex items-center gap-2 text-sm text-stone-300">
         <input

@@ -1420,7 +1420,7 @@ export async function savePromoCodeAction(
     max_redemptions: maxRedemptions,
     expires_at: expiresAt,
     active: formData.get('active') === 'on',
-    plan_slugs: planSlugs,
+    plan_slugs: appliesTo === 'store' ? null : planSlugs,
     applies_to: appliesTo,
   };
 

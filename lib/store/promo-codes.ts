@@ -6,6 +6,8 @@ import {
   promoGrantsFreeShipping,
   type PromoCodeRow,
 } from '@/lib/checkout/promo-codes';
+import { isPlanSlug } from '@/lib/checkout/plans';
+import { plans } from '@/lib/data';
 
 export type ResolvedStorePromo = {
   promo: PromoCodeRow;
@@ -38,6 +40,40 @@ async function userAlreadyRedeemed(
     .maybeSingle();
 
   return Boolean(data);
+}
+
+function formatPlanSlugLabels(slugs: string[]): string {
+  const labels = slugs.map((slug) => {
+    const plan = plans.find((entry) => entry.id === slug);
+    return plan?.name ?? slug;
+  });
+
+  if (labels.length === 1) return labels[0]!;
+  if (labels.length === 2) return `${labels[0]} ou ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')} ou ${labels[labels.length - 1]}`;
+}
+
+async function userHasActivePlanForStorePromo(
+  supabase: SupabaseClient,
+  userId: string,
+  planSlugs: string[] | null | undefined
+): Promise<boolean> {
+  const eligible = (planSlugs ?? []).filter(isPlanSlug);
+  if (eligible.length === 0) return true;
+
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('plans!plan_id(slug)')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  if (error || !data?.length) return false;
+
+  return data.some((row) => {
+    const plan = Array.isArray(row.plans) ? row.plans[0] : row.plans;
+    const slug = plan?.slug;
+    return typeof slug === 'string' && isPlanSlug(slug) && eligible.includes(slug);
+  });
 }
 
 export async function resolveStorePromoCode(
@@ -81,7 +117,18 @@ export async function resolveStorePromoCode(
   }
 
   if (promo.plan_slugs?.length) {
-    throw new Error('Este cupom não é válido na loja.');
+    const eligible = await userHasActivePlanForStorePromo(
+      supabase,
+      userId,
+      promo.plan_slugs
+    );
+    if (!eligible) {
+      throw new Error(
+        `Este cupom é válido apenas para assinantes do plano ${formatPlanSlugLabels(
+          promo.plan_slugs
+        )}.`
+      );
+    }
   }
 
   if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {
@@ -110,7 +157,7 @@ export async function resolveStorePromoCode(
   const standaloneShipping = options?.standaloneShipping ?? false;
 
   if (normalizedPromo.discount_type === 'free_shipping') {
-    if (!standaloneShipping || shippingCents <= 0) {
+    if (!standaloneShipping) {
       throw new Error(
         'Este cupom vale apenas para pedidos com envio avulso (frete calculado no checkout).'
       );
@@ -134,8 +181,7 @@ export async function resolveStorePromoCode(
     0,
     subtotalCents - discountedSubtotalCents
   );
-  const freeShipping =
-    grantsFreeShipping && standaloneShipping && shippingCents > 0;
+  const freeShipping = grantsFreeShipping && standaloneShipping;
 
   if (subtotalDiscountCents <= 0 && !freeShipping) {
     throw new Error('Este cupom não se aplica ao seu pedido.');

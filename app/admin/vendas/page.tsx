@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import AdminDailySalesChart from '@/components/admin/AdminDailySalesChart';
+import AdminSubscriptionMetricsChart from '@/components/admin/AdminSubscriptionMetricsChart';
 import AdminSalesFiltersForm from '@/components/admin/AdminSalesFiltersForm';
 import AdminSalesTable from '@/components/admin/AdminSalesTable';
 import AdminSection from '@/components/admin/AdminSection';
@@ -8,6 +9,7 @@ import KpiCard from '@/components/admin/KpiCard';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getDailySalesChartData } from '@/lib/admin/daily-sales';
 import { getAdminSalesPageData } from '@/lib/admin/sales';
+import { getSubscriptionMetricsChartData } from '@/lib/admin/subscription-metrics';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 
 interface Props {
@@ -18,10 +20,12 @@ export default async function AdminSalesPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
   const params = await searchParams;
 
-  const [{ filters, sales, summary }, chartData] = await Promise.all([
-    getAdminSalesPageData(admin, params),
-    getDailySalesChartData(admin, params),
-  ]);
+  const [{ filters, sales, summary }, chartData, subscriptionMetrics] =
+    await Promise.all([
+      getAdminSalesPageData(admin, params),
+      getDailySalesChartData(admin, params),
+      getSubscriptionMetricsChartData(admin, params),
+    ]);
 
   const chartFilters = chartData.filters;
 
@@ -74,6 +78,67 @@ export default async function AdminSalesPage({ searchParams }: Props) {
           accent="warn"
         />
       </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <KpiCard
+          label="Novos clientes"
+          value={String(subscriptionMetrics.totals.newCount)}
+          hint={subscriptionMetrics.periodLabel}
+          accent="console"
+        />
+        <KpiCard
+          label="Cancelamentos"
+          value={String(subscriptionMetrics.totals.cancelledCount)}
+          hint={
+            subscriptionMetrics.summary.churnRatePercent != null
+              ? `${subscriptionMetrics.summary.churnRatePercent}% churn`
+              : 'Assinaturas encerradas'
+          }
+          accent="danger"
+        />
+        <KpiCard
+          label="Renovações"
+          value={String(subscriptionMetrics.totals.renewalCount)}
+          hint="Pagamentos recorrentes aprovados"
+          accent="gold"
+        />
+        <KpiCard
+          label="MRR"
+          value={formatMoney(subscriptionMetrics.summary.mrrCents)}
+          hint={`${subscriptionMetrics.summary.activeSubscribers} assinantes ativos`}
+        />
+        <KpiCard
+          label="Crescimento líquido"
+          value={
+            subscriptionMetrics.totals.netGrowth >= 0
+              ? `+${subscriptionMetrics.totals.netGrowth}`
+              : String(subscriptionMetrics.totals.netGrowth)
+          }
+          hint="Novos − cancelamentos"
+          accent={subscriptionMetrics.totals.netGrowth >= 0 ? 'console' : 'danger'}
+        />
+        <KpiCard
+          label="Retenção"
+          value={
+            subscriptionMetrics.summary.retentionRatePercent != null
+              ? `${subscriptionMetrics.summary.retentionRatePercent}%`
+              : '—'
+          }
+          hint="Renovações ÷ (renovações + cancelamentos)"
+        />
+      </section>
+
+      <AdminSection title="Assinaturas e recorrência">
+        <Suspense
+          fallback={
+            <div className="admin-panel rounded p-6 font-mono text-xs text-zinc-600">
+              Carregando gráfico…
+            </div>
+          }
+        >
+          <AdminSubscriptionMetricsChart data={subscriptionMetrics} />
+        </Suspense>
+      </AdminSection>
 
       <AdminSection title="Gráfico de vendas">
         <Suspense

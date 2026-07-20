@@ -4,6 +4,7 @@ import AdminSection from '@/components/admin/AdminSection';
 import AdminActivePlansChart from '@/components/admin/AdminActivePlansChart';
 import AdminDailySalesChart from '@/components/admin/AdminDailySalesChart';
 import AdminProfitMarginChart from '@/components/admin/AdminProfitMarginChart';
+import AdminSubscriptionMetricsChart from '@/components/admin/AdminSubscriptionMetricsChart';
 import AdminTable from '@/components/admin/AdminTable';
 import AdminUserPlanChart from '@/components/admin/AdminUserPlanChart';
 import KpiCard from '@/components/admin/KpiCard';
@@ -11,6 +12,7 @@ import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getDailySalesChartData } from '@/lib/admin/daily-sales';
 import { getAdminDashboardStats } from '@/lib/admin/queries';
+import { getSubscriptionMetricsChartData } from '@/lib/admin/subscription-metrics';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 
 interface Props {
@@ -20,9 +22,10 @@ interface Props {
 export default async function AdminDashboardPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
   const params = await searchParams;
-  const [stats, dailySales] = await Promise.all([
+  const [stats, dailySales, subscriptionMetrics] = await Promise.all([
     getAdminDashboardStats(admin),
     getDailySalesChartData(admin, params),
+    getSubscriptionMetricsChartData(admin, params),
   ]);
 
   return (
@@ -64,11 +67,47 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
         />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           label="Novos (30d)"
           value={String(stats.newSubscribers30d)}
-          hint={`${stats.cancelled30d} cancelamentos no período`}
+          hint={`${subscriptionMetrics.totals.newCount} no período do gráfico`}
+          accent="console"
+        />
+        <KpiCard
+          label="Cancelamentos (30d)"
+          value={String(stats.cancelled30d)}
+          hint={
+            subscriptionMetrics.summary.churnRatePercent != null
+              ? `${subscriptionMetrics.summary.churnRatePercent}% churn no período`
+              : 'Assinaturas canceladas'
+          }
+          accent="danger"
+        />
+        <KpiCard
+          label="Renovações"
+          value={String(subscriptionMetrics.totals.renewalCount)}
+          hint={`${subscriptionMetrics.periodLabel}`}
+          accent="gold"
+        />
+        <KpiCard
+          label="Crescimento líquido"
+          value={
+            subscriptionMetrics.totals.netGrowth >= 0
+              ? `+${subscriptionMetrics.totals.netGrowth}`
+              : String(subscriptionMetrics.totals.netGrowth)
+          }
+          hint="Novos − cancelamentos"
+          accent={subscriptionMetrics.totals.netGrowth >= 0 ? 'console' : 'danger'}
+        />
+        <KpiCard
+          label="Retenção"
+          value={
+            subscriptionMetrics.summary.retentionRatePercent != null
+              ? `${subscriptionMetrics.summary.retentionRatePercent}%`
+              : '—'
+          }
+          hint="Renovações ÷ (renovações + cancelamentos)"
         />
         <KpiCard
           label="Fila de envio"
@@ -89,6 +128,21 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
           accent="warn"
         />
       </section>
+
+      <AdminSection
+        title="Assinaturas"
+        action={{ href: '/admin/assinaturas', label: 'Ver assinaturas' }}
+      >
+        <Suspense
+          fallback={
+            <div className="admin-panel rounded p-6 font-mono text-xs text-zinc-600">
+              Carregando gráfico…
+            </div>
+          }
+        >
+          <AdminSubscriptionMetricsChart data={subscriptionMetrics} />
+        </Suspense>
+      </AdminSection>
 
       <AdminSection
         title="Vendas diárias"

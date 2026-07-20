@@ -6,8 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const bodySchema = z.object({
-  code: z.string().min(1).max(64),
-  subtotalCents: z.number().int().min(1),
+  code: z.string().trim().min(1, 'Informe o código do cupom.').max(64),
+  subtotalCents: z
+    .number()
+    .int('Subtotal inválido.')
+    .min(1, 'Carrinho inválido para aplicar cupom.'),
   standaloneShipping: z.boolean().optional().default(true),
   shippingCents: z.number().int().min(0).optional().default(0),
 });
@@ -32,8 +35,12 @@ export async function POST(request: Request) {
   let body: z.infer<typeof bodySchema>;
   try {
     body = bodySchema.parse(await request.json());
-  } catch {
-    return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
+  } catch (error) {
+    const message =
+      error instanceof z.ZodError
+        ? error.issues[0]?.message ?? 'Dados inválidos.'
+        : 'Dados inválidos.';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const admin = createAdminClient();
