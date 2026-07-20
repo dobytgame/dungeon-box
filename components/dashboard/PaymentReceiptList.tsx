@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
+import {
+  formatPaymentDescription,
+  formatPaymentMethod,
+} from '@/lib/dashboard/payment-description';
 import type { Payment, PaymentStatus } from '@/lib/dashboard/types';
 import { CreditCard } from 'lucide-react';
 
@@ -17,7 +21,10 @@ interface Props {
 export default function PaymentReceiptList({ payments }: Props) {
   return (
     <ul className="space-y-4">
-      {payments.map((p) => (
+      {payments.map((p) => {
+        const description = formatPaymentDescription(p);
+
+        return (
         <li
           key={p.id}
           className="rounded-sm border border-white/[0.06] border-l-4 border-l-ember/50 bg-stone-950/40 p-5 transition hover:border-white/10"
@@ -30,6 +37,11 @@ export default function PaymentReceiptList({ payments }: Props) {
               <p className="mt-1 text-sm text-stone-500">
                 {formatDateTime(p.paid_at ?? p.created_at)}
               </p>
+              {description ? (
+                <p className="mt-2 text-sm leading-relaxed text-stone-300">
+                  {description}
+                </p>
+              ) : null}
             </div>
             <StatusBadge kind="payment" status={p.status} />
           </div>
@@ -40,13 +52,10 @@ export default function PaymentReceiptList({ payments }: Props) {
               <span>
                 {p.card_brand && p.card_last4
                   ? `${p.card_brand} •••• ${p.card_last4}`
-                  : p.payment_method ?? 'Cartão'}
+                  : formatPaymentMethod(p.payment_method)}
                 {p.installments && p.installments > 1 ? ` · ${p.installments}x` : ''}
               </span>
             </div>
-            {p.status_detail ? (
-              <div className="text-stone-500 sm:text-right">{p.status_detail}</div>
-            ) : null}
           </dl>
 
           {RETRY_STATUSES.has(p.status) && p.subscription_id ? (
@@ -58,7 +67,8 @@ export default function PaymentReceiptList({ payments }: Props) {
             </Link>
           ) : null}
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }
