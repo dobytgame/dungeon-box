@@ -26,7 +26,7 @@ import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { relOne } from '@/lib/dashboard/format';
 import type { Address, Subscription } from '@/lib/dashboard/types';
 import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-kit-addon-shared';
-import { subscriptionEligibleForMonthlyKit } from '@/lib/store/monthly-kits';
+import { subscriptionEligibleForMonthlyKit, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
 import {
   cartHasMonthlyKits,
   normalizeCartLines,
@@ -120,15 +120,23 @@ export default function StoreCheckoutForm({
   const paymentsReady = paymentConfig?.ready ?? true;
 
   useEffect(() => {
-    if (
-      eligibleMonthlyKitSubs.length > 0 &&
-      !eligibleMonthlyKitSubs.some(
-        (sub) => sub.id === monthlyKitBundleSubscriptionId
-      )
-    ) {
-      setMonthlyKitBundleSubscriptionId(eligibleMonthlyKitSubs[0]!.id);
+    if (eligibleMonthlyKitSubs.length === 0) return;
+
+    const kitPlanSlug = lines
+      .map((line) => parseMonthlyKitPlanSlug(line.productId))
+      .find(Boolean);
+
+    const preferredSub = kitPlanSlug
+      ? eligibleMonthlyKitSubs.find(
+          (sub) => relOne(sub.plans)?.slug === kitPlanSlug
+        )
+      : eligibleMonthlyKitSubs[0];
+
+    const nextId = preferredSub?.id ?? eligibleMonthlyKitSubs[0]?.id ?? '';
+    if (nextId && nextId !== monthlyKitBundleSubscriptionId) {
+      setMonthlyKitBundleSubscriptionId(nextId);
     }
-  }, [eligibleMonthlyKitSubs, monthlyKitBundleSubscriptionId]);
+  }, [eligibleMonthlyKitSubs, lines, monthlyKitBundleSubscriptionId]);
 
   const resolved = resolveCartLines(lines, allProducts);
   const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);

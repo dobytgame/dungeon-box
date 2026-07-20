@@ -424,6 +424,39 @@ export async function resolveStoreMonthlyKitBySlug(
   return isStoreProductVisibleInVitrine(product, context) ? product : null;
 }
 
+/** Kit do mês na vitrine/página: bundled + cupom da assinatura quando o usuário tem plano ativo. */
+export async function resolveStoreMonthlyKitBySlugForUser(
+  admin: SupabaseClient,
+  slug: string,
+  userId?: string | null,
+  userSupabase?: SupabaseClient
+): Promise<StoreProduct | null> {
+  if (!userId) {
+    return resolveStoreMonthlyKitBySlug(admin, slug, {
+      bundledWithSubscription: false,
+    });
+  }
+
+  const subscriptions = await fetchEligibleSubscriptions(
+    admin,
+    userId,
+    userSupabase
+  );
+
+  if (subscriptions.length === 0) {
+    return resolveStoreMonthlyKitBySlug(admin, slug, {
+      bundledWithSubscription: false,
+    });
+  }
+
+  const bundled = await resolveStoreMonthlyKitBySlug(admin, slug, {
+    bundledWithSubscription: true,
+  });
+  if (!bundled) return null;
+
+  return applySubscriptionPromoToProduct(admin, bundled, subscriptions);
+}
+
 export async function getMonthlyKitProductsForUser(
   userId: string,
   userSupabase?: SupabaseClient
@@ -510,12 +543,29 @@ export async function resolveMonthlyKitOrderItem(
     return { error: 'Nenhum tema do mês disponível para compra no momento.' };
   }
 
-  const requireBundle = Boolean(bundleSubscriptionId);
+  const subscriptions = await fetchEligibleSubscriptions(
+    admin,
+    userId,
+    userSupabase ?? supabase
+  );
+
+  let resolvedBundleSubscriptionId = bundleSubscriptionId;
+  if (!resolvedBundleSubscriptionId) {
+    const matchingSubs = subscriptions.filter((sub) => {
+      const plan = relOne(sub.plans);
+      return plan?.slug === planSlug;
+    });
+    if (matchingSubs.length === 1) {
+      resolvedBundleSubscriptionId = matchingSubs[0]!.id;
+    }
+  }
+
+  const requireBundle = Boolean(resolvedBundleSubscriptionId);
 
   const bundleResult = await resolveMonthlyKitBundleSubscription(
     admin,
     userId,
-    bundleSubscriptionId,
+    resolvedBundleSubscriptionId,
     requireBundle,
     userSupabase ?? supabase
   );
@@ -524,25 +574,20 @@ export async function resolveMonthlyKitOrderItem(
     return bundleResult;
   }
 
-  const subscriptions = await fetchEligibleSubscriptions(
-    admin,
-    userId,
-    userSupabase ?? supabase
-  );
-
   const planNames = await fetchPlanNamesBySlug(admin, [storeRow.plan_slug]);
   const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
 
   const product = buildMonthlyKitProduct(storeRow, theme, planName, {
-    bundledWithSubscription: requireBundle,
+    bundledWithSubscription: Boolean(bundleResult),
   });
   if (!product) {
     return { error: 'Não foi possível calcular o preço do kit do mês.' };
   }
   const qty = Math.min(Math.max(Math.floor(quantity), 1), product.maxQuantity ?? 9);
-  const pricedProduct = requireBundle
-    ? await applySubscriptionPromoToProduct(admin, product, subscriptions)
-    : product;
+  const pricedProduct =
+    subscriptions.length > 0
+      ? await applySubscriptionPromoToProduct(admin, product, subscriptions)
+      : product;
   const unitPrice = pricedProduct.priceCents;
 
   return {

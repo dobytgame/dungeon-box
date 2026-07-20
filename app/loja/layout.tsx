@@ -61,17 +61,12 @@ export default async function LojaLayout({
 
   const monthlyKits = (() => {
     const byId = new Map<string, (typeof publicMonthlyKits)[number]>();
+    for (const product of publicMonthlyKits) {
+      byId.set(product.id, product);
+    }
+    // Kits com envio na assinatura (e cupom vinculado) prevalecem para assinantes.
     for (const product of userBundleMonthlyKits) {
       byId.set(product.id, product);
-    }
-    for (const product of publicMonthlyKits) {
-      byId.set(product.id, product);
-    }
-    // Compra avulsa (frete no checkout) prevalece sobre envio com assinatura.
-    for (const product of publicMonthlyKits) {
-      if (!product.requiresSubscriptionBundle) {
-        byId.set(product.id, product);
-      }
     }
     return Array.from(byId.values());
   })();

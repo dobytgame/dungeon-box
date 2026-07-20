@@ -65,6 +65,14 @@ export function calculateSubscriberStoreDiscountPriceCents(
 export function applySubscriberDiscountToStoreProduct(
   product: StoreProduct
 ): StoreProduct {
+  if (
+    product.promoCode &&
+    product.originalPriceCents != null &&
+    product.originalPriceCents > product.priceCents
+  ) {
+    return product;
+  }
+
   const discountPercent = resolveSubscriberDiscountPercent(product);
   if (discountPercent <= 0) return product;
 

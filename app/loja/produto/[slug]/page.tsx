@@ -26,7 +26,7 @@ import {
   getStoreProductBySlugFromDb,
   loadRelatedProducts,
 } from '@/lib/store/load-catalog';
-import { resolveStoreMonthlyKitBySlug } from '@/lib/store/monthly-kits';
+import { resolveStoreMonthlyKitBySlug, resolveStoreMonthlyKitBySlugForUser } from '@/lib/store/monthly-kits';
 import { STORE_PRODUCTION_LEAD_TIME_LABEL } from '@/lib/store/production-lead-time';
 import { STORE_ROUTES } from '@/lib/store/routes';
 import {
@@ -85,7 +85,13 @@ export default async function LojaProductPage({ params }: Props) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const rawProduct = await resolveStoreProductPage(admin, slug);
+  const rawProduct =
+    (await resolveStoreMonthlyKitBySlugForUser(
+      admin,
+      slug,
+      user?.id,
+      supabase
+    )) ?? (await resolveStoreProductPage(admin, slug));
 
   if (!rawProduct) notFound();
 
