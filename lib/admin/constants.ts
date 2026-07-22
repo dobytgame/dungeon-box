@@ -108,6 +108,10 @@ export const ADMIN_NAV = [
     description: 'Campanhas por e-mail para a base via Resend.',
     icon: 'mail',
     group: 'comunicacao',
+    children: [
+      { href: '/admin/marketing', label: 'Enviar campanha' },
+      { href: '/admin/marketing/historico', label: 'Histórico de disparos' },
+    ],
   },
   {
     href: '/admin/feedbacks',

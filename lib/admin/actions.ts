@@ -1781,6 +1781,118 @@ export async function sendUnconvertedLeadCampaignAction(input: {
   };
 }
 
+export async function previewVoltei10WinbackCampaignAction() {
+  await requireAdmin();
+
+  const { voltei10WinbackHtml } = await import(
+    '@/lib/email/templates/voltei10-winback'
+  );
+
+  return {
+    html: voltei10WinbackHtml({ name: 'Mestre' }),
+  };
+}
+
+export async function sendVoltei10WinbackCampaignAction(input: {
+  audience: MarketingAudience;
+  confirm: boolean;
+}) {
+  const { user, admin, profile } = await requireAdmin();
+
+  if (!input.confirm) {
+    return { error: 'Confirme o envio antes de disparar a campanha.' };
+  }
+
+  const { resolveMarketingAudienceRecipients } = await import(
+    '@/lib/admin/marketing-audience'
+  );
+  const { executeMarketingDispatch } = await import(
+    '@/lib/admin/marketing-dispatch'
+  );
+  const { sendEmail } = await import('@/lib/email/send');
+  const {
+    VOLTEI10_CAMPAIGN,
+    VOLTEI10_SUBJECT,
+    voltei10WinbackHtml,
+    voltei10WinbackText,
+  } = await import('@/lib/email/templates/voltei10-winback');
+
+  const recipients = await resolveMarketingAudienceRecipients(
+    admin,
+    input.audience,
+    profile
+  );
+
+  if (!recipients.length) {
+    return { error: 'Nenhum destinatário encontrado para este público.' };
+  }
+
+  const result = await executeMarketingDispatch(admin, {
+    templateId: VOLTEI10_CAMPAIGN,
+    audience: input.audience,
+    subject: VOLTEI10_SUBJECT,
+    actorId: user.id,
+    recipients,
+    skipAlreadySent: input.audience === 'inactive_users',
+    sendOne: (recipient) =>
+      sendEmail({
+        role: 'marketing',
+        to: recipient.email,
+        subject: VOLTEI10_SUBJECT,
+        html: voltei10WinbackHtml({ name: recipient.name }),
+        text: voltei10WinbackText({ name: recipient.name }),
+        tags: [
+          { name: 'category', value: 'voltei10_winback' },
+          { name: 'campaign', value: VOLTEI10_CAMPAIGN },
+        ],
+      }),
+  });
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'marketing.send',
+    entityType: 'marketing_campaign',
+    entityId: result.dispatchId,
+    metadata: {
+      template: VOLTEI10_CAMPAIGN,
+      audience: input.audience,
+      subject: VOLTEI10_SUBJECT,
+      dispatchId: result.dispatchId,
+      total: result.total,
+      sent: result.sent,
+      failed: result.failed,
+      skipped: result.skipped,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  if (result.sent === 0 && result.skipped === 0) {
+    return {
+      error:
+        result.errors[0] ??
+        'Nenhum e-mail foi enviado. Verifique RESEND_API_KEY e remetente marketing.',
+    };
+  }
+
+  return {
+    success: true as const,
+    dispatchId: result.dispatchId,
+    total: result.total,
+    sent: result.sent,
+    failed: result.failed,
+    skipped: result.skipped,
+    errors: result.errors,
+  };
+}
+
+export async function listMarketingDispatchesAction() {
+  const { admin } = await requireAdmin();
+  const { listMarketingDispatches } = await import(
+    '@/lib/admin/marketing-dispatch'
+  );
+  return { dispatches: await listMarketingDispatches(admin) };
+}
+
 export async function sendPendingPaymentLinkEmailAction(input: {
   subscriptionId?: string;
   paymentId?: string;

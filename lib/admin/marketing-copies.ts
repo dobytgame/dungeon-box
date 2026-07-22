@@ -67,6 +67,15 @@ Entre com sua conta para ver descontos de fidelidade aplicados automaticamente n
     ctaHref: '/loja',
   },
   {
+    id: 'voltei10-nao-assinantes',
+    label: 'VOLTEI10 — Não assinantes',
+    subject: 'Você criou sua conta. Falta só um passo. 🎲',
+    title: 'Falta só um passo.',
+    body: 'Campanha estruturada para usuários cadastrados sem plano ativo. Cupom VOLTEI10 (10% off, 7 dias), planos com preço promocional e links rastreados. Ignora quem já recebeu este disparo.',
+    template: 'voltei10_winback',
+    defaultAudience: 'inactive_users',
+  },
+  {
     id: 'lead-nao-convertido',
     label: 'Lead não convertido',
     subject: 'Sua dungeon ainda está esperando, Mestre ⚔️',

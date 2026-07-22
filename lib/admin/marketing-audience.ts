@@ -22,7 +22,7 @@ async function fetchProfileRecipients(admin: SupabaseClient): Promise<MarketingR
   while (true) {
     const { data, error } = await admin
       .from('profiles')
-      .select('email, full_name, display_name')
+      .select('id, email, full_name, display_name')
       .not('email', 'is', null)
       .order('created_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
@@ -36,6 +36,7 @@ async function fetchProfileRecipients(admin: SupabaseClient): Promise<MarketingR
       byEmail.set(email, {
         email,
         name: profileName(row),
+        userId: row.id as string,
       });
     }
 

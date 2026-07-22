@@ -100,7 +100,7 @@ export type MarketingAudience =
   | 'newsletter_leads'
   | 'admin_test';
 
-export type MarketingTemplateId = 'unconverted_lead';
+export type MarketingTemplateId = 'unconverted_lead' | 'voltei10_winback';
 
 export interface MarketingCopyPreset {
   id: string;
@@ -117,6 +117,7 @@ export interface MarketingCopyPreset {
 export interface MarketingRecipient {
   email: string;
   name: string | null;
+  userId?: string | null;
 }
 
 export interface AdminCustomerRow {

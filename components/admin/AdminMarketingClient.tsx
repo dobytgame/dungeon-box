@@ -6,8 +6,10 @@ import {
   getMarketingAudienceCountAction,
   previewMarketingCampaignAction,
   previewUnconvertedLeadCampaignAction,
+  previewVoltei10WinbackCampaignAction,
   sendMarketingCampaignAction,
   sendUnconvertedLeadCampaignAction,
+  sendVoltei10WinbackCampaignAction,
 } from '@/lib/admin/actions';
 import { MARKETING_COPY_PRESETS } from '@/lib/admin/marketing-copies';
 import { MARKETING_AUDIENCE_LABELS } from '@/lib/admin/marketing-audience';
@@ -38,6 +40,7 @@ export default function AdminMarketingClient({ initialAudienceCounts }: Props) {
     initialAudienceCounts.admin_test ?? 1
   );
   const [message, setMessage] = useState<string | null>(null);
+  const [lastDispatchId, setLastDispatchId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -65,21 +68,31 @@ export default function AdminMarketingClient({ initialAudienceCounts }: Props) {
     setError(null);
   }
 
-  const isStructuredTemplate = activeTemplate === 'unconverted_lead';
+  const isStructuredTemplate =
+    activeTemplate === 'unconverted_lead' ||
+    activeTemplate === 'voltei10_winback';
+
+  const structuredTemplateLabel =
+    activeTemplate === 'voltei10_winback'
+      ? 'VOLTEI10 — Não assinantes'
+      : 'Lead não convertido';
 
   function handlePreview() {
     setMessage(null);
     setError(null);
     startTransition(async () => {
-      const result = isStructuredTemplate
-        ? await previewUnconvertedLeadCampaignAction()
-        : await previewMarketingCampaignAction({
-            subject,
-            title,
-            body,
-            ctaLabel,
-            ctaHref,
-          });
+      const result =
+        activeTemplate === 'voltei10_winback'
+          ? await previewVoltei10WinbackCampaignAction()
+          : activeTemplate === 'unconverted_lead'
+            ? await previewUnconvertedLeadCampaignAction()
+            : await previewMarketingCampaignAction({
+                subject,
+                title,
+                body,
+                ctaLabel,
+                ctaHref,
+              });
       if ('error' in result && result.error) {
         setError(result.error);
         setPreviewHtml(null);
@@ -96,43 +109,74 @@ export default function AdminMarketingClient({ initialAudienceCounts }: Props) {
     const audienceLabel = MARKETING_AUDIENCE_LABELS[audience];
     const confirmed = window.confirm(
       isStructuredTemplate
-        ? `Enviar campanha "Lead não convertido" para ${recipientCount} destinatário(s)?\n\nPúblico: ${audienceLabel}\nAssunto: ${subject}`
+        ? `Enviar campanha "${structuredTemplateLabel}" para ${recipientCount} destinatário(s)?\n\nPúblico: ${audienceLabel}\nAssunto: ${subject}${
+            activeTemplate === 'voltei10_winback'
+              ? '\n\nQuem já recebeu este disparo será ignorado automaticamente.'
+              : ''
+          }`
         : `Enviar campanha para ${recipientCount} destinatário(s)?\n\nPúblico: ${audienceLabel}\nAssunto: ${subject}`
     );
     if (!confirmed) return;
 
     startTransition(async () => {
-      const result = isStructuredTemplate
-        ? await sendUnconvertedLeadCampaignAction({
-            audience,
-            confirm: true,
-          })
-        : await sendMarketingCampaignAction({
-            subject,
-            title,
-            body,
-            audience,
-            ctaLabel,
-            ctaHref,
-            confirm: true,
-          });
+      const result =
+        activeTemplate === 'voltei10_winback'
+          ? await sendVoltei10WinbackCampaignAction({
+              audience,
+              confirm: true,
+            })
+          : activeTemplate === 'unconverted_lead'
+            ? await sendUnconvertedLeadCampaignAction({
+                audience,
+                confirm: true,
+              })
+            : await sendMarketingCampaignAction({
+                subject,
+                title,
+                body,
+                audience,
+                ctaLabel,
+                ctaHref,
+                confirm: true,
+              });
 
       if ('error' in result && result.error) {
         setError(result.error);
         return;
       }
 
+      const skipped =
+        'skipped' in result && result.skipped ? ` ${result.skipped} ignorado(s).` : '';
+
       setMessage(
         `Campanha enviada: ${result.sent} de ${result.total} e-mail(s).${
           result.failed ? ` ${result.failed} falha(s).` : ''
-        }`
+        }${skipped}`
       );
+
+      if ('dispatchId' in result && typeof result.dispatchId === 'string') {
+        setLastDispatchId(result.dispatchId);
+      } else {
+        setLastDispatchId(null);
+      }
     });
   }
 
   return (
     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
       <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+            Campanhas por e-mail
+          </p>
+          <Link
+            href="/admin/marketing/historico"
+            className="rounded border border-white/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-zinc-400 transition hover:border-white/20 hover:text-zinc-200"
+          >
+            Histórico de disparos
+          </Link>
+        </div>
+
         <section className="admin-panel rounded p-5 md:p-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
             Copys de exemplo
@@ -169,6 +213,12 @@ export default function AdminMarketingClient({ initialAudienceCounts }: Props) {
               <p className="mt-1 font-mono text-[11px] text-zinc-500">
                 Personalização automática do nome do destinatário.
               </p>
+              {activeTemplate === 'voltei10_winback' ? (
+                <p className="mt-2 font-mono text-[11px] text-console">
+                  Usuários que já receberam este disparo são ignorados automaticamente.
+                  Links com UTM para rastrear cliques.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -299,9 +349,20 @@ export default function AdminMarketingClient({ initialAudienceCounts }: Props) {
             </p>
           ) : null}
           {message ? (
-            <p className="rounded border border-console/30 bg-console/10 px-3 py-2 text-sm text-console" role="status">
-              {message}
-            </p>
+            <div
+              className="rounded border border-console/30 bg-console/10 px-3 py-2 text-sm text-console"
+              role="status"
+            >
+              <p>{message}</p>
+              {lastDispatchId ? (
+                <Link
+                  href={`/admin/marketing/historico/${lastDispatchId}`}
+                  className="mt-2 inline-block font-mono text-[11px] uppercase tracking-widest text-console underline"
+                >
+                  Ver detalhes do disparo
+                </Link>
+              ) : null}
+            </div>
           ) : null}
         </section>
       </div>

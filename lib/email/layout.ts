@@ -35,6 +35,11 @@ export interface EmailLayoutOptions {
   secondaryCta?: EmailCta;
   callout?: EmailCallout;
   footerNote?: string;
+  signature?: {
+    name: string;
+    subtitle?: string;
+    href?: string;
+  };
 }
 
 export function escapeHtml(value: string): string {
@@ -188,10 +193,23 @@ export function buildEmailHtml(options: EmailLayoutOptions): string {
           </tr>
           <tr>
             <td style="padding:28px 8px 0;text-align:center;">
-              <p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:${EMAIL_COLORS.muted};">
+              ${
+                options.signature
+                  ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:${EMAIL_COLORS.muted};">
+                Qualquer dúvida é só responder este e-mail — eu mesmo leio tudo.<br /><br />
+                <strong style="color:${EMAIL_COLORS.text};">${escapeHtml(options.signature.name)}</strong><br />
+                ${options.signature.subtitle ? `<span style="color:${EMAIL_COLORS.text};">${escapeHtml(options.signature.subtitle)}</span><br />` : ''}
+                ${
+                  options.signature.href
+                    ? `<a href="${escapeHtml(options.signature.href)}" style="color:${EMAIL_COLORS.frost};text-decoration:none;">${escapeHtml(options.signature.href.replace(/^https?:\/\//, ''))}</a>`
+                    : ''
+                }
+              </p>`
+                  : `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:${EMAIL_COLORS.muted};">
                 Até breve,<br />
                 <strong style="color:${EMAIL_COLORS.text};">Equipe ${COMPANY.brand}</strong>
-              </p>
+              </p>`
+              }
               ${options.footerNote ? `<p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:${EMAIL_COLORS.muted};">${options.footerNote}</p>` : ''}
               <p style="margin:16px 0 0;font-size:11px;line-height:1.6;color:#78716c;">
                 <a href="${siteUrl}" style="color:${EMAIL_COLORS.frost};text-decoration:none;">${siteUrl.replace(/^https?:\/\//, '')}</a>
