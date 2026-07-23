@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveLocalAsaasSubscription } from '@/lib/asaas/resolve-local-subscription';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
+import { recreateAsaasSubscriptionForBillingPlan } from '@/lib/asaas/plan-upgrade-recurrence';
 import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
 import { applyPendingPlanUpgrade } from '@/lib/subscriptions/upgrade';
 import {
@@ -239,9 +240,9 @@ export async function handleAsaasPaymentConfirmed(
       .eq('id', local.id)
       .maybeSingle();
 
-    void reconcileAsaasSubscriptionPendingPayment(supabase, local.id).catch(
+    void recreateAsaasSubscriptionForBillingPlan(supabase, local.id).catch(
       (err) => {
-        console.warn('[asaas] post-upgrade pending payment reconcile failed:', err);
+        console.warn('[asaas] post-upgrade recurrence recreate failed:', err);
       }
     );
 

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import {
   isHigherPlanSlug,
@@ -9,7 +10,7 @@ import {
   type PlanChargeRow,
   type SubscriptionRecurringContext,
 } from '@/lib/subscriptions/recurring-charge';
-import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
+import { recreateAsaasSubscriptionForBillingPlan } from '@/lib/asaas/plan-upgrade-recurrence';
 import { logSubscriptionPlanChange } from '@/lib/subscriptions/plan-change-log';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -45,6 +46,20 @@ function subscriptionBillingContext(
     shipping_cents: subscription.shipping_cents ?? null,
     special_notes: subscription.special_notes ?? null,
   };
+}
+
+async function resolveUpgradeRemoteIp(): Promise<string> {
+  const headerList = await headers();
+  const forwarded = headerList.get('x-forwarded-for');
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim();
+    if (first) return first;
+  }
+
+  const realIp = headerList.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+
+  return '127.0.0.1';
 }
 
 async function resolveRecurringChargeForPlan(
@@ -209,9 +224,9 @@ export async function applyPendingPlanUpgrade(
   }
 
   const admin = createAdminClient();
-  void reconcileAsaasSubscriptionPendingPayment(admin, subscriptionId).catch(
+  void recreateAsaasSubscriptionForBillingPlan(admin, subscriptionId).catch(
     (err) => {
-      console.warn('[upgrade] post-apply asaas billing sync failed:', err);
+      console.warn('[upgrade] post-apply asaas recurrence recreate failed:', err);
     }
   );
 
@@ -294,11 +309,13 @@ export async function scheduleSubscriptionUpgrade(
   }
 
   if (subscription.asaas_subscription_id) {
-    const syncResult = await reconcileAsaasSubscriptionPendingPayment(
+    const remoteIp = await resolveUpgradeRemoteIp();
+    const syncResult = await recreateAsaasSubscriptionForBillingPlan(
       admin,
-      subscriptionId
+      subscriptionId,
+      { remoteIp }
     );
-    if (syncResult === 'failed') {
+    if (syncResult.status === 'failed') {
       await supabase
         .from('subscriptions')
         .update({
@@ -308,15 +325,18 @@ export async function scheduleSubscriptionUpgrade(
         .eq('id', subscriptionId)
         .eq('user_id', userId);
 
-      return {
-        error:
-          'Não foi possível atualizar a cobrança no Asaas. O upgrade não foi agendado — tente novamente ou fale com o suporte.',
-      };
+      const reason =
+        syncResult.reason === 'credit_card_token_unavailable'
+          ? 'Não foi possível recuperar o cartão no Asaas. Atualize o cartão e tente novamente.'
+          : 'Não foi possível recriar a assinatura no Asaas. O upgrade não foi agendado — tente novamente ou fale com o suporte.';
+
+      return { error: reason };
     }
-    if (syncResult === 'skipped') {
-      console.warn('[upgrade] pending payment sync skipped after schedule:', {
+    if (syncResult.status === 'skipped') {
+      console.warn('[upgrade] asaas recurrence recreate skipped after schedule:', {
         subscriptionId,
         expectedCents: charge.totalCents,
+        reason: syncResult.reason,
       });
     }
   }
@@ -391,7 +411,10 @@ export async function cancelPendingSubscriptionUpgrade(
 
   if (subscription.asaas_subscription_id) {
     const admin = createAdminClient();
-    await reconcileAsaasSubscriptionPendingPayment(admin, subscriptionId);
+    const remoteIp = await resolveUpgradeRemoteIp();
+    await recreateAsaasSubscriptionForBillingPlan(admin, subscriptionId, {
+      remoteIp,
+    });
   }
 
   return { success: true };

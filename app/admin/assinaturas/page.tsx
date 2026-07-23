@@ -3,6 +3,7 @@ import AdminListPagination from '@/components/admin/AdminListPagination';
 import AdminSubscriptionsFiltersForm from '@/components/admin/AdminSubscriptionsFiltersForm';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
+import RepairPlanUpgradeAsaasButton from '@/components/admin/RepairPlanUpgradeAsaasButton';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
@@ -90,6 +91,8 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
           pageSize: filters.pageSize,
         }}
       />
+
+      <RepairPlanUpgradeAsaasButton />
 
       <AdminTable
         rows={subscriptions}

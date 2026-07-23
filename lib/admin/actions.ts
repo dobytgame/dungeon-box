@@ -10,6 +10,10 @@ import {
 } from '@/lib/payments/repair-combo-amounts';
 import { repairAsaasPaymentIncoherencies } from '@/lib/payments/repair-asaas-incoherencies';
 import { repairPhantomSubscriptionCharges } from '@/lib/payments/repair-phantom-charges';
+import {
+  recreateAsaasSubscriptionForBillingPlan,
+  repairAllPlanUpgradeAsaasRecurrences,
+} from '@/lib/asaas/plan-upgrade-recurrence';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import {
   normalizePromoCode,
@@ -51,7 +55,6 @@ import {
   manualDeactivateSubscription,
 } from '@/lib/subscriptions/admin-manual-status';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
-import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
 import type { StoreProductCategory } from '@/lib/store/catalog';
 import { STORE_PRODUCTS } from '@/lib/store/catalog';
 import {
@@ -478,11 +481,11 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
       reconcileTarget.status === 'active' &&
       reconcileTarget.asaas_subscription_id
     ) {
-      const billingSync = await reconcileAsaasSubscriptionPendingPayment(
+      const billingSync = await recreateAsaasSubscriptionForBillingPlan(
         admin,
         subscriptionId
       );
-      reconciled = billingSync === 'updated';
+      reconciled = billingSync.status === 'recreated';
     }
 
     const productionRepair = await repairMonthlyProductionForSubscription(
@@ -522,6 +525,29 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
   } catch (error) {
     console.error('[admin] sync asaas:', error);
     return { error: 'Falha ao sincronizar com o Asaas.' };
+  }
+}
+
+export async function repairAllPlanUpgradeAsaasRecurrencesAction() {
+  const { user, admin } = await requireAdmin();
+
+  try {
+    const result = await repairAllPlanUpgradeAsaasRecurrences(admin);
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.repair_plan_upgrade_asaas',
+      entityType: 'subscription',
+      entityId: null,
+      metadata: result,
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    return { success: true as const, ...result };
+  } catch (error) {
+    console.error('[admin] repair plan upgrade asaas recurrences:', error);
+    return { error: 'Falha ao corrigir recorrências de upgrade no Asaas.' };
   }
 }
 
