@@ -39,6 +39,7 @@ export interface EmailLayoutOptions {
     name: string;
     subtitle?: string;
     href?: string;
+    hrefLabel?: string;
   };
 }
 
@@ -48,6 +49,16 @@ export function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function emailLinkLabel(href: string, label?: string): string {
+  if (label?.trim()) return label.trim();
+  try {
+    const url = new URL(href);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return href.replace(/^https?:\/\//, '').split(/[?#]/)[0] ?? href;
+  }
 }
 
 function renderParagraphs(paragraphs: string[]): string {
@@ -201,7 +212,7 @@ export function buildEmailHtml(options: EmailLayoutOptions): string {
                 ${options.signature.subtitle ? `<span style="color:${EMAIL_COLORS.text};">${escapeHtml(options.signature.subtitle)}</span><br />` : ''}
                 ${
                   options.signature.href
-                    ? `<a href="${escapeHtml(options.signature.href)}" style="color:${EMAIL_COLORS.frost};text-decoration:none;">${escapeHtml(options.signature.href.replace(/^https?:\/\//, ''))}</a>`
+                    ? `<a href="${escapeHtml(options.signature.href)}" style="color:${EMAIL_COLORS.frost};text-decoration:none;white-space:nowrap;">${escapeHtml(emailLinkLabel(options.signature.href, options.signature.hrefLabel))}</a>`
                     : ''
                 }
               </p>`

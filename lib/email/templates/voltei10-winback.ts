@@ -59,6 +59,7 @@ export function voltei10WinbackHtml(data: Voltei10WinbackTemplateData): string {
       name: 'Alessandro',
       subtitle: 'DungeonBox',
       href: siteUrl,
+      hrefLabel: 'dungeonbox.com.br',
     },
     footerNote:
       'Você recebeu este e-mail por ter criado conta na DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.',
