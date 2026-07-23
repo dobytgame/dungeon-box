@@ -51,6 +51,7 @@ import {
   manualDeactivateSubscription,
 } from '@/lib/subscriptions/admin-manual-status';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
+import { reconcileAsaasSubscriptionPendingPayment } from '@/lib/asaas/upgrade-payment-sync';
 import type { StoreProductCategory } from '@/lib/store/catalog';
 import { STORE_PRODUCTS } from '@/lib/store/catalog';
 import {
@@ -473,6 +474,15 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
     let reconciled = false;
     if (reconcileTarget.status === 'pending') {
       reconciled = await reconcilePendingAsaasSubscription(admin, reconcileTarget);
+    } else if (
+      reconcileTarget.status === 'active' &&
+      reconcileTarget.asaas_subscription_id
+    ) {
+      const billingSync = await reconcileAsaasSubscriptionPendingPayment(
+        admin,
+        subscriptionId
+      );
+      reconciled = billingSync === 'updated';
     }
 
     const productionRepair = await repairMonthlyProductionForSubscription(

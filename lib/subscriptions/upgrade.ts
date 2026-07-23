@@ -208,6 +208,13 @@ export async function applyPendingPlanUpgrade(
     });
   }
 
+  const admin = createAdminClient();
+  void reconcileAsaasSubscriptionPendingPayment(admin, subscriptionId).catch(
+    (err) => {
+      console.warn('[upgrade] post-apply asaas billing sync failed:', err);
+    }
+  );
+
   return {
     previousPlanName: currentPlan.name,
     newPlanName: pendingPlan.name,
@@ -286,6 +293,34 @@ export async function scheduleSubscriptionUpgrade(
     return { error: updateError.message };
   }
 
+  if (subscription.asaas_subscription_id) {
+    const syncResult = await reconcileAsaasSubscriptionPendingPayment(
+      admin,
+      subscriptionId
+    );
+    if (syncResult === 'failed') {
+      await supabase
+        .from('subscriptions')
+        .update({
+          pending_plan_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', subscriptionId)
+        .eq('user_id', userId);
+
+      return {
+        error:
+          'Não foi possível atualizar a cobrança no Asaas. O upgrade não foi agendado — tente novamente ou fale com o suporte.',
+      };
+    }
+    if (syncResult === 'skipped') {
+      console.warn('[upgrade] pending payment sync skipped after schedule:', {
+        subscriptionId,
+        expectedCents: charge.totalCents,
+      });
+    }
+  }
+
   await logSubscriptionPlanChange(supabase, {
     subscriptionId,
     userId,
@@ -300,19 +335,6 @@ export async function scheduleSubscriptionUpgrade(
       recurringTotalCents: charge.totalCents,
     },
   });
-
-  if (subscription.asaas_subscription_id) {
-    const syncResult = await reconcileAsaasSubscriptionPendingPayment(
-      admin,
-      subscriptionId
-    );
-    if (syncResult === 'failed') {
-      console.warn('[upgrade] pending payment sync failed after schedule:', {
-        subscriptionId,
-        expectedCents: charge.totalCents,
-      });
-    }
-  }
 
   return { success: true };
 }
