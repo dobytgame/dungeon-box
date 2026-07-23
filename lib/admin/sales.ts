@@ -200,8 +200,8 @@ export function summarizeAdminSales(rows: AdminSaleRow[]): Omit<
 
   for (const row of rows) {
     if (row.status === 'approved') {
-      approvedCount += 1;
       if (row.countsInRevenue) {
+        approvedCount += 1;
         revenueCents += row.effectiveAmountCents;
         byType[row.saleType].count += 1;
         byType[row.saleType].revenueCents += row.effectiveAmountCents;
@@ -241,6 +241,8 @@ function mapPaymentRow(
     billing_term?: string | null;
     combo_total_cents?: number | null;
     combo_installments?: number | null;
+    prepaid_months?: number | null;
+    prepaid_until?: string | null;
   } | null;
 
   const paymentData = {
@@ -258,9 +260,13 @@ function mapPaymentRow(
   );
   const installmentCount = resolvePaymentInstallments(paymentData, subContext);
   const billingTerm = (subContext?.billing_term ?? 'monthly') as BillingTerm;
+  const hasComboPurchase = (subContext?.combo_total_cents ?? 0) > 0;
   const comboLabel =
-    isComboTerm(billingTerm) && !isComboInstallmentSlice
-      ? getComboTermLabel(billingTerm)
+    !isComboInstallmentSlice &&
+    (isComboTerm(billingTerm) || hasComboPurchase)
+      ? isComboTerm(billingTerm)
+        ? getComboTermLabel(billingTerm)
+        : 'Combo'
       : null;
 
   const revenueRow = row as unknown as RevenuePaymentRow;
@@ -391,6 +397,8 @@ export async function listAdminSales(
         billing_term,
         combo_total_cents,
         combo_installments,
+        prepaid_months,
+        prepaid_until,
         plans!plan_id(name)
       )
     `
@@ -456,23 +464,28 @@ export async function getAdminSalesPageData(
     filters.sort,
     filters.order
   );
-  const paginated = paginateList(
-    allSales,
+  const allGroups = groupAdminSalesRows(allSales);
+  const paginatedGroups = paginateList(
+    allGroups,
     filters.page ?? 1,
     filters.pageSize ?? 25
   );
+  const sales = paginatedGroups.items.flatMap((group) => [
+    group.main,
+    ...group.installments,
+  ]);
   const summary = {
     ...summarizeAdminSales(allSales),
     periodLabel: filters.periodLabel,
     from: filters.from,
     to: filters.to,
-    page: paginated.page,
-    pageSize: paginated.pageSize,
-    total: paginated.total,
-    totalPages: paginated.totalPages,
+    page: paginatedGroups.page,
+    pageSize: paginatedGroups.pageSize,
+    total: paginatedGroups.total,
+    totalPages: paginatedGroups.totalPages,
   };
 
-  return { filters, sales: paginated.items, summary };
+  return { filters, sales, summary };
 }
 
 export async function getAdminSalesSummary(
@@ -493,6 +506,8 @@ export async function getAdminSalesSummary(
         billing_term,
         combo_total_cents,
         combo_installments,
+        prepaid_months,
+        prepaid_until,
         plans!plan_id(name)
       )
     `

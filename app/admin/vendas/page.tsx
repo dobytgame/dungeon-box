@@ -160,7 +160,7 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         <div className="mb-3 px-1 font-mono text-[11px] text-zinc-600">
           {summary.total} venda(s) no período
           {summary.totalPages > 1
-            ? ` · exibindo ${sales.length} na página ${summary.page}`
+            ? ` · exibindo ${summary.pageSize} grupo(s) na página ${summary.page}`
             : ''}
           {summary.hiddenInstallmentCount > 0
             ? ` · ${summary.hiddenInstallmentCount} parcela(s) de combo recolhida(s)`

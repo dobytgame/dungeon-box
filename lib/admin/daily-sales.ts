@@ -204,6 +204,8 @@ export async function getDailySalesChartData(
         billing_term,
         combo_total_cents,
         combo_installments,
+        prepaid_months,
+        prepaid_until,
         plans!plan_id(name)
       )
     `

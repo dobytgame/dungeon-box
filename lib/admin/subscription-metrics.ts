@@ -6,9 +6,11 @@ import {
   type DailySalesFilters,
 } from '@/lib/admin/daily-sales';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import {
   buildCanonicalComboPrepaidIndex,
   buildComboPrepaidDayBySubscription,
+  isComboSubscription,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
@@ -51,6 +53,10 @@ type SubscriptionSnapshotRow = {
   cancelled_at: string | null;
   shipping_cents: number | null;
   special_notes: string | null;
+  billing_term?: string | null;
+  combo_total_cents?: number | null;
+  prepaid_months?: number | null;
+  prepaid_until?: string | null;
   plans: { price_cents: number | null } | { price_cents: number | null }[] | null;
 };
 
@@ -91,6 +97,25 @@ function dayKey(raw: string | null | undefined): string | null {
 
 function endOfDayIso(date: string): string {
   return `${date}T23:59:59.999Z`;
+}
+
+function isRecurringMrrSubscription(row: SubscriptionSnapshotRow): boolean {
+  if (isComboSubscription(row)) {
+    return false;
+  }
+
+  if (row.billing_term && isComboTerm(row.billing_term as BillingTerm)) {
+    return false;
+  }
+
+  if (row.prepaid_until) {
+    const prepaidUntil = new Date(row.prepaid_until);
+    if (!Number.isNaN(prepaidUntil.getTime()) && prepaidUntil > new Date()) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function resolvePlanPriceCents(row: SubscriptionSnapshotRow): number {
@@ -180,6 +205,10 @@ export async function getSubscriptionMetricsChartData(
         cancelled_at,
         shipping_cents,
         special_notes,
+        billing_term,
+        combo_total_cents,
+        prepaid_months,
+        prepaid_until,
         plans!plan_id(price_cents)
       `
       )
@@ -195,7 +224,13 @@ export async function getSubscriptionMetricsChartData(
         subscription_id,
         paid_at,
         created_at,
-        subscriptions(billing_term, combo_total_cents, combo_installments)
+        subscriptions(
+          billing_term,
+          combo_total_cents,
+          combo_installments,
+          prepaid_months,
+          prepaid_until
+        )
       `
       )
       .eq('status', 'approved')
@@ -243,10 +278,9 @@ export async function getSubscriptionMetricsChartData(
 
     const activeRows = subscriptions.filter((row) => isActiveOnDay(row, date));
     const activeCount = activeRows.length;
-    const mrrCents = activeRows.reduce(
-      (sum, row) => sum + resolvePlanPriceCents(row),
-      0
-    );
+    const mrrCents = activeRows
+      .filter(isRecurringMrrSubscription)
+      .reduce((sum, row) => sum + resolvePlanPriceCents(row), 0);
 
     return {
       date,

@@ -32,7 +32,11 @@ function SaleAmount({ row, showComboTotal }: { row: AdminSaleRow; showComboTotal
 
   return (
     <div>
-      <span className="font-mono tabular-nums text-zinc-100">
+      <span
+        className={`font-mono tabular-nums ${
+          row.countsInRevenue ? 'text-zinc-100' : 'text-zinc-500'
+        }`}
+      >
         {formatMoney(displayCents)}
       </span>
       {showComboTotal && row.installmentCount != null && row.installmentCount > 1 ? (
@@ -40,7 +44,7 @@ function SaleAmount({ row, showComboTotal }: { row: AdminSaleRow; showComboTotal
           Total · {row.installmentCount}x no cartão
         </p>
       ) : null}
-      {!showComboTotal && row.isComboInstallmentSlice ? (
+      {!row.countsInRevenue ? (
         <p className="text-xs text-stone-500">Não soma na receita</p>
       ) : null}
     </div>
@@ -168,7 +172,10 @@ function GroupBlock({
               ) : null}
               {hasInstallments ? (
                 <p className="font-mono text-[10px] text-zinc-600">
-                  {group.installments.length} parcela(s) · valor total na receita
+                  {group.installments.length} cobrança(s) adicional(is)
+                  {group.installments.some((item) => !item.countsInRevenue)
+                    ? ' · extras não somam na receita'
+                    : ''}
                 </p>
               ) : null}
               {row.planName && row.saleType !== 'assinatura' ? (
@@ -202,7 +209,9 @@ function GroupBlock({
             <tr key={installment.id} className={`${rowClass} bg-zinc-950/50`}>
               <td className="px-4 py-2 pl-10 text-zinc-500">
                 <span className="font-mono text-[10px] uppercase tracking-widest">
-                  Parcela {index + 1}
+                  {installment.isComboInstallmentSlice
+                    ? `Parcela ${index + 1}`
+                    : 'Cobrança extra'}
                 </span>
               </td>
               <td className="px-4 py-2.5" />
