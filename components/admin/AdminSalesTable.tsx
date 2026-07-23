@@ -44,6 +44,9 @@ function SaleAmount({ row, showComboTotal }: { row: AdminSaleRow; showComboTotal
           Total · {row.installmentCount}x no cartão
         </p>
       ) : null}
+      {!row.countsInSales && row.countsInRevenue ? (
+        <p className="text-xs text-stone-500">Renovação (não é venda)</p>
+      ) : null}
       {!row.countsInRevenue ? (
         <p className="text-xs text-stone-500">Não soma na receita</p>
       ) : null}

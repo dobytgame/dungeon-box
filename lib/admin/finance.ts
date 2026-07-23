@@ -170,7 +170,8 @@ export function sumApprovedPaymentsRevenueCents(
         row,
         indexes.canonicalComboBySubscription,
         indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
+        indexes.canonicalMonthlyBySubscriptionMonth,
+        indexes.firstPaymentBySubscription
       )
     ) {
       return sum;
@@ -338,7 +339,8 @@ export async function getCashFlowByMonth(
         payment,
         indexes.canonicalComboBySubscription,
         indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
+        indexes.canonicalMonthlyBySubscriptionMonth,
+        indexes.firstPaymentBySubscription
       )
     ) {
       continue;
@@ -403,7 +405,8 @@ export async function listFinancialMovements(
         paymentRow,
         indexes.canonicalComboBySubscription,
         indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
+        indexes.canonicalMonthlyBySubscriptionMonth,
+        indexes.firstPaymentBySubscription
       )
     ) {
       continue;

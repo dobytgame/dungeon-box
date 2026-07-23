@@ -150,7 +150,8 @@ export async function getProfitByMonth(
         payment,
         indexes.canonicalComboBySubscription,
         indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
+        indexes.canonicalMonthlyBySubscriptionMonth,
+        indexes.firstPaymentBySubscription
       )
     ) {
       continue;

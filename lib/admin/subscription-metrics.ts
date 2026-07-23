@@ -154,7 +154,8 @@ function buildRenewalDayCounts(
           row,
           indexes.canonicalComboBySubscription,
           indexes.comboPrepaidDayBySubscription,
-          indexes.canonicalMonthlyBySubscriptionMonth
+          indexes.canonicalMonthlyBySubscriptionMonth,
+          indexes.firstPaymentBySubscription
         )
     )
     .sort((a, b) => {
@@ -224,9 +225,10 @@ export async function getSubscriptionMetricsChartData(
           billing_term,
           combo_total_cents,
           combo_installments,
-          prepaid_months,
-          prepaid_until
-        )
+        prepaid_months,
+        prepaid_until,
+        started_at
+      )
       `
       )
       .eq('status', 'approved')

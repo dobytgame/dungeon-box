@@ -4,7 +4,7 @@ import { classifyAdminSale } from '@/lib/admin/sales';
 import {
   buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
-  shouldCountPaymentInRevenue,
+  shouldCountInAdminSales,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
 
@@ -205,6 +205,7 @@ export async function getDailySalesChartData(
         combo_installments,
         prepaid_months,
         prepaid_until,
+        started_at,
         plans!plan_id(name)
       )
     `
@@ -223,14 +224,7 @@ export async function getDailySalesChartData(
   const byDay = new Map<string, { assinaturaCents: number; lojaCents: number }>();
 
   for (const row of rows) {
-    if (
-      !shouldCountPaymentInRevenue(
-        row,
-        indexes.canonicalComboBySubscription,
-        indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
-      )
-    ) {
+    if (!shouldCountInAdminSales(row, indexes)) {
       continue;
     }
 

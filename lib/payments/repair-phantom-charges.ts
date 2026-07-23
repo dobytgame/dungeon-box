@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAsaasPaymentDetails } from '@/lib/asaas/payment-details';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import {
+  buildRevenueCountIndexes,
   buildCanonicalComboPrepaidIndex,
   isComboSubscription,
   type RevenuePaymentRow,
@@ -60,7 +61,8 @@ export async function cancelPhantomSubscriptionCharges(
         combo_total_cents,
         combo_installments,
         prepaid_months,
-        prepaid_until
+        prepaid_until,
+        started_at
       )
     `
     )
@@ -79,7 +81,8 @@ export async function cancelPhantomSubscriptionCharges(
 
   const payments = (data ?? []) as PaymentRow[];
   const revenueRows = payments as unknown as RevenuePaymentRow[];
-  const canonicalCombo = buildCanonicalComboPrepaidIndex(revenueRows);
+  const indexes = buildRevenueCountIndexes(revenueRows);
+  const canonicalCombo = indexes.canonicalComboBySubscription;
 
   const byMonth = new Map<string, PaymentRow[]>();
   let cancelled = 0;
@@ -104,6 +107,39 @@ export async function cancelPhantomSubscriptionCharges(
             status_detail: JSON.stringify({
               type: 'phantom_duplicate_import',
               reason: 'combo_recurring_charge',
+              repaired_at: new Date().toISOString(),
+            }),
+          })
+          .eq('id', payment.id);
+
+        if (!updateError) cancelled += 1;
+        continue;
+      }
+    }
+
+    const firstId = payment.subscription_id
+      ? indexes.firstPaymentBySubscription.get(payment.subscription_id)
+      : undefined;
+    if (
+      payment.subscription_id &&
+      firstId &&
+      payment.id !== firstId &&
+      subscription?.prepaid_until
+    ) {
+      const prepaidUntil = new Date(subscription.prepaid_until);
+      const paidAt = payment.paid_at ?? payment.created_at;
+      if (
+        paidAt &&
+        !Number.isNaN(prepaidUntil.getTime()) &&
+        new Date(paidAt).getTime() <= prepaidUntil.getTime()
+      ) {
+        const { error: updateError } = await admin
+          .from('payments')
+          .update({
+            status: 'cancelled',
+            status_detail: JSON.stringify({
+              type: 'phantom_duplicate_import',
+              reason: 'prepaid_period_renewal',
               repaired_at: new Date().toISOString(),
             }),
           })

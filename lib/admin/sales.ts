@@ -14,6 +14,7 @@ import {
 import {
   buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
+  shouldCountInAdminSales,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
@@ -199,7 +200,7 @@ export function summarizeAdminSales(rows: AdminSaleRow[]): Omit<
 
   for (const row of rows) {
     if (row.status === 'approved') {
-      if (row.countsInRevenue) {
+      if (row.countsInSales) {
         approvedCount += 1;
         revenueCents += row.effectiveAmountCents;
         byType[row.saleType].count += 1;
@@ -241,6 +242,7 @@ function mapPaymentRow(
     combo_installments?: number | null;
     prepaid_months?: number | null;
     prepaid_until?: string | null;
+    started_at?: string | null;
   } | null;
 
   const paymentData = {
@@ -272,8 +274,10 @@ function mapPaymentRow(
     revenueRow,
     indexes.canonicalComboBySubscription,
     indexes.comboPrepaidDayBySubscription,
-    indexes.canonicalMonthlyBySubscriptionMonth
+    indexes.canonicalMonthlyBySubscriptionMonth,
+    indexes.firstPaymentBySubscription
   );
+  const countsInSales = shouldCountInAdminSales(revenueRow, indexes);
 
   const { saleType, description } = classifyAdminSale({
     subscription_id: row.subscription_id as string | null,
@@ -304,6 +308,7 @@ function mapPaymentRow(
     asaasPaymentId: (row.asaas_payment_id as string | null) ?? null,
     isComboInstallmentSlice,
     countsInRevenue,
+    countsInSales,
   };
 }
 
@@ -398,6 +403,7 @@ export async function listAdminSales(
         combo_installments,
         prepaid_months,
         prepaid_until,
+        started_at,
         plans!plan_id(name)
       )
     `
@@ -427,7 +433,7 @@ export async function listAdminSales(
 
   const rows = (data ?? [])
     .map((row) => mapPaymentRow(row as Record<string, unknown>, indexes))
-    .filter((row) => row.status !== 'approved' || row.countsInRevenue);
+    .filter((row) => row.status !== 'approved' || row.countsInSales);
 
   if (!filters.q && !filters.saleType) {
     return rows;
@@ -499,6 +505,7 @@ export async function getAdminSalesSummary(
         combo_installments,
         prepaid_months,
         prepaid_until,
+        started_at,
         plans!plan_id(name)
       )
     `
@@ -529,7 +536,8 @@ export async function getAdminSalesSummary(
         row,
         indexes.canonicalComboBySubscription,
         indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
+        indexes.canonicalMonthlyBySubscriptionMonth,
+        indexes.firstPaymentBySubscription
       )
     ) {
       continue;

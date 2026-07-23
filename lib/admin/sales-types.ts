@@ -27,6 +27,7 @@ export interface AdminSaleRow {
   asaasPaymentId: string | null;
   isComboInstallmentSlice: boolean;
   countsInRevenue: boolean;
+  countsInSales: boolean;
 }
 
 export interface AdminSalesListFilters {

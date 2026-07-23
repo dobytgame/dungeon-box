@@ -24,6 +24,7 @@ export type SubscriptionRevenueContext = {
   combo_installments?: number | null;
   prepaid_months?: number | null;
   prepaid_until?: string | null;
+  started_at?: string | null;
 };
 
 function getSubscription(row: RevenuePaymentRow): SubscriptionRevenueContext | null {
@@ -183,10 +184,84 @@ export function buildCanonicalMonthlyPaymentIndex(
   return byMonth;
 }
 
+function paymentTimestamp(row: RevenuePaymentRow): string {
+  return row.paid_at ?? row.created_at ?? '';
+}
+
+/** Primeira cobrança real da assinatura (aquisição — não renovação mensal). */
+export function buildFirstSubscriptionPaymentIndex(
+  rows: RevenuePaymentRow[],
+  canonicalComboBySubscription: Map<string, string>
+): Map<string, string> {
+  const bySubscription = new Map<string, string>();
+
+  for (const [subscriptionId, paymentId] of Array.from(
+    canonicalComboBySubscription.entries()
+  )) {
+    bySubscription.set(subscriptionId, paymentId);
+  }
+
+  const sorted = sortPaymentsChronologically(
+    rows.filter((row) => {
+      if (!row.subscription_id || bySubscription.has(row.subscription_id)) {
+        return false;
+      }
+
+      const subscription = getSubscription(row);
+      if (isInstallmentSliceRow(row, subscription)) return false;
+
+      return Boolean(paymentTimestamp(row));
+    })
+  );
+
+  for (const row of sorted) {
+    if (!row.subscription_id || bySubscription.has(row.subscription_id)) continue;
+    bySubscription.set(row.subscription_id, row.id);
+  }
+
+  return bySubscription;
+}
+
+function isPaymentBeforeSubscriptionStart(
+  subscription: SubscriptionRevenueContext | null,
+  row: RevenuePaymentRow
+): boolean {
+  const startedAt = subscription?.started_at;
+  const paidAt = row.paid_at ?? row.created_at;
+  if (!startedAt || !paidAt) return false;
+
+  const started = new Date(startedAt);
+  const paid = new Date(paidAt);
+  if (Number.isNaN(started.getTime()) || Number.isNaN(paid.getTime())) {
+    return false;
+  }
+
+  const graceMs = 3 * 24 * 60 * 60 * 1000;
+  return paid.getTime() < started.getTime() - graceMs;
+}
+
+function isPaymentCoveredByPrepaid(
+  subscription: SubscriptionRevenueContext | null,
+  row: RevenuePaymentRow,
+  firstPaymentBySubscription: Map<string, string>
+): boolean {
+  if (!subscription?.prepaid_until || !row.subscription_id) return false;
+
+  const prepaidUntil = new Date(subscription.prepaid_until);
+  const paidAt = row.paid_at ?? row.created_at;
+  if (!paidAt || Number.isNaN(prepaidUntil.getTime())) return false;
+
+  if (new Date(paidAt).getTime() > prepaidUntil.getTime()) return false;
+
+  const firstId = firstPaymentBySubscription.get(row.subscription_id);
+  return Boolean(firstId && row.id !== firstId);
+}
+
 export function buildRevenueCountIndexes(rows: RevenuePaymentRow[]): {
   canonicalComboBySubscription: Map<string, string>;
   comboPrepaidDayBySubscription: Map<string, string>;
   canonicalMonthlyBySubscriptionMonth: Map<string, string>;
+  firstPaymentBySubscription: Map<string, string>;
 } {
   const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
   const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
@@ -197,11 +272,16 @@ export function buildRevenueCountIndexes(rows: RevenuePaymentRow[]): {
     rows,
     canonicalComboBySubscription
   );
+  const firstPaymentBySubscription = buildFirstSubscriptionPaymentIndex(
+    rows,
+    canonicalComboBySubscription
+  );
 
   return {
     canonicalComboBySubscription,
     comboPrepaidDayBySubscription,
     canonicalMonthlyBySubscriptionMonth,
+    firstPaymentBySubscription,
   };
 }
 
@@ -209,7 +289,8 @@ export function shouldCountPaymentInRevenue(
   row: RevenuePaymentRow,
   canonicalComboBySubscription: Map<string, string>,
   _comboPrepaidDayBySubscription: Map<string, string>,
-  canonicalMonthlyBySubscriptionMonth: Map<string, string> = new Map()
+  canonicalMonthlyBySubscriptionMonth: Map<string, string> = new Map(),
+  firstPaymentBySubscription: Map<string, string> = new Map()
 ): boolean {
   if (parseStoreOrderMeta(row.status_detail)) {
     return true;
@@ -218,7 +299,15 @@ export function shouldCountPaymentInRevenue(
   const subscriptionId = row.subscription_id;
   const subscription = getSubscription(row);
 
+  if (isPaymentBeforeSubscriptionStart(subscription, row)) {
+    return false;
+  }
+
   if (isInstallmentSliceRow(row, subscription)) {
+    return false;
+  }
+
+  if (isPaymentCoveredByPrepaid(subscription, row, firstPaymentBySubscription)) {
     return false;
   }
 
@@ -252,6 +341,35 @@ export function shouldCountPaymentInRevenue(
   return true;
 }
 
+/** Vendas admin = aquisição (1ª cobrança). Renovações mensais do Asaas não entram. */
+export function shouldCountInAdminSales(
+  row: RevenuePaymentRow,
+  indexes: ReturnType<typeof buildRevenueCountIndexes>
+): boolean {
+  if (
+    !shouldCountPaymentInRevenue(
+      row,
+      indexes.canonicalComboBySubscription,
+      indexes.comboPrepaidDayBySubscription,
+      indexes.canonicalMonthlyBySubscriptionMonth,
+      indexes.firstPaymentBySubscription
+    )
+  ) {
+    return false;
+  }
+
+  if (parseStoreOrderMeta(row.status_detail)) {
+    return true;
+  }
+
+  if (!row.subscription_id) {
+    return true;
+  }
+
+  const firstId = indexes.firstPaymentBySubscription.get(row.subscription_id);
+  return firstId === row.id;
+}
+
 export function resolvePaymentRevenueCents(row: RevenuePaymentRow): number {
   return resolveEffectivePaymentAmountCents(
     {
@@ -272,7 +390,8 @@ export function sumPaymentRevenueCents(rows: RevenuePaymentRow[]): number {
         row,
         indexes.canonicalComboBySubscription,
         indexes.comboPrepaidDayBySubscription,
-        indexes.canonicalMonthlyBySubscriptionMonth
+        indexes.canonicalMonthlyBySubscriptionMonth,
+        indexes.firstPaymentBySubscription
       )
     ) {
       return sum;
