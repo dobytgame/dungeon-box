@@ -12,8 +12,7 @@ import {
   paginateList,
 } from '@/lib/admin/list-pagination';
 import {
-  buildCanonicalComboPrepaidIndex,
-  buildComboPrepaidDayBySubscription,
+  buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
@@ -224,8 +223,7 @@ export function summarizeAdminSales(rows: AdminSaleRow[]): Omit<
 
 function mapPaymentRow(
   row: Record<string, unknown>,
-  canonicalComboBySubscription: Map<string, string>,
-  comboPrepaidDayBySubscription: Map<string, string>
+  indexes: ReturnType<typeof buildRevenueCountIndexes>
 ): AdminSaleRow {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   const subscription = Array.isArray(row.subscriptions)
@@ -272,8 +270,9 @@ function mapPaymentRow(
   const revenueRow = row as unknown as RevenuePaymentRow;
   const countsInRevenue = shouldCountPaymentInRevenue(
     revenueRow,
-    canonicalComboBySubscription,
-    comboPrepaidDayBySubscription
+    indexes.canonicalComboBySubscription,
+    indexes.comboPrepaidDayBySubscription,
+    indexes.canonicalMonthlyBySubscriptionMonth
   );
 
   const { saleType, description } = classifyAdminSale({
@@ -424,19 +423,11 @@ export async function listAdminSales(
   }
 
   const revenueRows = (data ?? []) as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(revenueRows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    revenueRows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(revenueRows);
 
-  const rows = (data ?? []).map((row) =>
-    mapPaymentRow(
-      row as Record<string, unknown>,
-      canonicalComboBySubscription,
-      comboPrepaidDayBySubscription
-    )
-  );
+  const rows = (data ?? [])
+    .map((row) => mapPaymentRow(row as Record<string, unknown>, indexes))
+    .filter((row) => row.status !== 'approved' || row.countsInRevenue);
 
   if (!filters.q && !filters.saleType) {
     return rows;
@@ -530,18 +521,15 @@ export async function getAdminSalesSummary(
   }
 
   const rows = (data ?? []) as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    rows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(rows);
 
   for (const row of rows) {
     if (
       !shouldCountPaymentInRevenue(
         row,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       continue;

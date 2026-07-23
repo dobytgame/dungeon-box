@@ -9,6 +9,7 @@ import {
   repairComboPaymentAmounts,
 } from '@/lib/payments/repair-combo-amounts';
 import { repairAsaasPaymentIncoherencies } from '@/lib/payments/repair-asaas-incoherencies';
+import { repairPhantomSubscriptionCharges } from '@/lib/payments/repair-phantom-charges';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import {
   normalizePromoCode,
@@ -457,6 +458,7 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
     await dedupeComboPrepaidPayments(admin);
     await annotateComboInstallmentSlicePayments(admin);
     await repairAsaasPaymentIncoherencies(admin);
+    await repairPhantomSubscriptionCharges(admin, subscriptionId);
 
     const { data: refreshed } = await admin
       .from('subscriptions')

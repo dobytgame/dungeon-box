@@ -2,8 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { OPERATION_CHART_START } from '@/lib/admin/chart-period';
 import { classifyAdminSale } from '@/lib/admin/sales';
 import {
-  buildCanonicalComboPrepaidIndex,
-  buildComboPrepaidDayBySubscription,
+  buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
@@ -219,11 +218,7 @@ export async function getDailySalesChartData(
   }
 
   const rows = (data ?? []) as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    rows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(rows);
 
   const byDay = new Map<string, { assinaturaCents: number; lojaCents: number }>();
 
@@ -231,8 +226,9 @@ export async function getDailySalesChartData(
     if (
       !shouldCountPaymentInRevenue(
         row,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       continue;

@@ -4,6 +4,7 @@ import {
   toAsaasWebhookPayment,
 } from '@/lib/asaas/payment-sync';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
+import { isAsaasPaymentPending } from '@/lib/asaas/payment-details';
 import { resolveConfirmedInstallmentPayment } from '@/lib/asaas/installment-payments';
 import {
   normalizeAsaasSubscriptionRef,
@@ -25,6 +26,7 @@ type AsaasPaymentRow = {
   status?: string;
   billingType?: string;
   paymentDate?: string | null;
+  dueDate?: string | null;
   installment?: string | null;
   installmentNumber?: number | null;
 };
@@ -165,6 +167,16 @@ export async function collectRemotePaymentsForSubscription(
  * Importa cobranças do Asaas para a tabela `payments` sem alterar status da
  * assinatura, ciclos de produção ou enviar e-mails.
  */
+function isFutureUnconfirmedCharge(payment: AsaasPaymentRow): boolean {
+  if (isAsaasPaymentConfirmed(payment.status)) return false;
+  if (!payment.dueDate) return false;
+
+  const due = new Date(`${payment.dueDate}T23:59:59`);
+  if (Number.isNaN(due.getTime())) return false;
+
+  return due.getTime() > Date.now();
+}
+
 export async function importAsaasPaymentsForSubscription(
   supabase: SupabaseClient,
   subscription: ImportAsaasPaymentsInput
@@ -173,6 +185,10 @@ export async function importAsaasPaymentsForSubscription(
   let upserted = 0;
 
   for (const payment of remote) {
+    if (isFutureUnconfirmedCharge(payment)) {
+      continue;
+    }
+
     const isComboRef = payment.externalReference?.endsWith(':combo');
     const resolved = isComboRef
       ? await resolveConfirmedInstallmentPayment({
@@ -190,7 +206,10 @@ export async function importAsaasPaymentsForSubscription(
     const isComboSlice = isComboRef && !isComboInitial;
 
     const mapped = toAsaasWebhookPayment(effectivePayment);
-    const localStatus = mapAsaasPaymentStatus(mapped.status);
+    let localStatus = mapAsaasPaymentStatus(mapped.status);
+    if (isAsaasPaymentPending(mapped.status)) {
+      localStatus = 'pending';
+    }
     const paidAt =
       localStatus === 'approved'
         ? effectivePayment.paymentDate

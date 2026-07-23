@@ -5,6 +5,7 @@ import {
   dedupeComboPrepaidPayments,
   repairComboPaymentAmounts,
 } from '@/lib/payments/repair-combo-amounts';
+import { repairPhantomSubscriptionCharges } from '@/lib/payments/repair-phantom-charges';
 
 const FUTURE_CHARGE_ASAAS_IDS = [
   'pay_86592kkfm8g9g8o1',
@@ -23,6 +24,8 @@ export type RepairAsaasIncoherenciesResult = {
   comboAmountsFixed: number;
   installmentSlicesAnnotated: number;
   futureChargesCancelled: number;
+  phantomChargesCancelled: number;
+  phantomAsaasReconciled: number;
   lordsethComboInserted: boolean;
   lordsethCycleLinked: boolean;
   lordsethAsaasImported: number;
@@ -244,6 +247,7 @@ export async function repairAsaasPaymentIncoherencies(
   }
 
   const installmentSlices = await annotateComboInstallmentSlicePayments(admin);
+  const phantomRepair = await repairPhantomSubscriptionCharges(admin);
 
   return {
     comboDuplicateRowsFixed: comboDuplicateRowsFixed + comboPrepaidDeduped,
@@ -251,6 +255,8 @@ export async function repairAsaasPaymentIncoherencies(
     comboAmountsFixed: comboAmounts.updated,
     installmentSlicesAnnotated: installmentSlices.updated,
     futureChargesCancelled,
+    phantomChargesCancelled: phantomRepair.duplicatesCancelled,
+    phantomAsaasReconciled: phantomRepair.asaasReconciled,
     lordsethComboInserted: lordseth.inserted,
     lordsethCycleLinked: lordseth.cycleLinked,
     lordsethAsaasImported,

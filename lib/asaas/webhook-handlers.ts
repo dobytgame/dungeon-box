@@ -24,6 +24,7 @@ import {
 } from '@/lib/asaas/store-order-payment';
 import { isComboInstallmentSlicePayment } from '@/lib/payments/effective-amount';
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
+import { isComboSubscription } from '@/lib/payments/revenue-aggregation';
 import { isNonBillingAsaasPayment } from '@/lib/subscriptions/billing-cycle-payments';
 
 export type AsaasWebhookPayment = {
@@ -87,7 +88,9 @@ export async function handleAsaasPaymentConfirmed(
 
   const { data: subscriptionBilling } = await supabase
     .from('subscriptions')
-    .select('billing_term, combo_total_cents, combo_installments')
+    .select(
+      'billing_term, combo_total_cents, combo_installments, prepaid_months, prepaid_until'
+    )
     .eq('id', local.id)
     .maybeSingle();
 
@@ -101,6 +104,59 @@ export async function handleAsaasPaymentConfirmed(
     const existingComboPrepaid = await findCanonicalComboPrepaidPayment(supabase, local.id);
 
     if (existingComboPrepaid) {
+      return 'skipped';
+    }
+  }
+
+  if (subscriptionBilling && isComboSubscription(subscriptionBilling)) {
+    const existingComboPrepaid = await findCanonicalComboPrepaidPayment(
+      supabase,
+      local.id
+    );
+    if (existingComboPrepaid && existingComboPrepaid.asaas_payment_id !== payment.id) {
+      await supabase.from('payments').upsert(
+        {
+          user_id: local.user_id,
+          subscription_id: local.id,
+          asaas_payment_id: payment.id,
+          amount_cents: amountCents,
+          currency: 'BRL',
+          status: 'cancelled',
+          status_detail: JSON.stringify({
+            type: 'phantom_duplicate_import',
+            reason: 'combo_recurring_webhook',
+          }),
+        },
+        { onConflict: 'asaas_payment_id' }
+      );
+      return 'skipped';
+    }
+  }
+
+  const prepaidUntil = subscriptionBilling?.prepaid_until
+    ? new Date(subscriptionBilling.prepaid_until)
+    : null;
+  if (prepaidUntil && prepaidUntil > new Date()) {
+    const existingComboPrepaid = await findCanonicalComboPrepaidPayment(
+      supabase,
+      local.id
+    );
+    if (existingComboPrepaid && existingComboPrepaid.asaas_payment_id !== payment.id) {
+      await supabase.from('payments').upsert(
+        {
+          user_id: local.user_id,
+          subscription_id: local.id,
+          asaas_payment_id: payment.id,
+          amount_cents: amountCents,
+          currency: 'BRL',
+          status: 'cancelled',
+          status_detail: JSON.stringify({
+            type: 'phantom_duplicate_import',
+            reason: 'prepaid_period_charge',
+          }),
+        },
+        { onConflict: 'asaas_payment_id' }
+      );
       return 'skipped';
     }
   }

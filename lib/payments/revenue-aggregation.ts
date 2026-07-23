@@ -142,10 +142,74 @@ export function buildComboPrepaidDayBySubscription(
   return days;
 }
 
+function subscriptionMonthKey(
+  subscriptionId: string,
+  row: RevenuePaymentRow
+): string | null {
+  const day = paymentDayKey(row);
+  if (!day) return null;
+  return `${subscriptionId}:${day.slice(0, 7)}`;
+}
+
+/** Uma cobrança por assinatura/mês (evita duplicata de import Asaas). */
+export function buildCanonicalMonthlyPaymentIndex(
+  rows: RevenuePaymentRow[],
+  canonicalComboBySubscription: Map<string, string>
+): Map<string, string> {
+  const byMonth = new Map<string, string>();
+
+  const monthlyRows = sortPaymentsChronologically(
+    rows.filter((row) => {
+      if (!row.subscription_id) return false;
+
+      const subscription = getSubscription(row);
+      if (isComboSubscription(subscription)) return false;
+      if (isComboPrepaidPayment(row.status_detail)) return false;
+      if (isInstallmentSliceRow(row, subscription)) return false;
+
+      const canonicalComboId = canonicalComboBySubscription.get(row.subscription_id);
+      if (canonicalComboId && canonicalComboId !== row.id) return false;
+
+      return Boolean(paymentDayKey(row));
+    })
+  );
+
+  for (const row of monthlyRows) {
+    const monthKey = subscriptionMonthKey(row.subscription_id!, row);
+    if (!monthKey || byMonth.has(monthKey)) continue;
+    byMonth.set(monthKey, row.id);
+  }
+
+  return byMonth;
+}
+
+export function buildRevenueCountIndexes(rows: RevenuePaymentRow[]): {
+  canonicalComboBySubscription: Map<string, string>;
+  comboPrepaidDayBySubscription: Map<string, string>;
+  canonicalMonthlyBySubscriptionMonth: Map<string, string>;
+} {
+  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
+  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
+    rows,
+    canonicalComboBySubscription
+  );
+  const canonicalMonthlyBySubscriptionMonth = buildCanonicalMonthlyPaymentIndex(
+    rows,
+    canonicalComboBySubscription
+  );
+
+  return {
+    canonicalComboBySubscription,
+    comboPrepaidDayBySubscription,
+    canonicalMonthlyBySubscriptionMonth,
+  };
+}
+
 export function shouldCountPaymentInRevenue(
   row: RevenuePaymentRow,
   canonicalComboBySubscription: Map<string, string>,
-  _comboPrepaidDayBySubscription: Map<string, string>
+  _comboPrepaidDayBySubscription: Map<string, string>,
+  canonicalMonthlyBySubscriptionMonth: Map<string, string> = new Map()
 ): boolean {
   if (parseStoreOrderMeta(row.status_detail)) {
     return true;
@@ -175,6 +239,16 @@ export function shouldCountPaymentInRevenue(
     return canonicalComboBySubscription.get(subscriptionId) === row.id;
   }
 
+  if (subscriptionId) {
+    const monthKey = subscriptionMonthKey(subscriptionId, row);
+    if (monthKey) {
+      const canonicalMonthlyId = canonicalMonthlyBySubscriptionMonth.get(monthKey);
+      if (canonicalMonthlyId && row.id !== canonicalMonthlyId) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -190,18 +264,15 @@ export function resolvePaymentRevenueCents(row: RevenuePaymentRow): number {
 }
 
 export function sumPaymentRevenueCents(rows: RevenuePaymentRow[]): number {
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    rows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(rows);
 
   return rows.reduce((sum, row) => {
     if (
       !shouldCountPaymentInRevenue(
         row,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       return sum;

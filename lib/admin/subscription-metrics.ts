@@ -8,8 +8,7 @@ import {
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import {
-  buildCanonicalComboPrepaidIndex,
-  buildComboPrepaidDayBySubscription,
+  buildRevenueCountIndexes,
   isComboSubscription,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
@@ -145,11 +144,7 @@ function buildRenewalDayCounts(
   from: string,
   to: string
 ): Map<string, number> {
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(payments);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    payments,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(payments);
 
   const billingPayments = payments
     .filter(
@@ -157,8 +152,9 @@ function buildRenewalDayCounts(
         row.subscription_id &&
         shouldCountPaymentInRevenue(
           row,
-          canonicalComboBySubscription,
-          comboPrepaidDayBySubscription
+          indexes.canonicalComboBySubscription,
+          indexes.comboPrepaidDayBySubscription,
+          indexes.canonicalMonthlyBySubscriptionMonth
         )
     )
     .sort((a, b) => {

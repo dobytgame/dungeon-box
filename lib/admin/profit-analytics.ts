@@ -17,8 +17,7 @@ import type {
   AdminProfitSummary,
 } from '@/lib/admin/types';
 import {
-  buildCanonicalComboPrepaidIndex,
-  buildComboPrepaidDayBySubscription,
+  buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountPaymentInRevenue,
   sumPaymentRevenueCents,
@@ -143,18 +142,15 @@ export async function getProfitByMonth(
   }
 
   const paymentRows = payments as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(paymentRows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    paymentRows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(paymentRows);
 
   for (const payment of paymentRows) {
     if (
       !shouldCountPaymentInRevenue(
         payment,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       continue;

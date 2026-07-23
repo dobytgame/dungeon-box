@@ -3,8 +3,7 @@ import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { getOperationChartPeriod } from '@/lib/admin/chart-period';
 import { getProfitByMonth, getProfitSummary } from '@/lib/admin/profit-analytics';
 import {
-  buildCanonicalComboPrepaidIndex,
-  buildComboPrepaidDayBySubscription,
+  buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
@@ -163,18 +162,15 @@ export function sumApprovedPaymentsRevenueCents(
   payments: ApprovedPaymentRevenueRow[]
 ): number {
   const rows = payments as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(rows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    rows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(rows);
 
   return rows.reduce((sum, row) => {
     if (
       !shouldCountPaymentInRevenue(
         row,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       return sum;
@@ -334,18 +330,15 @@ export async function getCashFlowByMonth(
   }
 
   const paymentRows = payments as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(paymentRows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    paymentRows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(paymentRows);
 
   for (const payment of paymentRows) {
     if (
       !shouldCountPaymentInRevenue(
         payment,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       continue;
@@ -399,11 +392,7 @@ export async function listFinancialMovements(
   const movements: AdminFinancialMovementRow[] = [];
 
   const paymentRows = payments as RevenuePaymentRow[];
-  const canonicalComboBySubscription = buildCanonicalComboPrepaidIndex(paymentRows);
-  const comboPrepaidDayBySubscription = buildComboPrepaidDayBySubscription(
-    paymentRows,
-    canonicalComboBySubscription
-  );
+  const indexes = buildRevenueCountIndexes(paymentRows);
 
   for (const row of paymentRows) {
     const paymentRow = row as RevenuePaymentRow & {
@@ -412,8 +401,9 @@ export async function listFinancialMovements(
     if (
       !shouldCountPaymentInRevenue(
         paymentRow,
-        canonicalComboBySubscription,
-        comboPrepaidDayBySubscription
+        indexes.canonicalComboBySubscription,
+        indexes.comboPrepaidDayBySubscription,
+        indexes.canonicalMonthlyBySubscriptionMonth
       )
     ) {
       continue;
