@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AsaasApiError } from '@/lib/asaas/client';
 import { fetchAsaasPaymentDetails } from '@/lib/asaas/payment-details';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import {
@@ -35,9 +36,29 @@ function isPhantomDetail(statusDetail: string | null): boolean {
   return (
     statusDetail.includes('phantom_duplicate_import') ||
     statusDetail.includes('phantom_unconfirmed_asaas') ||
+    statusDetail.includes('phantom_missing_asaas') ||
     statusDetail.includes('cancelled_future_charge') ||
     statusDetail.includes('combo_installment_slice')
   );
+}
+
+async function cancelPhantomApprovedPayment(
+  admin: SupabaseClient,
+  paymentId: string,
+  detail: Record<string, unknown>
+): Promise<boolean> {
+  const { error: updateError } = await admin
+    .from('payments')
+    .update({
+      status: 'cancelled',
+      status_detail: JSON.stringify({
+        ...detail,
+        repaired_at: new Date().toISOString(),
+      }),
+    })
+    .eq('id', paymentId);
+
+  return !updateError;
 }
 
 /** Cancela cobranças duplicadas no mesmo mês/assinatura (fantasmas de import Asaas). */
@@ -217,21 +238,28 @@ export async function reconcileApprovedPaymentsWithAsaas(
       const remote = await fetchAsaasPaymentDetails(asaasPaymentId);
       if (isAsaasPaymentConfirmed(remote.status)) continue;
 
-      const { error: updateError } = await admin
-        .from('payments')
-        .update({
-          status: 'cancelled',
-          status_detail: JSON.stringify({
-            type: 'phantom_unconfirmed_asaas',
-            asaas_status: remote.status ?? 'unknown',
-            repaired_at: new Date().toISOString(),
-          }),
+      if (
+        await cancelPhantomApprovedPayment(admin, payment.id as string, {
+          type: 'phantom_unconfirmed_asaas',
+          asaas_status: remote.status ?? 'unknown',
         })
-        .eq('id', payment.id as string);
-
-      if (!updateError) cancelled += 1;
+      ) {
+        cancelled += 1;
+      }
     } catch (err) {
-      console.error(
+      if (err instanceof AsaasApiError && err.status === 404) {
+        if (
+          await cancelPhantomApprovedPayment(admin, payment.id as string, {
+            type: 'phantom_missing_asaas',
+            asaas_payment_id: asaasPaymentId,
+          })
+        ) {
+          cancelled += 1;
+        }
+        continue;
+      }
+
+      console.warn(
         '[payments] reconcileApprovedPaymentsWithAsaas:',
         asaasPaymentId,
         err
