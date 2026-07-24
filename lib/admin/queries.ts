@@ -23,6 +23,7 @@ import {
   resolveCycleEffectivePaidAt,
 } from '@/lib/admin/cycle-payment-resolve';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
+import { loadSubscriptionPlanUpgradeInfoByIds } from '@/lib/admin/subscription-plan-upgrade';
 import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import {
@@ -941,6 +942,12 @@ export async function listAdminSubscriptions(
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const subscriptionIds = (data ?? []).map((row) => row.id as string);
+  const planUpgradeBySubscription = await loadSubscriptionPlanUpgradeInfoByIds(
+    admin,
+    subscriptionIds
+  );
+
   const items = (data ?? []).map((row) => {
     const profileData = Array.isArray(row.profiles)
       ? row.profiles[0]
@@ -969,6 +976,7 @@ export async function listAdminSubscriptions(
       prepaidUntil: (row.prepaid_until as string | null) ?? null,
       cancelled_at: (row.cancelled_at as string | null) ?? null,
       cancel_reason: (row.cancel_reason as string | null) ?? null,
+      planUpgrade: planUpgradeBySubscription.get(row.id as string) ?? null,
     };
   });
 

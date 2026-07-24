@@ -168,6 +168,13 @@ export interface AdminSubscriptionRow {
   prepaidUntil: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
+  planUpgrade: {
+    hasAppliedUpgrade: boolean;
+    hasPendingUpgrade: boolean;
+    fromPlanName: string | null;
+    toPlanName: string | null;
+    pendingPlanName: string | null;
+  } | null;
 }
 
 export interface AdminCycleBundledTag {

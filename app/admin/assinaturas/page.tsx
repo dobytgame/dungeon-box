@@ -3,6 +3,7 @@ import AdminListPagination from '@/components/admin/AdminListPagination';
 import AdminSubscriptionsFiltersForm from '@/components/admin/AdminSubscriptionsFiltersForm';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
+import PlanUpgradeBadge from '@/components/admin/PlanUpgradeBadge';
 import RepairPlanUpgradeAsaasButton from '@/components/admin/RepairPlanUpgradeAsaasButton';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import StatusBadge from '@/components/dashboard/StatusBadge';
@@ -114,6 +115,7 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
             cell: (row) => (
               <div className="flex flex-wrap items-center gap-2">
                 <span>{row.planName ?? '—'}</span>
+                <PlanUpgradeBadge upgrade={row.planUpgrade} compact />
                 {row.billingTerm && isComboTerm(row.billingTerm as BillingTerm) ? (
                   <ComboBadge term={row.billingTerm as BillingTerm} compact />
                 ) : null}
