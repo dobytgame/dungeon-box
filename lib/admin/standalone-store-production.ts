@@ -19,6 +19,7 @@ import {
   updateStandaloneStoreOrderMeta,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
+import { notifyStandaloneStoreFulfillmentStatus } from '@/lib/email/standalone-fulfillment-notify';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
   canTransitionCycle,
@@ -425,7 +426,7 @@ export async function advanceStandaloneStoreOrders(
   cardId: string,
   targetStatus: CycleStatus,
   formData?: FormData
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string } | { success: true; emailWarning?: string }> {
   const leadPaymentId = parseStandaloneStorePaymentId(cardId);
   if (!leadPaymentId) {
     return { error: 'Pedido avulso inválido.' };
@@ -474,6 +475,44 @@ export async function advanceStandaloneStoreOrders(
     const updated = await updateStandaloneStoreOrderMeta(admin, paymentId, patch);
     if (!updated) {
       return { error: 'Falha ao atualizar pedido avulso.' };
+    }
+  }
+
+  if (!isRollback && !isReopen) {
+    const cancelReason =
+      targetStatus === 'cancelled'
+        ? (formData?.get('cancel_reason') as string | undefined)?.trim() ||
+          null
+        : null;
+
+    const notify = await notifyStandaloneStoreFulfillmentStatus(
+      admin,
+      leadPaymentId,
+      targetStatus,
+      {
+        trackingCode: patch.trackingCode ?? lead.meta.trackingCode,
+        carrier: patch.carrier ?? lead.meta.carrier,
+        cancelReason,
+      }
+    );
+
+    if (!notify.sent) {
+      console.warn(
+        '[admin] standalone store status email not sent:',
+        targetStatus,
+        notify.reason
+      );
+      return {
+        success: true,
+        emailWarning:
+          notify.reason === 'missing_email'
+            ? 'Cliente sem e-mail cadastrado.'
+            : notify.reason === 'not_configured'
+              ? 'Resend/remetente não configurado no servidor.'
+              : notify.reason === 'provider_error'
+                ? 'Falha ao enviar pelo Resend.'
+                : `Status salvo, mas o e-mail não foi enviado (${notify.reason ?? 'erro'}).`,
+      };
     }
   }
 
@@ -610,7 +649,7 @@ export async function shipStandaloneStoreOrder(
   trackingCode: string,
   carrier: string,
   shippingCostCents: number
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string } | { success: true; emailWarning?: string }> {
   const leadPaymentId = parseStandaloneStorePaymentId(cardId);
   if (!leadPaymentId) {
     return { error: 'Pedido avulso inválido.' };
@@ -644,6 +683,31 @@ export async function shipStandaloneStoreOrder(
     if (!updated) {
       return { error: 'Falha ao registrar envio do pedido avulso.' };
     }
+  }
+
+  const notify = await notifyStandaloneStoreFulfillmentStatus(
+    admin,
+    leadPaymentId,
+    'shipped',
+    {
+      trackingCode,
+      carrier,
+    }
+  );
+
+  if (!notify.sent) {
+    console.warn('[admin] standalone store ship email not sent:', notify.reason);
+    return {
+      success: true,
+      emailWarning:
+        notify.reason === 'missing_email'
+          ? 'Cliente sem e-mail cadastrado.'
+          : notify.reason === 'not_configured'
+            ? 'Resend/remetente não configurado no servidor.'
+            : notify.reason === 'provider_error'
+              ? 'Falha ao enviar pelo Resend.'
+              : `Envio registrado, mas o e-mail não foi enviado (${notify.reason ?? 'erro'}).`,
+    };
   }
 
   return { success: true };

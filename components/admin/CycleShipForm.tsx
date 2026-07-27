@@ -47,7 +47,11 @@ export default function CycleShipForm({
             setError(result.error);
             return;
           }
-          setMessage('Envio registrado. E-mail de rastreio disparado.');
+          if ('emailWarning' in result && result.emailWarning) {
+            setError(result.emailWarning);
+          } else {
+            setMessage('Envio registrado. E-mail de rastreio disparado.');
+          }
           form.reset();
           onSuccess?.();
         });

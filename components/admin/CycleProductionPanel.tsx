@@ -69,6 +69,9 @@ export default function CycleProductionPanel({
         return;
       }
       handleSuccess(successMessage);
+      if ('emailWarning' in result && result.emailWarning) {
+        setError(result.emailWarning);
+      }
     });
   }
 
@@ -263,6 +266,9 @@ export default function CycleProductionPanel({
                     return;
                   }
                   handleSuccess('Pedido cancelado.');
+                  if ('emailWarning' in result && result.emailWarning) {
+                    setError(result.emailWarning);
+                  }
                   setShowCancelForm(false);
                 });
               }}

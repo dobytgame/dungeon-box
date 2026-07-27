@@ -426,6 +426,9 @@ export default function ProductionKanban({
         setError(result.error);
         return;
       }
+      if ('emailWarning' in result && result.emailWarning) {
+        setError(result.emailWarning);
+      }
       router.refresh();
     });
   }

@@ -103,6 +103,24 @@ async function clientIp(): Promise<string | null> {
   return h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
 }
 
+const CYCLE_STATUS_EMAIL_ERRORS: Record<string, string> = {
+  missing_email: 'Cliente sem e-mail cadastrado.',
+  missing_user: 'Assinatura sem usuário vinculado.',
+  missing_tracking_code:
+    'E-mail de envio não disparado: informe o código de rastreio.',
+  status_not_notifiable: 'Esta etapa não dispara e-mail automático.',
+  not_configured: 'Resend/remetente não configurado no servidor.',
+  provider_error: 'Falha ao enviar pelo Resend.',
+  standalone_context_missing: 'Pedido avulso sem dados para notificação.',
+};
+
+function cycleStatusEmailWarning(reason: string): string {
+  return (
+    CYCLE_STATUS_EMAIL_ERRORS[reason] ??
+    `Status salvo, mas o e-mail não foi enviado (${reason}).`
+  );
+}
+
 export async function shipSubscriptionCycleAction(
   cycleId: string,
   formData: FormData
@@ -150,7 +168,12 @@ export async function shipSubscriptionCycleAction(
     });
 
     revalidateCycleBoard();
-    return { success: true as const };
+    return {
+      success: true as const,
+      ...('emailWarning' in result && result.emailWarning
+        ? { emailWarning: result.emailWarning }
+        : {}),
+    };
   }
 
   const cycle = await getAdminCycleDetail(admin, cycleId);
@@ -223,12 +246,17 @@ export async function shipSubscriptionCycleAction(
       ).then((notify) => {
         if (!notify.sent) {
           console.warn('[admin] ship email not sent:', notify.reason);
+          return notify.reason ?? 'unknown';
         }
+        return null;
       })
     );
   }
 
-  await Promise.all(postSave);
+  const postSaveResults = await Promise.all(postSave);
+  const emailReason = postSaveResults.find(
+    (result): result is string => typeof result === 'string'
+  );
 
   const paymentLink = await resolveCyclePaymentLink(admin, {
     payment_id: (cycle.payment_id as string | null) ?? null,
@@ -245,7 +273,10 @@ export async function shipSubscriptionCycleAction(
   }
 
   revalidateCycleBoard();
-  return { success: true as const };
+  return {
+    success: true as const,
+    ...(emailReason ? { emailWarning: cycleStatusEmailWarning(emailReason) } : {}),
+  };
 }
 
 export async function updateCycleShippingCostAction(
@@ -685,7 +716,12 @@ export async function advanceCycleProductionAction(
     });
 
     revalidateCycleBoard();
-    return { success: true as const };
+    return {
+      success: true as const,
+      ...('emailWarning' in result && result.emailWarning
+        ? { emailWarning: result.emailWarning }
+        : {}),
+    };
   }
 
   const { data: cycleRow, error: fetchError } = await admin
@@ -804,15 +840,23 @@ export async function advanceCycleProductionAction(
             parsedTarget,
             notify.reason
           );
+          return notify.reason ?? 'unknown';
         }
+        return null;
       })
     );
   }
 
-  await Promise.all(postSave);
+  const postSaveResults = await Promise.all(postSave);
+  const emailReason = postSaveResults.find(
+    (result): result is string => typeof result === 'string'
+  );
 
   revalidateCycleBoard();
-  return { success: true as const };
+  return {
+    success: true as const,
+    ...(emailReason ? { emailWarning: cycleStatusEmailWarning(emailReason) } : {}),
+  };
 }
 
 const FEEDBACK_EMAIL_ERRORS: Record<string, string> = {

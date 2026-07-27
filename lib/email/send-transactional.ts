@@ -90,9 +90,19 @@ function cycleStatusEmailRole(status: CycleStatus): EmailSenderRole {
 
 function resolveCycleStatusSender(status: CycleStatus): EmailSenderRole {
   const preferred = cycleStatusEmailRole(status);
-  if (isEmailConfigured(preferred)) return preferred;
-  if (isEmailConfigured('shipping')) return 'shipping';
-  if (isEmailConfigured('guild')) return 'guild';
+  const candidates: EmailSenderRole[] = [
+    preferred,
+    'shipping',
+    'guild',
+    'production',
+    'billing',
+    'support',
+  ];
+
+  for (const role of candidates) {
+    if (isEmailConfigured(role)) return role;
+  }
+
   return preferred;
 }
 
