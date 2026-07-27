@@ -21,9 +21,9 @@ Dúvidas? Responda este e-mail — lemos pessoalmente.`,
     title: 'Pague menos antecipando sua aventura.',
     body: `Agora você pode assinar pacotes combo de 3, 6 ou 12 meses com desconto exclusivo.
 
-Combo 3 meses: 10% OFF
-Combo 6 meses: 15% OFF
-Combo 12 meses: 1 mês grátis
+Combo 3 meses: 8% OFF
+Combo 6 meses: 10% OFF
+Combo 12 meses: 1 mês grátis + frete grátis
 
 Parcelamento em até 12x no cartão — até 4x sem juros (Lendário 6/12 meses: até 6x sem juros). Disponível para um plano por vez no checkout.`,
     ctaLabel: 'Ver planos combo',

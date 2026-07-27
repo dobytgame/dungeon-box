@@ -6,6 +6,7 @@ import {
   calculateComboSavingsCents,
   calculateComboTotalCents,
   COMBO_BILLING_ENABLED,
+  comboGrantsFreeShipping,
   comboInstallmentLabel,
   comboInterestFreeMaxForCheckout,
   isComboTerm,
@@ -55,6 +56,8 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
   const comboInterestFreeMax = comboTerm
     ? comboInterestFreeMaxForCheckout(data)
     : 4;
+  const comboIncludesFreeShipping =
+    comboTerm !== null && comboGrantsFreeShipping(comboTerm);
   const originalMonthlyTotalCents = data.planSlugs.reduce(
     (sum, slug) => sum + getPlanPriceCents(slug),
     0
@@ -244,6 +247,7 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                 const quote = data.shippingByPlan?.[slug];
                 if (!quote?.label) return null;
                 const plan = plans.find((p) => p.id === slug)!;
+                const shippingFree = quote.free || comboIncludesFreeShipping;
                 return (
                   <div
                     key={slug}
@@ -251,11 +255,16 @@ export default function CheckoutSummary({ data, step, addresses }: Props) {
                   >
                     <div>
                       <p className="font-medium text-stone-200">{plan.name}</p>
-                      <p className="mt-0.5 text-stone-500">{quote.label}</p>
+                      <p className="mt-0.5 text-stone-500">
+                        {quote.label}
+                        {comboIncludesFreeShipping && !quote.free
+                          ? ' · incluso no Combo 12 meses'
+                          : null}
+                      </p>
                     </div>
                     <p className="shrink-0 font-display text-sm text-frost">
-                      {quote.free ? 'Grátis' : formatBRL(quote.cents)}
-                      {!quote.free ? (
+                      {shippingFree ? 'Grátis' : formatBRL(quote.cents)}
+                      {!shippingFree ? (
                         <span className="block text-[10px] uppercase tracking-widest text-stone-600">
                           /mês
                         </span>

@@ -9,6 +9,10 @@ import type { Address } from '@/lib/dashboard/types';
 import type { CheckoutData } from '@/lib/checkout/types';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { hasAnyShippingQuote } from '@/lib/checkout/totals';
+import {
+  comboGrantsFreeShipping,
+  isComboTerm,
+} from '@/lib/checkout/combo-billing';
 import { digitsOnly, maskCep } from '@/lib/masks';
 import { fetchAddressByCep } from '@/lib/viacep';
 import { formatShippingBRL } from '@/lib/shipping/quote';
@@ -57,6 +61,8 @@ export default function StepAddress({
   const [shippingError, setShippingError] = useState('');
 
   const selected = addresses.find((a) => a.id === data.addressId);
+  const comboIncludesFreeShipping =
+    isComboTerm(data.billingTerm) && comboGrantsFreeShipping(data.billingTerm);
 
   async function refreshShippingQuote(addressId: string) {
     if (!addressId) return;
@@ -369,6 +375,7 @@ export default function StepAddress({
               {data.planSlugs.map((slug) => {
                 const quote = data.shippingByPlan?.[slug];
                 if (!quote?.label) return null;
+                const shippingFree = quote.free || comboIncludesFreeShipping;
                 return (
                   <div
                     key={slug}
@@ -376,9 +383,14 @@ export default function StepAddress({
                   >
                     <p className="text-sm text-stone-300">
                       {quote.label}
+                      {comboIncludesFreeShipping && !quote.free
+                        ? ' · incluso no Combo 12 meses'
+                        : null}
                     </p>
                     <p className="font-display text-sm tabular-nums text-white">
-                      {quote.free ? 'Grátis' : `${formatShippingBRL(quote.cents)}/mês`}
+                      {shippingFree
+                        ? 'Grátis'
+                        : `${formatShippingBRL(quote.cents)}/mês`}
                     </p>
                   </div>
                 );

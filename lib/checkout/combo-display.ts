@@ -1,5 +1,6 @@
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import {
+  applyComboDiscountCents,
   COMBO_INTEREST_FREE_MAX,
   COMBO_OPTIONS,
   comboInstallmentLabel,
@@ -30,10 +31,7 @@ export function estimateComboPlanTotalCents(
   term: Exclude<BillingTerm, 'monthly'>
 ): number {
   const option = COMBO_OPTIONS.find((o) => o.term === term)!;
-  let subtotal = monthlyPlanCents * option.monthsPaid;
-  if (term === 'combo_3') subtotal = Math.round(subtotal * 0.9);
-  if (term === 'combo_6') subtotal = Math.round(subtotal * 0.85);
-  return subtotal;
+  return applyComboDiscountCents(monthlyPlanCents * option.monthsPaid, term);
 }
 
 export function formatComboSavingsPercent(

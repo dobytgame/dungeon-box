@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CreditCard, Sparkles } from 'lucide-react';
 import { plans } from '@/lib/data';
 import { checkoutHref } from '@/lib/checkout/plans';
-import { COMBO_OPTIONS } from '@/lib/checkout/combo-billing';
+import { COMBO_OPTIONS, comboGrantsFreeShipping } from '@/lib/checkout/combo-billing';
 import {
   estimateComboPlanTotalCents,
   getComboTermBadge,
@@ -71,7 +71,10 @@ export default function ComboPlansPromo() {
                   {formatBRL(total)}
                 </p>
                 <p className="mt-1 text-xs text-stone-500">
-                  Plano {featured.name} · frete à parte
+                  Plano {featured.name}
+                  {comboGrantsFreeShipping(option.term)
+                    ? ' · frete grátis'
+                    : ' · frete à parte'}
                 </p>
                 <p className="mt-4 font-display text-[10px] uppercase tracking-[0.2em] text-ember opacity-0 transition-opacity group-hover:opacity-100">
                   Assinar combo →
