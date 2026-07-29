@@ -19,6 +19,13 @@ const OPEN_CYCLE_STATUSES: CycleStatus[] = [
   'shipped',
 ];
 
+/** Já entrou na esteira física — ainda precisa ser montado/enviado mesmo se a assinatura foi cancelada. */
+const PHYSICAL_PIPELINE_STATUSES = new Set<CycleStatus>([
+  'production',
+  'preparing',
+  'shipped',
+]);
+
 export type ProductionSubscriptionMeta = {
   userId: string | null;
   status: string;
@@ -128,6 +135,18 @@ function filterRowsForSubscription(
   return latestDelivered ? [latestDelivered] : [];
 }
 
+function hasArchivedSubscriptionPipelineWork(
+  rows: AdminCycleRow[],
+  subscriptionId: string
+): boolean {
+  return rows.some(
+    (row) =>
+      row.subscription_id === subscriptionId &&
+      PHYSICAL_PIPELINE_STATUSES.has(row.status) &&
+      cycleHasFulfillmentSignal(row)
+  );
+}
+
 function keepPrimarySubscriptionPerUser(
   rows: AdminCycleRow[],
   metaBySubscriptionId: Map<string, ProductionSubscriptionMeta>
@@ -150,11 +169,27 @@ function keepPrimarySubscriptionPerUser(
       continue;
     }
 
+    const userHasOperationalSubscription = Array.from(subscriptionIds).some(
+      (id) =>
+        OPERATIONAL_SUBSCRIPTION_STATUSES.has(
+          metaBySubscriptionId.get(id)?.status ?? ''
+        )
+    );
+
     for (const id of Array.from(subscriptionIds)) {
       const status = metaBySubscriptionId.get(id)?.status ?? '';
 
       if (!subscriptionIsArchived(status)) {
         allowedSubscriptionIds.add(id);
+        continue;
+      }
+
+      if (userHasOperationalSubscription) {
+        // Ex.: comprou o plano errado, cancelou e assinou outro — o ciclo pago
+        // ainda em "upcoming" da assinatura cancelada não deve competir com a ativa.
+        if (hasArchivedSubscriptionPipelineWork(rows, id)) {
+          allowedSubscriptionIds.add(id);
+        }
         continue;
       }
 

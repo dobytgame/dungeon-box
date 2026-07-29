@@ -20,6 +20,7 @@ import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import ProductionMonthBadge from '@/components/admin/ProductionMonthBadge';
+import { resolveProductionMonthKey } from '@/lib/admin/production-month';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { adminPlanCardClasses } from '@/lib/plan-theme';
@@ -219,7 +220,16 @@ function KanbanCard({
                 Loja avulsa
               </span>
             ) : (
-              <ProductionMonthBadge cycleNumber={row.cycle_number} compact />
+              <ProductionMonthBadge
+                productionMonthKey={resolveProductionMonthKey({
+                  scheduledProductionMonth: row.scheduledProductionMonth,
+                  paid_at: row.paid_at,
+                  created_at: row.created_at,
+                })}
+                paidAt={row.paid_at}
+                cycleNumber={row.cycle_number}
+                compact
+              />
             )}
           </div>
         </div>

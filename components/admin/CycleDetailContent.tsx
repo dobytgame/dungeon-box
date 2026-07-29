@@ -89,8 +89,8 @@ export default function CycleDetailContent({
             Mês do kit na produção
           </p>
           <p className="mt-1 text-sm text-zinc-500">
-            Troque rapidamente para Kit 1, 2, 3… O pedido vai para o mês de
-            produção correspondente no kanban.
+            Escolha em qual mês o pedido aparece no kanban (Mês 1, 2, 3…). O
+            número do ciclo da assinatura não é alterado.
           </p>
           <div className="mt-4">
             <CycleProductionMonthQuickSet
@@ -430,8 +430,8 @@ export default function CycleDetailContent({
               Agendamento manual
             </p>
             <p className="mt-1 text-sm text-zinc-500">
-              Corrija o número do ciclo ou o mês em que o pedido aparece no
-              kanban de produção.
+              Ajuste fino do mês no calendário ou renumerar o ciclo da
+              assinatura (opção avançada).
             </p>
             <div className="mt-4">
               <CycleScheduleForm

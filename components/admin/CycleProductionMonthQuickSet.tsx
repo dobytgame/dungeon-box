@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
-import { updateCycleScheduleAction } from '@/lib/admin/actions';
+import { setCycleProductionMonthAction } from '@/lib/admin/actions';
 import { monthKeyFromDate } from '@/lib/admin/chart-period';
 import {
   defaultProductionMonthKey,
@@ -11,7 +11,7 @@ import {
 } from '@/lib/admin/production-month';
 import { addMonthsToMonthKey } from '@/lib/subscriptions/monthly-production-schedule';
 
-const QUICK_KIT_SLOTS = 6;
+const QUICK_MONTH_SLOTS = 6;
 
 interface Props {
   cycleId: string;
@@ -21,14 +21,10 @@ interface Props {
   onSuccess?: () => void;
 }
 
-function anchorMonthFromPayment(
-  paidAt: string | null,
-  currentKey: string | null
-): string {
+function anchorMonthFromPayment(paidAt: string | null): string {
   if (paidAt) {
     return mapRawMonthToProductionMonth(monthKeyFromDate(new Date(paidAt)));
   }
-  if (currentKey) return currentKey;
   return defaultProductionMonthKey();
 }
 
@@ -44,64 +40,58 @@ export default function CycleProductionMonthQuickSet({
   const [message, setMessage] = useState('');
 
   const anchorMonth = useMemo(
-    () => anchorMonthFromPayment(paidAt, productionMonthKey),
-    [paidAt, productionMonthKey]
+    () => anchorMonthFromPayment(paidAt),
+    [paidAt]
   );
 
-  const kitOptions = useMemo(
+  const monthOptions = useMemo(
     () =>
-      Array.from({ length: QUICK_KIT_SLOTS }, (_, index) => {
-        const kitNumber = index + 1;
-        return {
-          kitNumber,
-          monthKey: addMonthsToMonthKey(anchorMonth, index),
-        };
-      }),
+      Array.from({ length: QUICK_MONTH_SLOTS }, (_, index) => ({
+        slot: index + 1,
+        monthKey: addMonthsToMonthKey(anchorMonth, index),
+      })),
     [anchorMonth]
   );
 
-  async function applySchedule(monthKey: string, nextCycleNumber: number) {
-    setPendingKey(`${monthKey}:${nextCycleNumber}`);
+  async function applyProductionMonth(monthKey: string) {
+    setPendingKey(monthKey);
     setError('');
     setMessage('');
 
-    const formData = new FormData();
-    formData.set('cycle_number', String(nextCycleNumber));
-    formData.set('production_month', monthKey);
-
-    const result = await updateCycleScheduleAction(cycleId, formData);
+    const result = await setCycleProductionMonthAction(cycleId, monthKey);
 
     setPendingKey(null);
 
     if ('error' in result && result.error) {
+      if (result.error === 'Nenhuma alteração para salvar.') {
+        setMessage('Este mês já está selecionado.');
+        return;
+      }
       setError(result.error);
       return;
     }
 
-    setMessage('Agendamento atualizado.');
+    setMessage('Mês de produção atualizado.');
     onSuccess?.();
   }
 
-  const activeMonthKey = productionMonthKey;
-
   return (
     <div className="space-y-3">
+      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+        Ciclo #{cycleNumber} · altera só o mês no kanban
+      </p>
+
       <div className="flex flex-wrap gap-2">
-        {kitOptions.map((option) => {
-          const isActive =
-            activeMonthKey === option.monthKey &&
-            cycleNumber === option.kitNumber;
-          const isPending =
-            pendingKey === `${option.monthKey}:${option.kitNumber}`;
+        {monthOptions.map((option) => {
+          const isActive = productionMonthKey === option.monthKey;
+          const isPending = pendingKey === option.monthKey;
 
           return (
             <button
-              key={option.kitNumber}
+              key={option.slot}
               type="button"
               disabled={Boolean(pendingKey)}
-              onClick={() =>
-                void applySchedule(option.monthKey, option.kitNumber)
-              }
+              onClick={() => void applyProductionMonth(option.monthKey)}
               className={`inline-flex min-w-[7.5rem] cursor-pointer flex-col items-start rounded border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 isActive
                   ? 'border-console/50 bg-console/15 text-console'
@@ -109,7 +99,7 @@ export default function CycleProductionMonthQuickSet({
               }`}
             >
               <span className="flex w-full items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
-                Kit {option.kitNumber}
+                Mês {option.slot}
                 {isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 ) : isActive ? (
@@ -125,10 +115,10 @@ export default function CycleProductionMonthQuickSet({
       </div>
 
       <p className="text-xs text-zinc-500">
-        Referência do Kit 1:{' '}
+        Mês 1 ={' '}
         <span className="text-zinc-400">{productionMonthLabel(anchorMonth)}</span>
-        {paidAt ? ' (mês do pagamento)' : ''}. Cada kit avança um mês de
-        produção.
+        {paidAt ? ' (referência do pagamento)' : ''}. O número do ciclo (#{cycleNumber})
+        não muda — use o agendamento manual abaixo para isso.
       </p>
 
       {error ? (

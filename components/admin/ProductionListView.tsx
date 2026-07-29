@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/dashboard/format';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 import ProductionMonthBadge from '@/components/admin/ProductionMonthBadge';
+import { resolveProductionMonthKey } from '@/lib/admin/production-month';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
@@ -143,6 +144,13 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                                 </span>
                               ) : null}
                               <ProductionMonthBadge
+                                productionMonthKey={resolveProductionMonthKey({
+                                  scheduledProductionMonth:
+                                    row.scheduledProductionMonth,
+                                  paid_at: row.paid_at,
+                                  created_at: row.created_at,
+                                })}
+                                paidAt={row.paid_at}
                                 cycleNumber={row.cycle_number}
                                 compact
                               />

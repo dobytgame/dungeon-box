@@ -468,6 +468,65 @@ export async function updateCycleScheduleAction(
   return { success: true as const };
 }
 
+/** Atualiza só o mês de produção no kanban, sem alterar o número do ciclo. */
+export async function setCycleProductionMonthAction(
+  cycleId: string,
+  productionMonthRaw: string
+) {
+  const { user, admin } = await requireAdmin();
+
+  if (isStandaloneStoreCardId(cycleId)) {
+    return { error: 'Pedidos avulsos da loja não têm ciclo de assinatura.' };
+  }
+
+  const productionMonthKey = parseProductionMonthKey(productionMonthRaw.trim());
+  if (!productionMonthKey) {
+    return { error: 'Informe um mês de produção válido.' };
+  }
+
+  const cycle = await getAdminCycleDetail(admin, cycleId);
+  if (!cycle) {
+    return { error: 'Ciclo não encontrado.' };
+  }
+
+  const scheduledProductionMonth = `${productionMonthKey}-01`;
+  const previousScheduledMonth =
+    (cycle as { scheduled_production_month?: string | null })
+      .scheduled_production_month ?? null;
+
+  if (previousScheduledMonth === scheduledProductionMonth) {
+    return { success: true as const, unchanged: true as const };
+  }
+
+  const { error } = await admin
+    .from('subscription_cycles')
+    .update({
+      scheduled_production_month: scheduledProductionMonth,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', cycleId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'cycle.production_month',
+    entityType: 'subscription_cycle',
+    entityId: cycleId,
+    metadata: {
+      cycle_number: cycle.cycle_number,
+      previous_scheduled_production_month: previousScheduledMonth,
+      scheduled_production_month: scheduledProductionMonth,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateCycleBoard();
+  return { success: true as const };
+}
+
 export async function syncAsaasSubscriptionAction(subscriptionId: string) {
   const { user, admin } = await requireAdmin();
 
