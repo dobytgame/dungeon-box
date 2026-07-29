@@ -6,6 +6,7 @@ import CopyableDataRow from '@/components/admin/CopyableDataRow';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
+import CycleProductionMonthQuickSet from '@/components/admin/CycleProductionMonthQuickSet';
 import CycleProductionNotesForm from '@/components/admin/CycleProductionNotesForm';
 import CycleScheduleForm from '@/components/admin/CycleScheduleForm';
 import CycleShippingCostForm from '@/components/admin/CycleShippingCostForm';
@@ -81,6 +82,30 @@ export default function CycleDetailContent({
   return (
     <div className="space-y-6">
       <ProductionPipeline status={detail.status} />
+
+      {detail.status !== 'cancelled' && !detail.isStandaloneStoreOrder ? (
+        <section className="admin-panel rounded border-console/20 p-4 md:p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-console">
+            Mês do kit na produção
+          </p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Troque rapidamente para Kit 1, 2, 3… O pedido vai para o mês de
+            produção correspondente no kanban.
+          </p>
+          <div className="mt-4">
+            <CycleProductionMonthQuickSet
+              cycleId={detail.id}
+              cycleNumber={detail.cycle_number}
+              productionMonthKey={detail.productionMonthKey}
+              paidAt={detail.paid_at}
+              onSuccess={() => {
+                onUpdated?.();
+                onReload?.(detail.id);
+              }}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {detail.status !== 'cancelled' ? (
         <section className="admin-panel rounded border-amber-500/20 p-4 md:p-5">
