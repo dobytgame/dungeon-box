@@ -64,6 +64,9 @@ export const metadata: Metadata = {
     shortcut: FAVICON_PATH,
     apple: FAVICON_PATH,
   },
+  other: {
+    'impact-site-verification': '6c3216d5-0b4a-446c-b12a-626b4c0758b6',
+  },
   ...(process.env.GOOGLE_SITE_VERIFICATION
     ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } }
     : {}),
