@@ -95,23 +95,24 @@ function collectPaidProductionMonths(
 }
 
 /**
- * Mês 1: mês de produção derivado do pagamento (ex.: jun → jul).
- * Mês 2+: nunca no mesmo mês de produção de um ciclo anterior — se jul já
- * estiver ocupado, renovação de jul vai para ago, e assim por diante.
+ * Mês de produção a partir do pagamento: tenta o mês do pagamento; se o cliente
+ * já tiver outro pedido em aberto (aguardando → enviado) nesse mês, avança até
+ * achar um mês livre. Considera todos os ciclos da assinatura e de outras
+ * assinaturas do mesmo usuário.
  */
 export function resolveSequentialProductionMonthKey(
   cycles: CycleMonthRow[],
-  targetCycleNumber: number,
+  _targetCycleNumber: number,
   paymentPaidAt: string,
   options?: {
     excludeCycleNumber?: number;
     userOccupiedMonths?: Set<string>;
   }
 ): string {
-  const occupied = collectPaidProductionMonths(
-    cycles,
-    options?.excludeCycleNumber
-  );
+  const occupied = collectOccupiedProductionMonths(cycles, {
+    excludeCycleNumber: options?.excludeCycleNumber,
+    openOnly: true,
+  });
 
   if (options?.userOccupiedMonths) {
     for (const monthKey of Array.from(options.userOccupiedMonths)) {
@@ -119,25 +120,9 @@ export function resolveSequentialProductionMonthKey(
     }
   }
 
-  let candidate = mapRawMonthToProductionMonth(
+  const candidate = mapRawMonthToProductionMonth(
     monthKeyFromDate(new Date(paymentPaidAt))
   );
-
-  if (targetCycleNumber > 1) {
-    const previousCycle = cycles.find(
-      (cycle) =>
-        cycle.cycle_number === targetCycleNumber - 1 &&
-        (cycle.payment_id || cycle.scheduled_production_month)
-    );
-    const previousMonth = previousCycle
-      ? resolveCycleProductionMonthKey(previousCycle)
-      : latestOccupiedProductionMonth(occupied);
-
-    if (previousMonth) {
-      const floor = addMonthsToMonthKey(previousMonth, 1);
-      if (candidate < floor) candidate = floor;
-    }
-  }
 
   return bumpProductionMonthWhileOccupied(candidate, occupied);
 }
@@ -156,17 +141,7 @@ export function resolveRenewalProductionMonthKey(
   paymentPaidAt: string,
   occupied: Set<string>
 ): string {
-  if (occupied.size === 0) {
-    return resolveMonthlyProductionMonthKey(paymentPaidAt, occupied);
-  }
-
-  const latestOccupied = Array.from(occupied).sort().at(-1)!;
-  const minimumMonth = addMonthsToMonthKey(latestOccupied, 1);
-  const paymentMonth = mapRawMonthToProductionMonth(
-    monthKeyFromDate(new Date(paymentPaidAt))
-  );
-  const candidate = paymentMonth > minimumMonth ? paymentMonth : minimumMonth;
-  return bumpProductionMonthWhileOccupied(candidate, occupied);
+  return resolveMonthlyProductionMonthKey(paymentPaidAt, occupied);
 }
 
 export function latestOccupiedProductionMonth(
