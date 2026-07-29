@@ -1,3 +1,4 @@
-export const STORE_PRODUCTION_LEAD_DAYS = 10;
-
-export const STORE_PRODUCTION_LEAD_TIME_LABEL = `Prazo de produção de até ${STORE_PRODUCTION_LEAD_DAYS} dias após a confirmação do pedido`;
+export {
+  PRODUCTION_LEAD_BUSINESS_DAYS as STORE_PRODUCTION_LEAD_DAYS,
+  STORE_PRODUCTION_LEAD_TIME_LABEL,
+} from '@/lib/production/lead-time';

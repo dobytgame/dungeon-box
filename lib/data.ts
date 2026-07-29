@@ -1,4 +1,8 @@
 import type { PlanAccent } from './plan-theme';
+import {
+  SUBSCRIPTION_DELIVERY_FAQ_ANSWER,
+  SUBSCRIPTION_PRODUCTION_NOTE,
+} from '@/lib/production/lead-time';
 
 export const plans = [
   {
@@ -159,8 +163,7 @@ export const planSupportCopy = {
     'Compatível com D&D 5e · Tormenta RPG · Pathfinder · Old Dragon · Escala 28mm',
   piecesEstimateNote:
     'Quantidade estimada por kit. Pode variar conforme o tema do mês, chegando até o total informado ou próximo dele.',
-  productionNote:
-    'Prazo de produção de até 15 dias após a confirmação do pagamento.',
+  productionNote: SUBSCRIPTION_PRODUCTION_NOTE,
 };
 
 export const faqItems = [
@@ -174,7 +177,7 @@ export const faqItems = [
   },
   {
     q: 'Quanto tempo demora para chegar?',
-    a: 'Cada kit é impresso após o pagamento — até 7 dias úteis de produção, mais o frete. Sul e Sudeste: 10–15 dias no total. Centro-Oeste e Nordeste: 15–20. Norte: 18–25.',
+    a: SUBSCRIPTION_DELIVERY_FAQ_ANSWER,
   },
   {
     q: 'Quais formas de pagamento são aceitas?',

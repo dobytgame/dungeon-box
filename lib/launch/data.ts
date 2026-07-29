@@ -1,5 +1,6 @@
 import type { PlanAccent } from '@/lib/plan-theme';
 import { plans } from '@/lib/data';
+import { SUBSCRIPTION_DELIVERY_FAQ_ANSWER } from '@/lib/production/lead-time';
 
 export const launchPillars = [
   {
@@ -102,7 +103,7 @@ export const launchFaqItems = [
   },
   {
     q: 'Quanto tempo demora para chegar?',
-    a: 'Cada kit é impresso após o pagamento — até 7 dias úteis de produção, mais o frete. Sul e Sudeste: 10–15 dias no total. Centro-Oeste e Nordeste: 15–20. Norte: 18–25.',
+    a: SUBSCRIPTION_DELIVERY_FAQ_ANSWER,
   },
   {
     q: 'Quais formas de pagamento são aceitas?',

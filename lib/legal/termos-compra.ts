@@ -73,9 +73,9 @@ export const termosCompraDocument: LegalDocument = {
             {
               headers: ['Produto', 'Prazo de produção', 'Prazo total estimado*'],
               rows: [
-                ['Plano Aventureiro', 'Até 10 dias úteis', '15–22 dias úteis'],
-                ['Plano Herói', 'Até 12 dias úteis', '17–24 dias úteis'],
-                ['Plano Lendário', 'Até 20 dias úteis', '25–32 dias úteis'],
+                ['Plano Aventureiro', 'Até 15 dias úteis', '20–27 dias úteis'],
+                ['Plano Herói', 'Até 15 dias úteis', '20–27 dias úteis'],
+                ['Plano Lendário', 'Até 15 dias úteis', '20–27 dias úteis'],
                 ['Produtos Avulsos', 'Até 15 dias úteis', '20–30 dias úteis'],
               ],
             },
