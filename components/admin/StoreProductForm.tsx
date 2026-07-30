@@ -366,6 +366,19 @@ export default function StoreProductForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
+          <label htmlFor="min_quantity" className={labelClass}>
+            Quantidade mín. por pedido
+          </label>
+          <input
+            id="min_quantity"
+            name="min_quantity"
+            type="number"
+            min={1}
+            defaultValue={product?.min_quantity ?? 1}
+            className={inputClass}
+          />
+        </div>
+        <div>
           <label htmlFor="max_quantity" className={labelClass}>
             Quantidade máx. por pedido
           </label>
@@ -373,22 +386,44 @@ export default function StoreProductForm({
             id="max_quantity"
             name="max_quantity"
             type="number"
+            min={1}
             defaultValue={product?.max_quantity ?? 9}
             className={inputClass}
           />
         </div>
-        <div>
-          <label htmlFor="sort_order" className={labelClass}>
-            Ordem
-          </label>
+      </div>
+
+      {isStoreItem ? (
+        <label className="flex cursor-pointer items-start gap-3 rounded-sm border border-white/10 bg-stone-950/40 p-4">
           <input
-            id="sort_order"
-            name="sort_order"
-            type="number"
-            defaultValue={product?.sort_order ?? 0}
-            className={inputClass}
+            type="checkbox"
+            name="requires_unit_uploads"
+            defaultChecked={product?.requires_unit_uploads ?? false}
+            className="mt-1"
           />
-        </div>
+          <span>
+            <span className="block font-display text-xs uppercase tracking-widest text-stone-300">
+              Produto personalizado
+            </span>
+            <span className="mt-1 block text-xs text-stone-500">
+              Exige 1 imagem por unidade na página do produto (mín. 5 itens
+              recomendado). A vitrine usa a mesma URL; só a experiência de compra muda.
+            </span>
+          </span>
+        </label>
+      ) : null}
+
+      <div>
+        <label htmlFor="sort_order" className={labelClass}>
+          Ordem
+        </label>
+        <input
+          id="sort_order"
+          name="sort_order"
+          type="number"
+          defaultValue={product?.sort_order ?? 0}
+          className={inputClass}
+        />
       </div>
 
       <div className="flex flex-wrap gap-6">

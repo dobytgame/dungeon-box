@@ -16,8 +16,9 @@ const cartItemsSchema = z
   .array(
     z.object({
       productId: z.string().min(1),
-      quantity: z.number().int().min(1).max(9),
+      quantity: z.number().int().min(1).max(99),
       selectedOptions: z.record(z.string(), z.string()).optional(),
+      itemUploads: z.array(z.string().min(1)).optional(),
     })
   )
   .min(1);
@@ -161,6 +162,7 @@ export async function POST(request: Request) {
       productId: item.productId,
       quantity: item.quantity,
       ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {}),
+      ...(item.itemUploads ? { itemUploads: item.itemUploads } : {}),
     })),
     addressId: body.addressId,
     bundleSubscriptionId: body.bundleSubscriptionId ?? null,

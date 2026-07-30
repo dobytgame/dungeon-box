@@ -11,6 +11,11 @@ import {
   standaloneStoreCardId,
 } from '@/lib/admin/standalone-store-production';
 import type { AdminCycleDetailView } from '@/lib/admin/cycle-detail-view';
+import {
+  enrichStoreOrderPurchaseViews,
+  storeOrderPurchaseFromMeta,
+  type AdminStoreOrderPurchaseView,
+} from '@/lib/admin/store-order-lines';
 import { relOne } from '@/lib/dashboard/format';
 import type { CycleStatus, PaymentStatus } from '@/lib/dashboard/types';
 import {
@@ -390,6 +395,7 @@ export type AdminStoreOrderDetail =
       cycleStatus: CycleStatus | null;
       itemsSummary: string;
       addressLine: string | null;
+      purchaseView: AdminStoreOrderPurchaseView;
     };
 
 export async function getAdminStoreOrderDetail(
@@ -487,6 +493,12 @@ export async function getAdminStoreOrderDetail(
     }
   }
 
+  const purchaseView = storeOrderPurchaseFromMeta(
+    paymentId,
+    meta,
+    (payment.amount_cents as number) ?? 0
+  );
+
   return {
     kind: 'bundled',
     paymentId,
@@ -506,6 +518,9 @@ export async function getAdminStoreOrderDetail(
     cycleStatus,
     itemsSummary: describeOrderItems(meta),
     addressLine,
+    purchaseView: (
+      await enrichStoreOrderPurchaseViews(admin, [purchaseView])
+    )[0]!,
   };
 }
 

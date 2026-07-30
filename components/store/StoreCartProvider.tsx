@@ -36,7 +36,8 @@ type StoreCartContextValue = {
     productId: string,
     quantity?: number,
     feedback?: Omit<CartAddFeedback, 'id'>,
-    selectedOptions?: Record<string, string>
+    selectedOptions?: Record<string, string>,
+    itemUploads?: string[]
   ) => void;
   setQuantity: (lineId: string, quantity: number) => void;
   removeItem: (lineId: string) => void;
@@ -101,7 +102,8 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
       productId: string,
       quantity = 1,
       feedback?: Omit<CartAddFeedback, 'id'>,
-      selectedOptions?: Record<string, string>
+      selectedOptions?: Record<string, string>,
+      itemUploads?: string[]
     ) => {
       setLines((current) => {
         const normalized = normalizeCartLines(current, allProducts);
@@ -109,6 +111,7 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
           productId,
           quantity,
           ...(selectedOptions ? { selectedOptions } : {}),
+          ...(itemUploads ? { itemUploads } : {}),
         };
         const lineId = cartLineId(nextLine);
         const existing = normalized.find((line) => cartLineId(line) === lineId);

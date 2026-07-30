@@ -13,11 +13,19 @@ import {
   productHasVariations,
   validateSelectedProductOptions,
 } from '@/lib/store/product-variations';
+import {
+  maxQuantityForProduct,
+  minQuantityForProduct,
+  productRequiresUnitUploads,
+  validatePersonalizedLine,
+} from '@/lib/store/personalized-product';
 
 export type CartLine = {
   productId: string;
   quantity: number;
   selectedOptions?: Record<string, string>;
+  /** Caminhos no storage — 1 por unidade em produtos personalizados. */
+  itemUploads?: string[];
 };
 
 export type CartLineResolved = CartLine & {
@@ -35,6 +43,9 @@ export type CartLineResolved = CartLine & {
   promoCode?: string;
   promoSummary?: string;
   variationSummary?: string;
+  itemUploads?: string[];
+  requiresUnitUploads?: boolean;
+  minQuantity?: number;
 };
 
 export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v3';
@@ -73,13 +84,20 @@ export function canonicalizeCartProductId(
   return null;
 }
 
-function maxQuantityForProduct(
+function maxQuantityForCartProduct(
   product: StoreProduct | undefined,
   productId: string
 ): number {
-  if (product?.maxQuantity) return product.maxQuantity;
+  if (product) return maxQuantityForProduct(product);
   if (isMonthlyKitProductId(productId)) return 9;
   return 9;
+}
+
+function minQuantityForCartProduct(
+  product: StoreProduct | undefined
+): number {
+  if (!product) return 1;
+  return minQuantityForProduct(product);
 }
 
 function normalizeSelectedOptions(
@@ -122,14 +140,30 @@ export function normalizeCartLines(
       continue;
     }
 
-    const maxQty = maxQuantityForProduct(product, canonicalId);
-    const qty = Math.min(Math.max(Math.floor(line.quantity), 0), maxQty);
+    const itemUploads =
+      line.itemUploads && line.itemUploads.length > 0
+        ? line.itemUploads.filter(Boolean)
+        : undefined;
+
+    if (product && productRequiresUnitUploads(product)) {
+      const personalized = validatePersonalizedLine(
+        product,
+        Math.floor(line.quantity),
+        itemUploads
+      );
+      if (!personalized.ok) continue;
+    }
+
+    const maxQty = maxQuantityForCartProduct(product, canonicalId);
+    const minQty = minQuantityForCartProduct(product);
+    const qty = Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
     if (qty === 0) continue;
 
     const normalizedLine: CartLine = {
       productId: canonicalId,
       quantity: qty,
       ...(selectedOptions ? { selectedOptions } : {}),
+      ...(itemUploads ? { itemUploads: itemUploads.slice(0, qty) } : {}),
     };
     const key = cartLineId(normalizedLine);
     const existing = merged.get(key);
@@ -138,6 +172,7 @@ export function normalizeCartLines(
       merged.set(key, {
         ...existing,
         quantity: Math.min(existing.quantity + qty, maxQty),
+        ...(itemUploads ? { itemUploads } : {}),
       });
       continue;
     }
@@ -160,6 +195,13 @@ export function resolveCartLines(
     const validation = validateSelectedProductOptions(product, line.selectedOptions);
     if (!validation.ok) return [];
 
+    const personalized = validatePersonalizedLine(
+      product,
+      line.quantity,
+      line.itemUploads
+    );
+    if (!personalized.ok) return [];
+
     const variationSummary = formatVariationSummary(line.selectedOptions);
 
     return [
@@ -171,7 +213,8 @@ export function resolveCartLines(
         imageUrl: product.imageUrl ?? product.galleryUrls?.[0],
         priceCents: product.priceCents,
         lineTotalCents: product.priceCents * line.quantity,
-        maxQuantity: maxQuantityForProduct(product, line.productId),
+        maxQuantity: maxQuantityForCartProduct(product, line.productId),
+        minQuantity: minQuantityForCartProduct(product),
         category: product.category,
         subscriptionId: product.subscriptionId,
         themeName: product.themeName,
@@ -179,6 +222,8 @@ export function resolveCartLines(
         promoCode: product.promoCode,
         promoSummary: product.promoSummary,
         variationSummary,
+        itemUploads: line.itemUploads,
+        requiresUnitUploads: productRequiresUnitUploads(product),
       },
     ];
   });

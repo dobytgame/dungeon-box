@@ -6,7 +6,10 @@ import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import { storeOrderMetaToExtraItems } from '@/lib/admin/cycle-shipment-items';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import type { AdminCycleExtraItem, AdminCycleRow } from '@/lib/admin/types';
-import { storeOrderPurchaseFromMeta } from '@/lib/admin/store-order-lines';
+import {
+  enrichStoreOrderPurchaseViews,
+  storeOrderPurchaseFromMeta,
+} from '@/lib/admin/store-order-lines';
 import {
   toStandaloneStoreOrderDetailView,
   type AdminCycleDetailView,
@@ -639,7 +642,10 @@ export async function getStandaloneStoreOrderDetail(
       planSlug: null,
     })),
     orderAddress,
-    storeOrderPurchases,
+    storeOrderPurchases: await enrichStoreOrderPurchaseViews(
+      admin,
+      storeOrderPurchases
+    ),
   });
 }
 

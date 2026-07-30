@@ -92,9 +92,24 @@ export function stableSelectedOptionsKey(
 export function cartLineId(line: {
   productId: string;
   selectedOptions?: Record<string, string>;
+  itemUploads?: string[];
 }): string {
   const optionsKey = stableSelectedOptionsKey(line.selectedOptions);
-  return optionsKey ? `${line.productId}::${optionsKey}` : line.productId;
+  const uploadsKey =
+    line.itemUploads && line.itemUploads.length > 0
+      ? line.itemUploads.join('|')
+      : '';
+
+  if (optionsKey && uploadsKey) {
+    return `${line.productId}::${optionsKey}::u::${uploadsKey}`;
+  }
+  if (uploadsKey) {
+    return `${line.productId}::u::${uploadsKey}`;
+  }
+  if (optionsKey) {
+    return `${line.productId}::${optionsKey}`;
+  }
+  return line.productId;
 }
 
 export function formatVariationSummary(

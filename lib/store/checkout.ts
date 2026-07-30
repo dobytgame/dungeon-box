@@ -32,6 +32,7 @@ import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
 import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
 import { formatProductNameWithVariations, validateSelectedProductOptions } from '@/lib/store/product-variations';
+import { validatePersonalizedLine, maxQuantityForProduct, minQuantityForProduct } from '@/lib/store/personalized-product';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   recordStorePromoRedemption,
@@ -71,6 +72,7 @@ type ResolvedStoreLine =
       promoSummary?: string;
       bundleSubscriptionId: string | null;
       selectedOptions?: Record<string, string>;
+      itemUploads?: string[];
     }
   | {
       kind: 'monthly-kit';
@@ -148,20 +150,28 @@ async function resolveStoreLines(
   items: CartLine[],
   bundleSubscriptionId: string | null
 ): Promise<ResolvedStoreLine[] | { error: string }> {
+  const admin = createAdminClient();
   const sanitized: CartLine[] = [];
 
   for (const line of items) {
-    const qty = Math.min(Math.max(Math.floor(line.quantity), 1), 9);
-    if (qty === 0) continue;
-
     const productId =
       canonicalizeCartProductId(line.productId) ?? line.productId.trim();
     if (!productId) continue;
+
+    const product = await resolveStoreProductForCheckout(admin, productId, {
+      userId,
+      userSupabase: supabase,
+    });
+    const maxQty = product ? maxQuantityForProduct(product) : 9;
+    const minQty = product ? minQuantityForProduct(product) : 1;
+    const qty = Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
+    if (qty === 0) continue;
 
     sanitized.push({
       productId,
       quantity: qty,
       ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
+      ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
     });
   }
 
@@ -234,6 +244,15 @@ async function resolveStoreLinesWithItems(
       return { error: validation.error };
     }
 
+    const personalized = validatePersonalizedLine(
+      product,
+      line.quantity,
+      line.itemUploads
+    );
+    if (!personalized.ok) {
+      return { error: personalized.error };
+    }
+
     resolved.push({
       kind: 'catalog',
       productId: line.productId as StoreCatalogProductId,
@@ -247,6 +266,7 @@ async function resolveStoreLinesWithItems(
       bundleSubscriptionId:
         product.paintKitBumpId && bundleSubscriptionId ? bundleSubscriptionId : null,
       ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
+      ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
     });
   }
 
@@ -470,6 +490,7 @@ export async function purchaseStoreOrder(
             ...(line.selectedOptions
               ? { selectedOptions: line.selectedOptions }
               : {}),
+            ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
           }
     ),
     addressId,

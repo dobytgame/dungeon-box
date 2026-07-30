@@ -8,6 +8,8 @@ import ProductTabs from '@/components/shop/ProductTabs';
 import RelatedProducts from '@/components/shop/RelatedProducts';
 import StoreProductAnalytics from '@/components/store/StoreProductAnalytics';
 import StoreProductPurchasePanel from '@/components/store/StoreProductPurchasePanel';
+import PersonalizedProductPurchasePanel from '@/components/store/PersonalizedProductPurchasePanel';
+import { productRequiresUnitUploads } from '@/lib/store/personalized-product';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildStoreProductJsonLd } from '@/lib/seo/structured-data';
 import {
@@ -226,7 +228,14 @@ export default async function LojaProductPage({ params }: Props) {
             )}
           </ul>
 
-          <StoreProductPurchasePanel product={product} />
+          {productRequiresUnitUploads(product) ? (
+            <PersonalizedProductPurchasePanel
+              product={product}
+              isLoggedIn={Boolean(user)}
+            />
+          ) : (
+            <StoreProductPurchasePanel product={product} />
+          )}
         </div>
       </div>
 

@@ -121,6 +121,12 @@ export default function StoreCartView({ embedded = false }: Props) {
                 {line.variationSummary ? (
                   <p className="mt-1 text-xs text-stone-400">{line.variationSummary}</p>
                 ) : null}
+                {line.requiresUnitUploads ? (
+                  <p className="mt-1 text-xs text-amber-200/80">
+                    {line.itemUploads?.length ?? line.quantity} imagem(ns) de
+                    personalização
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm text-stone-500">
                   {line.originalPriceCents &&
                   line.originalPriceCents > line.priceCents ? (
@@ -144,6 +150,11 @@ export default function StoreCartView({ embedded = false }: Props) {
               </div>
 
               <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto">
+                {line.requiresUnitUploads ? (
+                  <p className="text-xs text-stone-500">
+                    Qtd. fixa — altere na página do produto
+                  </p>
+                ) : (
                 <div className="flex items-center rounded-sm border border-white/10">
                   <button
                     type="button"
@@ -177,6 +188,7 @@ export default function StoreCartView({ embedded = false }: Props) {
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
+                )}
 
                 <p className="min-w-[5rem] text-right font-display text-sm text-gold">
                   {formatMoney(line.lineTotalCents)}

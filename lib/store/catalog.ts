@@ -53,6 +53,9 @@ export type StoreProduct = {
   planName?: string;
   planSlug?: string;
   maxQuantity?: number;
+  minQuantity?: number;
+  /** Exige 1 imagem de referência por unidade no carrinho. */
+  requiresUnitUploads?: boolean;
   originalPriceCents?: number;
   promoCode?: string;
   promoSummary?: string;

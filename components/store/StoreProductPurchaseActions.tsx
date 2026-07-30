@@ -6,10 +6,12 @@ import StoreProductQuantityStepper from '@/components/store/StoreProductQuantity
 interface Props {
   quantity: number;
   maxQty: number;
+  minQty?: number;
   onQuantityChange: (value: number) => void;
   onAdd: () => void;
   added: boolean;
   addLabel?: string;
+  addDisabled?: boolean;
   className?: string;
   /** Cards estreitos: quantidade em cima, botão largura total embaixo. */
   variant?: 'card' | 'panel';
@@ -18,10 +20,12 @@ interface Props {
 export default function StoreProductPurchaseActions({
   quantity,
   maxQty,
+  minQty = 1,
   onQuantityChange,
   onAdd,
   added,
   addLabel = 'Adicionar ao carrinho',
+  addDisabled = false,
   className = '',
   variant = 'panel',
 }: Props) {
@@ -29,7 +33,8 @@ export default function StoreProductPurchaseActions({
     <button
       type="button"
       onClick={onAdd}
-      className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright ${
+      disabled={addDisabled}
+      className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 ${
         variant === 'card' ? 'w-full' : 'min-w-0 flex-1'
       }`}
     >
@@ -57,6 +62,7 @@ export default function StoreProductPurchaseActions({
           <StoreProductQuantityStepper
             value={quantity}
             max={maxQty}
+            min={minQty}
             onChange={onQuantityChange}
           />
         </div>
@@ -74,6 +80,7 @@ export default function StoreProductPurchaseActions({
         <StoreProductQuantityStepper
           value={quantity}
           max={maxQty}
+          min={minQty}
           onChange={onQuantityChange}
         />
         {addButton}

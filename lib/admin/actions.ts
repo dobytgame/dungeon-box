@@ -2347,6 +2347,18 @@ export async function saveStoreProductAction(
   const maxQuantity = parseIntField(formData.get('max_quantity'), 'Quantidade máx.');
   if ('error' in maxQuantity) return maxQuantity;
 
+  const minQuantity = parseIntField(formData.get('min_quantity'), 'Quantidade mín.');
+  if ('error' in minQuantity) return minQuantity;
+
+  if (minQuantity.value > maxQuantity.value) {
+    return {
+      error: 'A quantidade mínima não pode ser maior que a máxima.',
+    };
+  }
+
+  const requiresUnitUploads =
+    category === 'store-item' && formData.get('requires_unit_uploads') === 'on';
+
   const includesRaw = (formData.get('includes') as string)?.trim();
   const includes = includesRaw
     ? includesRaw.split('\n').map((line) => line.trim()).filter(Boolean)
@@ -2448,6 +2460,8 @@ export async function saveStoreProductAction(
     variations_enabled: variationsEnabled,
     variations: variationsEnabled ? parsedVariations : [],
     max_quantity: maxQuantity.value,
+    min_quantity: minQuantity.value,
+    requires_unit_uploads: requiresUnitUploads,
     featured: formData.get('featured') === 'on',
     is_active: formData.get('is_active') === 'on',
     sort_order: sortOrder.value,

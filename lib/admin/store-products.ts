@@ -29,6 +29,8 @@ export interface AdminStoreProductRow {
   plan_slug: string | null;
   plan_name: string | null;
   max_quantity: number;
+  min_quantity: number;
+  requires_unit_uploads: boolean;
   featured: boolean;
   is_active: boolean;
   sort_order: number;
@@ -85,6 +87,8 @@ export async function listAdminStoreProducts(
       ? (planNameBySlug.get(row.plan_slug as string) ?? null)
       : null,
     max_quantity: row.max_quantity as number,
+    min_quantity: (row.min_quantity as number | null) ?? 1,
+    requires_unit_uploads: Boolean(row.requires_unit_uploads),
     featured: Boolean(row.featured),
     is_active: Boolean(row.is_active),
     sort_order: row.sort_order as number,

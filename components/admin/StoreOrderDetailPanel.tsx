@@ -9,7 +9,6 @@ import StoreOrderItemsSection from '@/components/admin/StoreOrderItemsSection';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import type { AdminStoreOrderDetail } from '@/lib/admin/store-orders';
-import { storeOrderPurchaseFromMeta } from '@/lib/admin/store-order-lines';
 import {
   formatDate,
   formatDateTime,
@@ -219,13 +218,7 @@ export default function StoreOrderDetailPanel({ order, onUpdated }: Props) {
         </h3>
         <div className="mt-4">
           <StoreOrderItemsSection
-            purchases={[
-              storeOrderPurchaseFromMeta(
-                order.paymentId,
-                order.meta,
-                order.amountCents
-              ),
-            ]}
+            purchases={[order.purchaseView]}
           />
         </div>
         <p className="mt-4 text-xs text-zinc-600">

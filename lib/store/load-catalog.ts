@@ -38,6 +38,8 @@ export interface DbStoreProductRow {
   paint_kit_bump_id: 'amador' | 'profissional' | null;
   plan_slug: string | null;
   max_quantity: number;
+  min_quantity: number;
+  requires_unit_uploads: boolean;
   featured: boolean;
   is_active: boolean;
   sort_order: number;
@@ -102,6 +104,8 @@ function mapDbRowToStoreProduct(row: DbStoreProductRow): StoreProduct {
     pageContentHtml: row.page_content_html ?? undefined,
     paintKitBumpId: row.paint_kit_bump_id ?? bump?.id,
     maxQuantity: row.max_quantity,
+    minQuantity: row.min_quantity ?? 1,
+    requiresUnitUploads: Boolean(row.requires_unit_uploads),
     planSlug: row.plan_slug ?? undefined,
     variationsEnabled: Boolean(row.variations_enabled),
     variations: parseStoreProductVariations(row.variations),

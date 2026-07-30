@@ -25,7 +25,7 @@ export default function StoreOrderItemsSection({
           ) : null}
 
           {purchase.items.length > 0 ? (
-            <ul className="space-y-2 text-sm text-zinc-300">
+            <ul className="space-y-4 text-sm text-zinc-300">
               {purchase.items.map((item, index) => (
                 <li
                   key={`${purchase.orderId}-${index}`}
@@ -40,6 +40,27 @@ export default function StoreOrderItemsSection({
                       <span className="mt-0.5 block text-xs text-zinc-500">
                         {item.detail}
                       </span>
+                    ) : null}
+                    {item.customizationImageUrls &&
+                    item.customizationImageUrls.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.customizationImageUrls.map((url, imageIndex) => (
+                          <a
+                            key={url}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block overflow-hidden rounded border border-zinc-800"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`Personalização ${imageIndex + 1}`}
+                              className="h-20 w-20 object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
                     ) : null}
                   </span>
                   <span className="shrink-0 tabular-nums text-zinc-500">
