@@ -165,6 +165,29 @@
     }
   }
 
+  .whatsapp-fab-wiggle {
+    animation: whatsapp-fab-wiggle 0.52s ease-in-out;
+  }
+
+  @keyframes whatsapp-fab-wiggle {
+    0%,
+    100% {
+      transform: rotate(0deg) scale(1);
+    }
+    20% {
+      transform: rotate(-14deg) scale(1.08);
+    }
+    40% {
+      transform: rotate(12deg) scale(1.08);
+    }
+    60% {
+      transform: rotate(-8deg) scale(1.04);
+    }
+    80% {
+      transform: rotate(5deg) scale(1.02);
+    }
+  }
+
   .dashboard-nav-scroll {
     scrollbar-width: none;
     -ms-overflow-style: none;
