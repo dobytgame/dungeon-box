@@ -1,36 +1,64 @@
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { PAGARME_TOKENIZATION_READY } from '@/lib/pagarme/public';
+import {
+  getActivePaymentProvider,
+  type PaymentProvider,
+} from '@/lib/payments/provider';
 
 export type StorePaymentMethod = 'credit_card' | 'pix';
 
-/** Loja v1: sempre Asaas (cartão + PIX), independente do toggle de assinaturas. */
-export const STORE_CHECKOUT_GATEWAY = 'asaas' as const;
+export type StoreCheckoutGateway = Extract<PaymentProvider, 'asaas' | 'pagarme'>;
 
 export type StorePaymentConfig = {
   ready: boolean;
-  provider: typeof STORE_CHECKOUT_GATEWAY;
+  provider: StoreCheckoutGateway;
   methods: StorePaymentMethod[];
   issue?: string;
 };
 
-/** Checkout da loja disponível quando o Asaas está configurado. */
-export function isStorePaymentReady(): boolean {
+function gatewayReady(gateway: StoreCheckoutGateway): boolean {
+  if (gateway === 'pagarme') {
+    return PAGARME_CONFIGURED && PAGARME_TOKENIZATION_READY;
+  }
   return ASAAS_CONFIGURED;
 }
 
-/** Valida se o checkout da loja pode cobrar via Asaas (cartão + PIX). */
-export function getStorePaymentConfig(): StorePaymentConfig {
-  if (!ASAAS_CONFIGURED) {
+function gatewayIssue(gateway: StoreCheckoutGateway): string {
+  if (gateway === 'pagarme') {
+    if (!PAGARME_CONFIGURED) {
+      return 'Pagar.me não configurado (PAGARME_SECRET_KEY ausente).';
+    }
+    if (!PAGARME_TOKENIZATION_READY) {
+      return 'Pagar.me incompleto (NEXT_PUBLIC_PAGARME_PUBLIC_KEY ausente).';
+    }
+  }
+  return 'Asaas não configurado (ASAAS_API_KEY ausente).';
+}
+
+/** Checkout da loja segue o mesmo gateway ativo das assinaturas (admin). */
+export async function getStorePaymentConfig(): Promise<StorePaymentConfig> {
+  const active = await getActivePaymentProvider();
+  const provider: StoreCheckoutGateway =
+    active === 'pagarme' ? 'pagarme' : 'asaas';
+
+  if (!gatewayReady(provider)) {
     return {
       ready: false,
-      provider: STORE_CHECKOUT_GATEWAY,
+      provider,
       methods: [],
-      issue: 'Asaas não configurado (ASAAS_API_KEY ausente).',
+      issue: gatewayIssue(provider),
     };
   }
 
   return {
     ready: true,
-    provider: STORE_CHECKOUT_GATEWAY,
+    provider,
     methods: ['credit_card', 'pix'],
   };
+}
+
+export async function isStorePaymentReady(): Promise<boolean> {
+  const config = await getStorePaymentConfig();
+  return config.ready;
 }

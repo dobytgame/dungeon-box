@@ -5,6 +5,7 @@ import { readActiveGatewayFromDb } from '@/lib/payments/gateway-config';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { PAGARME_TOKENIZATION_READY } from '@/lib/pagarme/public';
+import { getStorePaymentConfig } from '@/lib/store/payment-config';
 import { getActivePaymentProvider } from '@/lib/payments/provider';
 
 export default async function AdminGatewayPage() {
@@ -12,15 +13,11 @@ export default async function AdminGatewayPage() {
 
   const fromDb = await readActiveGatewayFromDb();
   const effectiveProvider = await getActivePaymentProvider();
+  const storeConfig = await getStorePaymentConfig();
   const activeGateway =
     fromDb ?? (effectiveProvider === 'pagarme' ? 'pagarme' : 'asaas');
 
-  const checkoutReady =
-    effectiveProvider === 'pagarme'
-      ? PAGARME_CONFIGURED && PAGARME_TOKENIZATION_READY
-      : effectiveProvider === 'asaas'
-        ? ASAAS_CONFIGURED
-        : false;
+  const checkoutReady = storeConfig.ready;
 
   return (
     <div className="space-y-6">
@@ -52,6 +49,7 @@ export default async function AdminGatewayPage() {
         effectiveProvider={effectiveProvider}
         checkoutReady={checkoutReady}
         dbConfigured={fromDb !== null}
+        storeGateway={storeConfig.provider}
       />
     </div>
   );

@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import { CreditCard } from 'lucide-react';
-import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
-import { PAGARME_TOKENIZATION_READY } from '@/lib/pagarme/public';
+import { getStorePaymentConfig } from '@/lib/store/payment-config';
 import { readActiveGatewayFromDb } from '@/lib/payments/gateway-config';
 import { getActivePaymentProvider } from '@/lib/payments/provider';
 
@@ -14,6 +12,7 @@ const GATEWAY_LABELS = {
 export default async function AdminActiveGatewayNotice() {
   const fromDb = await readActiveGatewayFromDb();
   const effectiveProvider = await getActivePaymentProvider();
+  const storeConfig = await getStorePaymentConfig();
 
   const activeGateway =
     fromDb ??
@@ -22,13 +21,7 @@ export default async function AdminActiveGatewayNotice() {
       : 'asaas');
 
   const label = GATEWAY_LABELS[activeGateway];
-
-  const checkoutReady =
-    effectiveProvider === 'pagarme'
-      ? PAGARME_CONFIGURED && PAGARME_TOKENIZATION_READY
-      : effectiveProvider === 'asaas'
-        ? ASAAS_CONFIGURED
-        : false;
+  const checkoutReady = storeConfig.ready;
 
   const tone = checkoutReady
     ? 'border-console/30 bg-console/10 text-console'
@@ -43,19 +36,14 @@ export default async function AdminActiveGatewayNotice() {
         <CreditCard className="mt-0.5 h-4 w-4 shrink-0 opacity-80" aria-hidden />
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] opacity-80">
-            Gateway de assinaturas
+            Gateway de pagamentos
           </p>
           <p className="mt-0.5 text-sm">
-            Assinaturas (novos checkouts):{' '}
+            Assinaturas e loja:{' '}
             <span className="font-medium text-white">{label}</span>
             {!checkoutReady ? (
               <span className="text-amber-200/90"> — chaves incompletas no ambiente</span>
             ) : null}
-          </p>
-          <p className="mt-1 text-xs opacity-80">
-            Loja (`/loja/checkout`): sempre{' '}
-            <span className="text-white/90">Asaas</span> (cartão + PIX) — não segue
-            este toggle.
           </p>
           {!fromDb ? (
             <p className="mt-1 text-xs opacity-80">

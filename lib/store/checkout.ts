@@ -12,6 +12,8 @@ import {
 import { isAsaasPaymentPending } from '@/lib/asaas/payment-details';
 import {
   attachAsaasPaymentToStoreOrder,
+  attachPagarmePaymentToStoreOrder,
+  approveStoreOrderPaymentByPagarmeCharge,
   buildStoreOrderExternalReference,
   createPendingStoreOrderPayment,
   fulfillApprovedStoreOrder,
@@ -19,6 +21,16 @@ import {
   notifyStoreOrderConfirmed,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
+import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
+import {
+  chargePagarmeOneTimeOrder,
+  createPagarmePixOrder,
+  extractPagarmeStorePix,
+  isPagarmeChargePaid,
+  isPagarmeChargePending,
+  resolvePagarmeOrderChargeIds,
+} from '@/lib/pagarme/one-time-order';
+import { getActivePaymentProvider } from '@/lib/payments/provider';
 import type {
   AsaasCreditCardHolderInput,
   AsaasCreditCardInput,
@@ -69,6 +81,7 @@ type ProfileRow = {
   cpf: string | null;
   phone: string | null;
   asaas_customer_id: string | null;
+  pagarme_customer_id: string | null;
 };
 
 type ResolvedStoreLine =
@@ -115,6 +128,7 @@ export type StoreCheckoutInput = {
   couponCode?: string | null;
   creditCard?: AsaasCreditCardInput;
   creditCardHolderInfo?: AsaasCreditCardHolderInput;
+  cardToken?: string;
   remoteIp?: string;
 };
 
@@ -124,10 +138,26 @@ export type StoreCheckoutResult =
       pending: true;
       paymentId: string;
       orderId: string;
-      pix?: AsaasPixQrCode;
+      pix?: AsaasPixQrCode | {
+        payload: string;
+        expirationDate: string;
+        encodedImage?: string;
+        imageUrl?: string;
+      };
       awaitingReview?: boolean;
     }
   | { error: string };
+
+function buildPagarmeBillingAddress(address: AddressRow) {
+  return {
+    line_1: `${address.number}, ${address.street}, ${address.neighborhood}`,
+    line_2: address.complement ?? undefined,
+    zip_code: address.zip_code.replace(/\D/g, ''),
+    city: address.city,
+    state: address.state,
+    country: 'BR',
+  };
+}
 
 function buildOrderDescription(lines: ResolvedStoreLine[]): string {
   const summary = lines.map((line) => `${line.quantity}x ${line.name}`).join(', ');
@@ -371,7 +401,7 @@ export async function purchaseStoreOrder(
 
   const { data: profile } = await input.supabase
     .from('profiles')
-    .select('id, email, full_name, cpf, phone, asaas_customer_id')
+    .select('id, email, full_name, cpf, phone, asaas_customer_id, pagarme_customer_id')
     .eq('id', input.userId)
     .single();
 
@@ -508,9 +538,13 @@ export async function purchaseStoreOrder(
   );
   const description = buildOrderDescription(lines);
 
+  const gateway =
+    (await getActivePaymentProvider()) === 'pagarme' ? 'pagarme' : 'asaas';
+
   const orderMeta: StoreOrderMeta = {
     type: 'store_order',
     orderId,
+    gateway,
     paymentMethod: input.paymentMethod,
     items: lines.map((line) =>
       line.kind === 'monthly-kit'
@@ -576,6 +610,107 @@ export async function purchaseStoreOrder(
     }
 
     const localPaymentId = pendingPayment.id;
+    const gateway = orderMeta.gateway ?? 'asaas';
+
+    if (gateway === 'pagarme') {
+      const pagarmeCustomerId = await getOrCreatePagarmeCustomer(
+        input.supabase,
+        profileRow,
+        addressRow
+      );
+      const billingAddress = buildPagarmeBillingAddress(addressRow);
+
+      if (input.paymentMethod === 'pix') {
+        const order = await createPagarmePixOrder({
+          customerId: pagarmeCustomerId,
+          valueCents: totalCents,
+          description,
+          externalReference,
+        });
+
+        const { orderId: pagarmeOrderId, chargeId, chargeStatus } =
+          resolvePagarmeOrderChargeIds(order);
+
+        await attachPagarmePaymentToStoreOrder(admin, localPaymentId, {
+          pagarmeOrderId,
+          pagarmeChargeId: chargeId,
+        });
+
+        if (isPagarmeChargePaid(chargeStatus) && chargeId) {
+          await approveStoreOrderPaymentByPagarmeCharge(
+            admin,
+            chargeId,
+            totalCents
+          );
+          return { success: true, paymentId: localPaymentId, orderId };
+        }
+
+        const pix = extractPagarmeStorePix(order);
+        if (!pix) {
+          return { error: 'Não foi possível gerar o PIX.' };
+        }
+
+        return {
+          pending: true,
+          paymentId: localPaymentId,
+          orderId,
+          pix,
+        };
+      }
+
+      if (!input.cardToken) {
+        return { error: 'Dados do cartão incompletos.' };
+      }
+
+      const order = await chargePagarmeOneTimeOrder({
+        customerId: pagarmeCustomerId,
+        valueCents: totalCents,
+        description,
+        cardToken: input.cardToken,
+        billingAddress,
+        externalReference,
+      });
+
+      const { orderId: pagarmeOrderId, chargeId, chargeStatus } =
+        resolvePagarmeOrderChargeIds(order);
+      const approved = isPagarmeChargePaid(chargeStatus);
+
+      await attachPagarmePaymentToStoreOrder(admin, localPaymentId, {
+        pagarmeOrderId,
+        pagarmeChargeId: chargeId,
+      });
+
+      if (approved && chargeId) {
+        await approveStoreOrderPaymentByPagarmeCharge(
+          admin,
+          chargeId,
+          totalCents
+        );
+        return {
+          success: true,
+          paymentId: localPaymentId,
+          orderId,
+        };
+      }
+
+      if (!approved) {
+        if (isPagarmeChargePending(chargeStatus)) {
+          return {
+            pending: true,
+            paymentId: localPaymentId,
+            orderId,
+            awaitingReview: true,
+          };
+        }
+
+        await markStoreOrderPaymentFailed(
+          admin,
+          localPaymentId,
+          'Pagamento recusado. Verifique os dados do cartão.'
+        );
+        return { error: 'Pagamento recusado. Verifique os dados do cartão.' };
+      }
+    }
 
     const asaasCustomerId = await getOrCreateAsaasCustomer(
       input.supabase,

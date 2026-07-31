@@ -18,10 +18,18 @@ import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
 import { formatVariationSummary } from '@/lib/store/product-variations';
 import type { CycleStatus } from '@/lib/dashboard/types';
+import {
+  extractPagarmeStorePix,
+  fetchPagarmeOrder,
+  isPagarmeChargePaid,
+  type PagarmeStorePixDetails,
+} from '@/lib/pagarme/one-time-order';
 
 export type StoreOrderMeta = {
   type: 'store_order';
   orderId: string;
+  gateway?: 'asaas' | 'pagarme';
+  pagarmeOrderId?: string | null;
   paymentMethod: 'credit_card' | 'pix';
   items: Array<{
     productId: string;
@@ -297,7 +305,7 @@ export async function findStoreOrderPaymentRow(
   const { data: rows } = await supabase
     .from('payments')
     .select(
-      'id, status, status_detail, asaas_payment_id, amount_cents, payment_method, created_at'
+      'id, status, status_detail, asaas_payment_id, pagarme_order_id, pagarme_charge_id, amount_cents, payment_method, created_at'
     )
     .eq('user_id', userId)
     .ilike('status_detail', '%store_order%')
@@ -366,6 +374,32 @@ export async function attachAsaasPaymentToStoreOrder(
 
   if (error) {
     console.error('[store] attach asaas payment:', localPaymentId, error.message);
+  }
+}
+
+export async function attachPagarmePaymentToStoreOrder(
+  admin: SupabaseClient,
+  localPaymentId: string,
+  input: {
+    pagarmeOrderId: string;
+    pagarmeChargeId: string | null;
+    patch?: {
+      status?: string;
+      paid_at?: string | null;
+    };
+  }
+): Promise<void> {
+  const { error } = await admin
+    .from('payments')
+    .update({
+      pagarme_order_id: input.pagarmeOrderId,
+      ...(input.pagarmeChargeId ? { pagarme_charge_id: input.pagarmeChargeId } : {}),
+      ...input.patch,
+    })
+    .eq('id', localPaymentId);
+
+  if (error) {
+    console.error('[store] attach pagarme payment:', localPaymentId, error.message);
   }
 }
 
@@ -524,6 +558,48 @@ export async function approveStoreOrderPayment(
 
   if (!paymentRow) return 'skipped';
 
+  const amountCents =
+    payment.value != null
+      ? Math.round(payment.value * 100)
+      : paymentRow.amount_cents;
+
+  return approveStoreOrderPaymentRow(supabase, paymentRow, amountCents);
+}
+
+export async function approveStoreOrderPaymentByPagarmeCharge(
+  supabase: SupabaseClient,
+  pagarmeChargeId: string,
+  amountCents?: number | null
+): Promise<'processed' | 'skipped'> {
+  const paymentRow = (
+    await supabase
+      .from('payments')
+      .select('id, user_id, status, status_detail, amount_cents')
+      .eq('pagarme_charge_id', pagarmeChargeId)
+      .maybeSingle()
+  ).data;
+
+  if (!paymentRow) return 'skipped';
+
+  return approveStoreOrderPaymentRow(
+    supabase,
+    paymentRow,
+    amountCents ?? paymentRow.amount_cents
+  );
+}
+
+async function approveStoreOrderPaymentRow(
+  supabase: SupabaseClient,
+  paymentRow: {
+    id: string;
+    user_id: string;
+    status: string;
+    status_detail: unknown;
+    amount_cents: number | null;
+  },
+  amountCents: number | null
+): Promise<'processed' | 'skipped'> {
+
   const meta = parseStoreOrderMeta(paymentRow.status_detail);
   if (!meta) return 'skipped';
 
@@ -532,15 +608,12 @@ export async function approveStoreOrderPayment(
   }
 
   const now = new Date().toISOString();
-  const amountCents =
-    payment.value != null
-      ? Math.round(payment.value * 100)
-      : paymentRow.amount_cents;
+  const resolvedAmountCents = amountCents ?? paymentRow.amount_cents;
 
   await supabase
     .from('payments')
     .update({
-      ...(amountCents != null ? { amount_cents: amountCents } : {}),
+      ...(resolvedAmountCents != null ? { amount_cents: resolvedAmountCents } : {}),
       status: 'approved',
       paid_at: now,
       ...(meta.shippingMode === 'standalone' ? { subscription_id: null } : {}),
@@ -576,7 +649,7 @@ export async function approveStoreOrderPayment(
     supabase,
     paymentRow.user_id,
     meta,
-    amountCents ?? paymentRow.amount_cents ?? 0
+    resolvedAmountCents ?? paymentRow.amount_cents ?? 0
   );
 
   if (meta.couponPromoId && meta.couponCode) {
@@ -649,6 +722,43 @@ async function recoverStoreOrderPaymentFromWebhook(
   return approveStoreOrderPayment(supabase, payment.id, payment);
 }
 
+export async function handleStoreOrderPagarmeChargePaid(
+  supabase: SupabaseClient,
+  charge: { id?: string; amount?: number; code?: string | null }
+): Promise<'processed' | 'skipped'> {
+  if (!charge.id) return 'skipped';
+
+  const byCharge = await approveStoreOrderPaymentByPagarmeCharge(
+    supabase,
+    charge.id,
+    charge.amount != null ? Math.round(charge.amount) : null
+  );
+  if (byCharge === 'processed') return 'processed';
+
+  const reference = parseStoreOrderExternalReference(charge.code);
+  if (!reference) return 'skipped';
+
+  const paymentRow = await findStoreOrderPaymentRow(
+    supabase,
+    reference.userId,
+    reference.orderId
+  );
+  if (!paymentRow) return 'skipped';
+
+  if (!paymentRow.pagarme_charge_id) {
+    await supabase
+      .from('payments')
+      .update({ pagarme_charge_id: charge.id })
+      .eq('id', paymentRow.id);
+  }
+
+  return approveStoreOrderPaymentByPagarmeCharge(
+    supabase,
+    charge.id,
+    charge.amount != null ? Math.round(charge.amount) : null
+  );
+}
+
 export async function handleStoreOrderPaymentConfirmed(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
@@ -670,7 +780,7 @@ export async function handleStoreOrderPaymentConfirmed(
 
 export type StoreOrderStatusResult = {
   state: 'approved' | 'pending' | 'not_found';
-  pix?: AsaasPixQrCode;
+  pix?: AsaasPixQrCode | PagarmeStorePixDetails;
   order?: StoreOrderPurchaseAnalytics;
   amountCents?: number | null;
 };
@@ -679,7 +789,7 @@ function buildOrderStatusResult(
   meta: StoreOrderMeta | null,
   state: StoreOrderStatusResult['state'],
   amountCents?: number | null,
-  pix?: AsaasPixQrCode
+  pix?: AsaasPixQrCode | PagarmeStorePixDetails
 ): StoreOrderStatusResult {
   const order = meta ? buildStoreOrderPurchaseAnalytics(meta, amountCents) : null;
   return {
@@ -709,6 +819,44 @@ export async function syncStoreOrderPaymentByOrderId(
       'approved',
       paymentRow.amount_cents
     );
+  }
+
+  if (meta?.gateway === 'pagarme' || paymentRow.pagarme_order_id) {
+    const pagarmeOrderId = paymentRow.pagarme_order_id as string | null;
+    if (!pagarmeOrderId) {
+      return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
+    }
+
+    try {
+      const remote = await fetchPagarmeOrder(pagarmeOrderId);
+      const charge = remote.charges?.[0];
+      const chargeStatus = charge?.status ?? charge?.last_transaction?.status ?? remote.status;
+
+      if (charge?.id && isPagarmeChargePaid(chargeStatus)) {
+        await approveStoreOrderPaymentByPagarmeCharge(
+          supabase,
+          charge.id,
+          charge.amount ?? paymentRow.amount_cents
+        );
+        return buildOrderStatusResult(meta, 'approved', paymentRow.amount_cents);
+      }
+
+      if (meta?.paymentMethod === 'pix') {
+        const pix = extractPagarmeStorePix(remote);
+        if (pix) {
+          return buildOrderStatusResult(
+            meta,
+            isPagarmeChargePaid(chargeStatus) ? 'approved' : 'pending',
+            paymentRow.amount_cents,
+            pix
+          );
+        }
+      }
+    } catch (error) {
+      console.error('[store] sync pagarme payment status:', error);
+    }
+
+    return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
   }
 
   if (!paymentRow.asaas_payment_id) {

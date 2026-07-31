@@ -5,9 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/dashboard/format';
 
 export type StorePixDetails = {
-  encodedImage: string;
+  encodedImage?: string;
   payload: string;
   expirationDate: string;
+  imageUrl?: string;
 };
 
 interface Props {
@@ -115,6 +116,15 @@ export default function StorePixPaymentPanel({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`data:image/png;base64,${pix.encodedImage}`}
+            alt="QR Code PIX"
+            className="h-52 w-52 object-contain"
+          />
+        </div>
+      ) : pix.imageUrl ? (
+        <div className="flex justify-center rounded-sm border border-white/[0.08] bg-white p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={pix.imageUrl}
             alt="QR Code PIX"
             className="h-52 w-52 object-contain"
           />

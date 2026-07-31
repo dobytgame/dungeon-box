@@ -2807,6 +2807,7 @@ export async function switchGatewayAction(gateway: 'asaas' | 'pagarme') {
   revalidateAdmin();
   revalidatePath('/admin/financeiro/gateway');
   revalidatePath('/admin/financeiro');
+  revalidatePath('/loja/checkout');
   revalidatePath('/entre-para-guilda');
   revalidatePath('/api/checkout/provider');
   return { success: true as const, active_gateway: gateway };

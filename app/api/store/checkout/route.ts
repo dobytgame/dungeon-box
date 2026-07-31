@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
-import { isStorePaymentReady } from '@/lib/store/payment-config';
+import {
+  getStorePaymentConfig,
+  isStorePaymentReady,
+} from '@/lib/store/payment-config';
 import { purchaseStoreOrder } from '@/lib/store/checkout';
 import { createClient } from '@/lib/supabase/server';
 import { assertPublicStoreCheckoutItems } from '@/lib/store/access';
@@ -10,6 +13,9 @@ import {
   digitsOnly,
   validateCreditCard,
 } from '@/lib/payments/card-validation';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const cartItemsSchema = z
   .array(
@@ -38,10 +44,15 @@ const sharedCheckoutSchema = z.object({
 });
 
 const bodySchema = z.discriminatedUnion('paymentMethod', [
-  sharedCheckoutSchema.extend({
-    paymentMethod: z.literal('credit_card'),
-    creditCard: cardSchema,
-  }),
+  sharedCheckoutSchema
+    .extend({
+      paymentMethod: z.literal('credit_card'),
+      creditCard: cardSchema.optional(),
+      cardToken: z.string().min(1).optional(),
+    })
+    .refine((body) => Boolean(body.creditCard || body.cardToken), {
+      message: 'Informe o cartão ou o token de pagamento.',
+    }),
   sharedCheckoutSchema.extend({
     paymentMethod: z.literal('pix'),
   }),
@@ -112,15 +123,19 @@ async function validateProfileAndAddress(
 }
 
 export async function POST(request: Request) {
-  if (!isStorePaymentReady()) {
+  if (!(await isStorePaymentReady())) {
+    const config = await getStorePaymentConfig();
     return NextResponse.json(
       {
         error:
-          'Pagamentos da loja indisponíveis. A loja usa Asaas (cartão e PIX), independente do gateway de assinaturas.',
+          config.issue ??
+          'Pagamentos da loja indisponíveis no gateway ativo.',
       },
       { status: 503 }
     );
   }
+
+  const paymentConfig = await getStorePaymentConfig();
 
   const supabase = createClient();
   const {
@@ -197,6 +212,48 @@ export async function POST(request: Request) {
         orderId: result.orderId,
         paymentId: result.paymentId,
       });
+    }
+
+    if (paymentConfig.provider === 'pagarme') {
+      if (!body.cardToken) {
+        return NextResponse.json(
+          { error: 'Token do cartão obrigatório.' },
+          { status: 400 }
+        );
+      }
+
+      const result = await purchaseStoreOrder({
+        ...sharedInput,
+        paymentMethod: 'credit_card',
+        cardToken: body.cardToken,
+      });
+
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+
+      if ('pending' in result) {
+        return NextResponse.json({
+          pending: true,
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          pix: result.pix,
+          awaitingReview: result.awaitingReview ?? false,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        orderId: result.orderId,
+        paymentId: result.paymentId,
+      });
+    }
+
+    if (!body.creditCard) {
+      return NextResponse.json(
+        { error: 'Dados do cartão obrigatórios.' },
+        { status: 400 }
+      );
     }
 
     const holderName = body.creditCard.holderName.trim();

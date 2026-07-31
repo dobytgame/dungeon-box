@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findLocalSubscriptionByPagarmeId } from '@/lib/pagarme/resolve-local-subscription';
+import { handleStoreOrderPagarmeChargePaid } from '@/lib/asaas/store-order-payment';
 import { activateSubscriptionFromPagarme } from '@/lib/subscriptions/activate-pagarme';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
@@ -13,6 +14,7 @@ export type PagarmeWebhookCharge = {
   amount?: number;
   subscription_id?: string;
   customer_id?: string;
+  code?: string | null;
 };
 
 export type PagarmeWebhookSubscription = {
@@ -30,8 +32,15 @@ export async function handlePagarmeChargePaid(
   supabase: SupabaseClient,
   charge: PagarmeWebhookCharge
 ): Promise<'processed' | 'skipped'> {
+  if (!charge.id) return 'skipped';
+
+  if (!charge.subscription_id) {
+    const storeResult = await handleStoreOrderPagarmeChargePaid(supabase, charge);
+    if (storeResult === 'processed') return 'processed';
+  }
+
   const pagarmeSubscriptionId = charge.subscription_id;
-  if (!pagarmeSubscriptionId || !charge.id) return 'skipped';
+  if (!pagarmeSubscriptionId) return 'skipped';
 
   const local = await findLocalSubscriptionByPagarmeId(
     supabase,

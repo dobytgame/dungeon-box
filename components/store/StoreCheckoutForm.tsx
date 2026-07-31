@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from '@/components/checkout/AsaasPaymentForm';
+import PagarmePaymentForm from '@/components/checkout/PagarmePaymentForm';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import CheckoutStepper from '@/components/shop/CheckoutStepper';
 import StoreCheckoutAddressSection from '@/components/store/StoreCheckoutAddressSection';
@@ -60,7 +61,8 @@ function buildCheckoutPayload(
   checkoutAddressId: string,
   bundleSubscriptionId: string | null,
   couponCode: string | null,
-  card?: AsaasCardPayload
+  card?: AsaasCardPayload,
+  cardToken?: string
 ) {
   return {
     paymentMethod,
@@ -68,7 +70,12 @@ function buildCheckoutPayload(
     addressId: checkoutAddressId,
     bundleSubscriptionId,
     couponCode,
-    ...(paymentMethod === 'credit_card' && card ? { creditCard: card } : {}),
+    ...(paymentMethod === 'credit_card' && cardToken
+      ? { cardToken }
+      : {}),
+    ...(paymentMethod === 'credit_card' && card && !cardToken
+      ? { creditCard: card }
+      : {}),
   };
 }
 
@@ -121,6 +128,7 @@ export default function StoreCheckoutForm({
   const checkoutTrackedRef = useRef(false);
   const paymentFormRef = useRef<HTMLDivElement>(null);
   const paymentsReady = paymentConfig?.ready ?? true;
+  const storeProvider = paymentConfig?.provider ?? 'asaas';
 
   useEffect(() => {
     if (eligibleMonthlyKitSubs.length === 0) return;
@@ -410,7 +418,8 @@ export default function StoreCheckoutForm({
 
   async function submitCheckout(
     method: StorePaymentMethod,
-    card?: AsaasCardPayload
+    card?: AsaasCardPayload,
+    cardToken?: string
   ) {
     if (!paymentsReady) {
       setError('Pagamentos da loja indisponíveis no momento.');
@@ -464,7 +473,8 @@ export default function StoreCheckoutForm({
                   ? paintKitBundleSubscriptionId
                   : null,
               couponCode,
-              card
+              card,
+              cardToken
             )
           ),
         });
@@ -513,6 +523,14 @@ export default function StoreCheckoutForm({
 
   async function handlePay(card: AsaasCardPayload) {
     await submitCheckout('credit_card', card);
+  }
+
+  async function handlePagarmePay(tokenized: {
+    token: string;
+    last4: string;
+    brand: string;
+  }) {
+    await submitCheckout('credit_card', undefined, tokenized.token);
   }
 
   async function handlePixPay() {
@@ -781,17 +799,31 @@ export default function StoreCheckoutForm({
               </div>
 
               {paymentMethod === 'credit_card' ? (
-                <AsaasPaymentForm
-                  disabled={
-                    !paymentsReady ||
-                    pending ||
-                    (!hasMonthlyKit && checkoutAddresses.length === 0) ||
-                    (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
-                  }
-                  submitLabel="Pagar com cartão"
-                  onError={setError}
-                  onSubmit={handlePay}
-                />
+                storeProvider === 'pagarme' ? (
+                  <PagarmePaymentForm
+                    disabled={
+                      !paymentsReady ||
+                      pending ||
+                      (!hasMonthlyKit && checkoutAddresses.length === 0) ||
+                      (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
+                    }
+                    submitLabel="Pagar com cartão"
+                    onError={setError}
+                    onSubmit={handlePagarmePay}
+                  />
+                ) : (
+                  <AsaasPaymentForm
+                    disabled={
+                      !paymentsReady ||
+                      pending ||
+                      (!hasMonthlyKit && checkoutAddresses.length === 0) ||
+                      (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
+                    }
+                    submitLabel="Pagar com cartão"
+                    onError={setError}
+                    onSubmit={handlePay}
+                  />
+                )
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-stone-400">
