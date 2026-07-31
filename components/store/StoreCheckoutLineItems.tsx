@@ -2,8 +2,10 @@
 
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { CartLineResolved } from '@/lib/store/cart';
+import { maxQuantityForCartLine } from '@/lib/store/cart-validation';
 import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 
 interface Props {
@@ -50,17 +52,18 @@ function LineImage({
 function CheckoutQuantityControls({
   line,
   compact = false,
+  maxQuantity,
   onDecrease,
   onIncrease,
   onRemove,
 }: {
   line: CartLineResolved;
   compact?: boolean;
+  maxQuantity: number;
   onDecrease: () => void;
   onIncrease: () => void;
   onRemove: () => void;
 }) {
-  const maxQty = line.maxQuantity ?? 9;
   const buttonSize = compact ? 'h-11 w-11' : 'h-11 w-11';
   const iconSize = compact ? 'h-3.5 w-3.5' : 'h-4 w-4';
 
@@ -89,7 +92,7 @@ function CheckoutQuantityControls({
         <button
           type="button"
           aria-label="Aumentar quantidade"
-          disabled={line.quantity >= maxQty}
+          disabled={line.quantity >= maxQuantity}
           onClick={onIncrease}
           className={`flex ${buttonSize} cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40`}
         >
@@ -115,7 +118,8 @@ export default function StoreCheckoutLineItems({
   variant = 'detailed',
   editable = false,
 }: Props) {
-  const { setQuantity, removeItem } = useStoreCart();
+  const { lines: cartLines, setQuantity, removeItem } = useStoreCart();
+  const { allProducts } = useStoreCatalog();
 
   function decreaseQuantity(line: CartLineResolved) {
     if (line.quantity <= 1) {
@@ -126,8 +130,23 @@ export default function StoreCheckoutLineItems({
   }
 
   function increaseQuantity(line: CartLineResolved) {
-    const maxQty = line.maxQuantity ?? 9;
+    const maxQty = maxQuantityForCartLine(line, cartLines, allProducts);
     setQuantity(line.lineId, Math.min(maxQty, line.quantity + 1));
+  }
+
+  function renderControls(line: CartLineResolved, compact = false) {
+    const maxQty = maxQuantityForCartLine(line, cartLines, allProducts);
+
+    return (
+      <CheckoutQuantityControls
+        line={line}
+        compact={compact}
+        maxQuantity={maxQty}
+        onDecrease={() => decreaseQuantity(line)}
+        onIncrease={() => increaseQuantity(line)}
+        onRemove={() => removeItem(line.lineId)}
+      />
+    );
   }
 
   if (variant === 'compact') {
@@ -156,15 +175,7 @@ export default function StoreCheckoutLineItems({
                 </p>
               </div>
             </div>
-            {editable ? (
-              <CheckoutQuantityControls
-                line={line}
-                compact
-                onDecrease={() => decreaseQuantity(line)}
-                onIncrease={() => increaseQuantity(line)}
-                onRemove={() => removeItem(line.lineId)}
-              />
-            ) : null}
+            {editable ? renderControls(line, true) : null}
           </li>
         ))}
       </ul>
@@ -199,12 +210,7 @@ export default function StoreCheckoutLineItems({
                 {formatMoney(line.priceCents)} cada
               </p>
             ) : (
-              <CheckoutQuantityControls
-                line={line}
-                onDecrease={() => decreaseQuantity(line)}
-                onIncrease={() => increaseQuantity(line)}
-                onRemove={() => removeItem(line.lineId)}
-              />
+              renderControls(line)
             )}
           </div>
         </li>

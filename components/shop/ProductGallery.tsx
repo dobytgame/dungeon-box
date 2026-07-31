@@ -21,6 +21,7 @@ export default function ProductGallery({ name, images }: Props) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
+  const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const activeImage = gallery[activeIndex];
 
@@ -33,6 +34,14 @@ export default function ProductGallery({ name, images }: Props) {
     if (gallery.length <= 1) return;
     setActiveIndex((index) => (index - 1 + gallery.length) % gallery.length);
   }, [gallery.length]);
+
+  useEffect(() => {
+    thumbRefs.current[activeIndex]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }, [activeIndex]);
 
   function handleTouchStart(clientX: number) {
     touchStartX.current = clientX;
@@ -132,32 +141,41 @@ export default function ProductGallery({ name, images }: Props) {
       </div>
 
       {gallery.length > 1 ? (
-        <ul className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-4 lg:grid-cols-5">
-          {gallery.map((url, index) => (
-            <li key={url}>
-              <button
-                type="button"
-                onClick={() => setActiveIndex(index)}
-                className={`block w-full overflow-hidden rounded-sm border transition ${
-                  index === activeIndex
-                    ? 'border-ember/60 ring-1 ring-ember/30'
-                    : 'border-white/[0.08] hover:border-white/20'
-                }`}
-                aria-label={`Ver imagem ${index + 1}`}
-                aria-current={index === activeIndex}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt=""
-                  width={STORE_PRODUCT_IMAGE_SIZE}
-                  height={STORE_PRODUCT_IMAGE_SIZE}
-                  className={storeProductThumbClassName}
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="relative mt-4">
+          <ul
+            className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            aria-label="Miniaturas da galeria"
+          >
+            {gallery.map((url, index) => (
+              <li key={url} className="w-[4.5rem] shrink-0 snap-center sm:w-[5rem]">
+                <button
+                  ref={(element) => {
+                    thumbRefs.current[index] = element;
+                  }}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  className={`block w-full overflow-hidden rounded-sm border transition ${
+                    index === activeIndex
+                      ? 'border-ember/60 ring-1 ring-ember/30'
+                      : 'border-white/[0.08] hover:border-white/20'
+                  }`}
+                  aria-label={`Ver imagem ${index + 1}`}
+                  aria-current={index === activeIndex}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt=""
+                    width={STORE_PRODUCT_IMAGE_SIZE}
+                    height={STORE_PRODUCT_IMAGE_SIZE}
+                    className={storeProductThumbClassName}
+                    draggable={false}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {lightboxOpen ? (

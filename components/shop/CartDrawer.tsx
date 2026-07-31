@@ -9,9 +9,11 @@ import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney } from '@/lib/dashboard/format';
 import { resolveCartLines } from '@/lib/store/cart';
+import { maxQuantityForCartLine } from '@/lib/store/cart-validation';
 import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 import { STORE_ROUTES } from '@/lib/store/routes';
 import StoreNavLink from '@/components/shop/StoreNavLink';
+import CartValidationBanner from '@/components/store/CartValidationBanner';
 
 interface Props {
   open: boolean;
@@ -21,7 +23,8 @@ interface Props {
 export default function CartDrawer({ open, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
   const { allProducts } = useStoreCatalog();
-  const { lines, subtotalCents, setQuantity, removeItem, hydrated } = useStoreCart();
+  const { lines, subtotalCents, setQuantity, removeItem, hydrated, validationIssues, cartIsValid } =
+    useStoreCart();
   const resolved = resolveCartLines(lines, allProducts);
 
   useEffect(() => {
@@ -58,8 +61,9 @@ export default function CartDrawer({ open, onClose }: Props) {
   function increaseQuantity(
     lineId: string,
     currentQuantity: number,
-    maxQuantity: number
+    line: (typeof resolved)[number]
   ) {
+    const maxQuantity = maxQuantityForCartLine(line, lines, allProducts);
     setQuantity(lineId, Math.min(maxQuantity, currentQuantity + 1));
   }
 
@@ -132,7 +136,7 @@ export default function CartDrawer({ open, onClose }: Props) {
               ) : (
                 <ul className="divide-y divide-white/[0.06]">
                   {resolved.map((line) => {
-                    const maxQty = line.maxQuantity ?? 9;
+                    const maxQty = maxQuantityForCartLine(line, lines, allProducts);
                     const productHref = line.slug
                       ? STORE_ROUTES.product(line.slug)
                       : STORE_ROUTES.home;
@@ -235,7 +239,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                                   increaseQuantity(
                                     line.lineId,
                                     line.quantity,
-                                    maxQty
+                                    line
                                   )
                                 }
                                 className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -264,6 +268,11 @@ export default function CartDrawer({ open, onClose }: Props) {
 
             {hydrated && resolved.length > 0 ? (
               <div className="shrink-0 border-t border-white/[0.08] bg-[#0A0C10] px-5 py-4 pb-safe">
+                {validationIssues.length > 0 ? (
+                  <div className="mb-4">
+                    <CartValidationBanner issues={validationIssues} />
+                  </div>
+                ) : null}
                 <div className="mb-4 flex justify-between text-sm">
                   <span className="text-stone-500">Subtotal</span>
                   <span className="font-display text-lg text-white">
@@ -273,6 +282,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                 <StoreNavLink
                   href={STORE_ROUTES.checkout}
                   loadingLabel="Abrindo pagamento…"
+                  disabled={!cartIsValid}
                   className="mb-3 flex min-h-[44px] cursor-pointer items-center justify-center rounded-sm bg-ember font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
                 >
                   Finalizar compra

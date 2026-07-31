@@ -32,7 +32,12 @@ import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
 import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
 import { formatProductNameWithVariations, validateSelectedProductOptions } from '@/lib/store/product-variations';
-import { validatePersonalizedLine, maxQuantityForProduct, minQuantityForProduct } from '@/lib/store/personalized-product';
+import {
+  minQuantityForProduct,
+  productRequiresUnitUploads,
+  validatePersonalizedLine,
+  maxQuantityForProduct,
+} from '@/lib/store/personalized-product';
 import {
   productUsesVarietyQuantityPool,
   validateVarietyPoolTotal,
@@ -278,6 +283,18 @@ async function resolveStoreLinesWithItems(
     );
     if (!personalized.ok) {
       return { error: personalized.error };
+    }
+
+    if (
+      !productUsesVarietyQuantityPool(product) &&
+      !productRequiresUnitUploads(product)
+    ) {
+      const minQty = minQuantityForProduct(product);
+      if (line.quantity < minQty) {
+        return {
+          error: `Pedido mínimo de ${minQty} unidades para ${product.name}.`,
+        };
+      }
     }
 
     resolved.push({

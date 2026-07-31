@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import ShopCard from '@/components/shop/ShopCard';
+import StoreNavLink from '@/components/shop/StoreNavLink';
+import CartValidationBanner from '@/components/store/CartValidationBanner';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { formatMoney } from '@/lib/dashboard/format';
 import { cartHasMonthlyKits, resolveCartLines } from '@/lib/store/cart';
+import { maxQuantityForCartLine } from '@/lib/store/cart-validation';
 import { STORE_ROUTES } from '@/lib/store/routes';
-import StoreNavLink from '@/components/shop/StoreNavLink';
 import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 
 interface Props {
@@ -42,7 +44,8 @@ function CartShell({
 
 export default function StoreCartView({ embedded = false }: Props) {
   const { allProducts } = useStoreCatalog();
-  const { lines, subtotalCents, setQuantity, removeItem, hydrated } = useStoreCart();
+  const { lines, subtotalCents, setQuantity, removeItem, hydrated, validationIssues, cartIsValid } =
+    useStoreCart();
   const resolved = resolveCartLines(lines, allProducts);
   const hasMonthlyKit = cartHasMonthlyKits(lines, allProducts);
 
@@ -176,14 +179,19 @@ export default function StoreCartView({ embedded = false }: Props) {
                   <button
                     type="button"
                     aria-label="Aumentar quantidade"
-                    disabled={line.quantity >= (line.maxQuantity ?? 9)}
+                    disabled={
+                      line.quantity >= maxQuantityForCartLine(line, lines, allProducts)
+                    }
                     onClick={() =>
                       setQuantity(
                         line.lineId,
-                        Math.min(line.maxQuantity ?? 9, line.quantity + 1)
+                        Math.min(
+                          maxQuantityForCartLine(line, lines, allProducts),
+                          line.quantity + 1
+                        )
                       )
                     }
-                    className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 hover:text-white"
+                    className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -208,6 +216,12 @@ export default function StoreCartView({ embedded = false }: Props) {
           })}
         </ul>
 
+        {validationIssues.length > 0 ? (
+          <div className="mt-6">
+            <CartValidationBanner issues={validationIssues} />
+          </div>
+        ) : null}
+
         <div className="mt-6 flex flex-col gap-4 border-t border-white/[0.06] pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-stone-500">Subtotal</p>
@@ -223,6 +237,7 @@ export default function StoreCartView({ embedded = false }: Props) {
           <StoreNavLink
             href={STORE_ROUTES.checkout}
             loadingLabel="Abrindo pagamento…"
+            disabled={!cartIsValid}
             className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
           >
             Finalizar compra

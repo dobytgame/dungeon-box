@@ -21,6 +21,7 @@ import StoreCouponField, {
 import StorePixPaymentPanel, {
   type StorePixDetails,
 } from '@/components/store/StorePixPaymentPanel';
+import CartValidationBanner from '@/components/store/CartValidationBanner';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
 import { relOne } from '@/lib/dashboard/format';
@@ -33,6 +34,7 @@ import {
   resolveCartLines,
   type CartLine,
 } from '@/lib/store/cart';
+import { validateCartLines } from '@/lib/store/cart-validation';
 import { getStoreProduct } from '@/lib/store/catalog';
 import {
   storeProductToAnalyticsItem,
@@ -77,7 +79,8 @@ export default function StoreCheckoutForm({
 }: Props) {
   const router = useRouter();
   const { allProducts } = useStoreCatalog();
-  const { lines, subtotalCents, clearCart, hydrated } = useStoreCart();
+  const { lines, subtotalCents, clearCart, hydrated, validationIssues, cartIsValid } =
+    useStoreCart();
   const [checkoutAddresses, setCheckoutAddresses] = useState(addresses);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
@@ -368,6 +371,12 @@ export default function StoreCheckoutForm({
   }
 
   function goToDeliveryStep() {
+    const cartValidation = validateCartLines(lines, allProducts);
+    if (!cartValidation.ok) {
+      setError(cartValidation.error);
+      return;
+    }
+    setError('');
     setStep(2);
     trackStoreAddShippingInfo(analyticsItems, totalCents / 100);
   }
@@ -375,6 +384,11 @@ export default function StoreCheckoutForm({
   function goToPaymentStep() {
     if (!paymentsReady) {
       setError('Pagamentos da loja indisponíveis no momento. Tente novamente mais tarde.');
+      return;
+    }
+    const cartValidation = validateCartLines(lines, allProducts);
+    if (!cartValidation.ok) {
+      setError(cartValidation.error);
       return;
     }
     if (requiresBundledMonthlyKit && !monthlyKitBundleSubscriptionId) {
@@ -422,6 +436,12 @@ export default function StoreCheckoutForm({
     const itemsSnapshot = normalizeCartLines(lines, allProducts);
     if (itemsSnapshot.length === 0) {
       setError('Seu carrinho está vazio.');
+      return;
+    }
+
+    const cartValidation = validateCartLines(itemsSnapshot, allProducts);
+    if (!cartValidation.ok) {
+      setError(cartValidation.error);
       return;
     }
 
@@ -536,6 +556,11 @@ export default function StoreCheckoutForm({
             } no carrinho`}
           >
             <StoreCheckoutLineItems lines={resolved} variant="detailed" editable />
+            {validationIssues.length > 0 ? (
+              <div className="mt-6">
+                <CartValidationBanner issues={validationIssues} />
+              </div>
+            ) : null}
             <div className="mt-6 border-t border-white/[0.06] pt-6">
               <StoreCouponField
                 subtotalCents={subtotalCents}
@@ -552,7 +577,8 @@ export default function StoreCheckoutForm({
             <button
               type="button"
               onClick={goToDeliveryStep}
-              className="mt-6 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright sm:w-auto"
+              disabled={!cartIsValid}
+              className="mt-6 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               Continuar para entrega →
             </button>
@@ -561,6 +587,9 @@ export default function StoreCheckoutForm({
 
         {step === 2 ? (
           <>
+        {validationIssues.length > 0 ? (
+          <CartValidationBanner issues={validationIssues} />
+        ) : null}
         {requiresBundledMonthlyKit ? (
           <DashboardCard
             title="Envio com sua assinatura"
@@ -705,7 +734,7 @@ export default function StoreCheckoutForm({
           <button
             type="button"
             onClick={goToPaymentStep}
-            disabled={!paymentsReady}
+            disabled={!paymentsReady || !cartIsValid}
             className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50"
           >
             Continuar para pagamento →

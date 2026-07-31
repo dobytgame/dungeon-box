@@ -11,6 +11,8 @@ interface Props {
   className?: string;
   loadingLabel?: string;
   onNavigate?: () => void;
+  disabled?: boolean;
+  disabledClassName?: string;
 }
 
 function isModifiedClick(event: React.MouseEvent<HTMLAnchorElement>) {
@@ -29,9 +31,22 @@ export default function StoreNavLink({
   className = '',
   loadingLabel = 'Carregando…',
   onNavigate,
+  disabled = false,
+  disabledClassName = 'pointer-events-none opacity-50',
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  if (disabled) {
+    return (
+      <span
+        aria-disabled="true"
+        className={`${className} ${disabledClassName}`}
+      >
+        {children}
+      </span>
+    );
+  }
 
   return (
     <Link

@@ -18,6 +18,10 @@ import {
   STORE_CART_STORAGE_KEY,
   type CartLine,
 } from '@/lib/store/cart';
+import {
+  getCartValidationIssues,
+  type CartValidationIssue,
+} from '@/lib/store/cart-validation';
 import { cartLineId } from '@/lib/store/product-variations';
 
 export type CartAddFeedback = {
@@ -49,6 +53,8 @@ type StoreCartContextValue = {
   cartBump: number;
   addFeedback: CartAddFeedback | null;
   dismissAddFeedback: () => void;
+  validationIssues: CartValidationIssue[];
+  cartIsValid: boolean;
 };
 
 const StoreCartContext = createContext<StoreCartContextValue | null>(null);
@@ -174,6 +180,12 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
     setLines([]);
   }, []);
 
+  const validationIssues = useMemo(
+    () => getCartValidationIssues(lines, allProducts),
+    [lines, allProducts]
+  );
+  const cartIsValid = validationIssues.length === 0;
+
   const value = useMemo(
     () => ({
       lines,
@@ -190,6 +202,8 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
       cartBump,
       addFeedback,
       dismissAddFeedback,
+      validationIssues,
+      cartIsValid,
     }),
     [
       lines,
@@ -205,6 +219,8 @@ export function StoreCartProvider({ children }: { children: ReactNode }) {
       cartBump,
       addFeedback,
       dismissAddFeedback,
+      validationIssues,
+      cartIsValid,
     ]
   );
 
