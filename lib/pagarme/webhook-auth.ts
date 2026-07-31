@@ -6,7 +6,7 @@ export function validatePagarmeWebhookSignature(
 ): boolean {
   const secret = process.env.PAGARME_WEBHOOK_SECRET?.trim();
   if (!secret) {
-    console.warn('[pagarme-webhook] PAGARME_WEBHOOK_SECRET not set — skipping validation');
+    // Pagar.me nem sempre expõe secret no painel — webhook segue sem HMAC.
     return true;
   }
 

@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import {
   handlePagarmeChargeFailed,
   handlePagarmeChargePaid,
+  handlePagarmeOrderPaid,
+  handlePagarmeOrderPaymentFailed,
   handlePagarmeSubscriptionActive,
   handlePagarmeSubscriptionCanceled,
   type PagarmeWebhookCharge,
+  type PagarmeWebhookOrder,
   type PagarmeWebhookSubscription,
 } from '@/lib/pagarme/webhook-handlers';
 import { validatePagarmeWebhookSignature } from '@/lib/pagarme/webhook-auth';
@@ -14,7 +17,7 @@ export const runtime = 'nodejs';
 
 type PagarmeWebhookBody = {
   type?: string;
-  data?: PagarmeWebhookCharge & PagarmeWebhookSubscription;
+  data?: (PagarmeWebhookCharge & PagarmeWebhookSubscription & PagarmeWebhookOrder);
 };
 
 function assertAdminEnv() {
@@ -58,6 +61,12 @@ export async function POST(request: Request) {
     switch (event) {
       case 'charge.paid':
         result = await handlePagarmeChargePaid(supabase, data);
+        break;
+      case 'order.paid':
+        result = await handlePagarmeOrderPaid(supabase, data);
+        break;
+      case 'order.payment_failed':
+        result = await handlePagarmeOrderPaymentFailed(supabase, data);
         break;
       case 'charge.payment_failed':
       case 'charge.failed':

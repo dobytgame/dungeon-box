@@ -306,7 +306,7 @@ export async function findStoreOrderPaymentRow(
   const { data: rows } = await supabase
     .from('payments')
     .select(
-      'id, status, status_detail, asaas_payment_id, pagarme_order_id, pagarme_charge_id, amount_cents, payment_method, created_at'
+      'id, status, status_detail, asaas_payment_id, pagarme_charge_id, amount_cents, payment_method, created_at'
     )
     .eq('user_id', userId)
     .ilike('status_detail', '%store_order%')
@@ -328,7 +328,7 @@ export async function findStoreOrderPaymentRowByOrderId(
   const { data: rows } = await supabase
     .from('payments')
     .select(
-      'id, status, status_detail, asaas_payment_id, pagarme_order_id, pagarme_charge_id, amount_cents, payment_method, created_at, user_id'
+      'id, status, status_detail, asaas_payment_id, pagarme_charge_id, amount_cents, payment_method, created_at, user_id'
     )
     .ilike('status_detail', `%\"orderId\":\"${orderId}\"%`)
     .order('created_at', { ascending: false })
@@ -411,17 +411,40 @@ export async function attachPagarmePaymentToStoreOrder(
     };
   }
 ): Promise<void> {
+  const { data } = await admin
+    .from('payments')
+    .select('status_detail')
+    .eq('id', localPaymentId)
+    .maybeSingle();
+
+  const meta = parseStoreOrderMeta(data?.status_detail);
+  if (!meta) {
+    throw new Error('Pedido da loja não encontrado para vincular ao Pagar.me.');
+  }
+
+  const nextMeta: StoreOrderMeta = {
+    ...meta,
+    gateway: 'pagarme',
+    pagarmeOrderId: input.pagarmeOrderId,
+  };
+
+  const update: Record<string, unknown> = {
+    status_detail: JSON.stringify(nextMeta),
+    ...input.patch,
+  };
+
+  if (input.pagarmeChargeId) {
+    update.pagarme_charge_id = input.pagarmeChargeId;
+  }
+
   const { error } = await admin
     .from('payments')
-    .update({
-      pagarme_order_id: input.pagarmeOrderId,
-      ...(input.pagarmeChargeId ? { pagarme_charge_id: input.pagarmeChargeId } : {}),
-      ...input.patch,
-    })
+    .update(update)
     .eq('id', localPaymentId);
 
   if (error) {
     console.error('[store] attach pagarme payment:', localPaymentId, error.message);
+    throw new Error('Não foi possível registrar o pagamento Pagar.me.');
   }
 }
 
@@ -783,6 +806,31 @@ export async function handleStoreOrderPagarmeChargePaid(
   );
 }
 
+export async function handleStoreOrderPagarmePaymentFailed(
+  supabase: SupabaseClient,
+  order: { code?: string | null; id?: string }
+): Promise<'processed' | 'skipped'> {
+  const reference = parsePagarmeStoreOrderCode(order.code);
+  if (!reference) return 'skipped';
+
+  const paymentRow = reference.userId
+    ? await findStoreOrderPaymentRow(
+        supabase,
+        reference.userId,
+        reference.orderId
+      )
+    : await findStoreOrderPaymentRowByOrderId(supabase, reference.orderId);
+
+  if (!paymentRow || paymentRow.status === 'approved') return 'skipped';
+
+  await markStoreOrderPaymentFailed(
+    supabase,
+    paymentRow.id,
+    'Pagamento recusado pelo Pagar.me.'
+  );
+  return 'processed';
+}
+
 export async function handleStoreOrderPaymentConfirmed(
   supabase: SupabaseClient,
   payment: AsaasWebhookPayment
@@ -845,8 +893,8 @@ export async function syncStoreOrderPaymentByOrderId(
     );
   }
 
-  if (meta?.gateway === 'pagarme' || paymentRow.pagarme_order_id) {
-    const pagarmeOrderId = paymentRow.pagarme_order_id as string | null;
+  if (meta?.gateway === 'pagarme' || meta?.pagarmeOrderId) {
+    const pagarmeOrderId = meta.pagarmeOrderId ?? null;
     if (!pagarmeOrderId) {
       return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
     }

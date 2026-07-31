@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findLocalSubscriptionByPagarmeId } from '@/lib/pagarme/resolve-local-subscription';
-import { handleStoreOrderPagarmeChargePaid } from '@/lib/asaas/store-order-payment';
+import {
+  handleStoreOrderPagarmeChargePaid,
+  handleStoreOrderPagarmePaymentFailed,
+} from '@/lib/asaas/store-order-payment';
 import { activateSubscriptionFromPagarme } from '@/lib/subscriptions/activate-pagarme';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
@@ -22,6 +25,13 @@ export type PagarmeWebhookSubscription = {
   status?: string;
   next_billing_at?: string;
   metadata?: Record<string, string>;
+};
+
+export type PagarmeWebhookOrder = {
+  id?: string;
+  code?: string | null;
+  status?: string;
+  charges?: PagarmeWebhookCharge[];
 };
 
 function chargeAmountCents(charge: PagarmeWebhookCharge): number {
@@ -137,8 +147,16 @@ export async function handlePagarmeChargeFailed(
   supabase: SupabaseClient,
   charge: PagarmeWebhookCharge
 ): Promise<'processed' | 'skipped'> {
+  if (!charge.subscription_id) {
+    const storeFailed = await handleStoreOrderPagarmePaymentFailed(supabase, {
+      code: charge.code,
+      id: charge.id,
+    });
+    if (storeFailed === 'processed') return 'processed';
+    return 'skipped';
+  }
+
   const pagarmeSubscriptionId = charge.subscription_id;
-  if (!pagarmeSubscriptionId) return 'skipped';
 
   const local = await findLocalSubscriptionByPagarmeId(
     supabase,
@@ -154,6 +172,34 @@ export async function handlePagarmeChargeFailed(
     })
     .eq('id', local.id);
   return 'processed';
+}
+
+export async function handlePagarmeOrderPaid(
+  supabase: SupabaseClient,
+  order: PagarmeWebhookOrder
+): Promise<'processed' | 'skipped'> {
+  const charges = order.charges ?? [];
+  if (charges.length === 0) {
+    return 'skipped';
+  }
+
+  let processed = false;
+  for (const charge of charges) {
+    const result = await handleStoreOrderPagarmeChargePaid(supabase, {
+      ...charge,
+      code: charge.code ?? order.code,
+    });
+    if (result === 'processed') processed = true;
+  }
+
+  return processed ? 'processed' : 'skipped';
+}
+
+export async function handlePagarmeOrderPaymentFailed(
+  supabase: SupabaseClient,
+  order: PagarmeWebhookOrder
+): Promise<'processed' | 'skipped'> {
+  return handleStoreOrderPagarmePaymentFailed(supabase, order);
 }
 
 export async function handlePagarmeSubscriptionActive(
