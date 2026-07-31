@@ -237,9 +237,14 @@ export default function StoreProductForm({
             Plano vinculado
           </label>
           {product ? (
-            <p className="mt-2 text-sm text-stone-300">
-              {product.plan_name ?? product.plan_slug ?? '—'}
-            </p>
+            <>
+              <p className="mt-2 text-sm text-stone-300">
+                {product.plan_name ?? product.plan_slug ?? '—'}
+              </p>
+              {product.plan_slug ? (
+                <input type="hidden" name="plan_slug" value={product.plan_slug} />
+              ) : null}
+            </>
           ) : (
             <select
               id="plan_slug"

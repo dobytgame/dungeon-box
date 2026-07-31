@@ -2396,15 +2396,25 @@ export async function saveStoreProductAction(
           | 'profissional'
           | '')
       : '';
-  const planSlug =
+  const planSlugFromForm =
     category === 'monthly-kit'
       ? (formData.get('plan_slug') as string)?.trim() || null
       : null;
 
+  let planSlug = planSlugFromForm;
+  if (category === 'monthly-kit' && !planSlug && productId) {
+    const { data: existingProduct } = await admin
+      .from('store_products')
+      .select('plan_slug')
+      .eq('id', productId)
+      .maybeSingle();
+    planSlug = (existingProduct?.plan_slug as string | null) ?? null;
+  }
+
   if (category === 'paint-kit' && !paintKitBumpId) {
     return { error: 'Selecione o tipo de kit de pintura.' };
   }
-  if (category === 'monthly-kit' && !planSlug && !productId) {
+  if (category === 'monthly-kit' && !planSlug) {
     return { error: 'Selecione o plano do kit avulso.' };
   }
 
