@@ -21,6 +21,10 @@ import {
   productRequiresUnitUploads,
   validatePersonalizedLine,
 } from '@/lib/store/personalized-product';
+import {
+  capVarietyPoolCartLines,
+  productUsesVarietyQuantityPool,
+} from '@/lib/store/variety-quantity-pool';
 
 export type CartLine = {
   productId: string;
@@ -158,7 +162,10 @@ export function normalizeCartLines(
 
     const maxQty = maxQuantityForCartProduct(product, canonicalId);
     const minQty = minQuantityForCartProduct(product);
-    const qty = Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
+    const usesPool = product ? productUsesVarietyQuantityPool(product) : false;
+    const qty = usesPool
+      ? Math.min(Math.max(Math.floor(line.quantity), 0), maxQty)
+      : Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
     if (qty === 0) continue;
 
     const normalizedLine: CartLine = {
@@ -171,9 +178,12 @@ export function normalizeCartLines(
     const existing = merged.get(key);
 
     if (existing) {
+      const nextQuantity = existing.quantity + qty;
       merged.set(key, {
         ...existing,
-        quantity: Math.min(existing.quantity + qty, maxQty),
+        quantity: usesPool
+          ? nextQuantity
+          : Math.min(nextQuantity, maxQty),
         ...(itemUploads ? { itemUploads } : {}),
       });
       continue;
@@ -182,7 +192,9 @@ export function normalizeCartLines(
     merged.set(key, normalizedLine);
   }
 
-  return Array.from(merged.values());
+  return capVarietyPoolCartLines(Array.from(merged.values()), (productId) =>
+    findCatalogProduct(productId, catalog)
+  );
 }
 
 export function resolveCartLines(

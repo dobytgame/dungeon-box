@@ -7,6 +7,7 @@ import { useStoreCart } from '@/components/store/StoreCartProvider';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { formatMoney } from '@/lib/dashboard/format';
 import { trackStoreAddToCart } from '@/lib/analytics/store-events';
+import { minQuantityForProduct, maxQuantityForProduct } from '@/lib/store/personalized-product';
 import {
   formatProductNameWithVariations,
   getVariationOptionLabel,
@@ -15,6 +16,10 @@ import {
   validateSelectedProductOptions,
 } from '@/lib/store/product-variations';
 import { STORE_PRODUCTION_LEAD_TIME_LABEL } from '@/lib/store/production-lead-time';
+import {
+  maxQuantityForVarietyOption,
+  validateVarietyPoolTotal,
+} from '@/lib/store/variety-quantity-pool';
 
 interface Props {
   product: StoreProduct;
@@ -23,7 +28,8 @@ interface Props {
 export default function VarietyProductPurchasePanel({ product }: Props) {
   const { addItem } = useStoreCart();
   const variation = product.variations?.[0];
-  const maxQty = product.maxQuantity ?? 9;
+  const minQty = minQuantityForProduct(product);
+  const maxQty = maxQuantityForProduct(product);
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     for (const option of variation?.options ?? []) {
@@ -54,20 +60,41 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
     : null;
   const showOriginalTotal =
     originalLineTotalCents != null && originalLineTotalCents > lineTotalCents;
+  const remainingToMin = Math.max(0, minQty - totalQuantity);
+  const meetsMinimum = totalQuantity >= minQty;
 
   if (!productHasSingleVariation(product) || !variation) {
     return null;
   }
 
   function updateQuantity(label: string, next: number) {
-    const clamped = Math.min(Math.max(next, 0), maxQty);
-    setQuantities((current) => ({ ...current, [label]: clamped }));
+    const current = quantities[label] ?? 0;
+    const maxForOption = maxQuantityForVarietyOption(
+      product,
+      totalQuantity,
+      current
+    );
+    const clamped = Math.min(Math.max(next, 0), maxForOption);
+    setQuantities((currentQuantities) => ({
+      ...currentQuantities,
+      [label]: clamped,
+    }));
     setFormError('');
   }
 
   function handleAdd() {
-    if (selectedLines.length === 0) {
-      setFormError('Selecione ao menos uma variedade com quantidade maior que zero.');
+    if (totalQuantity === 0) {
+      setFormError(
+        minQty > 1
+          ? `Selecione no mínimo ${minQty} unidades no total (pode combinar as variedades).`
+          : 'Selecione ao menos uma variedade com quantidade maior que zero.'
+      );
+      return;
+    }
+
+    const poolValidation = validateVarietyPoolTotal(product, totalQuantity);
+    if (!poolValidation.ok) {
+      setFormError(poolValidation.error);
       return;
     }
 
@@ -120,13 +147,28 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
       </ul>
 
       <div className="space-y-3 border-t border-white/[0.06] pt-4">
-        <div className="flex items-end justify-between gap-3">
-          <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
-            {variation.name}
-          </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+              {variation.name}
+            </p>
+            {minQty > 1 ? (
+              <p className="mt-1 text-xs text-stone-500">
+                Mínimo {minQty} un. no total · máx. {maxQty} un.
+              </p>
+            ) : null}
+          </div>
           {totalQuantity > 0 ? (
-            <p className="text-xs text-stone-500">
-              {totalQuantity} {totalQuantity === 1 ? 'unidade' : 'unidades'}
+            <p
+              className={`text-xs ${
+                meetsMinimum ? 'text-stone-500' : 'text-amber-400/90'
+              }`}
+            >
+              {totalQuantity} / {minQty > 1 ? minQty : maxQty}{' '}
+              {totalQuantity === 1 ? 'unidade' : 'unidades'}
+              {!meetsMinimum && minQty > 1
+                ? ` · faltam ${remainingToMin}`
+                : ''}
             </p>
           ) : null}
         </div>
@@ -135,6 +177,11 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
           {variation.options.map((option) => {
             const label = getVariationOptionLabel(option);
             const quantity = quantities[label] ?? 0;
+            const optionMax = maxQuantityForVarietyOption(
+              product,
+              totalQuantity,
+              quantity
+            );
 
             return (
               <li
@@ -170,7 +217,7 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
                       <StoreProductQuantityStepper
                         value={quantity}
                         min={0}
-                        max={maxQty}
+                        max={optionMax}
                         onChange={(next) => updateQuantity(label, next)}
                       />
                     </div>
@@ -197,7 +244,9 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
             <p className="mt-1 text-xs text-stone-500">
               {totalQuantity > 0
                 ? `${formatMoney(product.priceCents)} × ${totalQuantity}`
-                : 'Escolha as quantidades acima'}
+                : minQty > 1
+                  ? `Combine as variedades até atingir o mínimo de ${minQty} un.`
+                  : 'Escolha as quantidades acima'}
             </p>
           </div>
 
@@ -218,7 +267,7 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
         <button
           type="button"
           onClick={handleAdd}
-          disabled={totalQuantity === 0 || added}
+          disabled={added}
           className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]"
         >
           {added ? (

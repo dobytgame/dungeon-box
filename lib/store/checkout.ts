@@ -33,6 +33,10 @@ import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
 import { formatProductNameWithVariations, validateSelectedProductOptions } from '@/lib/store/product-variations';
 import { validatePersonalizedLine, maxQuantityForProduct, minQuantityForProduct } from '@/lib/store/personalized-product';
+import {
+  productUsesVarietyQuantityPool,
+  validateVarietyPoolTotal,
+} from '@/lib/store/variety-quantity-pool';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   recordStorePromoRedemption,
@@ -152,6 +156,10 @@ async function resolveStoreLines(
 ): Promise<ResolvedStoreLine[] | { error: string }> {
   const admin = createAdminClient();
   const sanitized: CartLine[] = [];
+  const varietyPoolTotals = new Map<
+    string,
+    { product: NonNullable<Awaited<ReturnType<typeof resolveStoreProductForCheckout>>>; total: number }
+  >();
 
   for (const line of items) {
     const productId =
@@ -164,7 +172,10 @@ async function resolveStoreLines(
     });
     const maxQty = product ? maxQuantityForProduct(product) : 9;
     const minQty = product ? minQuantityForProduct(product) : 1;
-    const qty = Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
+    const usesPool = product ? productUsesVarietyQuantityPool(product) : false;
+    const qty = usesPool
+      ? Math.max(0, Math.floor(line.quantity))
+      : Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
     if (qty === 0) continue;
 
     sanitized.push({
@@ -173,6 +184,22 @@ async function resolveStoreLines(
       ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
       ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
     });
+
+    if (usesPool && product) {
+      const current = varietyPoolTotals.get(productId);
+      if (current) {
+        current.total += qty;
+      } else {
+        varietyPoolTotals.set(productId, { product, total: qty });
+      }
+    }
+  }
+
+  for (const { product, total } of Array.from(varietyPoolTotals.values())) {
+    const validation = validateVarietyPoolTotal(product, total);
+    if (!validation.ok) {
+      return { error: validation.error };
+    }
   }
 
   if (sanitized.length === 0) {
