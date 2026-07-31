@@ -4,19 +4,27 @@ import { usePathname } from 'next/navigation';
 import { ADMIN_NAV } from '@/lib/admin/constants';
 import AdminHeader from './AdminHeader';
 import AdminNav from './AdminNav';
+import AdminMarketingNav from './AdminMarketingNav';
 import AdminPageIntro from './AdminPageIntro';
 import AdminSidebar from './AdminSidebar';
 import AdminStoreNav from './AdminStoreNav';
 import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
+import { isAdminMarketingSection } from '@/lib/admin/marketing-nav';
 import { isAdminStoreSection } from '@/lib/admin/store-nav';
 
 interface Props {
   displayName: string;
   email: string;
+  whatsappLeadsCount?: number;
   children: React.ReactNode;
 }
 
-export default function AdminShell({ displayName, email, children }: Props) {
+export default function AdminShell({
+  displayName,
+  email,
+  whatsappLeadsCount = 0,
+  children,
+}: Props) {
   const pathname = usePathname();
   const navItem =
     ADMIN_NAV.find((item) =>
@@ -31,7 +39,7 @@ export default function AdminShell({ displayName, email, children }: Props) {
   return (
     <ShellNavigationFrame scope="/admin" variant="admin">
       <div className="admin-dot-grid flex min-h-screen bg-zinc-950 text-zinc-100">
-        <AdminSidebar />
+        <AdminSidebar whatsappLeadsCount={whatsappLeadsCount} />
 
         <div className="flex min-w-0 flex-1 flex-col">
           <AdminHeader displayName={displayName} email={email} sectionLabel={navItem.label} />
@@ -50,6 +58,12 @@ export default function AdminShell({ displayName, email, children }: Props) {
             {isAdminStoreSection(pathname) ? (
               <div className="mt-6">
                 <AdminStoreNav />
+              </div>
+            ) : null}
+
+            {isAdminMarketingSection(pathname) ? (
+              <div className="mt-6">
+                <AdminMarketingNav leadsCount={whatsappLeadsCount} />
               </div>
             ) : null}
 

@@ -181,7 +181,6 @@ export default function FloatingWhatsAppWidget({
         name: trimmedName,
         email: trimmedEmail,
         phoneDisplay: trimmedPhone,
-        pagePath,
       });
 
       const chatUrl = buildWhatsAppChatUrl(message);

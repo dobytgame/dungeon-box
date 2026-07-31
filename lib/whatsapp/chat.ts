@@ -14,18 +14,11 @@ export function buildWhatsAppLeadMessage(input: {
   name: string;
   email: string;
   phoneDisplay: string;
-  pagePath?: string | null;
 }): string {
-  const lines = [
+  return [
     `Olá! Meu nome é ${input.name.trim()}.`,
     `E-mail: ${input.email.trim()}`,
     `WhatsApp: ${input.phoneDisplay.trim()}`,
     'Gostaria de conversar sobre a DungeonBox.',
-  ];
-
-  if (input.pagePath?.trim()) {
-    lines.push(`Página: ${input.pagePath.trim()}`);
-  }
-
-  return lines.join('\n');
+  ].join('\n');
 }

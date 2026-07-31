@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
+import { isAdminMarketingNavActive } from '@/lib/admin/marketing-nav';
 import { isAdminStoreNavActive } from '@/lib/admin/store-nav';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
@@ -52,7 +53,16 @@ function isActive(pathname: string, href: string) {
   return href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
 }
 
-export default function AdminSidebar() {
+function formatNavCount(count: number): string {
+  if (count > 999) return '999+';
+  return String(count);
+}
+
+interface Props {
+  whatsappLeadsCount?: number;
+}
+
+export default function AdminSidebar({ whatsappLeadsCount = 0 }: Props) {
   const pathname = usePathname();
 
   return (
@@ -105,23 +115,36 @@ export default function AdminSidebar() {
                       {children ? (
                         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-zinc-800/80 pl-2">
                           {children.map((child) => {
-                            const childActive = isAdminStoreNavActive(
-                              pathname,
-                              child.href
-                            );
+                            const childActive =
+                              item.href === '/admin/marketing'
+                                ? isAdminMarketingNavActive(pathname, child.href)
+                                : isAdminStoreNavActive(pathname, child.href);
+                            const showCount =
+                              'showCount' in child && child.showCount === true;
 
                             return (
                               <li key={child.href}>
                                 <Link
                                   href={child.href}
                                   aria-current={childActive ? 'page' : undefined}
-                                  className={`block rounded px-2 py-1.5 text-xs transition-colors ${
+                                  className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-xs transition-colors ${
                                     childActive
                                       ? 'text-console'
                                       : 'text-zinc-500 hover:text-zinc-200'
                                   }`}
                                 >
-                                  {child.label}
+                                  <span>{child.label}</span>
+                                  {showCount ? (
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 font-mono text-[10px] tracking-normal ${
+                                        childActive
+                                          ? 'bg-console/20 text-console'
+                                          : 'bg-zinc-800 text-zinc-400'
+                                      }`}
+                                    >
+                                      {formatNavCount(whatsappLeadsCount)}
+                                    </span>
+                                  ) : null}
                                 </Link>
                               </li>
                             );
