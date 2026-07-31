@@ -9,21 +9,21 @@
   "project": "dungeonbox",
   "started_at": null,
   "ended_at": null,
-  "request_count": 155,
+  "request_count": 245,
   "parse_mode": "estimated_heuristic",
   "estimate_model": null,
   "cost": {
-    "total_usd": 0.1275,
+    "total_usd": 0.1795,
     "source": "estimated_heuristic",
     "fidelity": "estimated"
   },
   "usage_by_model": {
     "composer-2.5": {
-      "input_tokens": 4612,
-      "output_tokens": 7579,
+      "input_tokens": 7168,
+      "output_tokens": 10536,
       "cache_read_tokens": 0,
       "cache_write_tokens": 0,
-      "cost_usd": 0.1275,
+      "cost_usd": 0.1795,
       "cost_source": "estimated_heuristic",
       "low_fidelity_tokens": [
         "input_tokens",
@@ -33,10 +33,10 @@
     }
   },
   "totals": {
-    "input_tokens": 4612,
-    "output_tokens": 7579,
+    "input_tokens": 7168,
+    "output_tokens": 10536,
     "cache_read_tokens": 0,
     "cache_write_tokens": 0,
-    "total_tokens": 12191
+    "total_tokens": 17704
   }
 }

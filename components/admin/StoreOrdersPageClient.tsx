@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import AdminSearchForm from '@/components/admin/AdminSearchForm';
 import AdminTable from '@/components/admin/AdminTable';
 import StoreOrderDetailModalView from '@/components/admin/StoreOrderDetailModalView';
@@ -43,7 +44,15 @@ export default function StoreOrdersPageClient({
   status,
   shipping,
 }: Props) {
+  const searchParams = useSearchParams();
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const paymentId = searchParams.get('paymentId')?.trim();
+    if (paymentId) {
+      setSelectedPaymentId(paymentId);
+    }
+  }, [searchParams]);
 
   return (
     <>

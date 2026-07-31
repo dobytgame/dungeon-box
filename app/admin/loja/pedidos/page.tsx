@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import StoreOrdersPageClient from '@/components/admin/StoreOrdersPageClient';
 import { requireAdmin } from '@/lib/admin/auth';
 import {
@@ -44,13 +45,15 @@ export default async function AdminStoreOrdersPage({ searchParams }: Props) {
         .
       </div>
 
-      <StoreOrdersPageClient
-        rows={rows}
-        counts={counts}
-        q={q}
-        status={status}
-        shipping={shipping}
-      />
+      <Suspense fallback={<div className="text-sm text-zinc-500">Carregando pedidos…</div>}>
+        <StoreOrdersPageClient
+          rows={rows}
+          counts={counts}
+          q={q}
+          status={status}
+          shipping={shipping}
+        />
+      </Suspense>
     </div>
   );
 }

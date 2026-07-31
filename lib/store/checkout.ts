@@ -21,6 +21,7 @@ import {
   notifyStoreOrderConfirmed,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
+import { notifyAdminStoreOrderPaymentFromPaymentRow } from '@/lib/admin/store-payment-notifications';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import {
   chargePagarmeOneTimeOrder,
@@ -803,6 +804,17 @@ export async function purchaseStoreOrder(
 
     await fulfillApprovedStoreOrder(admin, input.userId, orderMeta);
     await notifyStoreOrderConfirmed(admin, input.userId, orderMeta, totalCents);
+
+    void notifyAdminStoreOrderPaymentFromPaymentRow(admin, {
+      type: 'store_order_payment_approved',
+      paymentId: localPaymentId,
+      userId: input.userId,
+      statusDetail: JSON.stringify(orderMeta),
+      amountCents: totalCents,
+      paymentMethod: input.paymentMethod,
+    }).catch((err) => {
+      console.error('[admin] store order approved notification:', err);
+    });
 
     if (couponPromoId && couponCode) {
       await recordStorePromoRedemption(admin, couponPromoId, input.userId);

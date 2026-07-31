@@ -9,6 +9,7 @@ export type PendingSubscription = {
   status: string;
   asaas_subscription_id?: string | null;
   asaas_customer_id?: string | null;
+  pagarme_subscription_id?: string | null;
   billing_term?: string | null;
   stripe_subscription_id?: string | null;
 };
@@ -18,6 +19,20 @@ export async function reconcilePendingSubscription(
   supabase?: SupabaseClient
 ): Promise<void> {
   if (subscription.status !== 'pending') {
+    return;
+  }
+
+  if (subscription.pagarme_subscription_id) {
+    const client =
+      supabase ?? (await import('@/lib/supabase/admin')).createAdminClient();
+    const { reconcilePendingPagarmeSubscription } = await import(
+      '@/lib/pagarme/reconcile-pending'
+    );
+    await reconcilePendingPagarmeSubscription(client, {
+      id: subscription.id,
+      status: subscription.status,
+      pagarme_subscription_id: subscription.pagarme_subscription_id,
+    });
     return;
   }
 

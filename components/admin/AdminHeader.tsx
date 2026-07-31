@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, LogOut } from 'lucide-react';
+import AdminNotificationsBell from './AdminNotificationsBell';
 
 interface Props {
   displayName: string;
@@ -55,6 +56,8 @@ export default function AdminHeader({ displayName, email, sectionLabel }: Props)
           </Link>
 
           <div className="hidden h-4 w-px bg-zinc-800 sm:block" aria-hidden="true" />
+
+          <AdminNotificationsBell />
 
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded border border-zinc-700 bg-zinc-900 font-mono text-xs text-console">

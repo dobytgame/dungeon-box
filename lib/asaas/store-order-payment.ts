@@ -16,6 +16,7 @@ import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
+import { notifyAdminStoreOrderPaymentFromPaymentRow } from '@/lib/admin/store-payment-notifications';
 import { formatVariationSummary } from '@/lib/store/product-variations';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
@@ -64,6 +65,7 @@ export type StoreOrderMeta = {
   deliveredAt?: string | null;
   shippingCostCents?: number | null;
   productionNotes?: string | null;
+  paymentError?: string | null;
 };
 
 export function buildStoreOrderExternalReference(
@@ -375,6 +377,17 @@ export async function createPendingStoreOrderPayment(
     };
   }
 
+  void notifyAdminStoreOrderPaymentFromPaymentRow(admin, {
+    type: 'store_order_payment_pending',
+    paymentId: data.id as string,
+    userId: input.userId,
+    statusDetail: JSON.stringify(input.orderMeta),
+    amountCents: input.amountCents,
+    paymentMethod: input.paymentMethod,
+  }).catch((err) => {
+    console.error('[admin] store order pending notification:', err);
+  });
+
   return { id: data.id as string };
 }
 
@@ -465,11 +478,34 @@ export async function markStoreOrderPaymentFailed(
   const meta = parseStoreOrderMeta(data?.status_detail);
   if (!meta) return;
 
+  const hadError = Boolean(meta.paymentError);
   const nextMeta = { ...meta, paymentError: detail };
   await admin
     .from('payments')
     .update({ status_detail: JSON.stringify(nextMeta) })
     .eq('id', localPaymentId);
+
+  if (!hadError) {
+    const { data: paymentRow } = await admin
+      .from('payments')
+      .select('user_id, amount_cents, payment_method')
+      .eq('id', localPaymentId)
+      .maybeSingle();
+
+    if (paymentRow?.user_id) {
+      void notifyAdminStoreOrderPaymentFromPaymentRow(admin, {
+        type: 'store_order_payment_failed',
+        paymentId: localPaymentId,
+        userId: paymentRow.user_id as string,
+        statusDetail: JSON.stringify(nextMeta),
+        amountCents: paymentRow.amount_cents as number | null,
+        paymentMethod: paymentRow.payment_method as string | null,
+        detail,
+      }).catch((err) => {
+        console.error('[admin] store order failed notification:', err);
+      });
+    }
+  }
 }
 
 export async function fulfillApprovedStoreOrder(
@@ -748,6 +784,17 @@ async function approveStoreOrderPaymentRow(
       paymentRow.user_id
     );
   }
+
+  void notifyAdminStoreOrderPaymentFromPaymentRow(supabase, {
+    type: 'store_order_payment_approved',
+    paymentId: paymentRow.id,
+    userId: paymentRow.user_id,
+    statusDetail: paymentRow.status_detail,
+    amountCents: resolvedAmountCents,
+    paymentMethod: meta.paymentMethod,
+  }).catch((err) => {
+    console.error('[admin] store order approved notification:', err);
+  });
 
   return 'processed';
 }

@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   const { data: owned, error: ownedError } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, asaas_subscription_id, asaas_customer_id, stripe_subscription_id, billing_term, plan_id, shipping_cents, special_notes'
+      'id, status, asaas_subscription_id, asaas_customer_id, pagarme_subscription_id, stripe_subscription_id, billing_term, plan_id, shipping_cents, special_notes'
     )
     .eq('user_id', user.id)
     .in('id', ids);
