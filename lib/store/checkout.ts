@@ -30,6 +30,8 @@ import {
   isPagarmeChargePending,
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
+import { buildPagarmeStoreOrderCode } from '@/lib/pagarme/store-order-code';
+import { userFacingPagarmeError } from '@/lib/pagarme/errors';
 import { getActivePaymentProvider } from '@/lib/payments/provider';
 import type {
   AsaasCreditCardHolderInput,
@@ -611,6 +613,12 @@ export async function purchaseStoreOrder(
 
     const localPaymentId = pendingPayment.id;
     const gateway = orderMeta.gateway ?? 'asaas';
+    const pagarmeOrderCode = buildPagarmeStoreOrderCode(orderId);
+    const pagarmeMetadata = {
+      store_user_id: input.userId,
+      store_order_id: orderId,
+      external_reference: externalReference,
+    };
 
     if (gateway === 'pagarme') {
       const pagarmeCustomerId = await getOrCreatePagarmeCustomer(
@@ -625,7 +633,8 @@ export async function purchaseStoreOrder(
           customerId: pagarmeCustomerId,
           valueCents: totalCents,
           description,
-          externalReference,
+          orderCode: pagarmeOrderCode,
+          metadata: pagarmeMetadata,
         });
 
         const { orderId: pagarmeOrderId, chargeId, chargeStatus } =
@@ -668,7 +677,8 @@ export async function purchaseStoreOrder(
         description,
         cardToken: input.cardToken,
         billingAddress,
-        externalReference,
+        orderCode: pagarmeOrderCode,
+        metadata: pagarmeMetadata,
       });
 
       const { orderId: pagarmeOrderId, chargeId, chargeStatus } =
@@ -805,11 +815,12 @@ export async function purchaseStoreOrder(
     };
   } catch (error) {
     console.error('[store] checkout:', error);
-    return {
-      error:
-        error instanceof Error
+    const message =
+      orderMeta.gateway === 'pagarme'
+        ? userFacingPagarmeError(error)
+        : error instanceof Error
           ? error.message
-          : 'Não foi possível processar o pagamento.',
-    };
+          : 'Não foi possível processar o pagamento.';
+    return { error: message };
   }
 }

@@ -24,6 +24,7 @@ import {
   isPagarmeChargePaid,
   type PagarmeStorePixDetails,
 } from '@/lib/pagarme/one-time-order';
+import { parsePagarmeStoreOrderCode } from '@/lib/pagarme/store-order-code';
 
 export type StoreOrderMeta = {
   type: 'store_order';
@@ -311,6 +312,27 @@ export async function findStoreOrderPaymentRow(
     .ilike('status_detail', '%store_order%')
     .order('created_at', { ascending: false })
     .limit(100);
+
+  return (
+    (rows ?? []).find((row) => {
+      const meta = parseStoreOrderMeta(row.status_detail);
+      return meta?.orderId === orderId;
+    }) ?? null
+  );
+}
+
+export async function findStoreOrderPaymentRowByOrderId(
+  supabase: SupabaseClient,
+  orderId: string
+) {
+  const { data: rows } = await supabase
+    .from('payments')
+    .select(
+      'id, status, status_detail, asaas_payment_id, pagarme_order_id, pagarme_charge_id, amount_cents, payment_method, created_at, user_id'
+    )
+    .ilike('status_detail', `%\"orderId\":\"${orderId}\"%`)
+    .order('created_at', { ascending: false })
+    .limit(5);
 
   return (
     (rows ?? []).find((row) => {
@@ -735,14 +757,16 @@ export async function handleStoreOrderPagarmeChargePaid(
   );
   if (byCharge === 'processed') return 'processed';
 
-  const reference = parseStoreOrderExternalReference(charge.code);
+  const reference = parsePagarmeStoreOrderCode(charge.code);
   if (!reference) return 'skipped';
 
-  const paymentRow = await findStoreOrderPaymentRow(
-    supabase,
-    reference.userId,
-    reference.orderId
-  );
+  const paymentRow = reference.userId
+    ? await findStoreOrderPaymentRow(
+        supabase,
+        reference.userId,
+        reference.orderId
+      )
+    : await findStoreOrderPaymentRowByOrderId(supabase, reference.orderId);
   if (!paymentRow) return 'skipped';
 
   if (!paymentRow.pagarme_charge_id) {

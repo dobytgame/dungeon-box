@@ -70,20 +70,22 @@ async function createPagarmeOrder(input: {
   customerId: string;
   valueCents: number;
   description: string;
-  externalReference?: string;
+  orderCode: string;
+  metadata?: Record<string, string>;
   payments: Array<Record<string, unknown>>;
 }) {
   return pagarmeRequest<PagarmeOrderResponse>('/orders', {
     method: 'POST',
     body: {
       customer_id: input.customerId,
-      code: input.externalReference,
+      code: input.orderCode,
+      metadata: input.metadata,
       items: [
         {
           amount: input.valueCents,
           description: input.description,
           quantity: 1,
-          code: input.externalReference ?? 'store-order',
+          code: input.orderCode,
         },
       ],
       payments: input.payments,
@@ -97,13 +99,15 @@ export async function chargePagarmeOneTimeOrder(input: {
   description: string;
   cardToken: string;
   billingAddress: PagarmeBillingAddressInput;
-  externalReference?: string;
+  orderCode: string;
+  metadata?: Record<string, string>;
 }) {
   return createPagarmeOrder({
     customerId: input.customerId,
     valueCents: input.valueCents,
     description: input.description,
-    externalReference: input.externalReference,
+    orderCode: input.orderCode,
+    metadata: input.metadata,
     payments: [
       {
         payment_method: 'credit_card',
@@ -123,14 +127,16 @@ export async function createPagarmePixOrder(input: {
   customerId: string;
   valueCents: number;
   description: string;
-  externalReference?: string;
+  orderCode: string;
+  metadata?: Record<string, string>;
   expiresInSeconds?: number;
 }) {
   return createPagarmeOrder({
     customerId: input.customerId,
     valueCents: input.valueCents,
     description: input.description,
-    externalReference: input.externalReference,
+    orderCode: input.orderCode,
+    metadata: input.metadata,
     payments: [
       {
         payment_method: 'pix',

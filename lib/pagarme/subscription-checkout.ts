@@ -4,6 +4,7 @@ import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import { chargePagarmeOneTimeOrder } from '@/lib/pagarme/one-time-order';
+import { buildPagarmeSubscriptionOneTimeCode } from '@/lib/pagarme/store-order-code';
 import { pagarmeRequest } from '@/lib/pagarme/client';
 import {
   cancelPagarmeSubscriptionBestEffort,
@@ -228,7 +229,11 @@ export async function createPagarmeSubscription(
           input.oneTimeDescription ?? 'DungeonBox — cobrança única (1ª caixa)',
         cardToken: input.cardToken,
         billingAddress,
-        externalReference: `${subscriptionId}:one-time`,
+        orderCode: buildPagarmeSubscriptionOneTimeCode(subscriptionId),
+        metadata: {
+          subscription_id: subscriptionId,
+          charge_kind: 'one-time',
+        },
       });
     } catch (error) {
       await cancelPagarmeSubscriptionBestEffort(pagarmeSubscription.id);
