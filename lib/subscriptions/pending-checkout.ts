@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import { isAsaasCheckout } from '@/lib/payments/provider';
+import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { getActivePaymentProvider } from '@/lib/payments/provider';
 import { MP_CONFIGURED, updateMpPreapprovalStatus } from '@/lib/mercadopago';
 import { fetchMpPreapproval } from '@/lib/mercadopago/safe-fetch';
 import { activateSubscriptionFromMp } from '@/lib/subscriptions/activate';
@@ -15,6 +17,7 @@ export type ExistingSubscriptionRow = {
   mp_subscription_id: string | null;
   stripe_subscription_id: string | null;
   asaas_subscription_id: string | null;
+  pagarme_subscription_id: string | null;
 };
 
 export type CheckoutSubscriptionPrep =
@@ -116,9 +119,11 @@ export async function prepareCheckoutSubscription(
     };
   }
 
-  const asaasCheckout = isAsaasCheckout();
+  const activeProvider = await getActivePaymentProvider();
+  const asaasCheckout = activeProvider === 'asaas';
+  const pagarmeCheckout = activeProvider === 'pagarme';
 
-  if (!asaasCheckout && existing.stripe_subscription_id) {
+  if (!asaasCheckout && !pagarmeCheckout && existing.stripe_subscription_id) {
     const stripeResult = await syncStaleStripePending(supabase, existing);
     if (stripeResult === 'activated') {
       return { kind: 'activated', subscriptionId: existing.id };
@@ -129,7 +134,11 @@ export async function prepareCheckoutSubscription(
     await cancelAsaasSubscriptionBestEffort(existing.asaas_subscription_id);
   }
 
-  if (!asaasCheckout && existing.mp_subscription_id) {
+  if (existing.pagarme_subscription_id && PAGARME_CONFIGURED) {
+    await cancelPagarmeSubscriptionBestEffort(existing.pagarme_subscription_id);
+  }
+
+  if (!asaasCheckout && !pagarmeCheckout && existing.mp_subscription_id) {
     const mp = await fetchMpPreapproval(existing.mp_subscription_id);
 
     if (mp) {

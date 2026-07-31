@@ -10,7 +10,7 @@ export async function findBlockingSubscriptionForPlan(
   const { data } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, mp_subscription_id, stripe_subscription_id, asaas_subscription_id'
+      'id, status, mp_subscription_id, stripe_subscription_id, asaas_subscription_id, pagarme_subscription_id'
     )
     .eq('user_id', userId)
     .eq('plan_id', planId)

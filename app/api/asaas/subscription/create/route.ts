@@ -14,7 +14,7 @@ import { userFacingAsaasError } from '@/lib/asaas/errors';
 import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
 import { syncComboPaymentIfPending } from '@/lib/asaas/combo-payment';
 import { createAsaasSubscription } from '@/lib/asaas/subscription-checkout';
-import { isAsaasCheckout } from '@/lib/payments/provider';
+import { isActiveAsaasCheckout } from '@/lib/payments/provider';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
 import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -93,7 +93,7 @@ function buildOneTimeDescription(bumpName: string): string {
 }
 
 export async function POST(request: Request) {
-  if (!ASAAS_CONFIGURED || !isAsaasCheckout()) {
+  if (!ASAAS_CONFIGURED || !(await isActiveAsaasCheckout())) {
     return NextResponse.json(
       { error: 'Asaas não configurado como provedor de pagamento.' },
       { status: 503 }

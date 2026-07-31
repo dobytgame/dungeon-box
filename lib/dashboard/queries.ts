@@ -15,13 +15,16 @@ import type {
   SubscriptionStatus,
 } from './types';
 
-export type AsaasCardUpdateSubscription = {
+export type CardUpdateSubscription = {
   id: string;
   planName: string;
   status: SubscriptionStatus;
+  gateway: 'asaas' | 'pagarme';
   cardLast4: string | null;
   cardBrand: string | null;
 };
+
+export type AsaasCardUpdateSubscription = Omit<CardUpdateSubscription, 'gateway'>;
 
 const ASAAS_CARD_UPDATE_STATUSES = new Set<SubscriptionStatus>([
   'active',
@@ -222,14 +225,14 @@ function relOnePlanName(subscription: Subscription): string {
   return plan?.name ?? 'Assinatura';
 }
 
-/** Assinaturas Asaas elegíveis para troca de cartão no painel financeiro. */
-export async function getAsaasCardUpdateSubscriptions(
+/** Assinaturas elegíveis para troca de cartão (Asaas ou Pagar.me). */
+export async function getCardUpdateSubscriptions(
   userId: string
-): Promise<AsaasCardUpdateSubscription[]> {
+): Promise<CardUpdateSubscription[]> {
   const subscriptions = await getManageableSubscriptions(userId);
   const eligible = subscriptions.filter(
     (sub) =>
-      sub.asaas_subscription_id &&
+      (sub.asaas_subscription_id || sub.pagarme_subscription_id) &&
       ASAAS_CARD_UPDATE_STATUSES.has(sub.status)
   );
 
@@ -265,10 +268,19 @@ export async function getAsaasCardUpdateSubscriptions(
       id: sub.id,
       planName: relOnePlanName(sub),
       status: sub.status,
-      cardLast4: card?.cardLast4 ?? null,
-      cardBrand: card?.cardBrand ?? null,
+      gateway: sub.pagarme_subscription_id ? 'pagarme' : 'asaas',
+      cardLast4: sub.card_last4 ?? card?.cardLast4 ?? null,
+      cardBrand: sub.card_brand ?? card?.cardBrand ?? null,
     };
   });
+}
+
+/** @deprecated Use getCardUpdateSubscriptions */
+export async function getAsaasCardUpdateSubscriptions(
+  userId: string
+): Promise<AsaasCardUpdateSubscription[]> {
+  const items = await getCardUpdateSubscriptions(userId);
+  return items.filter((item) => item.gateway === 'asaas');
 }
 
 export async function getAddresses(userId: string): Promise<Address[]> {

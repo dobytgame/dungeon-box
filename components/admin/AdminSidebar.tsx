@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  CreditCard,
   Handshake,
   Landmark,
   Layers,
@@ -34,6 +35,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   package: Package,
   receipt: Receipt,
   landmark: Landmark,
+  'credit-card': CreditCard,
   wallet: Wallet,
   layers: Layers,
   'shopping-bag': ShoppingBag,

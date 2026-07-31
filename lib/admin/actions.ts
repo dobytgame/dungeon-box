@@ -2777,3 +2777,78 @@ export async function deleteStoreBannerAction(bannerId: string) {
   revalidatePath('/loja');
   return { success: true as const };
 }
+
+export async function switchGatewayAction(gateway: 'asaas' | 'pagarme') {
+  const { user, admin } = await requireAdmin();
+
+  if (!['asaas', 'pagarme'].includes(gateway)) {
+    return { error: 'Gateway inválido.' };
+  }
+
+  const { error } = await admin.from('gateway_config').insert({
+    active_gateway: gateway,
+    updated_by: user.id,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'gateway.switch',
+    entityType: 'gateway_config',
+    entityId: gateway,
+    metadata: { gateway },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath('/admin/financeiro/gateway');
+  return { success: true as const, active_gateway: gateway };
+}
+
+export async function syncPagarmeSubscriptionAction(subscriptionId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id, status, pagarme_subscription_id')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (!subscription?.pagarme_subscription_id) {
+    return { error: 'Assinatura sem vínculo Pagar.me para sincronizar.' };
+  }
+
+  try {
+    const { reconcilePendingPagarmeSubscription } = await import(
+      '@/lib/pagarme/reconcile-pending'
+    );
+    const reconciled = await reconcilePendingPagarmeSubscription(
+      admin,
+      subscription
+    );
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.sync_pagarme',
+      entityType: 'subscription',
+      entityId: subscriptionId,
+      metadata: { reconciled },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+
+    return {
+      success: true as const,
+      reconciled,
+    };
+  } catch (error) {
+    console.error('[admin] sync pagarme:', error);
+    return { error: 'Falha ao sincronizar com Pagar.me.' };
+  }
+}

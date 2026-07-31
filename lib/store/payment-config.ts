@@ -1,5 +1,5 @@
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import { getPaymentProvider, isAsaasCheckout } from '@/lib/payments/provider';
+import { getPaymentProvider } from '@/lib/payments/provider';
 
 export type StorePaymentMethod = 'credit_card' | 'pix';
 
@@ -23,18 +23,7 @@ export function getStorePaymentConfig(): StorePaymentConfig {
     };
   }
 
-  if (!isAsaasCheckout()) {
-    return {
-      ready: false,
-      provider,
-      methods: [],
-      issue:
-        provider === 'stripe'
-          ? 'A loja usa pagamento via Asaas. Ajuste PAYMENT_PROVIDER=asaas.'
-          : 'Nenhum provedor de pagamento ativo para a loja.',
-    };
-  }
-
+  // Loja sempre usa Asaas, independente do gateway de assinaturas.
   return {
     ready: true,
     provider: 'asaas',

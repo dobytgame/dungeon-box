@@ -905,6 +905,7 @@ export async function listAdminSubscriptions(
       asaas_subscription_id,
       asaas_customer_id,
       stripe_subscription_id,
+      pagarme_subscription_id,
       promo_code,
       billing_term,
       combo_total_cents,
@@ -927,10 +928,20 @@ export async function listAdminSubscriptions(
     query = query.eq('status', filters.status);
   }
 
+  if (filters.gateway === 'asaas') {
+    query = query.not('asaas_subscription_id', 'is', null);
+  } else if (filters.gateway === 'pagarme') {
+    query = query.not('pagarme_subscription_id', 'is', null);
+  } else if (filters.gateway === 'stripe') {
+    query = query.not('stripe_subscription_id', 'is', null);
+  } else if (filters.gateway === 'mp') {
+    query = query.not('mp_subscription_id', 'is', null);
+  }
+
   const q = filters.q?.trim();
   if (q) {
     query = query.or(
-      `asaas_subscription_id.ilike.%${q}%,stripe_subscription_id.ilike.%${q}%,promo_code.ilike.%${q}%`
+      `asaas_subscription_id.ilike.%${q}%,stripe_subscription_id.ilike.%${q}%,pagarme_subscription_id.ilike.%${q}%,promo_code.ilike.%${q}%`
     );
   }
 
@@ -964,6 +975,7 @@ export async function listAdminSubscriptions(
       asaas_subscription_id: row.asaas_subscription_id as string | null,
       asaas_customer_id: row.asaas_customer_id as string | null,
       stripe_subscription_id: row.stripe_subscription_id as string | null,
+      pagarme_subscription_id: row.pagarme_subscription_id as string | null,
       promo_code: row.promo_code as string | null,
       customerName:
         profileData?.full_name ?? profileData?.display_name ?? null,

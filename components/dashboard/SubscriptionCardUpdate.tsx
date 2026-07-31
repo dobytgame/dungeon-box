@@ -5,16 +5,12 @@ import { useState } from 'react';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from '@/components/checkout/AsaasPaymentForm';
+import PagarmePaymentForm from '@/components/checkout/PagarmePaymentForm';
 import StatusBadge from '@/components/dashboard/StatusBadge';
+import type { CardUpdateSubscription } from '@/lib/dashboard/queries';
 import type { SubscriptionStatus } from '@/lib/dashboard/types';
 
-export type CardUpdateSubscription = {
-  id: string;
-  planName: string;
-  status: SubscriptionStatus;
-  cardLast4: string | null;
-  cardBrand: string | null;
-};
+export type { CardUpdateSubscription as CardUpdateSubscriptionProp };
 
 interface Props {
   subscriptions: CardUpdateSubscription[];
@@ -30,7 +26,7 @@ export default function SubscriptionCardUpdate({ subscriptions }: Props) {
 
   if (subscriptions.length === 0) return null;
 
-  async function handleSubmit(subscriptionId: string, card: AsaasCardPayload) {
+  async function handleAsaasSubmit(subscriptionId: string, card: AsaasCardPayload) {
     setMessage('');
     setError('');
 
@@ -38,6 +34,36 @@ export default function SubscriptionCardUpdate({ subscriptions }: Props) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscriptionId, creditCard: card }),
+    });
+
+    const payload = (await response.json()) as { error?: string };
+
+    if (!response.ok) {
+      setError(payload.error ?? 'Não foi possível atualizar o cartão.');
+      return;
+    }
+
+    setMessage('Cartão atualizado com sucesso. As próximas cobranças usarão este cartão.');
+    setOpenId(null);
+    router.refresh();
+  }
+
+  async function handlePagarmeSubmit(
+    subscriptionId: string,
+    tokenized: { token: string; last4: string; brand: string }
+  ) {
+    setMessage('');
+    setError('');
+
+    const response = await fetch('/api/subscriptions/payment-method', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscriptionId,
+        cardToken: tokenized.token,
+        cardLast4: tokenized.last4,
+        cardBrand: tokenized.brand,
+      }),
     });
 
     const payload = (await response.json()) as { error?: string };
@@ -73,7 +99,10 @@ export default function SubscriptionCardUpdate({ subscriptions }: Props) {
                 </p>
                 <p className="mt-1 text-sm text-stone-400">{cardLabel}</p>
               </div>
-              <StatusBadge kind="subscription" status={subscription.status} />
+              <StatusBadge
+                kind="subscription"
+                status={subscription.status as SubscriptionStatus}
+              />
             </div>
 
             {!isOpen ? (
@@ -94,11 +123,21 @@ export default function SubscriptionCardUpdate({ subscriptions }: Props) {
                   Informe o novo cartão. A troca não gera cobrança imediata — as
                   próximas faturas e cobranças pendentes passam a usar este cartão.
                 </p>
-                <AsaasPaymentForm
-                  submitLabel="Salvar novo cartão"
-                  onSubmit={(card) => handleSubmit(subscription.id, card)}
-                  onError={setError}
-                />
+                {subscription.gateway === 'pagarme' ? (
+                  <PagarmePaymentForm
+                    submitLabel="Salvar novo cartão"
+                    onSubmit={(tokenized) =>
+                      handlePagarmeSubmit(subscription.id, tokenized)
+                    }
+                    onError={setError}
+                  />
+                ) : (
+                  <AsaasPaymentForm
+                    submitLabel="Salvar novo cartão"
+                    onSubmit={(card) => handleAsaasSubmit(subscription.id, card)}
+                    onError={setError}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => setOpenId(null)}

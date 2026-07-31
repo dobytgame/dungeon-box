@@ -67,6 +67,12 @@ export default async function AdminFinancePage({ searchParams }: Props) {
         >
           Gerenciar gastos
         </Link>
+        <Link
+          href="/admin/financeiro/gateway"
+          className="rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300"
+        >
+          Gateway
+        </Link>
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

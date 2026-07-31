@@ -6,7 +6,7 @@ import {
   type BillingTerm,
 } from '@/lib/checkout/combo-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
-import { ASAAS_CHECKOUT_READY } from '@/lib/payments/public';
+import { useCheckoutProvider } from '@/lib/checkout/use-checkout-provider';
 
 interface Props {
   data: CheckoutData;
@@ -26,7 +26,8 @@ export default function ComboBillingSelector({
   setData,
   singlePlanOnly,
 }: Props) {
-  if (!ASAAS_CHECKOUT_READY) return null;
+  const checkoutProvider = useCheckoutProvider();
+  if (checkoutProvider !== 'asaas') return null;
 
   const comboDisabled = !singlePlanOnly;
 

@@ -14,9 +14,10 @@ import type { CheckoutData } from '@/lib/checkout/types';
 import { sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import type { Profile } from '@/lib/dashboard/types';
 import {
-  ASAAS_CHECKOUT_READY,
+  ACTIVE_PAYMENT_PROVIDER,
   STRIPE_CHECKOUT_ACTIVE,
 } from '@/lib/payments/public';
+import { useCheckoutProvider } from '@/lib/checkout/use-checkout-provider';
 import {
   buildCheckoutEcommerceItems,
   buildCheckoutEcommerceValue,
@@ -28,6 +29,7 @@ import {
   comboInterestFreeMaxForCheckout,
   isComboTerm,
 } from '@/lib/checkout/combo-billing';
+import PagarmePaymentForm from './PagarmePaymentForm';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from './AsaasPaymentForm';
@@ -55,6 +57,7 @@ export default function StepPayment({
   onProfileSaved,
   onBack,
 }: Props) {
+  const checkoutProvider = useCheckoutProvider();
   const router = useRouter();
   const primaryPlanSlug = data.planSlugs[0] ?? 'heroi';
   const cpfDigits = profile?.cpf?.replace(/\D/g, '') ?? '';
@@ -62,7 +65,9 @@ export default function StepPayment({
   const cpfReady = cpfDigits.length === 11;
   const phoneReady = phoneDigits.length >= 10;
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(ASAAS_CHECKOUT_READY ? false : true);
+  const [loading, setLoading] = useState(
+    ACTIVE_PAYMENT_PROVIDER === 'stripe'
+  );
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [checkoutSubscriptionId, setCheckoutSubscriptionId] = useState<
     string | null
@@ -83,18 +88,25 @@ export default function StepPayment({
     : 4;
   const stripeSinglePlanOnly = data.planSlugs.length > 1;
 
+  const asaasCheckoutReady = checkoutProvider === 'asaas';
+  const pagarmeCheckoutReady = checkoutProvider === 'pagarme';
+
   const stripeReady =
+    checkoutProvider === 'stripe' &&
     STRIPE_CHECKOUT_ACTIVE &&
     cpfReady &&
     Boolean(data.addressId) &&
     !stripeSinglePlanOnly;
   const asaasReady =
-    ASAAS_CHECKOUT_READY &&
-    cpfReady &&
-    phoneReady &&
-    Boolean(data.addressId);
-  const paymentConfigured = ASAAS_CHECKOUT_READY || STRIPE_CHECKOUT_ACTIVE;
-  const profileIncomplete = !cpfReady || (ASAAS_CHECKOUT_READY && !phoneReady);
+    asaasCheckoutReady && cpfReady && phoneReady && Boolean(data.addressId);
+  const pagarmeReady =
+    pagarmeCheckoutReady && cpfReady && phoneReady && Boolean(data.addressId);
+  const paymentConfigured =
+    asaasCheckoutReady || pagarmeCheckoutReady || STRIPE_CHECKOUT_ACTIVE;
+  const profileIncomplete =
+    !cpfReady ||
+    ((asaasCheckoutReady || pagarmeCheckoutReady) && !phoneReady);
+  const pagarmeComboBlocked = pagarmeCheckoutReady && isCombo;
 
   const paymentInfoTracked = useRef(false);
 
@@ -173,7 +185,7 @@ export default function StepPayment({
   );
 
   useEffect(() => {
-    if (!STRIPE_CHECKOUT_ACTIVE) {
+    if (checkoutProvider !== 'stripe') {
       setLoading(false);
       return;
     }
@@ -189,7 +201,7 @@ export default function StepPayment({
     return () => {
       cancelled = true;
     };
-  }, [stripeReady, promotionCode, prepareCheckout]);
+  }, [checkoutProvider, stripeReady, promotionCode, prepareCheckout]);
 
   const handleSuccess = useCallback(
     (subscriptionIds: string[]) => {
@@ -205,6 +217,57 @@ export default function StepPayment({
       router.refresh();
     },
     [router]
+  );
+
+  const handlePagarmeSubmit = useCallback(
+    async (tokenized: { token: string; last4: string; brand: string }) => {
+      const res = await fetch('/api/pagarme/subscription/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planSlugs: data.planSlugs,
+          addressId: data.addressId,
+          specialNotes: data.specialNotes,
+          paintKitBump: data.paintKitBump,
+          paintKitBumpRecurring: data.paintKitBumpRecurring,
+          billingTerm: data.billingTerm,
+          cardToken: tokenized.token,
+          cardLast4: tokenized.last4,
+          cardBrand: tokenized.brand,
+          couponCode: promotionCode,
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (payload.code === 'SUBSCRIPTION_ALREADY_ACTIVE') {
+          router.push('/dashboard/subscription');
+          router.refresh();
+          return;
+        }
+        throw new Error(
+          typeof payload.error === 'string'
+            ? payload.error
+            : 'Não foi possível confirmar o pagamento.'
+        );
+      }
+
+      const created = Array.isArray(payload.subscriptions)
+        ? payload.subscriptions
+        : payload.subscriptionId
+          ? [{ subscriptionId: payload.subscriptionId }]
+          : [];
+
+      handleSuccess(
+        created
+          .map(
+            (item: { subscriptionId?: string }) => item.subscriptionId ?? ''
+          )
+          .filter(Boolean)
+      );
+    },
+    [data, promotionCode, router, handleSuccess]
   );
 
   const handleAsaasSubmit = useCallback(
@@ -285,7 +348,7 @@ export default function StepPayment({
         {profile ? (
           <CheckoutProfileForm
             profile={profile}
-            requirePhone={ASAAS_CHECKOUT_READY}
+            requirePhone={asaasCheckoutReady || pagarmeCheckoutReady}
             onSaved={onProfileSaved}
           />
         ) : null}
@@ -312,6 +375,16 @@ export default function StepPayment({
           >
             Múltiplos planos no mesmo pedido estão disponíveis apenas com o
             provedor Asaas.
+          </p>
+        ) : null}
+
+        {pagarmeComboBlocked ? (
+          <p
+            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
+            role="status"
+          >
+            Combos disponíveis apenas com Asaas. Volte e escolha cobrança mensal
+            ou altere o gateway ativo no admin.
           </p>
         ) : null}
 
@@ -345,7 +418,7 @@ export default function StepPayment({
           </div>
 
           <div className="relative mt-5 min-h-[120px] rounded-sm border border-dashed border-white/10 bg-stone-950/50 px-2 py-4">
-            {STRIPE_CHECKOUT_ACTIVE && loading ? (
+            {checkoutProvider === 'stripe' && loading ? (
               <div className="flex min-h-[120px] items-center justify-center">
                 <Loader2
                   className="h-6 w-6 animate-spin text-ember"
@@ -355,7 +428,7 @@ export default function StepPayment({
               </div>
             ) : null}
 
-            {ASAAS_CHECKOUT_READY && asaasReady ? (
+            {asaasReady ? (
               <AsaasPaymentForm
                 disabled={!asaasReady}
                 onSubmit={handleAsaasSubmit}
@@ -363,7 +436,15 @@ export default function StepPayment({
               />
             ) : null}
 
-            {STRIPE_CHECKOUT_ACTIVE && !loading && stripeReady && clientSecret ? (
+            {pagarmeReady && !pagarmeComboBlocked ? (
+              <PagarmePaymentForm
+                disabled={!pagarmeReady}
+                onSubmit={handlePagarmeSubmit}
+                onError={(message) => setError(message)}
+              />
+            ) : null}
+
+            {checkoutProvider === 'stripe' && !loading && stripeReady && clientSecret ? (
               <StripeCheckoutProvider
                 key={clientSecret}
                 clientSecret={clientSecret}
@@ -381,7 +462,7 @@ export default function StepPayment({
               </StripeCheckoutProvider>
             ) : null}
 
-            {STRIPE_CHECKOUT_ACTIVE &&
+            {checkoutProvider === 'stripe' &&
             !loading &&
             stripeReady &&
             !clientSecret &&

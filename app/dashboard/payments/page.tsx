@@ -3,17 +3,21 @@ import EmptyState from '@/components/dashboard/EmptyState';
 import PaymentReceiptList from '@/components/dashboard/PaymentReceiptList';
 import SubscriptionCardUpdate from '@/components/dashboard/SubscriptionCardUpdate';
 import {
-  getAsaasCardUpdateSubscriptions,
+  getCardUpdateSubscriptions,
   getPayments,
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 
 export default async function PaymentsPage() {
   const { user } = await requireDashboardUser();
+  const cardUpdatesEnabled = ASAAS_CONFIGURED || PAGARME_CONFIGURED;
   const [payments, cardUpdateSubscriptions] = await Promise.all([
     getPayments(user.id),
-    ASAAS_CONFIGURED ? getAsaasCardUpdateSubscriptions(user.id) : Promise.resolve([]),
+    cardUpdatesEnabled
+      ? getCardUpdateSubscriptions(user.id)
+      : Promise.resolve([]),
   ]);
 
   return (

@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { userFacingAsaasError } from '@/lib/asaas/errors';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { userFacingPagarmeError } from '@/lib/pagarme/errors';
+import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
+import { resolveSubscriptionGateway } from '@/lib/payments/subscription-gateway';
 import { updateAsaasSubscriptionPaymentMethod } from '@/lib/subscriptions/update-asaas-payment-method';
+import { updatePagarmeSubscriptionPaymentMethod } from '@/lib/subscriptions/update-pagarme-payment-method';
 import { createClient } from '@/lib/supabase/server';
 
 const cardSchema = z.object({
@@ -16,7 +21,10 @@ const cardSchema = z.object({
 
 const bodySchema = z.object({
   subscriptionId: z.string().uuid(),
-  creditCard: cardSchema,
+  creditCard: cardSchema.optional(),
+  cardToken: z.string().min(1).optional(),
+  cardLast4: z.string().regex(/^\d{4}$/).optional(),
+  cardBrand: z.string().max(32).optional(),
 });
 
 function normalizeCardNumber(raw: string): string {
@@ -40,13 +48,6 @@ function normalizeExpiryYear(raw: string): string {
 }
 
 export async function POST(request: Request) {
-  if (!ASAAS_CONFIGURED) {
-    return NextResponse.json(
-      { error: 'Troca de cartão indisponível no momento.' },
-      { status: 503 }
-    );
-  }
-
   const supabase = createClient();
   const {
     data: { user },
@@ -64,6 +65,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
 
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select(
+      'id, address_id, asaas_subscription_id, pagarme_subscription_id, stripe_subscription_id, mp_subscription_id, is_partner'
+    )
+    .eq('id', body.subscriptionId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!subscription?.address_id) {
+    return NextResponse.json(
+      { error: 'Endereço de entrega não encontrado.' },
+      { status: 400 }
+    );
+  }
+
+  const gateway = resolveSubscriptionGateway(subscription);
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('email, cpf, full_name, phone')
@@ -74,36 +93,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'Perfil incompleto. Atualize seu e-mail no cadastro.' },
       { status: 422 }
-    );
-  }
-
-  const cpf = profile.cpf?.replace(/\D/g, '') ?? '';
-  if (cpf.length !== 11) {
-    return NextResponse.json(
-      { error: 'CPF obrigatório. Complete seu perfil antes de atualizar o cartão.' },
-      { status: 422 }
-    );
-  }
-
-  const phone = profile.phone?.replace(/\D/g, '') ?? '';
-  if (phone.length < 10) {
-    return NextResponse.json(
-      { error: 'Telefone obrigatório. Cadastre seu telefone no perfil.' },
-      { status: 422 }
-    );
-  }
-
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('address_id')
-    .eq('id', body.subscriptionId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (!subscription?.address_id) {
-    return NextResponse.json(
-      { error: 'Endereço de entrega não encontrado.' },
-      { status: 400 }
     );
   }
 
@@ -120,6 +109,66 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'Endereço de entrega inválido.' },
       { status: 400 }
+    );
+  }
+
+  if (gateway === 'pagarme') {
+    if (!PAGARME_CONFIGURED || !body.cardToken || !body.cardLast4 || !body.cardBrand) {
+      return NextResponse.json({ error: 'Dados de cartão inválidos.' }, { status: 400 });
+    }
+
+    try {
+      const result = await updatePagarmeSubscriptionPaymentMethod({
+        supabase,
+        userId: user.id,
+        subscriptionId: body.subscriptionId,
+        cardToken: body.cardToken,
+        cardLast4: body.cardLast4,
+        cardBrand: body.cardBrand,
+        billingAddress: buildBillingAddress(address),
+      });
+
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+
+      return NextResponse.json({ success: true });
+    } catch (error) {
+      console.error('[payment-method] pagarme:', error);
+      return NextResponse.json(
+        { error: userFacingPagarmeError(error) },
+        { status: 502 }
+      );
+    }
+  }
+
+  if (gateway !== 'asaas') {
+    return NextResponse.json(
+      { error: 'Troca de cartão indisponível para este gateway.' },
+      { status: 400 }
+    );
+  }
+
+  if (!ASAAS_CONFIGURED || !body.creditCard) {
+    return NextResponse.json(
+      { error: 'Troca de cartão indisponível no momento.' },
+      { status: 503 }
+    );
+  }
+
+  const cpf = profile.cpf?.replace(/\D/g, '') ?? '';
+  if (cpf.length !== 11) {
+    return NextResponse.json(
+      { error: 'CPF obrigatório. Complete seu perfil antes de atualizar o cartão.' },
+      { status: 422 }
+    );
+  }
+
+  const phone = profile.phone?.replace(/\D/g, '') ?? '';
+  if (phone.length < 10) {
+    return NextResponse.json(
+      { error: 'Telefone obrigatório. Cadastre seu telefone no perfil.' },
+      { status: 422 }
     );
   }
 
@@ -173,7 +222,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[payment-method] api:', error);
+    console.error('[payment-method] asaas:', error);
     return NextResponse.json(
       { error: userFacingAsaasError(error) },
       { status: 502 }

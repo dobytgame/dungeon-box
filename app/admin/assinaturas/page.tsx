@@ -6,6 +6,11 @@ import ComboBadge from '@/components/admin/ComboBadge';
 import PlanUpgradeBadge from '@/components/admin/PlanUpgradeBadge';
 import RepairPlanUpgradeAsaasButton from '@/components/admin/RepairPlanUpgradeAsaasButton';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
+import SyncPagarmeButton from '@/components/admin/SyncPagarmeButton';
+import {
+  resolveSubscriptionGateway,
+  subscriptionGatewayLabel,
+} from '@/lib/payments/subscription-gateway';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { parseAdminListPagination } from '@/lib/admin/list-pagination';
@@ -42,6 +47,7 @@ function parseSubscriptionFilters(
   return {
     q: searchParams.q?.trim() || undefined,
     status: searchParams.status?.trim() || undefined,
+    gateway: searchParams.gateway?.trim() || undefined,
     page: pagination.page,
     pageSize: pagination.pageSize,
     sort: pagination.sort as AdminSubscriptionSortField,
@@ -87,6 +93,7 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
         values={{
           q: filters.q,
           status: filters.status,
+          gateway: filters.gateway,
           sort: filters.sort,
           order: filters.order,
           pageSize: filters.pageSize,
@@ -175,14 +182,38 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
               ),
           },
           {
+            key: 'gateway',
+            header: 'Gateway',
+            cell: (row) => (
+              <span className="font-mono text-[10px] uppercase tracking-wider text-stone-400">
+                {subscriptionGatewayLabel(
+                  resolveSubscriptionGateway({
+                    asaas_subscription_id: row.asaas_subscription_id,
+                    pagarme_subscription_id: row.pagarme_subscription_id,
+                    stripe_subscription_id: row.stripe_subscription_id,
+                  })
+                )}
+              </span>
+            ),
+          },
+          {
             key: 'asaas',
-            header: 'Asaas',
-            cell: (row) =>
-              row.asaas_subscription_id || row.asaas_customer_id ? (
-                <SyncAsaasButton subscriptionId={row.id} compact />
-              ) : (
-                <span className="font-mono text-[10px] text-zinc-600">—</span>
-              ),
+            header: 'Sync',
+            cell: (row) => (
+              <div className="flex flex-wrap gap-2">
+                {row.asaas_subscription_id || row.asaas_customer_id ? (
+                  <SyncAsaasButton subscriptionId={row.id} compact />
+                ) : null}
+                {row.pagarme_subscription_id ? (
+                  <SyncPagarmeButton subscriptionId={row.id} compact />
+                ) : null}
+                {!row.asaas_subscription_id &&
+                !row.asaas_customer_id &&
+                !row.pagarme_subscription_id ? (
+                  <span className="font-mono text-[10px] text-zinc-600">—</span>
+                ) : null}
+              </div>
+            ),
           },
         ]}
       />

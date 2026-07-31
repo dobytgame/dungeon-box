@@ -10,6 +10,8 @@ import {
   updateMpPreapprovalStatus,
   type MpPreapprovalStatus,
 } from '@/lib/mercadopago';
+import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
@@ -23,6 +25,7 @@ type SubscriptionRow = {
   mp_subscription_id: string | null;
   stripe_subscription_id: string | null;
   asaas_subscription_id: string | null;
+  pagarme_subscription_id: string | null;
   status: string;
   next_billing_date: string | null;
 };
@@ -39,7 +42,7 @@ export async function applySubscriptionStatusChange(
   let query = supabase
     .from('subscriptions')
     .select(
-      'id, user_id, mp_subscription_id, stripe_subscription_id, asaas_subscription_id, status, next_billing_date'
+      'id, user_id, mp_subscription_id, stripe_subscription_id, asaas_subscription_id, pagarme_subscription_id, status, next_billing_date'
     )
     .eq('id', subscriptionId);
 
@@ -79,6 +82,15 @@ export async function applySubscriptionStatusChange(
   }
 
   const row = subscription as SubscriptionRow;
+
+  if (row.pagarme_subscription_id && PAGARME_CONFIGURED && action === 'cancel') {
+    try {
+      await cancelPagarmeSubscriptionBestEffort(row.pagarme_subscription_id);
+    } catch (error) {
+      console.error('Pagar.me subscription cancel:', error);
+      return { error: 'Não foi possível cancelar no Pagar.me.' };
+    }
+  }
 
   if (row.asaas_subscription_id && ASAAS_CONFIGURED) {
     try {

@@ -56,6 +56,14 @@ export const ADMIN_NAV = [
     group: 'operacao',
   },
   {
+    href: '/admin/financeiro/gateway',
+    label: 'Gateway',
+    eyebrow: 'Pagamentos',
+    description: 'Provedor ativo para novos checkouts de assinatura.',
+    icon: 'credit-card',
+    group: 'operacao',
+  },
+  {
     href: '/admin/pagamentos',
     label: 'Pagamentos',
     eyebrow: 'Cofre',

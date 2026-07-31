@@ -157,6 +157,7 @@ export interface AdminSubscriptionRow {
   asaas_subscription_id: string | null;
   asaas_customer_id: string | null;
   stripe_subscription_id: string | null;
+  pagarme_subscription_id: string | null;
   promo_code: string | null;
   customerName: string | null;
   customerEmail: string | null;
@@ -272,6 +273,7 @@ export interface AdminCustomerPlanChange {
 export type AdminListFilters = {
   q?: string;
   status?: string;
+  gateway?: string;
   limit?: number;
   page?: number;
   pageSize?: number;

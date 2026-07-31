@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/referrals/expire",
       "schedule": "0 4 1 * *"
+    },
+    {
+      "path": "/api/cron/gateway-migration-emails",
+      "schedule": "0 9 * * 1"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # DungeonBox — Implementação Multi-Gateway
 ## Asaas + Pagar.me · Checkout transparente · Toggle no Admin
-### v2.0 · Julho 2026
+### v2.1 · Julho 2026
 
 > Documento alinhado ao código em produção. Descreve o estado atual validado (Asaas),
 > o que falta implementar (Pagar.me) e como integrar os dois fluxos sem quebrar
@@ -17,7 +17,7 @@
 | **Asaas** | Checkout ativo (padrão) | `profiles.asaas_customer_id`, `subscriptions.asaas_*` | ✅ Produção |
 | **Stripe** | Legado / rollback via env | `profiles.stripe_customer_id`, `subscriptions.stripe_*` | ⚠️ Mantido, desativado por padrão |
 | **Mercado Pago** | Legado (assinaturas antigas) | `subscriptions.mp_*` | ⚠️ Somente leitura / webhooks |
-| **Pagar.me** | Novo segundo gateway | `pagarme_*` (a criar) | ❌ A implementar |
+| **Pagar.me** | Novo segundo gateway | `pagarme_*` (a criar) | ❌ A implementar — assinatura avulsa, preço do Supabase |
 
 ### 1.2 Como o checkout escolhe o provedor hoje
 
@@ -218,14 +218,10 @@ ASAAS_API_KEY=\$aact_xxx
 ASAAS_WEBHOOK_TOKEN=seu-token-do-webhook-asaas
 ASAAS_ENV=sandbox
 
-# Pagar.me (novo)
+# Pagar.me (novo) — assinatura avulsa; não exige planos no painel
 PAGARME_SECRET_KEY=sk_xxx
 NEXT_PUBLIC_PAGARME_PUBLIC_KEY=pk_xxx
 PAGARME_WEBHOOK_SECRET=whsec_xxx
-# Planos criados manualmente no painel Pagar.me Core v5
-PAGARME_PLAN_AVENTUREIRO_ID=plan_xxx
-PAGARME_PLAN_HEROI_ID=plan_xxx
-PAGARME_PLAN_LENDARIO_ID=plan_xxx
 
 # Cron (já existente — lib/cron/auth.ts)
 CRON_SECRET=seu-cron-secret
@@ -334,18 +330,62 @@ export async function pagarmeRequest<T>(path: string, options?: { method?: strin
 **Diferença de tokenização:** Pagar.me exige token client-side (seção 6).
 O servidor recebe `cardToken`, não dados brutos do cartão.
 
-### 5.3 Mapeamento de planos
+### 5.3 Preço dinâmico — assinatura avulsa (sem planos no painel)
+
+**Não é necessário criar planos no painel da Pagar.me.** O DungeonBox já calcula o
+valor no checkout (plano + frete + bump + cupom) e o Asaas recebe esse valor na hora
+(`value: centsToReais(input.priceCents)` em `lib/asaas/subscription-checkout.ts`).
+
+Na Pagar.me, o equivalente é a **assinatura avulsa** ([docs](https://docs.pagar.me/reference/criar-assinatura-avulsa)):
+`POST /subscriptions` com `items[]` + `pricing_scheme`, **sem** `plan_id`.
+
+| | Asaas (hoje) | Pagar.me (proposto) |
+|---|---|---|
+| Fonte do preço | Tabela `plans` no Supabase | Tabela `plans` no Supabase |
+| Onde o valor é definido | API no checkout | API no checkout |
+| Planos no gateway | Não usa | Não usa (assinatura avulsa) |
+| Cupom / frete / bump | Calculado antes da API | Calculado antes da API |
+
+**Fonte da verdade dos preços:** continua sendo `plans` no Supabase + lógica de checkout
+(`resolveShippingForCheckout`, `resolvePromoCode`, bumps). Nada duplicado no painel Pagar.me.
 
 ```ts
-// lib/pagarme/plan-ids.ts
-const PLAN_MAP: Record<PlanSlug, string> = {
-  aventureiro: process.env.PAGARME_PLAN_AVENTUREIRO_ID!,
-  heroi:       process.env.PAGARME_PLAN_HEROI_ID!,
-  lendario:    process.env.PAGARME_PLAN_LENDARIO_ID!,
-};
+// lib/pagarme/subscription-checkout.ts — montar payload após calcular chargePriceCents
+// (mesma lógica de app/api/asaas/subscription/create/route.ts)
+
+function buildPagarmeSubscriptionBody(input: {
+  customerId: string;
+  cardToken: string;
+  chargePriceCents: number;
+  planDescription: string;
+  subscriptionId: string;
+}) {
+  return {
+    payment_method: 'credit_card',
+    interval: 'month',
+    interval_count: 1,
+    billing_type: 'prepaid',
+    customer_id: input.customerId,
+    card: { token: input.cardToken },
+    items: [
+      {
+        description: `DungeonBox — ${input.planDescription}`,
+        quantity: 1,
+        pricing_scheme: {
+          scheme_type: 'unit',
+          price: input.chargePriceCents, // centavos — igual ao Asaas
+        },
+      },
+    ],
+    metadata: {
+      subscription_id: input.subscriptionId,
+    },
+  };
+}
 ```
 
-Criar os 3 planos no painel Pagar.me com os mesmos valores dos planos DungeonBox.
+> **Quando planos no painel Pagar.me fariam sentido:** checkout hospedado da Pagar.me
+> ou preços fixos sem lógica no servidor. Não é o nosso caso.
 
 ### 5.4 Escopo v1 do Pagar.me
 
@@ -668,9 +708,9 @@ Espelhar fluxo Asaas existente:
 
 ```
 □ Migration Supabase (pagarme_*, gateway_config, gateway_migration_log)
-□ Conta Pagar.me + 3 planos no painel
-□ Variáveis de ambiente (local + Vercel)
-□ lib/pagarme/client.ts, errors.ts, customer.ts, plan-ids.ts
+□ Conta Pagar.me sandbox + chaves API + webhook
+□ Variáveis de ambiente (local + Vercel) — sem IDs de plano
+□ lib/pagarme/client.ts, errors.ts, customer.ts
 □ Estender lib/payments/provider.ts (banco + env)
 □ lib/payments/subscription-gateway.ts
 □ GET /api/checkout/provider (opcional, para client dinâmico)
@@ -747,6 +787,7 @@ Sem saldo:  4000000000000119  | 01/30 | 123
 ```
 □ Novo checkout com Asaas ativo no admin → assinatura com asaas_subscription_id
 □ Novo checkout com Pagar.me ativo no admin → assinatura com pagarme_subscription_id
+□ Valor cobrado no Pagar.me reflete plano + frete + cupom (sem plan_id no gateway)
 □ Alternar gateway no admin não afeta assinaturas existentes
 □ Webhook Pagar.me ativa assinatura e dispara ciclo de produção
 □ Webhook Asaas continua funcionando para assinantes legados
@@ -775,7 +816,9 @@ Sem saldo:  4000000000000119  | 01/30 | 123
 | Auth admin | `requireAdmin()` + `logAdminAction()` |
 | Cron | `verifyCronSecret()` de `lib/cron/auth.ts` |
 | Email | `lib/email/layout.ts` (templates existentes) |
+| Preços / planos Pagar.me | Assinatura avulsa (`items` + `pricing_scheme`); preço vindo do Supabase |
+| Planos no painel Pagar.me | Não necessários |
 
 ---
 
-*DungeonBox · Implementação Multi-Gateway v2.0 · Julho 2026*
+*DungeonBox · Implementação Multi-Gateway v2.1 · Julho 2026*

@@ -18,10 +18,19 @@ const SORT_OPTIONS: { value: AdminSubscriptionSortField; label: string }[] = [
   { value: 'current_cycle', label: 'Ciclo atual' },
 ];
 
+const GATEWAY_OPTIONS = [
+  { value: '', label: 'Todos os gateways' },
+  { value: 'asaas', label: 'Asaas' },
+  { value: 'pagarme', label: 'Pagar.me' },
+  { value: 'stripe', label: 'Stripe' },
+  { value: 'mp', label: 'Mercado Pago' },
+] as const;
+
 interface Props {
   values: {
     q?: string;
     status?: string;
+    gateway?: string;
     sort: AdminSubscriptionSortField;
     order: 'asc' | 'desc';
     pageSize: number;
@@ -45,7 +54,7 @@ export default function AdminSubscriptionsFiltersForm({ values }: Props) {
           id="subs-q"
           name="q"
           defaultValue={values.q ?? ''}
-          placeholder="ID Asaas, Stripe ou cupom"
+          placeholder="ID Asaas, Pagar.me, Stripe ou cupom"
           className="w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-console/40 focus:outline-none focus:ring-1 focus:ring-console/30"
         />
       </div>
@@ -64,6 +73,27 @@ export default function AdminSubscriptionsFiltersForm({ values }: Props) {
           className="w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2 text-sm text-white"
         >
           {STATUS_OPTIONS.map((option) => (
+            <option key={option.value || 'all'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label
+          htmlFor="subs-gateway"
+          className="mb-1 block font-mono text-[10px] uppercase tracking-widest text-zinc-500"
+        >
+          Gateway
+        </label>
+        <select
+          id="subs-gateway"
+          name="gateway"
+          defaultValue={values.gateway ?? ''}
+          className="w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2 text-sm text-white"
+        >
+          {GATEWAY_OPTIONS.map((option) => (
             <option key={option.value || 'all'} value={option.value}>
               {option.label}
             </option>
