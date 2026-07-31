@@ -1,4 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  fetchPagarmeOrder,
+  isPagarmeChargePaid,
+} from '@/lib/pagarme/one-time-order';
 import { findLocalSubscriptionByPagarmeId } from '@/lib/pagarme/resolve-local-subscription';
 import {
   handleStoreOrderPagarmeChargePaid,
@@ -18,6 +22,7 @@ export type PagarmeWebhookCharge = {
   subscription_id?: string;
   customer_id?: string;
   code?: string | null;
+  metadata?: Record<string, string>;
 };
 
 export type PagarmeWebhookSubscription = {
@@ -31,6 +36,7 @@ export type PagarmeWebhookOrder = {
   id?: string;
   code?: string | null;
   status?: string;
+  metadata?: Record<string, string>;
   charges?: PagarmeWebhookCharge[];
 };
 
@@ -151,6 +157,7 @@ export async function handlePagarmeChargeFailed(
     const storeFailed = await handleStoreOrderPagarmePaymentFailed(supabase, {
       code: charge.code,
       id: charge.id,
+      metadata: charge.metadata,
     });
     if (storeFailed === 'processed') return 'processed';
     return 'skipped';
@@ -179,20 +186,42 @@ export async function handlePagarmeOrderPaid(
   order: PagarmeWebhookOrder
 ): Promise<'processed' | 'skipped'> {
   const charges = order.charges ?? [];
-  if (charges.length === 0) {
-    return 'skipped';
-  }
 
-  let processed = false;
   for (const charge of charges) {
     const result = await handleStoreOrderPagarmeChargePaid(supabase, {
       ...charge,
       code: charge.code ?? order.code,
+      metadata: charge.metadata ?? order.metadata,
     });
-    if (result === 'processed') processed = true;
+    if (result === 'processed') return 'processed';
   }
 
-  return processed ? 'processed' : 'skipped';
+  if (order.id) {
+    try {
+      const remote = await fetchPagarmeOrder(order.id);
+      const charge = remote.charges?.[0];
+      const chargeStatus =
+        charge?.status ?? charge?.last_transaction?.status ?? remote.status;
+
+      if (charge?.id && isPagarmeChargePaid(chargeStatus)) {
+        const result = await handleStoreOrderPagarmeChargePaid(supabase, {
+          id: charge.id,
+          amount: charge.amount,
+          code: remote.code ?? order.code,
+          metadata: remote.metadata ?? order.metadata,
+        });
+        if (result === 'processed') return 'processed';
+      }
+    } catch (error) {
+      console.error('[pagarme] order.paid fetch order:', order.id, error);
+    }
+  }
+
+  const fallback = await handleStoreOrderPagarmeChargePaid(supabase, {
+    code: order.code,
+    metadata: order.metadata,
+  });
+  return fallback;
 }
 
 export async function handlePagarmeOrderPaymentFailed(

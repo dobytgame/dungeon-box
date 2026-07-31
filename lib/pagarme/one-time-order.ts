@@ -17,6 +17,7 @@ export type PagarmeOrderResponse = {
   id: string;
   status?: string;
   code?: string;
+  metadata?: Record<string, string>;
   charges?: PagarmeOrderCharge[];
 };
 
@@ -64,6 +65,16 @@ export async function fetchPagarmeOrder(
   orderId: string
 ): Promise<PagarmeOrderResponse> {
   return pagarmeRequest<PagarmeOrderResponse>(`/orders/${orderId}`);
+}
+
+export async function fetchPagarmeCharge(chargeId: string): Promise<{
+  id: string;
+  status?: string;
+  amount?: number;
+  code?: string;
+  metadata?: Record<string, string>;
+}> {
+  return pagarmeRequest(`/charges/${chargeId}`);
 }
 
 async function createPagarmeOrder(input: {

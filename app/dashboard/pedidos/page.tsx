@@ -8,6 +8,8 @@ import {
   countDashboardStoreOrdersByStatus,
   listDashboardStoreOrders,
 } from '@/lib/dashboard/store-orders';
+import { syncPendingPagarmeStoreOrders } from '@/lib/asaas/store-order-payment';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 interface Props {
   searchParams: Promise<{
@@ -20,6 +22,9 @@ interface Props {
 export default async function DashboardOrdersPage({ searchParams }: Props) {
   const { supabase, user } = await requireDashboardUser();
   const { q, status = 'all', shipping = '' } = await searchParams;
+
+  const admin = createAdminClient();
+  await syncPendingPagarmeStoreOrders(admin, { userId: user.id });
 
   const allOrders = await listDashboardStoreOrders(supabase, user.id, {
     q,

@@ -5,6 +5,7 @@ import {
   countAdminStoreOrdersByStatus,
   listAdminStoreOrders,
 } from '@/lib/admin/store-orders';
+import { syncPendingPagarmeStoreOrders } from '@/lib/asaas/store-order-payment';
 
 interface Props {
   searchParams: Promise<{
@@ -17,6 +18,8 @@ interface Props {
 export default async function AdminStoreOrdersPage({ searchParams }: Props) {
   const { admin } = await requireAdmin();
   const { q, status = 'all', shipping = '' } = await searchParams;
+
+  await syncPendingPagarmeStoreOrders(admin);
 
   const allRows = await listAdminStoreOrders(admin, {
     q,

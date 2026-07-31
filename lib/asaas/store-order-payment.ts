@@ -21,6 +21,7 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import {
   extractPagarmeStorePix,
   fetchPagarmeOrder,
+  fetchPagarmeCharge,
   isPagarmeChargePaid,
   type PagarmeStorePixDetails,
 } from '@/lib/pagarme/one-time-order';
@@ -611,6 +612,49 @@ export async function approveStoreOrderPayment(
   return approveStoreOrderPaymentRow(supabase, paymentRow, amountCents);
 }
 
+export function resolvePagarmeStoreOrderReference(input: {
+  code?: string | null;
+  metadata?: Record<string, string> | null;
+}): { orderId: string; userId?: string } | null {
+  const metaOrderId = input.metadata?.store_order_id?.trim();
+  const metaUserId = input.metadata?.store_user_id?.trim();
+  if (metaOrderId) {
+    return {
+      orderId: metaOrderId,
+      ...(metaUserId ? { userId: metaUserId } : {}),
+    };
+  }
+
+  const externalReference = parseStoreOrderExternalReference(
+    input.metadata?.external_reference
+  );
+  if (externalReference) return externalReference;
+
+  return parsePagarmeStoreOrderCode(input.code);
+}
+
+export async function approveStoreOrderPaymentById(
+  supabase: SupabaseClient,
+  paymentId: string,
+  amountCents?: number | null
+): Promise<'processed' | 'skipped'> {
+  const paymentRow = (
+    await supabase
+      .from('payments')
+      .select('id, user_id, status, status_detail, amount_cents')
+      .eq('id', paymentId)
+      .maybeSingle()
+  ).data;
+
+  if (!paymentRow) return 'skipped';
+
+  return approveStoreOrderPaymentRow(
+    supabase,
+    paymentRow,
+    amountCents ?? paymentRow.amount_cents
+  );
+}
+
 export async function approveStoreOrderPaymentByPagarmeCharge(
   supabase: SupabaseClient,
   pagarmeChargeId: string,
@@ -769,18 +813,23 @@ async function recoverStoreOrderPaymentFromWebhook(
 
 export async function handleStoreOrderPagarmeChargePaid(
   supabase: SupabaseClient,
-  charge: { id?: string; amount?: number; code?: string | null }
+  charge: {
+    id?: string;
+    amount?: number;
+    code?: string | null;
+    metadata?: Record<string, string>;
+  }
 ): Promise<'processed' | 'skipped'> {
-  if (!charge.id) return 'skipped';
+  if (charge.id) {
+    const byCharge = await approveStoreOrderPaymentByPagarmeCharge(
+      supabase,
+      charge.id,
+      charge.amount != null ? Math.round(charge.amount) : null
+    );
+    if (byCharge === 'processed') return 'processed';
+  }
 
-  const byCharge = await approveStoreOrderPaymentByPagarmeCharge(
-    supabase,
-    charge.id,
-    charge.amount != null ? Math.round(charge.amount) : null
-  );
-  if (byCharge === 'processed') return 'processed';
-
-  const reference = parsePagarmeStoreOrderCode(charge.code);
+  const reference = resolvePagarmeStoreOrderReference(charge);
   if (!reference) return 'skipped';
 
   const paymentRow = reference.userId
@@ -792,25 +841,44 @@ export async function handleStoreOrderPagarmeChargePaid(
     : await findStoreOrderPaymentRowByOrderId(supabase, reference.orderId);
   if (!paymentRow) return 'skipped';
 
-  if (!paymentRow.pagarme_charge_id) {
-    await supabase
+  if (charge.id && !paymentRow.pagarme_charge_id) {
+    const { error } = await supabase
       .from('payments')
       .update({ pagarme_charge_id: charge.id })
       .eq('id', paymentRow.id);
+
+    if (error) {
+      console.error(
+        '[store] attach pagarme charge on webhook:',
+        paymentRow.id,
+        error.message
+      );
+    } else {
+      const byCharge = await approveStoreOrderPaymentByPagarmeCharge(
+        supabase,
+        charge.id,
+        charge.amount != null ? Math.round(charge.amount) : null
+      );
+      if (byCharge === 'processed') return 'processed';
+    }
   }
 
-  return approveStoreOrderPaymentByPagarmeCharge(
+  return approveStoreOrderPaymentById(
     supabase,
-    charge.id,
+    paymentRow.id,
     charge.amount != null ? Math.round(charge.amount) : null
   );
 }
 
 export async function handleStoreOrderPagarmePaymentFailed(
   supabase: SupabaseClient,
-  order: { code?: string | null; id?: string }
+  order: {
+    code?: string | null;
+    id?: string;
+    metadata?: Record<string, string>;
+  }
 ): Promise<'processed' | 'skipped'> {
-  const reference = parsePagarmeStoreOrderCode(order.code);
+  const reference = resolvePagarmeStoreOrderReference(order);
   if (!reference) return 'skipped';
 
   const paymentRow = reference.userId
@@ -893,8 +961,25 @@ export async function syncStoreOrderPaymentByOrderId(
     );
   }
 
-  if (meta?.gateway === 'pagarme' || meta?.pagarmeOrderId) {
-    const pagarmeOrderId = meta.pagarmeOrderId ?? null;
+  if (meta?.gateway === 'pagarme' || meta?.pagarmeOrderId || paymentRow.pagarme_charge_id) {
+    const pagarmeOrderId = meta?.pagarmeOrderId ?? null;
+
+    if (!pagarmeOrderId && paymentRow.pagarme_charge_id) {
+      try {
+        const charge = await fetchPagarmeCharge(paymentRow.pagarme_charge_id);
+        if (isPagarmeChargePaid(charge.status)) {
+          await approveStoreOrderPaymentByPagarmeCharge(
+            supabase,
+            charge.id,
+            charge.amount ?? paymentRow.amount_cents
+          );
+          return buildOrderStatusResult(meta, 'approved', paymentRow.amount_cents);
+        }
+      } catch (error) {
+        console.error('[store] sync pagarme charge status:', error);
+      }
+    }
+
     if (!pagarmeOrderId) {
       return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
     }
@@ -964,6 +1049,46 @@ export async function syncStoreOrderPaymentByOrderId(
   }
 
   return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
+}
+
+export async function syncPendingPagarmeStoreOrders(
+  supabase: SupabaseClient,
+  options?: { userId?: string }
+): Promise<void> {
+  let query = supabase
+    .from('payments')
+    .select('id, user_id, status_detail, pagarme_charge_id')
+    .eq('status', 'pending')
+    .ilike('status_detail', '%store_order%');
+
+  if (options?.userId) {
+    query = query.eq('user_id', options.userId);
+  }
+
+  const { data: rows } = await query;
+
+  await Promise.all(
+    (rows ?? []).map(async (row) => {
+      const meta = parseStoreOrderMeta(row.status_detail);
+      if (!meta) return;
+
+      const isPagarme =
+        meta.gateway === 'pagarme' ||
+        Boolean(meta.pagarmeOrderId) ||
+        Boolean(row.pagarme_charge_id);
+      if (!isPagarme) return;
+
+      try {
+        await syncStoreOrderPaymentByOrderId(
+          supabase,
+          row.user_id as string,
+          meta.orderId
+        );
+      } catch (error) {
+        console.error('[store] sync pending pagarme order:', meta.orderId, error);
+      }
+    })
+  );
 }
 
 const PIPELINE_STATUSES = new Set<CycleStatus>([
