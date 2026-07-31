@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { triggerAdminBrowserPush } from '@/lib/admin/trigger-browser-push';
 
 export type AdminNotificationType =
   | 'store_order_payment_pending'
@@ -54,7 +55,19 @@ export async function createAdminNotification(
   if (error) {
     if (error.code === '23505') return;
     console.error('[admin] create notification:', input.type, error.message);
+    return;
   }
+
+  const url = input.paymentId
+    ? `/admin/loja/pedidos?paymentId=${encodeURIComponent(input.paymentId)}`
+    : '/admin/loja/pedidos';
+
+  void triggerAdminBrowserPush({
+    title: input.title,
+    body: input.body,
+    url,
+    tag: input.paymentId ?? input.orderId,
+  });
 }
 
 export async function listAdminNotifications(

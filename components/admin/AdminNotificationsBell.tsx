@@ -2,8 +2,15 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, CheckCheck, Loader2, ShoppingBag } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, Monitor, ShoppingBag } from 'lucide-react';
 import type { AdminNotificationRow } from '@/lib/admin/notifications';
+import {
+  isAdminPushEnabledLocally,
+  isBrowserPushSupported,
+  subscribeAdminBrowserPush,
+  syncAdminBrowserPushSubscription,
+  unsubscribeAdminBrowserPush,
+} from '@/lib/admin/push-client';
 import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
 
 function notificationHref(notification: AdminNotificationRow): string {
@@ -28,7 +35,17 @@ export default function AdminNotificationsBell() {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<AdminNotificationRow[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setPushSupported(isBrowserPushSupported());
+    setPushEnabled(isAdminPushEnabledLocally());
+    void syncAdminBrowserPushSubscription();
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -98,6 +115,28 @@ export default function AdminNotificationsBell() {
     setNotifications((current) =>
       current.map((item) => ({ ...item, read_at: item.read_at ?? now }))
     );
+  }
+
+  async function handleTogglePush() {
+    setPushLoading(true);
+    setPushError(null);
+    try {
+      if (pushEnabled) {
+        await unsubscribeAdminBrowserPush();
+        setPushEnabled(false);
+      } else {
+        await subscribeAdminBrowserPush();
+        setPushEnabled(true);
+      }
+    } catch (error) {
+      setPushError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível alterar as notificações do navegador.'
+      );
+    } finally {
+      setPushLoading(false);
+    }
   }
 
   async function handleOpen() {
@@ -210,11 +249,40 @@ export default function AdminNotificationsBell() {
             )}
           </div>
 
-          <div className="border-t border-zinc-800 px-4 py-2">
+          <div className="border-t border-zinc-800 px-4 py-3">
+            {pushSupported ? (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void handleTogglePush()}
+                  disabled={pushLoading}
+                  className="flex w-full items-center justify-between gap-2 rounded border border-zinc-800 px-3 py-2 text-left transition hover:border-zinc-700 hover:bg-zinc-900/60 disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-2 text-xs text-zinc-300">
+                    <Monitor className="h-3.5 w-3.5 text-console" aria-hidden="true" />
+                    Notificações do Chrome
+                  </span>
+                  <span
+                    className={`font-mono text-[10px] uppercase tracking-[0.12em] ${
+                      pushEnabled ? 'text-emerald-400' : 'text-zinc-500'
+                    }`}
+                  >
+                    {pushLoading ? '…' : pushEnabled ? 'Ativas' : 'Ativar'}
+                  </span>
+                </button>
+                {pushError ? (
+                  <p className="text-[11px] leading-relaxed text-red-400">{pushError}</p>
+                ) : (
+                  <p className="text-[11px] leading-relaxed text-zinc-600">
+                    Receba alertas no navegador mesmo com o admin em segundo plano.
+                  </p>
+                )}
+              </div>
+            ) : null}
             <Link
               href="/admin/loja/pedidos"
               onClick={() => setOpen(false)}
-              className="block py-1 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 transition hover:text-zinc-300"
+              className="mt-2 block py-1 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 transition hover:text-zinc-300"
             >
               Ver todos os pedidos
             </Link>
