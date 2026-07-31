@@ -93,6 +93,30 @@ async function createPagarmeOrder(input: {
   });
 }
 
+function buildCreditCardPayment(
+  valueCents: number,
+  cardToken: string,
+  billingAddress: PagarmeBillingAddressInput
+): Record<string, unknown> {
+  const address = {
+    ...billingAddress,
+    country: billingAddress.country ?? 'BR',
+  };
+
+  return {
+    payment_method: 'credit_card',
+    amount: valueCents,
+    credit_card: {
+      installments: 1,
+      operation_type: 'auth_and_capture',
+      card_token: cardToken,
+      card: {
+        billing_address: address,
+      },
+    },
+  };
+}
+
 export async function chargePagarmeOneTimeOrder(input: {
   customerId: string;
   valueCents: number;
@@ -109,16 +133,11 @@ export async function chargePagarmeOneTimeOrder(input: {
     orderCode: input.orderCode,
     metadata: input.metadata,
     payments: [
-      {
-        payment_method: 'credit_card',
-        credit_card: {
-          card_token: input.cardToken,
-          billing_address: {
-            ...input.billingAddress,
-            country: input.billingAddress.country ?? 'BR',
-          },
-        },
-      },
+      buildCreditCardPayment(
+        input.valueCents,
+        input.cardToken,
+        input.billingAddress
+      ),
     ],
   });
 }
@@ -140,6 +159,7 @@ export async function createPagarmePixOrder(input: {
     payments: [
       {
         payment_method: 'pix',
+        amount: input.valueCents,
         pix: {
           expires_in: input.expiresInSeconds ?? 3600,
         },
