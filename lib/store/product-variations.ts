@@ -1,9 +1,49 @@
 import type { StoreProduct } from '@/lib/store/catalog';
 
+export type StoreProductVariationOption = {
+  label: string;
+  imageUrl?: string;
+};
+
 export type StoreProductVariation = {
   name: string;
-  options: string[];
+  options: StoreProductVariationOption[];
 };
+
+function parseVariationOption(raw: unknown): StoreProductVariationOption | null {
+  if (typeof raw === 'string') {
+    const label = raw.trim();
+    return label ? { label } : null;
+  }
+
+  if (!raw || typeof raw !== 'object') return null;
+
+  const label = (raw as { label?: unknown }).label;
+  if (typeof label !== 'string' || !label.trim()) return null;
+
+  const imageUrl = (raw as { imageUrl?: unknown }).imageUrl;
+  const normalizedImageUrl =
+    typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined;
+
+  return {
+    label: label.trim(),
+    ...(normalizedImageUrl ? { imageUrl: normalizedImageUrl } : {}),
+  };
+}
+
+export function getVariationOptionLabel(option: StoreProductVariationOption): string {
+  return option.label;
+}
+
+export function findVariationOption(
+  variation: StoreProductVariation,
+  label: string
+): StoreProductVariationOption | undefined {
+  const key = label.trim().toLocaleLowerCase('pt-BR');
+  return variation.options.find(
+    (option) => option.label.toLocaleLowerCase('pt-BR') === key
+  );
+}
 
 export function parseStoreProductVariations(raw: unknown): StoreProductVariation[] {
   if (!Array.isArray(raw)) return [];
@@ -18,9 +58,8 @@ export function parseStoreProductVariations(raw: unknown): StoreProductVariation
     if (!Array.isArray(options)) return [];
 
     const normalizedOptions = options
-      .filter((option): option is string => typeof option === 'string')
-      .map((option) => option.trim())
-      .filter(Boolean);
+      .map(parseVariationOption)
+      .filter((option): option is StoreProductVariationOption => Boolean(option));
 
     if (normalizedOptions.length === 0) return [];
 
@@ -46,16 +85,21 @@ export function normalizeStoreProductVariations(
     if (seenNames.has(nameKey)) return [];
     seenNames.add(nameKey);
 
-    const options: string[] = [];
+    const options: StoreProductVariationOption[] = [];
     const seenOptions = new Set<string>();
 
     for (const option of variation.options) {
-      const trimmed = option.trim();
-      if (!trimmed) continue;
-      const optionKey = trimmed.toLocaleLowerCase('pt-BR');
+      const label = option.label.trim();
+      if (!label) continue;
+      const optionKey = label.toLocaleLowerCase('pt-BR');
       if (seenOptions.has(optionKey)) continue;
       seenOptions.add(optionKey);
-      options.push(trimmed);
+
+      const imageUrl = option.imageUrl?.trim();
+      options.push({
+        label,
+        ...(imageUrl ? { imageUrl } : {}),
+      });
     }
 
     if (options.length === 0) return [];
@@ -73,6 +117,31 @@ export function productHasVariations(product: {
       product.variations &&
       product.variations.length > 0
   );
+}
+
+/** Produto com uma única dimensão de variação (ex.: variedades com imagem). */
+export function productHasSingleVariation(product: {
+  variationsEnabled?: boolean;
+  variations?: StoreProductVariation[];
+}): boolean {
+  return productHasVariations(product) && (product.variations?.length ?? 0) === 1;
+}
+
+export function resolveSelectedVariationImage(
+  product: Pick<StoreProduct, 'variationsEnabled' | 'variations'>,
+  selectedOptions?: Record<string, string>
+): string | undefined {
+  if (!selectedOptions || !productHasVariations(product)) return undefined;
+
+  for (const variation of product.variations ?? []) {
+    const selected = selectedOptions[variation.name]?.trim();
+    if (!selected) continue;
+
+    const option = findVariationOption(variation, selected);
+    if (option?.imageUrl) return option.imageUrl;
+  }
+
+  return undefined;
 }
 
 export function stableSelectedOptionsKey(
@@ -154,7 +223,7 @@ export function validateSelectedProductOptions(
       };
     }
 
-    if (!variation.options.includes(selected)) {
+    if (!findVariationOption(variation, selected)) {
       return {
         ok: false,
         error: `A opção "${selected}" não está disponível para ${variation.name}.`,

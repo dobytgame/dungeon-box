@@ -4,11 +4,14 @@ import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import StoreProductPurchaseActions from '@/components/store/StoreProductPurchaseActions';
+import VarietyProductPurchasePanel from '@/components/store/VarietyProductPurchasePanel';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import type { StoreProduct } from '@/lib/store/catalog';
 import {
   cartLineId,
+  getVariationOptionLabel,
+  productHasSingleVariation,
   productHasVariations,
   validateSelectedProductOptions,
 } from '@/lib/store/product-variations';
@@ -19,6 +22,14 @@ interface Props {
 }
 
 export default function StoreProductPurchasePanel({ product }: Props) {
+  if (productHasSingleVariation(product)) {
+    return <VarietyProductPurchasePanel product={product} />;
+  }
+
+  return <MultiVariationPurchasePanel product={product} />;
+}
+
+function MultiVariationPurchasePanel({ product }: Props) {
   const { lines, setQuantity } = useStoreCart();
   const addToCart = useAddToStoreCart(product);
   const [added, setAdded] = useState(false);
@@ -26,7 +37,8 @@ export default function StoreProductPurchasePanel({ product }: Props) {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const variation of product.variations ?? []) {
-      initial[variation.name] = variation.options[0] ?? '';
+      const first = variation.options[0];
+      initial[variation.name] = first ? getVariationOptionLabel(first) : '';
     }
     return initial;
   });
@@ -90,30 +102,50 @@ export default function StoreProductPurchasePanel({ product }: Props) {
         <div className="space-y-4 border-t border-white/[0.06] pt-4">
           {(product.variations ?? []).map((variation) => (
             <div key={variation.name}>
-              <label
-                htmlFor={`variation-${variation.name}`}
-                className="font-display text-[10px] uppercase tracking-widest text-stone-500"
-              >
+              <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
                 {variation.name}
-              </label>
-              <select
-                id={`variation-${variation.name}`}
-                value={selectedOptions[variation.name] ?? ''}
-                onChange={(event) => {
-                  setSelectedOptions((current) => ({
-                    ...current,
-                    [variation.name]: event.target.value,
-                  }));
-                  setSelectionError('');
-                }}
-                className="mt-2 w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white"
-              >
-                {variation.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {variation.options.map((option) => {
+                  const label = getVariationOptionLabel(option);
+                  const selected = selectedOptions[variation.name] === label;
+
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        setSelectedOptions((current) => ({
+                          ...current,
+                          [variation.name]: label,
+                        }));
+                        setSelectionError('');
+                      }}
+                      className={`flex cursor-pointer items-center gap-3 rounded-sm border px-3 py-2.5 text-left transition ${
+                        selected
+                          ? 'border-ember/50 bg-ember/10'
+                          : 'border-white/10 bg-stone-950 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-stone-900">
+                        {option.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={option.imageUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] text-stone-600">
+                            {label.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-sm text-white">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>

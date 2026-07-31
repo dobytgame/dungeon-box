@@ -8,9 +8,11 @@ import {
 } from '@/lib/store/monthly-kits';
 import {
   cartLineId,
+  findVariationOption,
   formatProductNameWithVariations,
   formatVariationSummary,
   productHasVariations,
+  resolveSelectedVariationImage,
   validateSelectedProductOptions,
 } from '@/lib/store/product-variations';
 import {
@@ -111,7 +113,7 @@ function normalizeSelectedOptions(
   const normalized: Record<string, string> = {};
   for (const variation of product.variations ?? []) {
     const value = selectedOptions[variation.name]?.trim();
-    if (value && variation.options.includes(value)) {
+    if (value && findVariationOption(variation, value)) {
       normalized[variation.name] = value;
     }
   }
@@ -210,7 +212,10 @@ export function resolveCartLines(
         lineId: cartLineId(line),
         name: formatProductNameWithVariations(product.name, line.selectedOptions),
         slug: product.slug,
-        imageUrl: product.imageUrl ?? product.galleryUrls?.[0],
+        imageUrl:
+          resolveSelectedVariationImage(product, line.selectedOptions) ??
+          product.imageUrl ??
+          product.galleryUrls?.[0],
         priceCents: product.priceCents,
         lineTotalCents: product.priceCents * line.quantity,
         maxQuantity: maxQuantityForCartProduct(product, line.productId),
