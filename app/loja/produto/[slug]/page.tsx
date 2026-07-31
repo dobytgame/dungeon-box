@@ -9,6 +9,7 @@ import RelatedProducts from '@/components/shop/RelatedProducts';
 import StoreProductAnalytics from '@/components/store/StoreProductAnalytics';
 import StoreProductPurchasePanel from '@/components/store/StoreProductPurchasePanel';
 import PersonalizedProductPurchasePanel from '@/components/store/PersonalizedProductPurchasePanel';
+import { buildStoreProductGalleryImages } from '@/lib/store/product-media';
 import { productRequiresUnitUploads } from '@/lib/store/personalized-product';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildStoreProductJsonLd } from '@/lib/seo/structured-data';
@@ -114,18 +115,14 @@ export default async function LojaProductPage({ params }: Props) {
       await loadRelatedProducts(admin, rawProduct)
     )
   );
-  const galleryImages = [
-    ...(product.imageUrl ? [product.imageUrl] : []),
-    ...(product.galleryUrls ?? []),
-  ].filter((url, index, list) => list.indexOf(url) === index);
+  const galleryImages = buildStoreProductGalleryImages(product);
 
   const jsonLd = buildStoreProductJsonLd({
     name: product.name,
     slug: product.slug,
     tagline: product.tagline,
     priceCents: product.priceCents,
-    imageUrl: product.imageUrl,
-    galleryUrls: product.galleryUrls,
+    images: galleryImages,
   });
 
   return (

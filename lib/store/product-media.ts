@@ -1,4 +1,6 @@
 import { parseGalleryUrls } from '@/lib/admin/store-upload';
+import type { StoreProduct } from '@/lib/store/catalog';
+import { collectVariationImageUrls } from '@/lib/store/product-variations';
 
 /** Dimensão de referência das fotos de produto (quadrado). */
 export const STORE_PRODUCT_IMAGE_SIZE = 800;
@@ -29,4 +31,25 @@ export function resolveStoreProductPrimaryImageUrl(
   const normalizedGallery = normalizeStoreGalleryUrls(galleryUrls);
   const primary = imageUrl?.trim();
   return primary || normalizedGallery[0] || undefined;
+}
+
+export function buildStoreProductGalleryImages(
+  product: Pick<StoreProduct, 'imageUrl' | 'galleryUrls' | 'variations'>
+): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  const candidates = [
+    ...(product.imageUrl?.trim() ? [product.imageUrl.trim()] : []),
+    ...normalizeStoreGalleryUrls(product.galleryUrls),
+    ...collectVariationImageUrls(product.variations),
+  ];
+
+  for (const url of candidates) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+  }
+
+  return urls;
 }

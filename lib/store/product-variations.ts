@@ -45,6 +45,27 @@ export function findVariationOption(
   );
 }
 
+/** URLs de imagem das opções de variação, na ordem cadastrada, sem duplicatas. */
+export function collectVariationImageUrls(
+  variations: StoreProductVariation[] | undefined
+): string[] {
+  if (!variations?.length) return [];
+
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  for (const variation of variations) {
+    for (const option of variation.options) {
+      const imageUrl = option.imageUrl?.trim();
+      if (!imageUrl || seen.has(imageUrl)) continue;
+      seen.add(imageUrl);
+      urls.push(imageUrl);
+    }
+  }
+
+  return urls;
+}
+
 export function parseStoreProductVariations(raw: unknown): StoreProductVariation[] {
   if (!Array.isArray(raw)) return [];
 

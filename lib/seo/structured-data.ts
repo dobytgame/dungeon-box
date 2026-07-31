@@ -1,4 +1,5 @@
 import { faqItems, plans } from '@/lib/data';
+import { buildStoreProductGalleryImages } from '@/lib/store/product-media';
 import {
   DEFAULT_OG_IMAGE,
   FAVICON_PATH,
@@ -116,15 +117,19 @@ export function buildStoreProductJsonLd(product: {
   slug: string;
   tagline: string;
   priceCents: number;
+  /** Lista final de imagens (principal + galeria + variações). */
+  images?: string[];
   imageUrl?: string;
   galleryUrls?: string[];
 }) {
   const siteUrl = getCanonicalSiteUrl();
   const productUrl = `${siteUrl}/loja/produto/${product.slug}`;
-  const images = [
-    ...(product.imageUrl ? [product.imageUrl] : []),
-    ...(product.galleryUrls ?? []),
-  ].filter((url, index, list) => list.indexOf(url) === index);
+  const images =
+    product.images ??
+    buildStoreProductGalleryImages({
+      imageUrl: product.imageUrl,
+      galleryUrls: product.galleryUrls,
+    });
 
   return {
     '@context': 'https://schema.org',
