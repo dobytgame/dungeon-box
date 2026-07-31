@@ -2,29 +2,39 @@
 
 import { useEffect, useState } from 'react';
 import {
-  ACTIVE_PAYMENT_PROVIDER,
   type CheckoutProvider,
   isCheckoutProvider,
 } from '@/lib/payments/public';
 
-export function useCheckoutProvider(): CheckoutProvider {
-  const [provider, setProvider] = useState<CheckoutProvider>(
-    ACTIVE_PAYMENT_PROVIDER
-  );
+export type CheckoutProviderState = {
+  provider: CheckoutProvider | null;
+  loaded: boolean;
+};
+
+export function useCheckoutProvider(): CheckoutProviderState {
+  const [state, setState] = useState<CheckoutProviderState>({
+    provider: null,
+    loaded: false,
+  });
 
   useEffect(() => {
     let cancelled = false;
 
-    void fetch('/api/checkout/provider')
+    void fetch(`/api/checkout/provider?_=${Date.now()}`, {
+      cache: 'no-store',
+    })
       .then((res) => res.json())
-      .then((payload: { provider?: string }) => {
+      .then((payload: { provider?: string | null }) => {
         if (cancelled) return;
-        if (payload.provider && isCheckoutProvider(payload.provider)) {
-          setProvider(payload.provider);
-        }
+        const next =
+          payload.provider && isCheckoutProvider(payload.provider)
+            ? payload.provider
+            : null;
+        setState({ provider: next, loaded: true });
       })
       .catch(() => {
-        // Mantém fallback do env.
+        if (cancelled) return;
+        setState({ provider: null, loaded: true });
       });
 
     return () => {
@@ -32,5 +42,5 @@ export function useCheckoutProvider(): CheckoutProvider {
     };
   }, []);
 
-  return provider;
+  return state;
 }

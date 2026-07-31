@@ -43,8 +43,10 @@ export function getPaymentProvider(): PaymentProvider | null {
 export async function getActivePaymentProvider(): Promise<PaymentProvider | null> {
   const fromDb = await readActiveGatewayFromDb();
 
-  if (fromDb === 'pagarme' && PAGARME_CONFIGURED) return 'pagarme';
-  if (fromDb === 'asaas' && ASAAS_CONFIGURED) return 'asaas';
+  // Escolha do admin sempre vence — rotas de criação validam se o gateway está configurado.
+  if (fromDb === 'pagarme' || fromDb === 'asaas') {
+    return fromDb;
+  }
 
   return resolveFromEnv();
 }

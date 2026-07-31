@@ -28,6 +28,9 @@ import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
 import { registerReferralAtCheckout } from '@/lib/referral/referrals';
 import { BILLING_TERMS } from '@/lib/checkout/combo-billing';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const bodySchema = z
   .object({
     planSlug: z.enum(PLAN_SLUGS).optional(),

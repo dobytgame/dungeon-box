@@ -33,6 +33,9 @@ import {
 } from '@/lib/checkout/combo-billing';
 import type { CheckoutData } from '@/lib/checkout/types';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const cardSchema = z.object({
   holderName: z.string().min(2).max(120),
   number: z.string().regex(/^\d{13,19}$/),

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AdminActiveGatewayNotice from '@/components/admin/AdminActiveGatewayNotice';
 import AdminCashFlowChart from '@/components/admin/AdminCashFlowChart';
 import AdminProfitMarginChart from '@/components/admin/AdminProfitMarginChart';
 import AdminSection from '@/components/admin/AdminSection';
@@ -74,6 +75,8 @@ export default async function AdminFinancePage({ searchParams }: Props) {
           Gateway
         </Link>
       </div>
+
+      <AdminActiveGatewayNotice />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

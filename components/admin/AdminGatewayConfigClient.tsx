@@ -7,12 +7,20 @@ interface Props {
   activeGateway: 'asaas' | 'pagarme';
   asaasConfigured: boolean;
   pagarmeConfigured: boolean;
+  pagarmeTokenizationReady: boolean;
+  effectiveProvider: 'asaas' | 'pagarme' | 'stripe' | null;
+  checkoutReady: boolean;
+  dbConfigured: boolean;
 }
 
 export default function AdminGatewayConfigClient({
   activeGateway,
   asaasConfigured,
   pagarmeConfigured,
+  pagarmeTokenizationReady,
+  effectiveProvider,
+  checkoutReady,
+  dbConfigured,
 }: Props) {
   const [gateway, setGateway] = useState(activeGateway);
   const [message, setMessage] = useState('');
@@ -68,9 +76,33 @@ export default function AdminGatewayConfigClient({
       </div>
 
       <ul className="space-y-2 text-xs text-stone-500">
+        <li>
+          Gateway no banco:{' '}
+          {dbConfigured ? activeGateway : 'não configurado (migration pendente?)'}
+        </li>
+        <li>
+          Checkout efetivo: {effectiveProvider ?? 'indisponível'}
+          {effectiveProvider && !checkoutReady ? ' — chaves incompletas' : ''}
+        </li>
         <li>Asaas: {asaasConfigured ? 'configurado' : 'não configurado'}</li>
-        <li>Pagar.me: {pagarmeConfigured ? 'configurado' : 'não configurado'}</li>
+        <li>
+          Pagar.me:{' '}
+          {pagarmeConfigured
+            ? pagarmeTokenizationReady
+              ? 'configurado'
+              : 'secret ok, falta NEXT_PUBLIC_PAGARME_PUBLIC_KEY'
+            : 'não configurado'}
+        </li>
       </ul>
+
+      {activeGateway === 'pagarme' && !checkoutReady ? (
+        <p className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+          Pagar.me selecionado, mas o checkout não está pronto. Confira{' '}
+          <code className="text-amber-200">PAGARME_SECRET_KEY</code> e{' '}
+          <code className="text-amber-200">NEXT_PUBLIC_PAGARME_PUBLIC_KEY</code>{' '}
+          no ambiente (local e Vercel) e faça redeploy.
+        </p>
+      ) : null}
 
       {message ? (
         <p className="text-sm text-emerald-300" role="status">
