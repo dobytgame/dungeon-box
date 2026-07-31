@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Bell,
   CreditCard,
   Handshake,
   Landmark,
@@ -27,6 +28,7 @@ import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
 import { isAdminStoreNavActive } from '@/lib/admin/store-nav';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
+  bell: Bell,
   'layout-dashboard': LayoutDashboard,
   mail: Mail,
   handshake: Handshake,

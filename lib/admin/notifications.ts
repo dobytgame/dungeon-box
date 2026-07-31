@@ -1,15 +1,26 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  adminNotificationMatchesCategory,
+  resolveAdminNotificationHref,
+  type AdminNotificationCategory,
+} from '@/lib/admin/notification-display';
 import { triggerAdminBrowserPush } from '@/lib/admin/trigger-browser-push';
 
 export type AdminNotificationType =
   | 'store_order_payment_pending'
   | 'store_order_payment_approved'
-  | 'store_order_payment_failed';
+  | 'store_order_payment_failed'
+  | 'subscription_pending'
+  | 'subscription_activated'
+  | 'subscription_payment_failed'
+  | 'subscription_renewal_paid'
+  | 'subscription_cancelled';
 
 export type AdminNotificationRow = {
   id: string;
   type: AdminNotificationType;
   payment_id: string | null;
+  subscription_id: string | null;
   order_id: string;
   user_id: string | null;
   title: string;
@@ -27,6 +38,7 @@ export async function createAdminNotification(
   input: {
     type: AdminNotificationType;
     paymentId?: string | null;
+    subscriptionId?: string | null;
     orderId: string;
     userId?: string | null;
     title: string;
@@ -40,6 +52,7 @@ export async function createAdminNotification(
   const row = {
     type: input.type,
     payment_id: input.paymentId ?? null,
+    subscription_id: input.subscriptionId ?? null,
     order_id: input.orderId,
     user_id: input.userId ?? null,
     title: input.title,
@@ -58,29 +71,38 @@ export async function createAdminNotification(
     return;
   }
 
-  const url = input.paymentId
-    ? `/admin/loja/pedidos?paymentId=${encodeURIComponent(input.paymentId)}`
-    : '/admin/loja/pedidos';
+  const url = resolveAdminNotificationHref({
+    type: input.type,
+    paymentId: input.paymentId,
+    orderId: input.orderId,
+    subscriptionId: input.subscriptionId,
+  });
 
   void triggerAdminBrowserPush({
     title: input.title,
     body: input.body,
     url,
-    tag: input.paymentId ?? input.orderId,
+    tag: input.paymentId ?? input.subscriptionId ?? input.orderId,
   });
 }
 
 export async function listAdminNotifications(
   admin: SupabaseClient,
-  options?: { limit?: number; unreadOnly?: boolean }
+  options?: {
+    limit?: number;
+    offset?: number;
+    unreadOnly?: boolean;
+    category?: AdminNotificationCategory;
+  }
 ): Promise<AdminNotificationRow[]> {
   const limit = options?.limit ?? 30;
+  const offset = options?.offset ?? 0;
 
   let query = admin
     .from('admin_notifications')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
 
   if (options?.unreadOnly) {
     query = query.is('read_at', null);
@@ -93,23 +115,40 @@ export async function listAdminNotifications(
     return [];
   }
 
-  return (data ?? []) as AdminNotificationRow[];
+  const rows = (data ?? []) as AdminNotificationRow[];
+  const category = options?.category ?? 'all';
+
+  return rows.filter((row) => adminNotificationMatchesCategory(row.type, category));
 }
 
-export async function countUnreadAdminNotifications(
-  admin: SupabaseClient
+export async function countAdminNotifications(
+  admin: SupabaseClient,
+  options?: { unreadOnly?: boolean; category?: AdminNotificationCategory }
 ): Promise<number> {
-  const { count, error } = await admin
+  const { data, error } = await admin
     .from('admin_notifications')
-    .select('id', { count: 'exact', head: true })
-    .is('read_at', null);
+    .select('id, type, read_at')
+    .order('created_at', { ascending: false })
+    .limit(5000);
 
   if (error) {
     console.error('[admin] count notifications:', error.message);
     return 0;
   }
 
-  return count ?? 0;
+  const category = options?.category ?? 'all';
+
+  return (data ?? []).filter((row) => {
+    if (options?.unreadOnly && row.read_at) return false;
+    return adminNotificationMatchesCategory(row.type as AdminNotificationType, category);
+  }).length;
+}
+
+export async function countUnreadAdminNotifications(
+  admin: SupabaseClient,
+  category?: AdminNotificationCategory
+): Promise<number> {
+  return countAdminNotifications(admin, { unreadOnly: true, category });
 }
 
 export async function markAdminNotificationRead(
@@ -129,15 +168,43 @@ export async function markAdminNotificationRead(
 }
 
 export async function markAllAdminNotificationsRead(
-  admin: SupabaseClient
+  admin: SupabaseClient,
+  category?: AdminNotificationCategory
 ): Promise<void> {
+  if (!category || category === 'all') {
+    const now = new Date().toISOString();
+    const { error } = await admin
+      .from('admin_notifications')
+      .update({ read_at: now })
+      .is('read_at', null);
+
+    if (error) {
+      console.error('[admin] mark all notifications read:', error.message);
+    }
+    return;
+  }
+
+  const { data: rows } = await admin
+    .from('admin_notifications')
+    .select('id, type, read_at')
+    .is('read_at', null)
+    .limit(5000);
+
+  const ids = (rows ?? [])
+    .filter((row) =>
+      adminNotificationMatchesCategory(row.type as AdminNotificationType, category)
+    )
+    .map((row) => row.id as string);
+
+  if (ids.length === 0) return;
+
   const now = new Date().toISOString();
   const { error } = await admin
     .from('admin_notifications')
     .update({ read_at: now })
-    .is('read_at', null);
+    .in('id', ids);
 
   if (error) {
-    console.error('[admin] mark all notifications read:', error.message);
+    console.error('[admin] mark category notifications read:', error.message);
   }
 }

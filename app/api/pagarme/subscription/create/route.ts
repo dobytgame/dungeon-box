@@ -15,6 +15,7 @@ import {
   createPagarmeSubscription,
 } from '@/lib/pagarme/subscription-checkout';
 import { syncPagarmeSubscriptionPayments } from '@/lib/pagarme/reconcile-pending';
+import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { isActivePagarmeCheckout } from '@/lib/payments/provider';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
@@ -330,6 +331,18 @@ export async function POST(request: Request) {
         result.pagarmeSubscriptionId
       ).catch((err) => {
         console.error('[pagarme] post-create sync failed:', err);
+      });
+
+      void notifyAdminSubscriptionEvent(createAdminClient(), {
+        type: 'subscription_pending',
+        subscriptionId: result.subscriptionId,
+        userId: user.id,
+        amountCents: chargePriceCents,
+        paymentMethod: 'credit_card',
+        gateway: 'pagarme',
+        planName: planDescription,
+      }).catch((err) => {
+        console.error('[admin] subscription pending notify failed:', err);
       });
 
       created.push({

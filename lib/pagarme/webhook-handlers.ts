@@ -8,6 +8,7 @@ import {
   handleStoreOrderPagarmeChargePaid,
   handleStoreOrderPagarmePaymentFailed,
 } from '@/lib/asaas/store-order-payment';
+import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { activateSubscriptionFromPagarme } from '@/lib/subscriptions/activate-pagarme';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
@@ -107,6 +108,18 @@ export async function handlePagarmeChargePaid(
         console.error('[email] pagarme purchase completed notify failed:', err);
       }
     );
+    void notifyAdminSubscriptionEvent(supabase, {
+      type: 'subscription_activated',
+      subscriptionId: local.id,
+      userId: local.user_id,
+      paymentId: paymentRow?.id ?? null,
+      amountCents,
+      paymentMethod: 'credit_card',
+      gateway: 'pagarme',
+      cycleNumber: 1,
+    }).catch((err) => {
+      console.error('[admin] subscription activated notify failed:', err);
+    });
     return 'processed';
   }
 
@@ -126,6 +139,18 @@ export async function handlePagarmeChargePaid(
         periodEnd.toISOString()
       );
     }
+    void notifyAdminSubscriptionEvent(supabase, {
+      type: 'subscription_renewal_paid',
+      subscriptionId: local.id,
+      userId: local.user_id,
+      paymentId: paymentRow?.id ?? null,
+      amountCents,
+      paymentMethod: 'credit_card',
+      gateway: 'pagarme',
+      cycleNumber: local.current_cycle,
+    }).catch((err) => {
+      console.error('[admin] subscription renewal notify failed:', err);
+    });
     return 'processed';
   }
 
@@ -146,6 +171,14 @@ export async function handlePagarmeSubscriptionCanceled(
   await applySubscriptionStatusChange(supabase, local.id, 'cancel', {});
   await cleanupSubscriptionCyclesOnCancel(supabase, local.id);
   await cancelReferralForSubscription(supabase, local.id);
+  void notifyAdminSubscriptionEvent(supabase, {
+    type: 'subscription_cancelled',
+    subscriptionId: local.id,
+    userId: local.user_id,
+    gateway: 'pagarme',
+  }).catch((err) => {
+    console.error('[admin] subscription cancelled notify failed:', err);
+  });
   return 'processed';
 }
 
@@ -178,6 +211,15 @@ export async function handlePagarmeChargeFailed(
       updated_at: new Date().toISOString(),
     })
     .eq('id', local.id);
+  void notifyAdminSubscriptionEvent(supabase, {
+    type: 'subscription_payment_failed',
+    subscriptionId: local.id,
+    userId: local.user_id,
+    gateway: 'pagarme',
+    detail: 'Cobrança recusada pelo Pagar.me.',
+  }).catch((err) => {
+    console.error('[admin] subscription payment failed notify:', err);
+  });
   return 'processed';
 }
 

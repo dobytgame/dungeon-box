@@ -14,6 +14,7 @@ import { userFacingAsaasError } from '@/lib/asaas/errors';
 import { syncAsaasSubscriptionPayments } from '@/lib/asaas/payment-sync';
 import { syncComboPaymentIfPending } from '@/lib/asaas/combo-payment';
 import { createAsaasSubscription } from '@/lib/asaas/subscription-checkout';
+import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { isActiveAsaasCheckout } from '@/lib/payments/provider';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
 import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
@@ -436,6 +437,18 @@ export async function POST(request: Request) {
           result.asaasCustomerId
         );
       }
+
+      void notifyAdminSubscriptionEvent(createAdminClient(), {
+        type: 'subscription_pending',
+        subscriptionId: result.subscriptionId,
+        userId: user.id,
+        amountCents: chargePriceCents,
+        paymentMethod: 'credit_card',
+        gateway: 'asaas',
+        planName: planDescription,
+      }).catch((err) => {
+        console.error('[admin] subscription pending notify failed:', err);
+      });
 
       created.push({
         subscriptionId: result.subscriptionId,

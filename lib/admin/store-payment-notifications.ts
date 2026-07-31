@@ -3,6 +3,7 @@ import {
   createAdminNotification,
   type AdminNotificationType,
 } from '@/lib/admin/notifications';
+import { adminNotificationDefaultTitle } from '@/lib/admin/notification-display';
 import { formatMoney } from '@/lib/dashboard/format';
 import {
   parseStoreOrderMeta,
@@ -32,16 +33,7 @@ function formatGatewayLabel(gateway?: string | null): string {
 }
 
 function notificationTitle(type: AdminNotificationType): string {
-  switch (type) {
-    case 'store_order_payment_pending':
-      return 'Novo pedido — aguardando pagamento';
-    case 'store_order_payment_approved':
-      return 'Pedido pago na loja';
-    case 'store_order_payment_failed':
-      return 'Pagamento recusado na loja';
-    default:
-      return 'Pedido da loja';
-  }
+  return adminNotificationDefaultTitle(type);
 }
 
 export async function notifyAdminStoreOrderPayment(
@@ -96,6 +88,7 @@ export async function notifyAdminStoreOrderPayment(
     paymentMethod: input.paymentMethod ?? null,
     gateway,
     metadata: {
+      category: 'store',
       itemsSummary,
       customerEmail: profile?.email ?? null,
       customerName: customerLabel,

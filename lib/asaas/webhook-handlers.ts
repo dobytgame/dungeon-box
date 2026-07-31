@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { resolveLocalAsaasSubscription } from '@/lib/asaas/resolve-local-subscription';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
@@ -211,6 +212,18 @@ export async function handleAsaasPaymentConfirmed(
     void notifyReferrerOnReferralConverted(supabase, local.id).catch((err) => {
       console.error('[email] referral converted notify failed:', err);
     });
+    void notifyAdminSubscriptionEvent(supabase, {
+      type: 'subscription_activated',
+      subscriptionId: local.id,
+      userId: local.user_id,
+      paymentId: paymentRow?.id ?? null,
+      amountCents,
+      paymentMethod: payment.billingType?.toLowerCase() ?? 'credit_card',
+      gateway: 'asaas',
+      cycleNumber: 1,
+    }).catch((err) => {
+      console.error('[admin] subscription activated notify failed:', err);
+    });
     return 'processed';
   }
 
@@ -232,6 +245,19 @@ export async function handleAsaasPaymentConfirmed(
       periodEnd.toISOString()
     );
   }
+
+  void notifyAdminSubscriptionEvent(supabase, {
+    type: 'subscription_renewal_paid',
+    subscriptionId: local.id,
+    userId: local.user_id,
+    paymentId: paymentRow?.id ?? null,
+    amountCents,
+    paymentMethod: payment.billingType?.toLowerCase() ?? 'credit_card',
+    gateway: 'asaas',
+    cycleNumber: local.current_cycle,
+  }).catch((err) => {
+    console.error('[admin] subscription renewal notify failed:', err);
+  });
 
   if (appliedUpgrade) {
     const { data: billingRow } = await supabase
@@ -290,6 +316,16 @@ export async function handleAsaasPaymentOverdue(
     })
     .eq('id', local.id);
 
+  void notifyAdminSubscriptionEvent(supabase, {
+    type: 'subscription_payment_failed',
+    subscriptionId: local.id,
+    userId: local.user_id,
+    gateway: 'asaas',
+    detail: 'Pagamento em atraso no Asaas.',
+  }).catch((err) => {
+    console.error('[admin] subscription payment failed notify:', err);
+  });
+
   return 'processed';
 }
 
@@ -326,6 +362,15 @@ export async function handleAsaasPaymentRefunded(
 
     void notifySubscriptionCancelled(supabase, local.id).catch((err) => {
       console.error('[email] subscription cancelled notify failed:', err);
+    });
+    void notifyAdminSubscriptionEvent(supabase, {
+      type: 'subscription_cancelled',
+      subscriptionId: local.id,
+      userId: local.user_id,
+      gateway: 'asaas',
+      detail: 'Estorno via Asaas.',
+    }).catch((err) => {
+      console.error('[admin] subscription cancelled notify failed:', err);
     });
   }
 

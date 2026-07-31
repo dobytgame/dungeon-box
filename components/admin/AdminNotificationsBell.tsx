@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CheckCheck, Loader2, Monitor, ShoppingBag } from 'lucide-react';
 import type { AdminNotificationRow } from '@/lib/admin/notifications';
 import {
+  resolveAdminNotificationHref,
+} from '@/lib/admin/notification-display';
+import {
   isAdminPushEnabledLocally,
   isBrowserPushSupported,
   subscribeAdminBrowserPush,
@@ -13,18 +16,18 @@ import {
 } from '@/lib/admin/push-client';
 import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
 
-function notificationHref(notification: AdminNotificationRow): string {
-  if (notification.payment_id) {
-    return `/admin/loja/pedidos?paymentId=${encodeURIComponent(notification.payment_id)}`;
-  }
-  return '/admin/loja/pedidos';
-}
-
 function notificationIcon(type: AdminNotificationRow['type']) {
-  if (type === 'store_order_payment_approved') {
+  if (
+    type === 'store_order_payment_approved' ||
+    type === 'subscription_activated' ||
+    type === 'subscription_renewal_paid'
+  ) {
     return 'text-emerald-400';
   }
-  if (type === 'store_order_payment_failed') {
+  if (
+    type === 'store_order_payment_failed' ||
+    type === 'subscription_payment_failed'
+  ) {
     return 'text-red-400';
   }
   return 'text-amber-400';
@@ -174,7 +177,7 @@ export default function AdminNotificationsBell() {
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-500">
                 Notificações
               </p>
-              <p className="text-sm text-zinc-200">Pedidos da loja</p>
+              <p className="text-sm text-zinc-200">Loja e assinaturas</p>
             </div>
             {unreadCount > 0 ? (
               <button
@@ -205,7 +208,12 @@ export default function AdminNotificationsBell() {
                   return (
                     <li key={notification.id}>
                       <Link
-                        href={notificationHref(notification)}
+                        href={resolveAdminNotificationHref({
+                          type: notification.type,
+                          paymentId: notification.payment_id,
+                          orderId: notification.order_id,
+                          subscriptionId: notification.subscription_id,
+                        })}
                         onClick={() => {
                           if (unread) void markRead(notification.id);
                           setOpen(false);
@@ -280,11 +288,11 @@ export default function AdminNotificationsBell() {
               </div>
             ) : null}
             <Link
-              href="/admin/loja/pedidos"
+              href="/admin/notificacoes"
               onClick={() => setOpen(false)}
               className="mt-2 block py-1 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 transition hover:text-zinc-300"
             >
-              Ver todos os pedidos
+              Ver todas as notificações
             </Link>
           </div>
         </div>

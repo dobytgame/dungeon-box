@@ -8,6 +8,14 @@ export const ADMIN_NAV = [
     group: 'operacao',
   },
   {
+    href: '/admin/notificacoes',
+    label: 'Notificações',
+    eyebrow: 'Alertas',
+    description: 'Pedidos da loja, assinaturas e pagamentos em um só lugar.',
+    icon: 'bell',
+    group: 'operacao',
+  },
+  {
     href: '/admin/parceiros',
     label: 'Parceiros',
     eyebrow: 'Guilda',
