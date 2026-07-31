@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { getClientIpFromRequest } from '@/lib/asaas/client-ip';
-import { isAsaasCheckout } from '@/lib/payments/provider';
+import { isStorePaymentReady } from '@/lib/store/payment-config';
 import { purchaseStoreOrder } from '@/lib/store/checkout';
 import { createClient } from '@/lib/supabase/server';
 import { assertPublicStoreCheckoutItems } from '@/lib/store/access';
@@ -113,9 +112,12 @@ async function validateProfileAndAddress(
 }
 
 export async function POST(request: Request) {
-  if (!ASAAS_CONFIGURED || !isAsaasCheckout()) {
+  if (!isStorePaymentReady()) {
     return NextResponse.json(
-      { error: 'Loja disponível apenas via Asaas.' },
+      {
+        error:
+          'Pagamentos da loja indisponíveis. A loja usa Asaas (cartão e PIX), independente do gateway de assinaturas.',
+      },
       { status: 503 }
     );
   }

@@ -5,6 +5,7 @@ import {
   getManageableSubscriptions,
 } from '@/lib/dashboard/queries';
 import { getStorePaymentConfig } from '@/lib/store/payment-config';
+import { getActivePaymentProvider } from '@/lib/payments/provider';
 import { createClient } from '@/lib/supabase/server';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
@@ -24,6 +25,7 @@ export default async function LojaCheckoutPage() {
   ]);
 
   const paymentConfig = getStorePaymentConfig();
+  const subscriptionGateway = await getActivePaymentProvider();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -43,6 +45,15 @@ export default async function LojaCheckoutPage() {
           Pagamentos da loja temporariamente indisponíveis.
           {paymentConfig.issue ? ` ${paymentConfig.issue}` : ''}
         </div>
+      ) : subscriptionGateway === 'pagarme' ? (
+        <p
+          className="mb-6 rounded-sm border border-white/10 bg-stone-950/50 px-4 py-3 text-sm text-stone-400"
+          role="status"
+        >
+          Pagamento processado via{' '}
+          <span className="text-stone-200">Asaas</span> (cartão ou PIX). O gateway
+          Pagar.me aplica-se apenas a assinaturas.
+        </p>
       ) : null}
       <StoreCheckoutForm
         addresses={addresses}

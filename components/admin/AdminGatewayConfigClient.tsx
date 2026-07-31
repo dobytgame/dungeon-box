@@ -48,6 +48,12 @@ export default function AdminGatewayConfigClient({
         afetados — cada assinatura continua no gateway em que foi criada.
       </p>
 
+      <p className="rounded-sm border border-white/10 bg-stone-950/50 px-4 py-3 text-sm text-stone-400">
+        A <span className="text-stone-200">loja</span> (`/loja/checkout`) continua
+        sempre no <span className="text-stone-200">Asaas</span> (cartão e PIX), mesmo
+        com Pagar.me selecionado aqui.
+      </p>
+
       <div className="flex flex-wrap gap-3">
         <button
           type="button"

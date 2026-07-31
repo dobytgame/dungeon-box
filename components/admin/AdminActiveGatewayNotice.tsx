@@ -46,11 +46,16 @@ export default async function AdminActiveGatewayNotice() {
             Gateway de assinaturas
           </p>
           <p className="mt-0.5 text-sm">
-            Novos checkouts:{' '}
+            Assinaturas (novos checkouts):{' '}
             <span className="font-medium text-white">{label}</span>
             {!checkoutReady ? (
               <span className="text-amber-200/90"> — chaves incompletas no ambiente</span>
             ) : null}
+          </p>
+          <p className="mt-1 text-xs opacity-80">
+            Loja (`/loja/checkout`): sempre{' '}
+            <span className="text-white/90">Asaas</span> (cartão + PIX) — não segue
+            este toggle.
           </p>
           {!fromDb ? (
             <p className="mt-1 text-xs opacity-80">

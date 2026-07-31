@@ -1,32 +1,36 @@
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import { getPaymentProvider } from '@/lib/payments/provider';
 
 export type StorePaymentMethod = 'credit_card' | 'pix';
 
+/** Loja v1: sempre Asaas (cartão + PIX), independente do toggle de assinaturas. */
+export const STORE_CHECKOUT_GATEWAY = 'asaas' as const;
+
 export type StorePaymentConfig = {
   ready: boolean;
-  provider: ReturnType<typeof getPaymentProvider>;
+  provider: typeof STORE_CHECKOUT_GATEWAY;
   methods: StorePaymentMethod[];
   issue?: string;
 };
 
+/** Checkout da loja disponível quando o Asaas está configurado. */
+export function isStorePaymentReady(): boolean {
+  return ASAAS_CONFIGURED;
+}
+
 /** Valida se o checkout da loja pode cobrar via Asaas (cartão + PIX). */
 export function getStorePaymentConfig(): StorePaymentConfig {
-  const provider = getPaymentProvider();
-
   if (!ASAAS_CONFIGURED) {
     return {
       ready: false,
-      provider,
+      provider: STORE_CHECKOUT_GATEWAY,
       methods: [],
       issue: 'Asaas não configurado (ASAAS_API_KEY ausente).',
     };
   }
 
-  // Loja sempre usa Asaas, independente do gateway de assinaturas.
   return {
     ready: true,
-    provider: 'asaas',
+    provider: STORE_CHECKOUT_GATEWAY,
     methods: ['credit_card', 'pix'],
   };
 }
