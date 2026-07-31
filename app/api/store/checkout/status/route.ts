@@ -34,5 +34,6 @@ export async function GET(request: Request) {
     state: result.state,
     pix: result.pix ?? null,
     order: result.order ?? null,
+    amountCents: result.amountCents ?? null,
   });
 }

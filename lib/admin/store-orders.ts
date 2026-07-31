@@ -161,6 +161,7 @@ export function countAdminStoreOrdersByStatus(
 export async function listAdminStoreOrders(
   admin: SupabaseClient,
   options?: {
+    userId?: string;
     q?: string;
     status?: string;
     shipping?: 'standalone' | 'bundled' | '';
@@ -169,7 +170,7 @@ export async function listAdminStoreOrders(
 ): Promise<AdminStoreOrderListRow[]> {
   const limit = options?.limit ?? 200;
 
-  const { data, error } = await admin
+  let query = admin
     .from('payments')
     .select(
       `
@@ -187,6 +188,12 @@ export async function listAdminStoreOrders(
     .ilike('status_detail', '%store_order%')
     .order('created_at', { ascending: false })
     .limit(limit);
+
+  if (options?.userId) {
+    query = query.eq('user_id', options.userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[admin] listAdminStoreOrders:', error.message);

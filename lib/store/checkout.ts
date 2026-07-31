@@ -11,8 +11,11 @@ import {
 } from '@/lib/asaas/payment-status';
 import { isAsaasPaymentPending } from '@/lib/asaas/payment-details';
 import {
+  attachAsaasPaymentToStoreOrder,
   buildStoreOrderExternalReference,
+  createPendingStoreOrderPayment,
   fulfillApprovedStoreOrder,
+  markStoreOrderPaymentFailed,
   notifyStoreOrderConfirmed,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
@@ -560,6 +563,20 @@ export async function purchaseStoreOrder(
   };
 
   try {
+    const pendingPayment = await createPendingStoreOrderPayment(admin, {
+      userId: input.userId,
+      subscriptionId: primaryBundleSubscriptionId,
+      amountCents: totalCents,
+      paymentMethod: input.paymentMethod,
+      orderMeta,
+    });
+
+    if ('error' in pendingPayment) {
+      return { error: pendingPayment.error };
+    }
+
+    const localPaymentId = pendingPayment.id;
+
     const asaasCustomerId = await getOrCreateAsaasCustomer(
       input.supabase,
       profileRow,
@@ -574,32 +591,11 @@ export async function purchaseStoreOrder(
         externalReference,
       });
 
-      const { data: paymentRow, error: paymentError } = await admin
-        .from('payments')
-        .upsert(
-          {
-            user_id: input.userId,
-            subscription_id: primaryBundleSubscriptionId,
-            asaas_payment_id: payment.id,
-            amount_cents: totalCents,
-            currency: 'BRL',
-            status: 'pending',
-            status_detail: JSON.stringify(orderMeta),
-            paid_at: null,
-            payment_method: 'pix',
-          },
-          { onConflict: 'asaas_payment_id' }
-        )
-        .select('id')
-        .single();
-
-      if (paymentError) {
-        console.error('[store] payment record:', paymentError);
-      }
+      await attachAsaasPaymentToStoreOrder(admin, localPaymentId, payment.id);
 
       return {
         pending: true,
-        paymentId: paymentRow?.id ?? payment.id,
+        paymentId: localPaymentId,
         orderId,
         pix: payment.pix,
       };
@@ -626,39 +622,27 @@ export async function purchaseStoreOrder(
     const approved = isAsaasPaymentConfirmed(payment.status);
     const paidAt = approved ? now : null;
 
-    const { data: paymentRow, error: paymentError } = await admin
-      .from('payments')
-      .upsert(
-        {
-          user_id: input.userId,
-          subscription_id: primaryBundleSubscriptionId,
-          asaas_payment_id: payment.id,
-          amount_cents: totalCents,
-          currency: 'BRL',
-          status: approved ? 'approved' : 'pending',
-          status_detail: JSON.stringify(orderMeta),
-          paid_at: paidAt,
-          payment_method: 'credit_card',
-        },
-        { onConflict: 'asaas_payment_id' }
-      )
-      .select('id')
-      .single();
-
-    if (paymentError) {
-      console.error('[store] payment record:', paymentError);
-    }
+    await attachAsaasPaymentToStoreOrder(admin, localPaymentId, payment.id, {
+      status: approved ? 'approved' : 'pending',
+      paid_at: paidAt,
+    });
 
     if (!approved) {
       if (input.paymentMethod === 'credit_card') {
         if (isAsaasPaymentPending(payment.status)) {
           return {
             pending: true,
-            paymentId: paymentRow?.id ?? payment.id,
+            paymentId: localPaymentId,
             orderId,
             awaitingReview: true,
           };
         }
+
+        await markStoreOrderPaymentFailed(
+          admin,
+          localPaymentId,
+          userFacingStoreCardPaymentError(payment.status)
+        );
 
         return {
           error: userFacingStoreCardPaymentError(payment.status),
@@ -667,7 +651,7 @@ export async function purchaseStoreOrder(
 
       return {
         pending: true,
-        paymentId: paymentRow?.id ?? payment.id,
+        paymentId: localPaymentId,
         orderId,
       };
     }
@@ -681,7 +665,7 @@ export async function purchaseStoreOrder(
 
     return {
       success: true,
-      paymentId: paymentRow?.id ?? payment.id,
+      paymentId: localPaymentId,
       orderId,
     };
   } catch (error) {

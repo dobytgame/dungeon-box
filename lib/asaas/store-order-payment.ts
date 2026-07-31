@@ -289,6 +289,109 @@ function findPaintKitBumpInOrderMeta(
   return null;
 }
 
+export async function findStoreOrderPaymentRow(
+  supabase: SupabaseClient,
+  userId: string,
+  orderId: string
+) {
+  const { data: rows } = await supabase
+    .from('payments')
+    .select(
+      'id, status, status_detail, asaas_payment_id, amount_cents, payment_method, created_at'
+    )
+    .eq('user_id', userId)
+    .ilike('status_detail', '%store_order%')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  return (
+    (rows ?? []).find((row) => {
+      const meta = parseStoreOrderMeta(row.status_detail);
+      return meta?.orderId === orderId;
+    }) ?? null
+  );
+}
+
+export async function createPendingStoreOrderPayment(
+  admin: SupabaseClient,
+  input: {
+    userId: string;
+    subscriptionId: string | null;
+    amountCents: number;
+    paymentMethod: 'credit_card' | 'pix';
+    orderMeta: StoreOrderMeta;
+  }
+): Promise<{ id: string } | { error: string }> {
+  const { data, error } = await admin
+    .from('payments')
+    .insert({
+      user_id: input.userId,
+      subscription_id: input.subscriptionId,
+      asaas_payment_id: null,
+      amount_cents: input.amountCents,
+      currency: 'BRL',
+      status: 'pending',
+      status_detail: JSON.stringify(input.orderMeta),
+      paid_at: null,
+      payment_method: input.paymentMethod,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data?.id) {
+    return {
+      error: error?.message ?? 'Não foi possível registrar o pedido.',
+    };
+  }
+
+  return { id: data.id as string };
+}
+
+export async function attachAsaasPaymentToStoreOrder(
+  admin: SupabaseClient,
+  localPaymentId: string,
+  asaasPaymentId: string,
+  patch?: {
+    status?: string;
+    paid_at?: string | null;
+  }
+): Promise<void> {
+  const { error } = await admin
+    .from('payments')
+    .update({
+      asaas_payment_id: asaasPaymentId,
+      ...patch,
+    })
+    .eq('id', localPaymentId);
+
+  if (error) {
+    console.error('[store] attach asaas payment:', localPaymentId, error.message);
+  }
+}
+
+export async function markStoreOrderPaymentFailed(
+  admin: SupabaseClient,
+  localPaymentId: string,
+  detail?: string
+): Promise<void> {
+  if (!detail) return;
+
+  const { data } = await admin
+    .from('payments')
+    .select('status_detail')
+    .eq('id', localPaymentId)
+    .maybeSingle();
+
+  const meta = parseStoreOrderMeta(data?.status_detail);
+  if (!meta) return;
+
+  const nextMeta = { ...meta, paymentError: detail };
+  await admin
+    .from('payments')
+    .update({ status_detail: JSON.stringify(nextMeta) })
+    .eq('id', localPaymentId);
+}
+
 export async function fulfillApprovedStoreOrder(
   supabase: SupabaseClient,
   userId: string,
@@ -492,18 +595,11 @@ async function recoverStoreOrderPaymentFromWebhook(
   payment: AsaasWebhookPayment,
   reference: { userId: string; orderId: string }
 ): Promise<'processed' | 'skipped'> {
-  const { data: rows } = await supabase
-    .from('payments')
-    .select('id, asaas_payment_id, status, status_detail, amount_cents')
-    .eq('user_id', reference.userId)
-    .ilike('status_detail', '%store_order%')
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  const paymentRow = (rows ?? []).find((row) => {
-    const meta = parseStoreOrderMeta(row.status_detail);
-    return meta?.orderId === reference.orderId;
-  });
+  const paymentRow = await findStoreOrderPaymentRow(
+    supabase,
+    reference.userId,
+    reference.orderId
+  );
 
   if (paymentRow) {
     if (!paymentRow.asaas_payment_id) {
@@ -576,6 +672,7 @@ export type StoreOrderStatusResult = {
   state: 'approved' | 'pending' | 'not_found';
   pix?: AsaasPixQrCode;
   order?: StoreOrderPurchaseAnalytics;
+  amountCents?: number | null;
 };
 
 function buildOrderStatusResult(
@@ -587,6 +684,7 @@ function buildOrderStatusResult(
   const order = meta ? buildStoreOrderPurchaseAnalytics(meta, amountCents) : null;
   return {
     state,
+    amountCents: amountCents ?? null,
     ...(pix ? { pix } : {}),
     ...(order ? { order } : {}),
   };
@@ -597,19 +695,9 @@ export async function syncStoreOrderPaymentByOrderId(
   userId: string,
   orderId: string
 ): Promise<StoreOrderStatusResult> {
-  const { data: rows } = await supabase
-    .from('payments')
-    .select('id, status, status_detail, asaas_payment_id, amount_cents')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50);
+  const paymentRow = await findStoreOrderPaymentRow(supabase, userId, orderId);
 
-  const paymentRow = (rows ?? []).find((row) => {
-    const meta = parseStoreOrderMeta(row.status_detail);
-    return meta?.orderId === orderId;
-  });
-
-  if (!paymentRow?.asaas_payment_id) {
+  if (!paymentRow) {
     return { state: 'not_found' };
   }
 
@@ -621,6 +709,10 @@ export async function syncStoreOrderPaymentByOrderId(
       'approved',
       paymentRow.amount_cents
     );
+  }
+
+  if (!paymentRow.asaas_payment_id) {
+    return buildOrderStatusResult(meta, 'pending', paymentRow.amount_cents);
   }
 
   let remoteStatus: string | undefined;

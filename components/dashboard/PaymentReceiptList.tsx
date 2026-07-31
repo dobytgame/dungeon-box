@@ -4,7 +4,11 @@ import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
 import {
   formatPaymentDescription,
   formatPaymentMethod,
+  isStoreOrderPayment,
+  storeOrderPaymentHref,
 } from '@/lib/dashboard/payment-description';
+import { DASHBOARD_ROUTES } from '@/lib/dashboard/routes';
+import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import type { Payment, PaymentStatus } from '@/lib/dashboard/types';
 import { CreditCard } from 'lucide-react';
 
@@ -64,6 +68,26 @@ export default function PaymentReceiptList({ payments }: Props) {
               className="mt-4 inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
             >
               Regularizar pagamento →
+            </Link>
+          ) : null}
+
+          {RETRY_STATUSES.has(p.status) && isStoreOrderPayment(p) ? (
+            <Link
+              href={storeOrderPaymentHref(p)}
+              className="mt-4 inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+            >
+              Concluir pagamento do pedido →
+            </Link>
+          ) : null}
+
+          {p.status === 'approved' && isStoreOrderPayment(p) ? (
+            <Link
+              href={DASHBOARD_ROUTES.order(
+                parseStoreOrderMeta(p.status_detail)?.orderId ?? ''
+              )}
+              className="mt-4 inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+            >
+              Ver pedido →
             </Link>
           ) : null}
         </li>

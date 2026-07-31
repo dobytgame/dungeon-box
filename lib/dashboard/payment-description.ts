@@ -1,11 +1,13 @@
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
+import { DASHBOARD_ROUTES } from '@/lib/dashboard/routes';
 import type { Payment } from '@/lib/dashboard/types';
 import {
   isComboUpgradePayment,
   parseComboPaymentDetail,
 } from '@/lib/payments/effective-amount';
+import { STORE_ROUTES } from '@/lib/store/routes';
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   credit_card: 'Cartão',
@@ -28,7 +30,7 @@ function describeStoreOrder(
     )
     .join(', ');
 
-  const parts = [items || 'Pedido da loja'];
+  const parts = [`Pedido da loja: ${items || 'itens'}`];
 
   if (meta.shippingMode === 'with_subscription' || meta.bundleSubscriptionId) {
     parts.push('envio com a próxima caixa');
@@ -41,6 +43,21 @@ function describeStoreOrder(
   }
 
   return parts.join(' · ');
+}
+
+export function isStoreOrderPayment(payment: Payment): boolean {
+  return Boolean(parseStoreOrderMeta(payment.status_detail));
+}
+
+export function storeOrderPaymentHref(payment: Payment): string {
+  const meta = parseStoreOrderMeta(payment.status_detail);
+  if (!meta?.orderId) return '/dashboard/payments';
+
+  if (payment.status === 'approved') {
+    return DASHBOARD_ROUTES.order(meta.orderId);
+  }
+
+  return STORE_ROUTES.orderPayment(meta.orderId);
 }
 
 export function formatPaymentMethod(method: string | null | undefined): string {
