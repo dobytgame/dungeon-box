@@ -187,6 +187,21 @@ export default function CartDrawer({ open, onClose }: Props) {
                                   {line.variationSummary}
                                 </p>
                               ) : null}
+                              {line.requiresUnitUploads && line.uploadsComplete === false ? (
+                                <div className="mt-2 rounded-sm border border-amber-500/25 bg-amber-500/10 px-2.5 py-2">
+                                  <p className="text-[11px] text-amber-100">
+                                    Imagens pendentes ({line.itemUploads?.length ?? 0}/
+                                    {line.quantity})
+                                  </p>
+                                  <Link
+                                    href={productHref}
+                                    onClick={onClose}
+                                    className="mt-1 inline-flex font-display text-[10px] uppercase tracking-widest text-ember hover:text-ember-bright"
+                                  >
+                                    Enviar na página do produto →
+                                  </Link>
+                                </div>
+                              ) : null}
                               <p className="mt-1 text-xs text-stone-500">
                                 {line.originalPriceCents &&
                                 line.originalPriceCents > line.priceCents ? (

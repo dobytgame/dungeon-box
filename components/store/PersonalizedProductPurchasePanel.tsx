@@ -41,11 +41,26 @@ export default function PersonalizedProductPurchasePanel({
   product,
   isLoggedIn,
 }: Props) {
-  const { lines, addItem } = useStoreCart();
+  const { lines, addItem, removeItem } = useStoreCart();
   const minQty = minQuantityForProduct(product);
   const maxQty = maxQuantityForProduct(product);
-  const [quantity, setQuantity] = useState(minQty);
-  const [slots, setSlots] = useState<UploadSlot[]>(() => emptySlots(minQty));
+  const existingCartLine = useMemo(
+    () => lines.find((line) => line.productId === product.id),
+    [lines, product.id]
+  );
+  const [quantity, setQuantity] = useState(
+    () => existingCartLine?.quantity ?? minQty
+  );
+  const [slots, setSlots] = useState<UploadSlot[]>(() => {
+    const initialQuantity = existingCartLine?.quantity ?? minQty;
+    const uploads = existingCartLine?.itemUploads ?? [];
+    return Array.from({ length: initialQuantity }, (_, index) => ({
+      path: uploads[index] ?? null,
+      previewUrl: null,
+      uploading: false,
+      error: '',
+    }));
+  });
   const [added, setAdded] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -191,6 +206,10 @@ export default function PersonalizedProductPurchasePanel({
     }
 
     setFormError('');
+    for (const line of lines.filter((entry) => entry.productId === product.id)) {
+      removeItem(cartLineId(line));
+    }
+
     addItem(
       product.id,
       quantity,
@@ -224,6 +243,12 @@ export default function PersonalizedProductPurchasePanel({
 
       <p className="text-xs leading-relaxed text-stone-500">
         Mínimo {minQty} un. · 1 imagem por item (JPG, PNG ou WebP, até 10 MB)
+        {existingCartLine && (existingCartLine.itemUploads?.length ?? 0) < quantity ? (
+          <>
+            {' '}
+            · Você tem este produto no carrinho — complete o envio das imagens abaixo.
+          </>
+        ) : null}
         {!isLoggedIn ? (
           <>
             {' '}
@@ -255,14 +280,21 @@ export default function PersonalizedProductPurchasePanel({
         <div className="flex flex-wrap gap-2">
           {slots.map((slot, index) => (
             <div key={index} className="w-[4.5rem]">
-              {slot.previewUrl ? (
+              {slot.previewUrl || slot.path ? (
                 <div className="group relative h-[4.5rem] w-[4.5rem] overflow-hidden rounded-sm border border-white/10 bg-stone-900">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={slot.previewUrl}
-                    alt={`Item ${index + 1}`}
-                    className="h-full w-full object-cover"
-                  />
+                  {slot.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slot.previewUrl}
+                      alt={`Item ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-1 text-center">
+                      <Check className="h-4 w-4 text-gold" aria-hidden="true" />
+                      <span className="font-mono text-[8px] text-stone-400">Enviada</span>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => clearSlot(index)}

@@ -169,6 +169,11 @@ export default function StoreCheckoutLineItems({
                   {line.variationSummary ? (
                     <p className="mt-1 text-xs text-stone-500">{line.variationSummary}</p>
                   ) : null}
+                  {line.requiresUnitUploads && line.uploadsComplete === false ? (
+                    <p className="mt-1 text-xs text-amber-200/90">
+                      Imagens de personalização pendentes
+                    </p>
+                  ) : null}
                 </div>
                 <p className="shrink-0 text-sm font-medium text-white">
                   {formatMoney(line.lineTotalCents)}

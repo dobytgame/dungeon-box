@@ -13,11 +13,18 @@ import {
   sumCartLinesForProduct,
   validateVarietyPoolTotal,
 } from '@/lib/store/variety-quantity-pool';
+import { STORE_ROUTES } from '@/lib/store/routes';
+import {
+  productRequiresUnitUploads,
+} from '@/lib/store/personalized-product';
 
 export type CartValidationIssue = {
   productId: string;
   productName: string;
   error: string;
+  kind?: 'quantity' | 'personalized_upload' | 'variety_pool';
+  actionHref?: string;
+  actionLabel?: string;
 };
 
 function findCatalogProduct(
@@ -76,17 +83,26 @@ export function getCartValidationIssues(
       continue;
     }
 
-    const personalized = validatePersonalizedLine(
-      product,
-      line.quantity,
-      line.itemUploads
-    );
-    if (!personalized.ok) {
-      issues.push({
-        productId: product.id,
-        productName: product.name,
-        error: personalized.error,
-      });
+    if (productRequiresUnitUploads(product)) {
+      const personalized = validatePersonalizedLine(
+        product,
+        line.quantity,
+        line.itemUploads
+      );
+      if (!personalized.ok) {
+        const uploadedCount = line.itemUploads?.filter(Boolean).length ?? 0;
+        issues.push({
+          productId: product.id,
+          productName: product.name,
+          error:
+            uploadedCount === 0
+              ? `${product.name}: envie as imagens de personalização antes de finalizar a compra.`
+              : `${product.name}: ${personalized.error}`,
+          kind: 'personalized_upload',
+          actionHref: product.slug ? STORE_ROUTES.product(product.slug) : undefined,
+          actionLabel: 'Ir para o produto e enviar imagens',
+        });
+      }
       continue;
     }
 
@@ -96,6 +112,7 @@ export function getCartValidationIssues(
         productId: product.id,
         productName: product.name,
         error: `Pedido mínimo de ${minQty} unidades para ${product.name}.`,
+        kind: 'quantity',
       });
     }
   }

@@ -52,6 +52,7 @@ export type CartLineResolved = CartLine & {
   itemUploads?: string[];
   requiresUnitUploads?: boolean;
   minQuantity?: number;
+  uploadsComplete?: boolean;
 };
 
 export const STORE_CART_STORAGE_KEY = 'dungeonbox-store-cart-v3';
@@ -152,12 +153,35 @@ export function normalizeCartLines(
         : undefined;
 
     if (product && productRequiresUnitUploads(product)) {
-      const personalized = validatePersonalizedLine(
-        product,
-        Math.floor(line.quantity),
-        itemUploads
-      );
-      if (!personalized.ok) continue;
+      const minQty = minQuantityForCartProduct(product);
+      const maxQty = maxQuantityForCartProduct(product, canonicalId);
+      const qty = Math.min(Math.max(Math.floor(line.quantity), minQty), maxQty);
+      if (qty === 0) continue;
+
+      const itemUploads =
+        line.itemUploads && line.itemUploads.length > 0
+          ? line.itemUploads.filter(Boolean).slice(0, qty)
+          : undefined;
+
+      const normalizedLine: CartLine = {
+        productId: canonicalId,
+        quantity: qty,
+        ...(itemUploads ? { itemUploads } : {}),
+      };
+      const key = cartLineId(normalizedLine);
+      const existing = merged.get(key);
+
+      if (existing) {
+        merged.set(key, {
+          ...existing,
+          quantity: Math.min(existing.quantity + qty, maxQty),
+          ...(itemUploads ? { itemUploads } : {}),
+        });
+        continue;
+      }
+
+      merged.set(key, normalizedLine);
+      continue;
     }
 
     const maxQty = maxQuantityForCartProduct(product, canonicalId);
@@ -214,7 +238,6 @@ export function resolveCartLines(
       line.quantity,
       line.itemUploads
     );
-    if (!personalized.ok) return [];
 
     const variationSummary = formatVariationSummary(line.selectedOptions);
 
@@ -241,6 +264,7 @@ export function resolveCartLines(
         variationSummary,
         itemUploads: line.itemUploads,
         requiresUnitUploads: productRequiresUnitUploads(product),
+        uploadsComplete: personalized.ok,
       },
     ];
   });

@@ -125,10 +125,25 @@ export default function StoreCartView({ embedded = false }: Props) {
                   <p className="mt-1 text-xs text-stone-400">{line.variationSummary}</p>
                 ) : null}
                 {line.requiresUnitUploads ? (
-                  <p className="mt-1 text-xs text-amber-200/80">
-                    {line.itemUploads?.length ?? line.quantity} imagem(ns) de
-                    personalização
-                  </p>
+                  line.uploadsComplete === false ? (
+                    <div className="mt-2 rounded-sm border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+                      <p className="text-xs text-amber-100">
+                        Faltam imagens de personalização (
+                        {line.itemUploads?.length ?? 0}/{line.quantity}).
+                      </p>
+                      <Link
+                        href={productHref}
+                        className="mt-1 inline-flex font-display text-[10px] uppercase tracking-widest text-ember hover:text-ember-bright"
+                      >
+                        Enviar imagens na página do produto →
+                      </Link>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs text-stone-400">
+                      {line.itemUploads?.length ?? line.quantity} imagem(ns) de
+                      personalização
+                    </p>
+                  )
                 ) : null}
                 <p className="mt-1 text-sm text-stone-500">
                   {line.originalPriceCents &&
@@ -155,7 +170,7 @@ export default function StoreCartView({ embedded = false }: Props) {
               <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto">
                 {line.requiresUnitUploads ? (
                   <p className="text-xs text-stone-500">
-                    Qtd. fixa — altere na página do produto
+                    {line.quantity} un. · altere na página do produto
                   </p>
                 ) : (
                 <div className="flex items-center rounded-sm border border-white/10">

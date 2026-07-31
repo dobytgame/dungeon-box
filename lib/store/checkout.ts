@@ -31,7 +31,7 @@ import {
 import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
 import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
-import { formatProductNameWithVariations, validateSelectedProductOptions } from '@/lib/store/product-variations';
+import { formatProductNameWithVariations, formatVariationSummary, validateSelectedProductOptions } from '@/lib/store/product-variations';
 import {
   minQuantityForProduct,
   productRequiresUnitUploads,
@@ -311,6 +311,9 @@ async function resolveStoreLinesWithItems(
         product.paintKitBumpId && bundleSubscriptionId ? bundleSubscriptionId : null,
       ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
       ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
+      ...(line.selectedOptions
+        ? { variationSummary: formatVariationSummary(line.selectedOptions) }
+        : {}),
     });
   }
 
@@ -532,9 +535,14 @@ export async function purchaseStoreOrder(
             lineTotalCents: line.lineTotalCents,
             bundleSubscriptionId: line.bundleSubscriptionId,
             ...(line.selectedOptions
-              ? { selectedOptions: line.selectedOptions }
+              ? {
+                  selectedOptions: line.selectedOptions,
+                  variationSummary: formatVariationSummary(line.selectedOptions),
+                }
               : {}),
-            ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
+            ...(line.itemUploads && line.itemUploads.length > 0
+              ? { itemUploads: line.itemUploads }
+              : {}),
           }
     ),
     addressId,
