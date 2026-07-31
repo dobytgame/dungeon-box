@@ -36,6 +36,8 @@ export default function AdminNotificationsPageClient({
   category,
   unreadOnly,
 }: Props) {
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
   const router = useRouter();
   const [notifications, setNotifications] = useState(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
@@ -79,6 +81,36 @@ export default function AdminNotificationsPageClient({
     refresh();
   }
 
+  async function sendTest(kind: 'store' | 'subscription') {
+    setTestLoading(true);
+    setTestMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/notifications/test?kind=${kind}`,
+        { method: 'POST' }
+      );
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        pushConfigured?: boolean;
+      };
+      if (!res.ok) {
+        setTestMessage(data.error ?? 'Falha ao enviar teste.');
+        return;
+      }
+      setTestMessage(
+        data.pushConfigured
+          ? 'Teste enviado. Confira o sino e a notificação do Chrome.'
+          : 'Teste enviado no painel. Push do Chrome não configurado no servidor.'
+      );
+      refresh();
+    } catch {
+      setTestMessage('Falha ao enviar notificação de teste.');
+    } finally {
+      setTestLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -104,6 +136,22 @@ export default function AdminNotificationsPageClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void sendTest('store')}
+            disabled={testLoading || pending}
+            className="rounded border border-zinc-800 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300 disabled:opacity-60"
+          >
+            Teste loja
+          </button>
+          <button
+            type="button"
+            onClick={() => void sendTest('subscription')}
+            disabled={testLoading || pending}
+            className="rounded border border-zinc-800 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300 disabled:opacity-60"
+          >
+            Teste assinatura
+          </button>
           <Link
             href={`/admin/notificacoes?category=${category}${unreadOnly ? '' : '&unread=1'}`}
             className="rounded border border-zinc-800 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300"
@@ -127,6 +175,12 @@ export default function AdminNotificationsPageClient({
           ) : null}
         </div>
       </div>
+
+      {testMessage ? (
+        <p className="rounded border border-zinc-800 bg-zinc-900/50 px-4 py-3 text-sm text-zinc-400">
+          {testMessage}
+        </p>
+      ) : null}
 
       <AdminTable
         rows={notifications}
