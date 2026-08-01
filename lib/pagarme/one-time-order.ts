@@ -10,6 +10,9 @@ export type PagarmeOrderCharge = {
     qr_code?: string;
     qr_code_url?: string;
     expires_at?: string;
+    card?: {
+      id?: string;
+    };
   };
 };
 
@@ -107,7 +110,8 @@ async function createPagarmeOrder(input: {
 function buildCreditCardPayment(
   valueCents: number,
   cardToken: string,
-  billingAddress: PagarmeBillingAddressInput
+  billingAddress: PagarmeBillingAddressInput,
+  installments = 1
 ): Record<string, unknown> {
   const address = {
     ...billingAddress,
@@ -118,7 +122,7 @@ function buildCreditCardPayment(
     payment_method: 'credit_card',
     amount: valueCents,
     credit_card: {
-      installments: 1,
+      installments: Math.max(1, installments),
       operation_type: 'auth_and_capture',
       card_token: cardToken,
       card: {
@@ -126,6 +130,14 @@ function buildCreditCardPayment(
       },
     },
   };
+}
+
+export function extractPagarmeOrderCardId(
+  order: PagarmeOrderResponse
+): string | null {
+  const charge = primaryCharge(order);
+  const cardId = charge?.last_transaction?.card?.id?.trim();
+  return cardId || null;
 }
 
 export async function chargePagarmeOneTimeOrder(input: {
@@ -136,6 +148,7 @@ export async function chargePagarmeOneTimeOrder(input: {
   billingAddress: PagarmeBillingAddressInput;
   orderCode: string;
   metadata?: Record<string, string>;
+  installments?: number;
 }) {
   return createPagarmeOrder({
     customerId: input.customerId,
@@ -147,7 +160,8 @@ export async function chargePagarmeOneTimeOrder(input: {
       buildCreditCardPayment(
         input.valueCents,
         input.cardToken,
-        input.billingAddress
+        input.billingAddress,
+        input.installments ?? 1
       ),
     ],
   });

@@ -1,14 +1,25 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
-import { isComboTerm } from '@/lib/checkout/combo-billing';
-import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
-import { chargePagarmeOneTimeOrder } from '@/lib/pagarme/one-time-order';
-import { buildPagarmeSubscriptionOneTimeCode } from '@/lib/pagarme/store-order-code';
-import { pagarmeRequest } from '@/lib/pagarme/client';
 import {
-  cancelPagarmeSubscriptionBestEffort,
-} from '@/lib/pagarme/subscription-api';
+  comboInterestFreeMax,
+  isComboTerm,
+  prepaidMonthsForTerm,
+} from '@/lib/checkout/combo-billing';
+import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
+import {
+  chargePagarmeOneTimeOrder,
+  extractPagarmeOrderCardId,
+  isPagarmeChargePaid,
+  resolvePagarmeOrderChargeIds,
+} from '@/lib/pagarme/one-time-order';
+import {
+  buildPagarmeSubscriptionComboCode,
+  buildPagarmeSubscriptionOneTimeCode,
+} from '@/lib/pagarme/store-order-code';
+import { syncPagarmeComboOrderPayment } from '@/lib/pagarme/combo-payment';
+import { pagarmeRequest } from '@/lib/pagarme/client';
+import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
 
 export type PagarmeBillingAddressInput = {
   line_1: string;
@@ -26,6 +37,8 @@ export type CreatePagarmeSubscriptionInput = {
   planName: string;
   priceCents: number;
   billingTerm: BillingTerm;
+  installmentCount?: number;
+  comboTotalCents?: number;
   promoCode?: string | null;
   addressId: string;
   specialNotes: string | null;
@@ -62,6 +75,7 @@ export type CreatePagarmeSubscriptionResult = {
   subscriptionId: string;
   pagarmeSubscriptionId: string;
   pagarmeCustomerId: string;
+  comboOrderId?: string | null;
 };
 
 type PagarmeSubscriptionResponse = {
@@ -83,13 +97,53 @@ function buildBillingAddress(
   };
 }
 
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
+function formatPagarmeDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function comboLabel(term: Exclude<BillingTerm, 'monthly'>): string {
+  if (term === 'combo_3') return '3 meses';
+  if (term === 'combo_6') return '6 meses';
+  return '12 meses';
+}
+
+function buildSubscriptionCardPayload(
+  input: CreatePagarmeSubscriptionInput,
+  cardId: string | null
+) {
+  const billingAddress = {
+    ...input.billingAddress,
+    country: input.billingAddress.country ?? 'BR',
+  };
+
+  if (cardId) {
+    return {
+      card_id: cardId,
+      billing_address: billingAddress,
+    };
+  }
+
+  return {
+    card_token: input.cardToken,
+    billing_address: billingAddress,
+  };
+}
+
 export async function createPagarmeSubscription(
   supabase: SupabaseClient,
   input: CreatePagarmeSubscriptionInput
 ): Promise<CreatePagarmeSubscriptionResult> {
-  if (isComboTerm(input.billingTerm)) {
-    throw new Error('Combos disponíveis apenas com Asaas no momento.');
-  }
+  const isCombo = isComboTerm(input.billingTerm);
+  const prepaidMonths = prepaidMonthsForTerm(input.billingTerm);
+  const installmentCount = isCombo
+    ? Math.min(Math.max(1, input.installmentCount ?? 1), 12)
+    : 1;
 
   const pagarmeCustomerId = await getOrCreatePagarmeCustomer(
     supabase,
@@ -111,6 +165,9 @@ export async function createPagarmeSubscription(
   }
 
   const now = new Date();
+  const prepaidUntil =
+    isCombo && prepaidMonths ? addMonths(now, prepaidMonths) : null;
+
   const row = {
     plan_id: input.planId,
     address_id: input.addressId,
@@ -125,10 +182,10 @@ export async function createPagarmeSubscription(
     shipping_cents: input.shippingCents,
     shipping_region: input.shippingRegion,
     billing_term: input.billingTerm,
-    prepaid_months: null,
-    prepaid_until: null,
-    combo_total_cents: null,
-    combo_installments: null,
+    prepaid_months: prepaidMonths,
+    prepaid_until: prepaidUntil?.toISOString() ?? null,
+    combo_total_cents: isCombo ? input.comboTotalCents ?? null : null,
+    combo_installments: isCombo ? installmentCount : null,
     card_last4: input.cardLast4,
     card_brand: input.cardBrand,
     updated_at: now.toISOString(),
@@ -167,6 +224,151 @@ export async function createPagarmeSubscription(
   }
 
   const billingAddress = input.billingAddress;
+
+  if (isCombo) {
+    const comboTotal = input.comboTotalCents ?? 0;
+    if (comboTotal <= 0) {
+      throw new Error('Valor do combo inválido.');
+    }
+
+    const term = input.billingTerm as Exclude<BillingTerm, 'monthly'>;
+    const comboOrder = await chargePagarmeOneTimeOrder({
+      customerId: pagarmeCustomerId,
+      valueCents: comboTotal,
+      description: `DungeonBox — Combo ${comboLabel(term)} (${input.planName})`,
+      cardToken: input.cardToken,
+      billingAddress,
+      orderCode: buildPagarmeSubscriptionComboCode(subscriptionId),
+      installments: installmentCount,
+      metadata: {
+        subscription_id: subscriptionId,
+        charge_kind: 'combo',
+        billing_term: input.billingTerm,
+        plan_slug: input.planSlug,
+        interest_free_max: String(
+          comboInterestFreeMax(input.planSlug, input.billingTerm)
+        ),
+      },
+    });
+
+    const chargeIds = resolvePagarmeOrderChargeIds(comboOrder);
+    const comboPaid = isPagarmeChargePaid(chargeIds.chargeStatus);
+    const savedCardId = extractPagarmeOrderCardId(comboOrder);
+
+    const comboPaymentPayload = {
+      user_id: input.userId,
+      subscription_id: subscriptionId,
+      pagarme_order_id: comboOrder.id,
+      amount_cents: comboTotal,
+      currency: 'BRL',
+      status: comboPaid ? ('approved' as const) : ('pending' as const),
+      paid_at: comboPaid ? now.toISOString() : null,
+      installments: installmentCount,
+      payment_method: 'credit_card',
+      status_detail: JSON.stringify({
+        type: 'combo_prepaid',
+        billing_term: input.billingTerm,
+        combo_total_cents: comboTotal,
+        combo_installments:
+          installmentCount > 1 ? installmentCount : undefined,
+        gateway: 'pagarme',
+      }),
+    };
+
+    if (chargeIds.chargeId) {
+      const { error: comboPaymentRowError } = await supabase
+        .from('payments')
+        .upsert(
+          {
+            ...comboPaymentPayload,
+            pagarme_charge_id: chargeIds.chargeId,
+          },
+          { onConflict: 'pagarme_charge_id' }
+        );
+
+      if (comboPaymentRowError) {
+        console.error(
+          '[pagarme] combo pending payment row:',
+          subscriptionId,
+          comboPaymentRowError.message
+        );
+      }
+    } else {
+      const { error: comboPaymentRowError } = await supabase
+        .from('payments')
+        .insert(comboPaymentPayload);
+
+      if (comboPaymentRowError) {
+        console.error(
+          '[pagarme] combo pending payment row:',
+          subscriptionId,
+          comboPaymentRowError.message
+        );
+      }
+    }
+
+    const renewalStart = prepaidUntil ?? addMonths(now, 1);
+
+    const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
+      '/subscriptions',
+      {
+        method: 'POST',
+        body: {
+          code: subscriptionId,
+          payment_method: 'credit_card',
+          currency: 'BRL',
+          interval: 'month',
+          interval_count: 1,
+          billing_type: 'prepaid',
+          start_at: formatPagarmeDate(renewalStart),
+          customer_id: pagarmeCustomerId,
+          card: buildSubscriptionCardPayload(input, savedCardId),
+          items: [
+            {
+              description: `DungeonBox — ${input.planName} (renovação mensal)`,
+              quantity: 1,
+              pricing_scheme: {
+                scheme_type: 'unit',
+                price: input.priceCents,
+              },
+            },
+          ],
+          metadata: {
+            subscription_id: subscriptionId,
+            plan_slug: input.planSlug,
+            billing_term: input.billingTerm,
+          },
+        },
+      }
+    );
+
+    const { error: linkError } = await supabase
+      .from('subscriptions')
+      .update({
+        pagarme_subscription_id: pagarmeSubscription.id,
+        pagarme_customer_id: pagarmeCustomerId,
+        next_billing_date:
+          pagarmeSubscription.next_billing_at ?? renewalStart.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', subscriptionId);
+
+    if (linkError) {
+      await cancelPagarmeSubscriptionBestEffort(pagarmeSubscription.id);
+      throw new Error('Não foi possível vincular a assinatura.');
+    }
+
+    if (comboPaid) {
+      await syncPagarmeComboOrderPayment(supabase, comboOrder, subscriptionId);
+    }
+
+    return {
+      subscriptionId,
+      pagarmeSubscriptionId: pagarmeSubscription.id,
+      pagarmeCustomerId,
+      comboOrderId: comboOrder.id,
+    };
+  }
 
   const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
     '/subscriptions',

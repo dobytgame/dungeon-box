@@ -106,7 +106,6 @@ export default function StepPayment({
   const profileIncomplete =
     !cpfReady ||
     ((asaasCheckoutReady || pagarmeCheckoutReady) && !phoneReady);
-  const pagarmeComboBlocked = pagarmeCheckoutReady && isCombo;
   const gatewayUnavailable = providerLoaded && !checkoutProvider;
 
   const paymentInfoTracked = useRef(false);
@@ -234,6 +233,7 @@ export default function StepPayment({
           paintKitBump: data.paintKitBump,
           paintKitBumpRecurring: data.paintKitBumpRecurring,
           billingTerm: data.billingTerm,
+          installmentCount: data.installmentCount,
           cardToken: tokenized.token,
           cardLast4: tokenized.last4,
           cardBrand: tokenized.brand,
@@ -391,17 +391,7 @@ export default function StepPayment({
           </p>
         ) : null}
 
-        {pagarmeComboBlocked ? (
-          <p
-            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
-            role="status"
-          >
-            Combos disponíveis apenas com Asaas. Volte e escolha cobrança mensal
-            ou altere o gateway ativo no admin.
-          </p>
-        ) : null}
-
-        {isCombo && asaasReady ? (
+        {isCombo && (asaasReady || pagarmeReady) ? (
           <CheckoutSection
             title="Parcelamento"
             subtitle="Disponível apenas para combos."
@@ -459,7 +449,7 @@ export default function StepPayment({
               />
             ) : null}
 
-            {providerLoaded && pagarmeReady && !pagarmeComboBlocked ? (
+            {providerLoaded && pagarmeReady ? (
               <PagarmePaymentForm
                 disabled={!pagarmeReady}
                 onSubmit={handlePagarmeSubmit}

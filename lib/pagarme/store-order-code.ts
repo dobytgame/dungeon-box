@@ -25,6 +25,20 @@ export function buildPagarmeSubscriptionOneTimeCode(subscriptionId: string): str
   return `${subscriptionId}-one-time`;
 }
 
+export function buildPagarmeSubscriptionComboCode(subscriptionId: string): string {
+  return `${subscriptionId}-combo`;
+}
+
+export function parsePagarmeSubscriptionComboCode(
+  code?: string | null
+): string | null {
+  const trimmed = code?.trim() ?? '';
+  const match = trimmed.match(
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo$/i
+  );
+  return match?.[1] ?? null;
+}
+
 export function parsePagarmeStoreOrderCode(
   code?: string | null
 ): { orderId: string; userId?: string } | null {

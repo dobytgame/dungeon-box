@@ -8,6 +8,7 @@ import {
   handleStoreOrderPagarmeChargePaid,
   handleStoreOrderPagarmePaymentFailed,
 } from '@/lib/asaas/store-order-payment';
+import { handlePagarmeComboPaymentConfirmed } from '@/lib/pagarme/combo-payment';
 import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { activateSubscriptionFromPagarme } from '@/lib/subscriptions/activate-pagarme';
 import { markCyclePreparing, processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
@@ -52,6 +53,14 @@ export async function handlePagarmeChargePaid(
   if (!charge.id) return 'skipped';
 
   if (!charge.subscription_id) {
+    const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
+      chargeId: charge.id,
+      code: charge.code,
+      amountCents: chargeAmountCents(charge),
+      metadata: charge.metadata ?? null,
+    });
+    if (comboResult === 'processed') return 'processed';
+
     const storeResult = await handleStoreOrderPagarmeChargePaid(supabase, charge);
     if (storeResult === 'processed') return 'processed';
   }
@@ -230,6 +239,15 @@ export async function handlePagarmeOrderPaid(
   const charges = order.charges ?? [];
 
   for (const charge of charges) {
+    const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
+      chargeId: charge.id,
+      orderId: order.id,
+      code: charge.code ?? order.code,
+      amountCents: chargeAmountCents(charge),
+      metadata: charge.metadata ?? order.metadata ?? null,
+    });
+    if (comboResult === 'processed') return 'processed';
+
     const result = await handleStoreOrderPagarmeChargePaid(supabase, {
       ...charge,
       code: charge.code ?? order.code,
@@ -246,6 +264,15 @@ export async function handlePagarmeOrderPaid(
         charge?.status ?? charge?.last_transaction?.status ?? remote.status;
 
       if (charge?.id && isPagarmeChargePaid(chargeStatus)) {
+        const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
+          chargeId: charge.id,
+          orderId: remote.id ?? order.id,
+          code: remote.code ?? order.code,
+          amountCents: Math.round(charge.amount ?? 0),
+          metadata: remote.metadata ?? order.metadata ?? null,
+        });
+        if (comboResult === 'processed') return 'processed';
+
         const result = await handleStoreOrderPagarmeChargePaid(supabase, {
           id: charge.id,
           amount: charge.amount,
@@ -258,6 +285,13 @@ export async function handlePagarmeOrderPaid(
       console.error('[pagarme] order.paid fetch order:', order.id, error);
     }
   }
+
+  const comboFallback = await handlePagarmeComboPaymentConfirmed(supabase, {
+    orderId: order.id,
+    code: order.code,
+    metadata: order.metadata ?? null,
+  });
+  if (comboFallback === 'processed') return 'processed';
 
   const fallback = await handleStoreOrderPagarmeChargePaid(supabase, {
     code: order.code,
@@ -284,6 +318,22 @@ export async function handlePagarmeSubscriptionActive(
   if (!local) return 'skipped';
 
   if (local.status === 'pending') {
+    const { data: detail } = await supabase
+      .from('subscriptions')
+      .select('billing_term')
+      .eq('id', local.id)
+      .maybeSingle();
+
+    const billingTerm = (detail?.billing_term as string | null) ?? 'monthly';
+    if (
+      billingTerm === 'combo_3' ||
+      billingTerm === 'combo_6' ||
+      billingTerm === 'combo_12'
+    ) {
+      // Combos só ativam com pagamento do pedido pré-pago, não pela assinatura remota.
+      return 'skipped';
+    }
+
     const activated = await activateSubscriptionFromPagarme(
       supabase,
       local.id,

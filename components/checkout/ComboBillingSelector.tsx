@@ -27,7 +27,9 @@ export default function ComboBillingSelector({
   singlePlanOnly,
 }: Props) {
   const { provider: checkoutProvider } = useCheckoutProvider();
-  if (!checkoutProvider || checkoutProvider !== 'asaas') return null;
+  if (!checkoutProvider || (checkoutProvider !== 'asaas' && checkoutProvider !== 'pagarme')) {
+    return null;
+  }
 
   const comboDisabled = !singlePlanOnly;
 

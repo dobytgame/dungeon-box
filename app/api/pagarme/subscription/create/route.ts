@@ -17,7 +17,14 @@ import {
 import { syncPagarmeSubscriptionPayments } from '@/lib/pagarme/reconcile-pending';
 import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { isActivePagarmeCheckout } from '@/lib/payments/provider';
-import { isComboTerm } from '@/lib/checkout/combo-billing';
+import {
+  BILLING_TERMS,
+  calculateComboTotalCents,
+  COMBO_MAX_INSTALLMENTS,
+  isComboTerm,
+  type BillingTerm,
+} from '@/lib/checkout/combo-billing';
+import type { CheckoutData } from '@/lib/checkout/types';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
 import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -27,7 +34,6 @@ import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkou
 import { cookies } from 'next/headers';
 import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
 import { registerReferralAtCheckout } from '@/lib/referral/referrals';
-import { BILLING_TERMS } from '@/lib/checkout/combo-billing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,6 +51,7 @@ const bodySchema = z
     cardBrand: z.string().max(32),
     couponCode: z.string().max(64).optional().nullable(),
     billingTerm: z.enum(BILLING_TERMS).optional().default('monthly'),
+    installmentCount: z.number().int().min(1).max(COMBO_MAX_INSTALLMENTS).optional(),
   })
   .refine((value) => value.planSlug || (value.planSlugs?.length ?? 0) > 0, {
     message: 'Informe ao menos um plano.',
@@ -89,17 +96,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
 
-  if (isComboTerm(body.billingTerm ?? 'monthly')) {
-    return NextResponse.json(
-      { error: 'Combos disponíveis apenas com Asaas no momento.' },
-      { status: 400 }
-    );
-  }
-
   const planSlugs = resolveCheckoutPlanSlugs(body);
   if (planSlugs.length === 0) {
     return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   }
+
+  const billingTerm = (body.billingTerm ?? 'monthly') as BillingTerm;
+  if (isComboTerm(billingTerm) && planSlugs.length > 1) {
+    return NextResponse.json(
+      { error: 'Combos disponíveis apenas para um plano por vez.' },
+      { status: 400 }
+    );
+  }
+
+  const installmentCount = isComboTerm(billingTerm)
+    ? body.installmentCount ?? 1
+    : 1;
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -281,13 +293,45 @@ export async function POST(request: Request) {
           ? `${plan.name} + ${bump.name}`
           : plan.name;
 
+      let comboTotalCents: number | undefined;
+      if (isComboTerm(billingTerm) && index === 0) {
+        const checkoutSnapshot: CheckoutData = {
+          planSlugs: [planSlug],
+          billingTerm,
+          installmentCount,
+          paintKitBump: body.paintKitBump ?? null,
+          paintKitBumpRecurring: bumpRecurring,
+          addressId: body.addressId,
+          specialNotes: body.specialNotes ?? '',
+          discountedPlanCentsByPlan: resolvedCoupon
+            ? {
+                [planSlug]:
+                  chargePriceCents - bumpMonthlyCents - freightMonthlyCents,
+              }
+            : undefined,
+          shippingByPlan: {
+            [planSlug]: {
+              cents: freightMonthlyCents,
+              free: freightMonthlyCents === 0,
+              region: shippingQuote.region,
+              label: shippingQuote.label ?? shippingQuote.region,
+              etaDaysMin: shippingQuote.etaDaysMin,
+              etaDaysMax: shippingQuote.etaDaysMax,
+            },
+          },
+        };
+        comboTotalCents = calculateComboTotalCents(checkoutSnapshot, billingTerm);
+      }
+
       const result = await createPagarmeSubscription(supabase, {
         userId: user.id,
         planSlug,
         planId: plan.id,
         planName: planDescription,
         priceCents: chargePriceCents,
-        billingTerm: body.billingTerm ?? 'monthly',
+        billingTerm,
+        installmentCount,
+        comboTotalCents,
         promoCode: resolvedCoupon?.promo.code ?? null,
         addressId: body.addressId,
         specialNotes: specialNotes ?? '',
@@ -307,9 +351,9 @@ export async function POST(request: Request) {
         retrySubscriptionId,
         shippingCents: freightMonthlyCents,
         shippingRegion: shippingQuote.region,
-        oneTimeCents,
+        oneTimeCents: isComboTerm(billingTerm) ? 0 : oneTimeCents,
         oneTimeDescription:
-          includeBump && !bumpRecurring && bump
+          !isComboTerm(billingTerm) && includeBump && !bumpRecurring && bump
             ? buildOneTimeDescription(bump.name)
             : null,
       });
@@ -326,18 +370,20 @@ export async function POST(request: Request) {
         promoRecorded = true;
       }
 
-      await syncPagarmeSubscriptionPayments(
-        supabase,
-        result.pagarmeSubscriptionId
-      ).catch((err) => {
-        console.error('[pagarme] post-create sync failed:', err);
-      });
+      if (!isComboTerm(billingTerm)) {
+        await syncPagarmeSubscriptionPayments(
+          supabase,
+          result.pagarmeSubscriptionId
+        ).catch((err) => {
+          console.error('[pagarme] post-create sync failed:', err);
+        });
+      }
 
       void notifyAdminSubscriptionEvent(createAdminClient(), {
         type: 'subscription_pending',
         subscriptionId: result.subscriptionId,
         userId: user.id,
-        amountCents: chargePriceCents,
+        amountCents: comboTotalCents ?? chargePriceCents,
         paymentMethod: 'credit_card',
         gateway: 'pagarme',
         planName: planDescription,
