@@ -38,11 +38,7 @@ export default function InstallmentSelector({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
         {options.map((count) => {
           const selected = value === count;
-          const interestFree = count <= interestFreeMax;
-          const installmentCents =
-            count <= interestFreeMax
-              ? Math.round(totalCents / count)
-              : null;
+          const installmentCents = Math.round(totalCents / count);
 
           return (
             <button
@@ -58,23 +54,17 @@ export default function InstallmentSelector({
               <p className="font-display text-xs uppercase tracking-widest text-white">
                 {comboInstallmentLabel(count, interestFreeMax)}
               </p>
-              {installmentCents ? (
-                <p className="mt-1 text-[11px] text-stone-500">
-                  {formatBRL(installmentCents)}/parcela
-                </p>
-              ) : (
-                <p className="mt-1 text-[11px] text-amber-400/90">
-                  Juros da operadora
-                </p>
-              )}
+              <p className="mt-1 text-[11px] text-stone-500">
+                {formatBRL(installmentCents)}/parcela
+              </p>
             </button>
           );
         })}
       </div>
 
       <p className="text-[11px] leading-relaxed text-stone-600">
-        Até {interestFreeMax}x sem juros. Acima disso, os juros são calculados
-        pela operadora do cartão no momento da cobrança.
+        Até {interestFreeMax}x sem juros. Acima disso, o valor da parcela pode
+        incluir juros da operadora do cartão.
       </p>
     </div>
   );
