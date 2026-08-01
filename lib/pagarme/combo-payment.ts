@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import {
+  extractPagarmeOrderCardId,
   fetchPagarmeOrder,
   isPagarmeChargePaid,
   resolvePagarmeOrderChargeIds,
@@ -13,15 +14,40 @@ import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notif
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { activateSubscriptionFromPagarme } from '@/lib/subscriptions/activate-pagarme';
 import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
+import { handlePagarmeComboUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-upgrade';
+import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-checkout';
 
 function resolveSubscriptionIdFromComboOrder(input: {
   code?: string | null;
   metadata?: Record<string, string> | null;
 }): string | null {
-  if (input.metadata?.charge_kind === 'combo' && input.metadata.subscription_id) {
+  if (
+    (input.metadata?.charge_kind === 'combo' ||
+      input.metadata?.charge_kind === 'combo_upgrade') &&
+    input.metadata.subscription_id
+  ) {
     return input.metadata.subscription_id;
   }
   return parsePagarmeSubscriptionComboCode(input.code);
+}
+
+function buildBillingAddressFromProfileAddress(address: {
+  number: string;
+  street: string;
+  neighborhood: string;
+  complement: string | null;
+  zip_code: string;
+  city: string;
+  state: string;
+}): PagarmeBillingAddressInput {
+  return {
+    line_1: `${address.number}, ${address.street}, ${address.neighborhood}`,
+    line_2: address.complement ?? undefined,
+    zip_code: address.zip_code.replace(/\D/g, ''),
+    city: address.city,
+    state: address.state,
+    country: 'BR',
+  };
 }
 
 export async function handlePagarmeComboPaymentConfirmed(
@@ -43,12 +69,62 @@ export async function handlePagarmeComboPaymentConfirmed(
   const { data: local } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, user_id, prepaid_until, billing_term, combo_total_cents, combo_installments'
+      'id, status, user_id, prepaid_until, billing_term, pending_billing_term, combo_total_cents, combo_installments, pagarme_customer_id, address_id'
     )
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (!local || local.status !== 'pending') {
+  if (!local) return 'skipped';
+
+  const pendingUpgradeTerm = local.pending_billing_term as BillingTerm | null;
+  if (
+    local.status === 'active' &&
+    pendingUpgradeTerm &&
+    isComboTerm(pendingUpgradeTerm)
+  ) {
+    let cardId: string | null = null;
+    let customerId = (local.pagarme_customer_id as string | null) ?? null;
+    let billingAddress: PagarmeBillingAddressInput | null = null;
+
+    if (input.orderId) {
+      try {
+        const order = await fetchPagarmeOrder(input.orderId);
+        cardId = extractPagarmeOrderCardId(order);
+        customerId =
+          (order as { customer?: { id?: string } }).customer?.id ?? customerId;
+      } catch (error) {
+        console.error('[pagarme] combo upgrade fetch order:', error);
+      }
+    }
+
+    if (local.address_id) {
+      const { data: address } = await supabase
+        .from('addresses')
+        .select(
+          'number, street, neighborhood, complement, zip_code, city, state'
+        )
+        .eq('id', local.address_id)
+        .maybeSingle();
+      if (address) {
+        billingAddress = buildBillingAddressFromProfileAddress(address);
+      }
+    }
+
+    return handlePagarmeComboUpgradePaymentConfirmed(
+      supabase,
+      {
+        chargeId: input.chargeId,
+        orderId: input.orderId,
+        amountCents: input.amountCents,
+        cardId,
+        customerId,
+        billingAddress,
+      },
+      subscriptionId
+    );
+  }
+
+  if (local.status !== 'pending') {
     return 'skipped';
   }
 
@@ -178,11 +254,15 @@ export async function syncPagarmeComboOrderPayment(
 
   const { data: local } = await supabase
     .from('subscriptions')
-    .select('status')
+    .select('status, billing_term')
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  return { activated: local?.status === 'active' };
+  const billingTerm = (local?.billing_term as BillingTerm | null) ?? 'monthly';
+
+  return {
+    activated: local?.status === 'active' && isComboTerm(billingTerm),
+  };
 }
 
 export async function syncPagarmeComboOrderById(

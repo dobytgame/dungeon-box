@@ -5,6 +5,9 @@ import { useMemo, useState, useTransition } from 'react';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from '@/components/checkout/AsaasPaymentForm';
+import PagarmePaymentForm, {
+  type PagarmeTokenResult,
+} from '@/components/checkout/PagarmePaymentForm';
 import ComboUpgradeCouponField, {
   type ComboUpgradeCouponApplyResult,
 } from '@/components/dashboard/ComboUpgradeCouponField';
@@ -15,17 +18,20 @@ import {
 } from '@/lib/checkout/combo-billing';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { ComboUpgradeOptionPricing } from '@/lib/subscriptions/combo-upgrade';
+import type { PaymentProvider } from '@/lib/payments/provider';
 
 interface Props {
   subscriptionId: string;
   currentCycle: number;
   comboOptions: ComboUpgradeOptionPricing[];
+  paymentProvider: Extract<PaymentProvider, 'asaas' | 'pagarme'>;
 }
 
 export default function SubscriptionComboUpgrade({
   subscriptionId,
   currentCycle,
   comboOptions: initialComboOptions,
+  paymentProvider,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -61,7 +67,7 @@ export default function SubscriptionComboUpgrade({
     setCouponError('');
   }
 
-  async function handlePay(card: AsaasCardPayload) {
+  async function submitUpgrade(payload: Record<string, unknown>) {
     if (!selected) return;
 
     const response = await fetch('/api/subscriptions/combo-upgrade', {
@@ -72,20 +78,32 @@ export default function SubscriptionComboUpgrade({
         billingTerm: selected.term,
         installmentCount,
         couponCode,
-        creditCard: card,
+        ...payload,
       }),
     });
 
-    const payload = (await response.json()) as { error?: string };
+    const data = (await response.json()) as { error?: string };
 
     if (!response.ok) {
-      throw new Error(payload.error ?? 'Não foi possível concluir a migração.');
+      throw new Error(data.error ?? 'Não foi possível concluir a migração.');
     }
 
     setMessage('Combo ativado com sucesso. Sua assinatura mensal foi substituída.');
     setSelectedTerm(null);
     startTransition(() => {
       router.refresh();
+    });
+  }
+
+  async function handleAsaasPay(card: AsaasCardPayload) {
+    await submitUpgrade({ creditCard: card });
+  }
+
+  async function handlePagarmePay(tokenized: PagarmeTokenResult) {
+    await submitUpgrade({
+      cardToken: tokenized.token,
+      cardLast4: tokenized.last4,
+      cardBrand: tokenized.brand,
     });
   }
 
@@ -130,6 +148,9 @@ export default function SubscriptionComboUpgrade({
           const isSelected = selectedTerm === option.term;
           const hasExtraCouponDiscount =
             option.originalTotalCents > option.totalCents;
+          const installmentCents = Math.round(
+            option.totalCents / installmentCount
+          );
 
           return (
             <div
@@ -213,18 +234,32 @@ export default function SubscriptionComboUpgrade({
                         (_, index) => index + 1
                       ).map((count) => (
                         <option key={count} value={count}>
-                          {comboInstallmentLabel(count, option.interestFreeMax)}
+                          {comboInstallmentLabel(count, option.interestFreeMax)}{' '}
+                          · {formatMoney(Math.round(option.totalCents / count))}
+                          /parcela
                         </option>
                       ))}
                     </select>
+                    <p className="mt-1 text-[11px] text-stone-600">
+                      {formatMoney(installmentCents)}/parcela
+                    </p>
                   </div>
 
-                  <AsaasPaymentForm
-                    disabled={pending}
-                    submitLabel={`Pagar combo · ${formatMoney(option.totalCents)}`}
-                    onSubmit={handlePay}
-                    onError={setError}
-                  />
+                  {paymentProvider === 'asaas' ? (
+                    <AsaasPaymentForm
+                      disabled={pending}
+                      submitLabel={`Pagar combo · ${formatMoney(option.totalCents)}`}
+                      onSubmit={handleAsaasPay}
+                      onError={setError}
+                    />
+                  ) : (
+                    <PagarmePaymentForm
+                      disabled={pending}
+                      submitLabel={`Pagar combo · ${formatMoney(option.totalCents)}`}
+                      onSubmit={handlePagarmePay}
+                      onError={setError}
+                    />
+                  )}
                 </div>
               ) : null}
             </div>

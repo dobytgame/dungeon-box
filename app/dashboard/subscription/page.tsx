@@ -29,7 +29,20 @@ import {
   resolveCurrentSubscriptionRecurringPricing,
   resolvePendingUpgradePricing,
 } from '@/lib/subscriptions/upgrade';
-import { isAsaasCheckout } from '@/lib/payments/provider';
+import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+
+function resolveComboUpgradeProvider(
+  subscription: Subscription
+): 'asaas' | 'pagarme' | null {
+  if (subscription.pagarme_subscription_id && PAGARME_CONFIGURED) {
+    return 'pagarme';
+  }
+  if (subscription.asaas_subscription_id && ASAAS_CONFIGURED) {
+    return 'asaas';
+  }
+  return null;
+}
 
 async function SubscriptionDetailCard({
   subscription,
@@ -40,12 +53,13 @@ async function SubscriptionDetailCard({
   showDevMeta: boolean;
   paymentLink?: CustomerSubscriptionPaymentLink | null;
 }) {
+  const comboUpgradeProvider = resolveComboUpgradeProvider(subscription);
   const [upgradeOptions, pendingUpgradePricing, currentRecurringPricing, comboUpgradeOptions] =
     await Promise.all([
       buildUpgradeOptionsPricing(subscription),
       resolvePendingUpgradePricing(subscription),
       resolveCurrentSubscriptionRecurringPricing(subscription),
-      isAsaasCheckout() && canUpgradeSubscriptionToCombo(subscription)
+      comboUpgradeProvider && canUpgradeSubscriptionToCombo(subscription)
         ? buildComboUpgradeOptions(subscription)
         : Promise.resolve([]),
     ]);
@@ -213,11 +227,14 @@ async function SubscriptionDetailCard({
                 pendingUpgradePricing?.promoSummary ?? null
               }
             />
-            <SubscriptionComboUpgrade
-              subscriptionId={subscription.id}
-              currentCycle={subscription.current_cycle ?? 1}
-              comboOptions={comboUpgradeOptions}
-            />
+            {comboUpgradeProvider && comboUpgradeOptions.length > 0 ? (
+              <SubscriptionComboUpgrade
+                subscriptionId={subscription.id}
+                currentCycle={subscription.current_cycle ?? 1}
+                comboOptions={comboUpgradeOptions}
+                paymentProvider={comboUpgradeProvider}
+              />
+            ) : null}
           </div>
         ) : null}
         <SubscriptionActions subscription={subscription} />

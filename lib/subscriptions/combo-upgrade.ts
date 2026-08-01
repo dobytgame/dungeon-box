@@ -37,6 +37,17 @@ import {
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
+import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
+import {
+  chargePagarmeOneTimeOrder,
+  extractPagarmeOrderCardId,
+  isPagarmeChargePaid,
+  resolvePagarmeOrderChargeIds,
+} from '@/lib/pagarme/one-time-order';
+import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-checkout';
+import { buildPagarmeSubscriptionComboCode } from '@/lib/pagarme/store-order-code';
+import { pagarmeRequest } from '@/lib/pagarme/client';
+import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
 
 type PlanRow = {
   id: string;
@@ -53,6 +64,8 @@ type SubscriptionComboUpgradeRow = SubscriptionRecurringContext & {
   address_id?: string | null;
   asaas_subscription_id?: string | null;
   asaas_customer_id?: string | null;
+  pagarme_subscription_id?: string | null;
+  pagarme_customer_id?: string | null;
   pending_plan_id?: string | null;
   pending_billing_term?: string | null;
   billing_term?: string | null;
@@ -323,13 +336,56 @@ export function canUpgradeSubscriptionToCombo(
     isMonthlyActiveSubscription(subscription) &&
     !subscription.pending_plan_id &&
     !subscription.pending_billing_term &&
-    Boolean(subscription.asaas_subscription_id)
+    Boolean(
+      subscription.asaas_subscription_id || subscription.pagarme_subscription_id
+    )
   );
 }
 
 type AsaasSubscriptionResponse = {
   id: string;
 };
+
+type PagarmeSubscriptionResponse = {
+  id: string;
+  next_billing_at?: string;
+};
+
+type PagarmeComboUpgradeCardContext = {
+  customerId: string;
+  billingAddress: PagarmeBillingAddressInput;
+  cardToken?: string;
+  cardId?: string | null;
+};
+
+function formatPagarmeDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildPagarmeSubscriptionCard(
+  card: PagarmeComboUpgradeCardContext
+): Record<string, unknown> {
+  const billingAddress = {
+    ...card.billingAddress,
+    country: card.billingAddress.country ?? 'BR',
+  };
+
+  if (card.cardId) {
+    return {
+      card_id: card.cardId,
+      billing_address: billingAddress,
+    };
+  }
+
+  if (!card.cardToken) {
+    throw new Error('Cartão Pagar.me ausente para renovação do combo.');
+  }
+
+  return {
+    card_token: card.cardToken,
+    billing_address: billingAddress,
+  };
+}
 
 export async function applyComboUpgradeAfterPayment(
   supabase: SupabaseClient,
@@ -344,12 +400,13 @@ export async function applyComboUpgradeAfterPayment(
     creditCard: AsaasCreditCardInput;
     creditCardHolderInfo: AsaasCreditCardHolderInput;
     remoteIp: string;
-  }
+  },
+  pagarmeCard?: PagarmeComboUpgradeCardContext
 ): Promise<boolean> {
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select(
-      'id, user_id, plan_id, status, billing_term, pending_billing_term, combo_total_cents, combo_installments, current_cycle, loyalty_level, started_at, asaas_subscription_id, asaas_customer_id, promo_code, shipping_cents, special_notes, plans!plan_id(id, slug, name, price_cents)'
+      'id, user_id, plan_id, status, billing_term, pending_billing_term, combo_total_cents, combo_installments, current_cycle, loyalty_level, started_at, asaas_subscription_id, asaas_customer_id, pagarme_subscription_id, pagarme_customer_id, promo_code, shipping_cents, special_notes, plans!plan_id(id, slug, name, price_cents)'
     )
     .eq('id', subscriptionId)
     .maybeSingle();
@@ -377,8 +434,18 @@ export async function applyComboUpgradeAfterPayment(
     subscription
   );
 
+  const isPagarme =
+    Boolean(subscription.pagarme_subscription_id) || Boolean(pagarmeCard);
+  const isAsaas =
+    Boolean(subscription.asaas_subscription_id) || Boolean(asaasCard);
+
   if (subscription.asaas_subscription_id) {
     await cancelAsaasSubscriptionBestEffort(subscription.asaas_subscription_id);
+  }
+  if (subscription.pagarme_subscription_id) {
+    await cancelPagarmeSubscriptionBestEffort(
+      subscription.pagarme_subscription_id
+    );
   }
 
   const now = new Date();
@@ -388,8 +455,10 @@ export async function applyComboUpgradeAfterPayment(
   const nextCycleStart = currentCycle + 1;
 
   let newAsaasSubscriptionId: string | null = null;
+  let newPagarmeSubscriptionId: string | null = null;
+  let nextBillingDate = prepaidUntil.toISOString();
 
-  if (subscription.asaas_customer_id && asaasCard) {
+  if (isAsaas && subscription.asaas_customer_id && asaasCard) {
     try {
       const asaasSubscription = await asaasRequest<AsaasSubscriptionResponse>(
         '/subscriptions/',
@@ -415,6 +484,48 @@ export async function applyComboUpgradeAfterPayment(
     }
   }
 
+  if (isPagarme && pagarmeCard) {
+    try {
+      const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
+        '/subscriptions',
+        {
+          method: 'POST',
+          body: {
+            code: subscriptionId,
+            payment_method: 'credit_card',
+            currency: 'BRL',
+            interval: 'month',
+            interval_count: 1,
+            billing_type: 'prepaid',
+            start_at: formatPagarmeDate(prepaidUntil),
+            customer_id: pagarmeCard.customerId,
+            card: buildPagarmeSubscriptionCard(pagarmeCard),
+            items: [
+              {
+                description: `DungeonBox — ${charge.description} (renovação mensal)`,
+                quantity: 1,
+                pricing_scheme: {
+                  scheme_type: 'unit',
+                  price: charge.totalCents,
+                },
+              },
+            ],
+            metadata: {
+              subscription_id: subscriptionId,
+              billing_term: pendingTerm,
+              charge_kind: 'combo_upgrade_renewal',
+            },
+          },
+        }
+      );
+      newPagarmeSubscriptionId = pagarmeSubscription.id;
+      nextBillingDate =
+        pagarmeSubscription.next_billing_at ?? prepaidUntil.toISOString();
+    } catch (error) {
+      console.error('[combo-upgrade] deferred pagarme subscription failed:', error);
+    }
+  }
+
   const comboTotalCents =
     subscription.combo_total_cents != null && subscription.combo_total_cents > 0
       ? subscription.combo_total_cents
@@ -429,10 +540,21 @@ export async function applyComboUpgradeAfterPayment(
       prepaid_until: prepaidUntil.toISOString(),
       combo_total_cents: comboTotalCents,
       combo_installments: subscription.combo_installments ?? payment.installments,
-      asaas_subscription_id: newAsaasSubscriptionId,
+      ...(isAsaas
+        ? { asaas_subscription_id: newAsaasSubscriptionId }
+        : {}),
+      ...(isPagarme
+        ? {
+            pagarme_subscription_id: newPagarmeSubscriptionId,
+            pagarme_customer_id:
+              pagarmeCard?.customerId ??
+              subscription.pagarme_customer_id ??
+              null,
+          }
+        : {}),
       current_period_start: now.toISOString(),
       current_period_end: prepaidUntil.toISOString(),
-      next_billing_date: prepaidUntil.toISOString(),
+      next_billing_date: nextBillingDate,
       updated_at: now.toISOString(),
     })
     .eq('id', subscriptionId)
@@ -470,6 +592,7 @@ export async function applyComboUpgradeAfterPayment(
         preservedCycle: currentCycle,
         preservedLoyaltyLevel: subscription.loyalty_level,
         comboTotalCents,
+        gateway: isPagarme ? 'pagarme' : 'asaas',
       },
     });
   }
@@ -518,7 +641,7 @@ export async function upgradeMonthlySubscriptionToCombo(input: {
   const { data: subscription } = await input.supabase
     .from('subscriptions')
     .select(
-      'id, user_id, status, plan_id, address_id, asaas_subscription_id, asaas_customer_id, pending_plan_id, pending_billing_term, billing_term, promo_code, shipping_cents, shipping_region, special_notes, plans!plan_id(id, slug, name, price_cents)'
+      'id, user_id, status, plan_id, address_id, asaas_subscription_id, asaas_customer_id, pagarme_subscription_id, pagarme_customer_id, pending_plan_id, pending_billing_term, billing_term, promo_code, shipping_cents, shipping_region, special_notes, plans!plan_id(id, slug, name, price_cents)'
     )
     .eq('id', input.subscriptionId)
     .eq('user_id', input.userId)
@@ -526,6 +649,13 @@ export async function upgradeMonthlySubscriptionToCombo(input: {
 
   if (!subscription) {
     return { error: 'Assinatura não encontrada.' };
+  }
+
+  if (!subscription.asaas_subscription_id) {
+    return {
+      error:
+        'Esta assinatura não está no Asaas. Use o pagamento Pagar.me para migrar.',
+    };
   }
 
   if (!canUpgradeSubscriptionToCombo(subscription)) {
@@ -767,6 +897,374 @@ export async function handleComboUpgradePaymentConfirmed(
     paidAt: now,
     installments,
   });
+
+  return applied ? 'processed' : 'skipped';
+}
+
+export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
+  supabase: SupabaseClient;
+  userId: string;
+  subscriptionId: string;
+  billingTerm: Exclude<BillingTerm, 'monthly'>;
+  installmentCount: number;
+  couponCode?: string | null;
+  cardToken: string;
+  cardLast4: string;
+  cardBrand: string;
+  billingAddress: PagarmeBillingAddressInput;
+  profile: {
+    id: string;
+    email: string;
+    full_name: string | null;
+    cpf: string | null;
+    phone: string | null;
+    pagarme_customer_id: string | null;
+  };
+  address: {
+    recipient: string;
+    zip_code: string;
+    street: string;
+    number: string;
+    complement: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+  };
+}): Promise<{ success: true } | { error: string }> {
+  if (!COMBO_BILLING_ENABLED || !isComboTerm(input.billingTerm)) {
+    return { error: 'Combos indisponíveis no momento.' };
+  }
+
+  const installmentCount = Math.min(
+    Math.max(1, input.installmentCount),
+    COMBO_MAX_INSTALLMENTS
+  );
+
+  const { data: subscription } = await input.supabase
+    .from('subscriptions')
+    .select(
+      'id, user_id, status, plan_id, address_id, asaas_subscription_id, asaas_customer_id, pagarme_subscription_id, pagarme_customer_id, pending_plan_id, pending_billing_term, billing_term, promo_code, shipping_cents, shipping_region, special_notes, plans!plan_id(id, slug, name, price_cents)'
+    )
+    .eq('id', input.subscriptionId)
+    .eq('user_id', input.userId)
+    .maybeSingle();
+
+  if (!subscription) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  if (!subscription.pagarme_subscription_id) {
+    return {
+      error:
+        'Esta assinatura não está no Pagar.me. Use o pagamento Asaas para migrar.',
+    };
+  }
+
+  if (!canUpgradeSubscriptionToCombo(subscription)) {
+    return {
+      error:
+        'Só é possível migrar assinaturas mensais ativas sem upgrade de plano pendente.',
+    };
+  }
+
+  const plan = relOne(subscription.plans as PlanRow | PlanRow[] | null);
+  if (!plan?.slug) {
+    return { error: 'Plano atual não encontrado.' };
+  }
+
+  const admin = createAdminClient();
+  let charge: Awaited<ReturnType<typeof resolveComboUpgradeChargeContext>>;
+  try {
+    charge = await resolveComboUpgradeChargeContext(
+      admin,
+      subscription,
+      plan,
+      input.userId,
+      input.couponCode
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'Cupom inválido.',
+    };
+  }
+
+  const checkoutData = buildCheckoutDataFromSubscription(
+    subscription,
+    plan,
+    input.billingTerm,
+    installmentCount,
+    charge.planCents,
+    charge.shippingCents
+  );
+
+  const comboTotalCents = calculateComboTotalCents(
+    checkoutData,
+    input.billingTerm
+  );
+  if (comboTotalCents <= 0) {
+    return { error: 'Valor do combo inválido.' };
+  }
+
+  const pagarmeCustomerId = await getOrCreatePagarmeCustomer(
+    input.supabase,
+    input.profile,
+    input.address
+  );
+
+  const { error: pendingError } = await input.supabase
+    .from('subscriptions')
+    .update({
+      pending_billing_term: input.billingTerm,
+      combo_total_cents: comboTotalCents,
+      combo_installments: installmentCount,
+      pagarme_customer_id: pagarmeCustomerId,
+      card_last4: input.cardLast4,
+      card_brand: input.cardBrand,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.subscriptionId)
+    .eq('user_id', input.userId)
+    .eq('status', 'active');
+
+  if (pendingError) {
+    return { error: 'Não foi possível iniciar a migração para combo.' };
+  }
+
+  const comboLabel =
+    input.billingTerm === 'combo_3'
+      ? '3 meses'
+      : input.billingTerm === 'combo_6'
+        ? '6 meses'
+        : '12 meses';
+
+  try {
+    const comboOrder = await chargePagarmeOneTimeOrder({
+      customerId: pagarmeCustomerId,
+      valueCents: comboTotalCents,
+      description: `DungeonBox — Combo ${comboLabel} (${plan.name})`,
+      cardToken: input.cardToken,
+      billingAddress: input.billingAddress,
+      orderCode: buildPagarmeSubscriptionComboCode(input.subscriptionId),
+      installments: installmentCount,
+      metadata: {
+        subscription_id: input.subscriptionId,
+        charge_kind: 'combo_upgrade',
+        billing_term: input.billingTerm,
+        plan_slug: plan.slug,
+        interest_free_max: String(
+          comboInterestFreeMax(plan.slug as PlanSlug, input.billingTerm)
+        ),
+      },
+    });
+
+    const chargeIds = resolvePagarmeOrderChargeIds(comboOrder);
+    const comboPaid = isPagarmeChargePaid(chargeIds.chargeStatus);
+    const savedCardId = extractPagarmeOrderCardId(comboOrder);
+    const paidAt = comboPaid ? new Date().toISOString() : null;
+
+    const paymentPayload = {
+      user_id: input.userId,
+      subscription_id: input.subscriptionId,
+      pagarme_order_id: comboOrder.id,
+      amount_cents: comboTotalCents,
+      currency: 'BRL',
+      status: paidAt ? ('approved' as const) : ('pending' as const),
+      paid_at: paidAt,
+      installments: installmentCount,
+      payment_method: 'credit_card',
+      status_detail: JSON.stringify({
+        type: 'combo_upgrade',
+        billing_term: input.billingTerm,
+        combo_total_cents: comboTotalCents,
+        combo_installments:
+          installmentCount > 1 ? installmentCount : undefined,
+        promo_code: charge.promoCode ?? undefined,
+        promo_summary: charge.promoSummary ?? undefined,
+        gateway: 'pagarme',
+      }),
+    };
+
+    let paymentRow: { id: string } | null = null;
+
+    if (chargeIds.chargeId) {
+      const { data } = await admin
+        .from('payments')
+        .upsert(
+          {
+            ...paymentPayload,
+            pagarme_charge_id: chargeIds.chargeId,
+          },
+          { onConflict: 'pagarme_charge_id' }
+        )
+        .select('id')
+        .single();
+      paymentRow = data;
+    } else {
+      const { data } = await admin
+        .from('payments')
+        .insert(paymentPayload)
+        .select('id')
+        .single();
+      paymentRow = data;
+    }
+
+    if (paidAt && paymentRow) {
+      const applied = await applyComboUpgradeAfterPayment(
+        admin,
+        input.subscriptionId,
+        {
+          id: paymentRow.id,
+          amountCents: comboTotalCents,
+          paidAt,
+          installments: installmentCount,
+        },
+        undefined,
+        {
+          customerId: pagarmeCustomerId,
+          billingAddress: input.billingAddress,
+          cardToken: input.cardToken,
+          cardId: savedCardId,
+        }
+      );
+
+      if (!applied) {
+        return {
+          error:
+            'Pagamento recebido, mas a migração para combo falhou. Nossa equipe foi notificada.',
+        };
+      }
+
+      if (charge.newPromoId && charge.promoCode) {
+        await recordComboUpgradePromoRedemption(
+          admin,
+          charge.newPromoId,
+          input.userId,
+          input.subscriptionId
+        );
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    await input.supabase
+      .from('subscriptions')
+      .update({
+        pending_billing_term: null,
+        combo_total_cents: null,
+        combo_installments: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.subscriptionId)
+      .eq('user_id', input.userId)
+      .eq('status', 'active');
+
+    const message =
+      error instanceof Error ? error.message : 'Pagamento do combo recusado.';
+    return { error: message };
+  }
+}
+
+export async function handlePagarmeComboUpgradePaymentConfirmed(
+  supabase: SupabaseClient,
+  input: {
+    chargeId?: string | null;
+    orderId?: string | null;
+    amountCents?: number | null;
+    cardId?: string | null;
+    cardToken?: string;
+    billingAddress?: PagarmeBillingAddressInput | null;
+    customerId?: string | null;
+  },
+  subscriptionId: string
+): Promise<'processed' | 'skipped'> {
+  const { data: local } = await supabase
+    .from('subscriptions')
+    .select(
+      'id, status, pending_billing_term, combo_total_cents, combo_installments, user_id, pagarme_customer_id'
+    )
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (
+    !local ||
+    local.status !== 'active' ||
+    !local.pending_billing_term ||
+    !isComboTerm(local.pending_billing_term as BillingTerm)
+  ) {
+    return 'skipped';
+  }
+
+  const amountCents =
+    local.combo_total_cents != null && local.combo_total_cents > 0
+      ? local.combo_total_cents
+      : Math.max(0, input.amountCents ?? 0);
+  const installments = local.combo_installments ?? 1;
+  const now = new Date().toISOString();
+
+  const paymentPayload = {
+    user_id: local.user_id,
+    subscription_id: local.id,
+    amount_cents: amountCents,
+    currency: 'BRL',
+    status: 'approved' as const,
+    paid_at: now,
+    installments,
+    payment_method: 'credit_card',
+    status_detail: JSON.stringify({
+      type: 'combo_upgrade',
+      billing_term: local.pending_billing_term,
+      combo_total_cents: amountCents,
+      combo_installments: installments > 1 ? installments : undefined,
+      gateway: 'pagarme',
+    }),
+    ...(input.chargeId ? { pagarme_charge_id: input.chargeId } : {}),
+    ...(input.orderId ? { pagarme_order_id: input.orderId } : {}),
+  };
+
+  let paymentRow: { id: string; amount_cents: number } | null = null;
+
+  if (input.chargeId) {
+    const { data } = await supabase
+      .from('payments')
+      .upsert(paymentPayload, { onConflict: 'pagarme_charge_id' })
+      .select('id, amount_cents')
+      .single();
+    paymentRow = data;
+  } else {
+    const { data } = await supabase
+      .from('payments')
+      .insert(paymentPayload)
+      .select('id, amount_cents')
+      .single();
+    paymentRow = data;
+  }
+
+  if (!paymentRow) return 'skipped';
+
+  const customerId =
+    input.customerId ?? (local.pagarme_customer_id as string | null);
+  const pagarmeCard =
+    customerId && input.billingAddress
+      ? {
+          customerId,
+          billingAddress: input.billingAddress,
+          cardToken: input.cardToken,
+          cardId: input.cardId,
+        }
+      : undefined;
+
+  const applied = await applyComboUpgradeAfterPayment(
+    supabase,
+    subscriptionId,
+    {
+      id: paymentRow.id,
+      amountCents: paymentRow.amount_cents ?? amountCents,
+      paidAt: now,
+      installments,
+    },
+    undefined,
+    pagarmeCard
+  );
 
   return applied ? 'processed' : 'skipped';
 }
