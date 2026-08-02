@@ -22,16 +22,11 @@ import {
 import { syncPagarmeComboOrderPayment } from '@/lib/pagarme/combo-payment';
 import { pagarmeRequest } from '@/lib/pagarme/client';
 import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
+import { buildPagarmeSubscriptionCardPayload } from '@/lib/pagarme/subscription-card-payload';
+import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-card-payload';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-export type PagarmeBillingAddressInput = {
-  line_1: string;
-  line_2?: string;
-  zip_code: string;
-  city: string;
-  state: string;
-  country?: string;
-};
+export type { PagarmeBillingAddressInput };
 
 export type CreatePagarmeSubscriptionInput = {
   userId: string;
@@ -63,7 +58,9 @@ export type CreatePagarmeSubscriptionInput = {
     city: string;
     state: string;
   };
-  cardToken: string;
+  cardToken?: string;
+  /** Reuso após 1ª assinatura (token é de uso único). */
+  cardId?: string | null;
   cardLast4: string;
   cardBrand: string;
   billingAddress: PagarmeBillingAddressInput;
@@ -78,6 +75,7 @@ export type CreatePagarmeSubscriptionResult = {
   subscriptionId: string;
   pagarmeSubscriptionId: string;
   pagarmeCustomerId: string;
+  pagarmeCardId?: string | null;
   comboOrderId?: string | null;
 };
 
@@ -115,36 +113,6 @@ function comboLabel(term: Exclude<BillingTerm, 'monthly'>): string {
   if (term === 'combo_3') return '3 meses';
   if (term === 'combo_6') return '6 meses';
   return '12 meses';
-}
-
-/** Campos de cartão no POST /subscriptions.
- * `card_id` e `card_token` vão no topo do body — dentro de `card` a API
- * valida como cartão cru (number/exp_month) e retorna 422.
- */
-function buildSubscriptionCardFields(card: {
-  cardId?: string;
-  cardToken?: string;
-  billingAddress: PagarmeBillingAddressInput;
-}): Record<string, unknown> {
-  const billingAddress = {
-    ...card.billingAddress,
-    country: card.billingAddress.country ?? 'BR',
-  };
-
-  if (card.cardId) {
-    return { card_id: card.cardId };
-  }
-
-  if (!card.cardToken) {
-    throw new Error('Cartão Pagar.me ausente para criar a assinatura.');
-  }
-
-  return {
-    card_token: card.cardToken,
-    card: {
-      billing_address: billingAddress,
-    },
-  };
 }
 
 /** Garante start_at no futuro (data UTC), mínimo D+1. */
@@ -272,6 +240,10 @@ export async function createPagarmeSubscription(
     }
 
     // Cobrança inicial com token (leva CVV). card_id sem CVV é recusado na 1ª compra.
+    if (!input.cardToken?.trim()) {
+      throw new Error('Token do cartão obrigatório para pagar o combo.');
+    }
+
     const term = input.billingTerm as Exclude<BillingTerm, 'monthly'>;
     const comboOrder = await chargePagarmeOneTimeOrder({
       customerId: pagarmeCustomerId,
@@ -374,7 +346,7 @@ export async function createPagarmeSubscription(
           billing_type: 'prepaid',
           start_at: formatPagarmeDate(renewalStart),
           customer_id: pagarmeCustomerId,
-          ...buildSubscriptionCardFields({
+          ...buildPagarmeSubscriptionCardPayload({
             cardId: savedCardId,
             billingAddress,
           }),
@@ -422,11 +394,12 @@ export async function createPagarmeSubscription(
       subscriptionId,
       pagarmeSubscriptionId: pagarmeSubscription.id,
       pagarmeCustomerId,
+      pagarmeCardId: savedCardId,
       comboOrderId: comboOrder.id,
     };
   }
 
-  // Mensal: token na assinatura (1ª cobrança com CVV). card_id só depois, se houver one-time.
+  // Mensal: token na 1ª assinatura (CVV). Planos seguintes reusam card_id.
   const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
     '/subscriptions',
     {
@@ -439,7 +412,8 @@ export async function createPagarmeSubscription(
         interval_count: 1,
         billing_type: 'prepaid',
         customer_id: pagarmeCustomerId,
-        ...buildSubscriptionCardFields({
+        ...buildPagarmeSubscriptionCardPayload({
+          cardId: input.cardId,
           cardToken: input.cardToken,
           billingAddress,
         }),
@@ -480,6 +454,7 @@ export async function createPagarmeSubscription(
     try {
       const cardId =
         pagarmeSubscription.card?.id?.trim() ||
+        input.cardId?.trim() ||
         (await resolveLatestPagarmeCustomerCardId(pagarmeCustomerId));
 
       if (!cardId) {
@@ -511,6 +486,8 @@ export async function createPagarmeSubscription(
     subscriptionId,
     pagarmeSubscriptionId: pagarmeSubscription.id,
     pagarmeCustomerId,
+    pagarmeCardId:
+      pagarmeSubscription.card?.id?.trim() || input.cardId?.trim() || null,
   };
 }
 

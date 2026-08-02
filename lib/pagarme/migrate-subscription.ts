@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import { pagarmeRequest } from '@/lib/pagarme/client';
+import { buildPagarmeSubscriptionCardPayload } from '@/lib/pagarme/subscription-card-payload';
 import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-checkout';
 
 type PagarmeSubscriptionResponse = {
@@ -58,13 +59,10 @@ export async function attachPagarmeSubscriptionToExisting(input: {
         interval_count: 1,
         billing_type: 'prepaid',
         customer_id: pagarmeCustomerId,
-        card_token: input.cardToken,
-        card: {
-          billing_address: {
-            ...input.billingAddress,
-            country: input.billingAddress.country ?? 'BR',
-          },
-        },
+        ...buildPagarmeSubscriptionCardPayload({
+          cardToken: input.cardToken,
+          billingAddress: input.billingAddress,
+        }),
         items: [
           {
             description: `DungeonBox — ${input.planName}`,

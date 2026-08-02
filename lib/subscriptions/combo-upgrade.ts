@@ -50,6 +50,7 @@ import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-chec
 import { buildPagarmeSubscriptionComboCode } from '@/lib/pagarme/store-order-code';
 import { pagarmeRequest } from '@/lib/pagarme/client';
 import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
+import { buildPagarmeSubscriptionCardPayload } from '@/lib/pagarme/subscription-card-payload';
 
 type PlanRow = {
   id: string;
@@ -364,30 +365,6 @@ function formatPagarmeDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function buildPagarmeSubscriptionCard(
-  card: PagarmeComboUpgradeCardContext
-): Record<string, unknown> {
-  const billingAddress = {
-    ...card.billingAddress,
-    country: card.billingAddress.country ?? 'BR',
-  };
-
-  if (card.cardId) {
-    return { card_id: card.cardId };
-  }
-
-  if (!card.cardToken) {
-    throw new Error('Cartão Pagar.me ausente para renovação do combo.');
-  }
-
-  return {
-    card_token: card.cardToken,
-    card: {
-      billing_address: billingAddress,
-    },
-  };
-}
-
 export async function applyComboUpgradeAfterPayment(
   supabase: SupabaseClient,
   subscriptionId: string,
@@ -500,7 +477,11 @@ export async function applyComboUpgradeAfterPayment(
             billing_type: 'prepaid',
             start_at: formatPagarmeDate(prepaidUntil),
             customer_id: pagarmeCard.customerId,
-            ...buildPagarmeSubscriptionCard(pagarmeCard),
+            ...buildPagarmeSubscriptionCardPayload({
+              cardId: pagarmeCard.cardId,
+              cardToken: pagarmeCard.cardToken,
+              billingAddress: pagarmeCard.billingAddress,
+            }),
             items: [
               {
                 description: `DungeonBox — ${charge.description} (renovação mensal)`,

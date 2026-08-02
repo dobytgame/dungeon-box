@@ -1,4 +1,5 @@
 import { pagarmeRequest } from '@/lib/pagarme/client';
+import { buildPagarmeSubscriptionCardPayload } from '@/lib/pagarme/subscription-card-payload';
 
 type PagarmeSubscriptionResponse = {
   id: string;
@@ -43,19 +44,13 @@ export async function updatePagarmeSubscriptionCard(
   }
 ) {
   return pagarmeRequest<PagarmeSubscriptionResponse>(
-    `/subscriptions/${pagarmeSubscriptionId}`,
+    `/subscriptions/${encodeURIComponent(pagarmeSubscriptionId)}/card`,
     {
       method: 'PATCH',
-      body: {
-        payment_method: 'credit_card',
-        card_token: input.cardToken,
-        card: {
-          billing_address: {
-            ...input.billingAddress,
-            country: input.billingAddress.country ?? 'BR',
-          },
-        },
-      },
+      body: buildPagarmeSubscriptionCardPayload({
+        cardToken: input.cardToken,
+        billingAddress: input.billingAddress,
+      }),
     }
   );
 }

@@ -26,6 +26,7 @@ import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import {
   chargePagarmeOneTimeOrder,
   createPagarmePixOrder,
+  extractPagarmeDeclineMessage,
   extractPagarmeStorePix,
   isPagarmeChargePaid,
   isPagarmeChargePending,
@@ -714,12 +715,11 @@ export async function purchaseStoreOrder(
           };
         }
 
-        await markStoreOrderPaymentFailed(
-          admin,
-          localPaymentId,
-          'Pagamento recusado. Verifique os dados do cartão.'
-        );
-        return { error: 'Pagamento recusado. Verifique os dados do cartão.' };
+        const decline =
+          extractPagarmeDeclineMessage(order) ||
+          'Pagamento recusado. Verifique os dados do cartão.';
+        await markStoreOrderPaymentFailed(admin, localPaymentId, decline);
+        return { error: decline };
       }
     }
 

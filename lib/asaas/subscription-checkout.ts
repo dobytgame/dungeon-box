@@ -12,6 +12,7 @@ import { asaasRequest } from '@/lib/asaas/client';
 import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
 import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export type AsaasCreditCardInput = {
   holderName: string;
@@ -209,7 +210,9 @@ export async function createAsaasSubscription(
       ? now.toISOString()
       : null;
 
-    const { error: comboPaymentRowError } = await supabase.from('payments').upsert(
+    const { error: comboPaymentRowError } = await createAdminClient()
+      .from('payments')
+      .upsert(
       {
         user_id: input.userId,
         subscription_id: subscriptionId,

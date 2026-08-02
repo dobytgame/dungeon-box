@@ -183,6 +183,8 @@ export async function POST(request: Request) {
   let promoRecorded = false;
   const referralCookie = cookies().get(REFERRAL_COOKIE_NAME)?.value ?? null;
   let referralRegistered = false;
+  /** Token Pagar.me é de uso único — reutilize card_id nos planos seguintes. */
+  let reusableCardId: string | null = null;
 
   try {
     for (let index = 0; index < planSlugs.length; index += 1) {
@@ -344,7 +346,8 @@ export async function POST(request: Request) {
           pagarme_customer_id: profile.pagarme_customer_id,
         },
         address,
-        cardToken: body.cardToken,
+        cardToken: reusableCardId ? undefined : body.cardToken,
+        cardId: reusableCardId,
         cardLast4: body.cardLast4,
         cardBrand: body.cardBrand,
         billingAddress,
@@ -357,6 +360,10 @@ export async function POST(request: Request) {
             ? buildOneTimeDescription(bump.name)
             : null,
       });
+
+      if (result.pagarmeCardId) {
+        reusableCardId = result.pagarmeCardId;
+      }
 
       if (resolvedCoupon && !promoRecorded) {
         const admin = createAdminClient();
