@@ -38,7 +38,20 @@ function authHeader(): Record<string, string> {
 }
 
 function formatPagarmeError(body: PagarmeApiErrorBody, status: number): string {
-  if (body.message?.trim()) return body.message;
+  if (body.message?.trim()) {
+    const entries = Object.entries(body.errors ?? {});
+    if (entries.length > 0) {
+      const details = entries
+        .flatMap(([field, messages]) =>
+          (messages ?? []).map((message) => `${field}: ${message}`)
+        )
+        .join('; ');
+      if (details) {
+        return `${body.message} (${details})`;
+      }
+    }
+    return body.message;
+  }
   const entries = Object.entries(body.errors ?? {});
   if (entries.length > 0) {
     const [field, messages] = entries[0]!;

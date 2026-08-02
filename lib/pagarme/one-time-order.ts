@@ -109,8 +109,8 @@ async function createPagarmeOrder(input: {
 
 function buildCreditCardPayment(
   valueCents: number,
-  cardToken: string,
   billingAddress: PagarmeBillingAddressInput,
+  card: { cardToken?: string; cardId?: string },
   installments = 1
 ): Record<string, unknown> {
   const address = {
@@ -118,17 +118,26 @@ function buildCreditCardPayment(
     country: billingAddress.country ?? 'BR',
   };
 
+  const creditCard: Record<string, unknown> = {
+    installments: Math.max(1, installments),
+    operation_type: 'auth_and_capture',
+  };
+
+  if (card.cardId) {
+    creditCard.card_id = card.cardId;
+  } else if (card.cardToken) {
+    creditCard.card_token = card.cardToken;
+    creditCard.card = {
+      billing_address: address,
+    };
+  } else {
+    throw new Error('Informe card_id ou card_token para cobrança no Pagar.me.');
+  }
+
   return {
     payment_method: 'credit_card',
     amount: valueCents,
-    credit_card: {
-      installments: Math.max(1, installments),
-      operation_type: 'auth_and_capture',
-      card_token: cardToken,
-      card: {
-        billing_address: address,
-      },
-    },
+    credit_card: creditCard,
   };
 }
 
@@ -136,19 +145,25 @@ export function extractPagarmeOrderCardId(
   order: PagarmeOrderResponse
 ): string | null {
   const charge = primaryCharge(order);
-  const cardId = charge?.last_transaction?.card?.id?.trim();
-  return cardId || null;
+  const fromTransaction = charge?.last_transaction?.card?.id?.trim();
+  if (fromTransaction) return fromTransaction;
+
+  const fromCharge = (
+    charge as { card?: { id?: string } } | null | undefined
+  )?.card?.id?.trim();
+  return fromCharge || null;
 }
 
 export async function chargePagarmeOneTimeOrder(input: {
   customerId: string;
   valueCents: number;
   description: string;
-  cardToken: string;
   billingAddress: PagarmeBillingAddressInput;
   orderCode: string;
   metadata?: Record<string, string>;
   installments?: number;
+  cardToken?: string;
+  cardId?: string;
 }) {
   return createPagarmeOrder({
     customerId: input.customerId,
@@ -159,8 +174,8 @@ export async function chargePagarmeOneTimeOrder(input: {
     payments: [
       buildCreditCardPayment(
         input.valueCents,
-        input.cardToken,
         input.billingAddress,
+        { cardToken: input.cardToken, cardId: input.cardId },
         input.installments ?? 1
       ),
     ],

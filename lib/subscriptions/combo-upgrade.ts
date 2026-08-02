@@ -38,9 +38,9 @@ import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-pr
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
+import { createPagarmeCustomerCard } from '@/lib/pagarme/cards';
 import {
   chargePagarmeOneTimeOrder,
-  extractPagarmeOrderCardId,
   isPagarmeChargePaid,
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
@@ -365,16 +365,9 @@ function formatPagarmeDate(date: Date): string {
 function buildPagarmeSubscriptionCard(
   card: PagarmeComboUpgradeCardContext
 ): Record<string, unknown> {
-  const billingAddress = {
-    ...card.billingAddress,
-    country: card.billingAddress.country ?? 'BR',
-  };
-
   if (card.cardId) {
-    return {
-      card_id: card.cardId,
-      billing_address: billingAddress,
-    };
+    // Com card_id salvo, não reenvie billing_address — a API rejeita o objeto card.
+    return { card_id: card.cardId };
   }
 
   if (!card.cardToken) {
@@ -383,7 +376,10 @@ function buildPagarmeSubscriptionCard(
 
   return {
     card_token: card.cardToken,
-    billing_address: billingAddress,
+    billing_address: {
+      ...card.billingAddress,
+      country: card.billingAddress.country ?? 'BR',
+    },
   };
 }
 
@@ -1038,11 +1034,18 @@ export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
         : '12 meses';
 
   try {
+    // Token é de uso único: salva o cartão antes de cobrar e criar a renovação.
+    const savedCard = await createPagarmeCustomerCard({
+      customerId: pagarmeCustomerId,
+      cardToken: input.cardToken,
+      billingAddress: input.billingAddress,
+    });
+
     const comboOrder = await chargePagarmeOneTimeOrder({
       customerId: pagarmeCustomerId,
       valueCents: comboTotalCents,
       description: `DungeonBox — Combo ${comboLabel} (${plan.name})`,
-      cardToken: input.cardToken,
+      cardId: savedCard.id,
       billingAddress: input.billingAddress,
       orderCode: buildPagarmeSubscriptionComboCode(input.subscriptionId),
       installments: installmentCount,
@@ -1059,7 +1062,6 @@ export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
 
     const chargeIds = resolvePagarmeOrderChargeIds(comboOrder);
     const comboPaid = isPagarmeChargePaid(chargeIds.chargeStatus);
-    const savedCardId = extractPagarmeOrderCardId(comboOrder);
     const paidAt = comboPaid ? new Date().toISOString() : null;
 
     const paymentPayload = {
@@ -1122,8 +1124,7 @@ export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
         {
           customerId: pagarmeCustomerId,
           billingAddress: input.billingAddress,
-          cardToken: input.cardToken,
-          cardId: savedCardId,
+          cardId: savedCard.id,
         }
       );
 
