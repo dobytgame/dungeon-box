@@ -117,12 +117,20 @@ function comboLabel(term: Exclude<BillingTerm, 'monthly'>): string {
   return '12 meses';
 }
 
-/** Campos de cartão no POST /subscriptions (card_id no topo; token aninhado). */
+/** Campos de cartão no POST /subscriptions.
+ * `card_id` e `card_token` vão no topo do body — dentro de `card` a API
+ * valida como cartão cru (number/exp_month) e retorna 422.
+ */
 function buildSubscriptionCardFields(card: {
   cardId?: string;
   cardToken?: string;
   billingAddress: PagarmeBillingAddressInput;
 }): Record<string, unknown> {
+  const billingAddress = {
+    ...card.billingAddress,
+    country: card.billingAddress.country ?? 'BR',
+  };
+
   if (card.cardId) {
     return { card_id: card.cardId };
   }
@@ -132,12 +140,9 @@ function buildSubscriptionCardFields(card: {
   }
 
   return {
+    card_token: card.cardToken,
     card: {
-      card_token: card.cardToken,
-      billing_address: {
-        ...card.billingAddress,
-        country: card.billingAddress.country ?? 'BR',
-      },
+      billing_address: billingAddress,
     },
   };
 }

@@ -367,8 +367,12 @@ function formatPagarmeDate(date: Date): string {
 function buildPagarmeSubscriptionCard(
   card: PagarmeComboUpgradeCardContext
 ): Record<string, unknown> {
+  const billingAddress = {
+    ...card.billingAddress,
+    country: card.billingAddress.country ?? 'BR',
+  };
+
   if (card.cardId) {
-    // card_id no topo do body — aninhado em `card` a API responde 422.
     return { card_id: card.cardId };
   }
 
@@ -377,12 +381,9 @@ function buildPagarmeSubscriptionCard(
   }
 
   return {
+    card_token: card.cardToken,
     card: {
-      card_token: card.cardToken,
-      billing_address: {
-        ...card.billingAddress,
-        country: card.billingAddress.country ?? 'BR',
-      },
+      billing_address: billingAddress,
     },
   };
 }

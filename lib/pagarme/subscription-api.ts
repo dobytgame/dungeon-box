@@ -48,8 +48,8 @@ export async function updatePagarmeSubscriptionCard(
       method: 'PATCH',
       body: {
         payment_method: 'credit_card',
+        card_token: input.cardToken,
         card: {
-          card_token: input.cardToken,
           billing_address: {
             ...input.billingAddress,
             country: input.billingAddress.country ?? 'BR',

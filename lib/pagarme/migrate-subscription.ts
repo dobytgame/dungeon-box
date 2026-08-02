@@ -58,8 +58,8 @@ export async function attachPagarmeSubscriptionToExisting(input: {
         interval_count: 1,
         billing_type: 'prepaid',
         customer_id: pagarmeCustomerId,
+        card_token: input.cardToken,
         card: {
-          card_token: input.cardToken,
           billing_address: {
             ...input.billingAddress,
             country: input.billingAddress.country ?? 'BR',
