@@ -5,11 +5,16 @@ export type PagarmeOrderCharge = {
   id?: string;
   status?: string;
   amount?: number;
+  card?: {
+    id?: string;
+  };
   last_transaction?: {
     status?: string;
     qr_code?: string;
     qr_code_url?: string;
     expires_at?: string;
+    acquirer_message?: string;
+    acquirer_return_code?: string;
     card?: {
       id?: string;
     };
@@ -40,6 +45,18 @@ export function isPagarmeChargePaid(status?: string | null): boolean {
   return value === 'paid' || value === 'captured';
 }
 
+export function isPagarmeChargeFailed(status?: string | null): boolean {
+  const value = status?.trim().toLowerCase();
+  return (
+    value === 'failed' ||
+    value === 'not_authorized' ||
+    value === 'canceled' ||
+    value === 'cancelled' ||
+    value === 'chargedback' ||
+    value === 'voided'
+  );
+}
+
 export function isPagarmeChargePending(status?: string | null): boolean {
   const value = status?.trim().toLowerCase();
   return (
@@ -48,6 +65,41 @@ export function isPagarmeChargePending(status?: string | null): boolean {
     value === 'authorized' ||
     value === 'waiting_payment'
   );
+}
+
+export function extractPagarmeDeclineMessage(
+  order: PagarmeOrderResponse
+): string | null {
+  const tx = primaryCharge(order)?.last_transaction;
+  const message = tx?.acquirer_message?.trim() || null;
+  if (message) return message;
+  return null;
+}
+
+/** Garante cobrança aprovada em cartão; lança erro amigável se recusada. */
+export function assertPagarmeCreditCardOrderPaid(
+  order: PagarmeOrderResponse,
+  fallbackMessage = 'Pagamento do cartão recusado.'
+): void {
+  const ids = resolvePagarmeOrderChargeIds(order);
+  if (isPagarmeChargePaid(ids.chargeStatus)) return;
+
+  const decline = extractPagarmeDeclineMessage(order);
+  if (
+    isPagarmeChargeFailed(ids.chargeStatus) ||
+    isPagarmeChargeFailed(ids.orderStatus) ||
+    decline
+  ) {
+    throw new Error(decline || fallbackMessage);
+  }
+
+  if (isPagarmeChargePending(ids.chargeStatus)) {
+    throw new Error(
+      'Pagamento ainda em análise. Aguarde a confirmação ou tente outro cartão.'
+    );
+  }
+
+  throw new Error(fallbackMessage);
 }
 
 export function extractPagarmeStorePix(
@@ -148,10 +200,27 @@ export function extractPagarmeOrderCardId(
   const fromTransaction = charge?.last_transaction?.card?.id?.trim();
   if (fromTransaction) return fromTransaction;
 
-  const fromCharge = (
-    charge as { card?: { id?: string } } | null | undefined
+  const fromCharge = charge?.card?.id?.trim();
+  if (fromCharge) return fromCharge;
+
+  const fromOrderCard = (
+    order as { card?: { id?: string } } | null | undefined
   )?.card?.id?.trim();
-  return fromCharge || null;
+  return fromOrderCard || null;
+}
+
+export async function resolvePagarmeOrderCardId(
+  order: PagarmeOrderResponse
+): Promise<string | null> {
+  const immediate = extractPagarmeOrderCardId(order);
+  if (immediate) return immediate;
+
+  try {
+    const fresh = await fetchPagarmeOrder(order.id);
+    return extractPagarmeOrderCardId(fresh);
+  } catch {
+    return null;
+  }
 }
 
 export async function chargePagarmeOneTimeOrder(input: {

@@ -38,10 +38,12 @@ import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-pr
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
-import { createPagarmeCustomerCard } from '@/lib/pagarme/cards';
+import { resolveLatestPagarmeCustomerCardId } from '@/lib/pagarme/cards';
 import {
+  assertPagarmeCreditCardOrderPaid,
   chargePagarmeOneTimeOrder,
   isPagarmeChargePaid,
+  resolvePagarmeOrderCardId,
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
 import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-checkout';
@@ -366,7 +368,7 @@ function buildPagarmeSubscriptionCard(
   card: PagarmeComboUpgradeCardContext
 ): Record<string, unknown> {
   if (card.cardId) {
-    // Com card_id salvo, não reenvie billing_address — a API rejeita o objeto card.
+    // card_id no topo do body — aninhado em `card` a API responde 422.
     return { card_id: card.cardId };
   }
 
@@ -375,10 +377,12 @@ function buildPagarmeSubscriptionCard(
   }
 
   return {
-    card_token: card.cardToken,
-    billing_address: {
-      ...card.billingAddress,
-      country: card.billingAddress.country ?? 'BR',
+    card: {
+      card_token: card.cardToken,
+      billing_address: {
+        ...card.billingAddress,
+        country: card.billingAddress.country ?? 'BR',
+      },
     },
   };
 }
@@ -495,7 +499,7 @@ export async function applyComboUpgradeAfterPayment(
             billing_type: 'prepaid',
             start_at: formatPagarmeDate(prepaidUntil),
             customer_id: pagarmeCard.customerId,
-            card: buildPagarmeSubscriptionCard(pagarmeCard),
+            ...buildPagarmeSubscriptionCard(pagarmeCard),
             items: [
               {
                 description: `DungeonBox — ${charge.description} (renovação mensal)`,
@@ -1034,18 +1038,12 @@ export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
         : '12 meses';
 
   try {
-    // Token é de uso único: salva o cartão antes de cobrar e criar a renovação.
-    const savedCard = await createPagarmeCustomerCard({
-      customerId: pagarmeCustomerId,
-      cardToken: input.cardToken,
-      billingAddress: input.billingAddress,
-    });
-
+    // Cobrança inicial com token (leva CVV). card_id sem CVV é recusado na 1ª compra.
     const comboOrder = await chargePagarmeOneTimeOrder({
       customerId: pagarmeCustomerId,
       valueCents: comboTotalCents,
       description: `DungeonBox — Combo ${comboLabel} (${plan.name})`,
-      cardId: savedCard.id,
+      cardToken: input.cardToken,
       billingAddress: input.billingAddress,
       orderCode: buildPagarmeSubscriptionComboCode(input.subscriptionId),
       installments: installmentCount,
@@ -1060,9 +1058,25 @@ export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
       },
     });
 
+    assertPagarmeCreditCardOrderPaid(
+      comboOrder,
+      'Pagamento do combo recusado. Verifique os dados do cartão e tente novamente.'
+    );
+
     const chargeIds = resolvePagarmeOrderChargeIds(comboOrder);
     const comboPaid = isPagarmeChargePaid(chargeIds.chargeStatus);
     const paidAt = comboPaid ? new Date().toISOString() : null;
+
+    let savedCardId =
+      (await resolvePagarmeOrderCardId(comboOrder)) ||
+      (await resolveLatestPagarmeCustomerCardId(pagarmeCustomerId));
+
+    if (!savedCardId) {
+      return {
+        error:
+          'Pagamento aprovado, mas não foi possível vincular o cartão à renovação. Contate o suporte.',
+      };
+    }
 
     const paymentPayload = {
       user_id: input.userId,
@@ -1124,7 +1138,7 @@ export async function upgradeMonthlySubscriptionToComboViaPagarme(input: {
         {
           customerId: pagarmeCustomerId,
           billingAddress: input.billingAddress,
-          cardId: savedCard.id,
+          cardId: savedCardId,
         }
       );
 

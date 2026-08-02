@@ -8,7 +8,7 @@ import {
 } from '@/lib/checkout/promo-codes';
 import { buildSpecialNotes } from '@/lib/checkout/special-notes';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
-import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { PAGARME_CONFIGURED, PagarmeApiError } from '@/lib/pagarme/client';
 import { userFacingPagarmeError } from '@/lib/pagarme/errors';
 import {
   buildBillingAddress,
@@ -428,6 +428,12 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error('[pagarme] create subscription:', error);
+    if (error instanceof PagarmeApiError && error.body?.errors) {
+      console.error(
+        '[pagarme] create subscription field errors:',
+        JSON.stringify(error.body.errors)
+      );
+    }
     return NextResponse.json(
       { error: userFacingPagarmeError(error) },
       { status: 502 }

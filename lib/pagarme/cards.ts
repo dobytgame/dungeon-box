@@ -7,6 +7,7 @@ export type PagarmeCustomerCard = {
   last_four_digits?: string;
   brand?: string;
   status?: string;
+  created_at?: string;
 };
 
 /**
@@ -37,4 +38,32 @@ export async function createPagarmeCustomerCard(input: {
   }
 
   return card;
+}
+
+export async function listPagarmeCustomerCards(
+  customerId: string
+): Promise<PagarmeCustomerCard[]> {
+  const response = await pagarmeRequest<{ data?: PagarmeCustomerCard[] }>(
+    `/customers/${encodeURIComponent(customerId)}/cards`
+  );
+  return response.data ?? [];
+}
+
+/** Fallback: último cartão ativo do cliente (útil após cobrança com token). */
+export async function resolveLatestPagarmeCustomerCardId(
+  customerId: string
+): Promise<string | null> {
+  try {
+    const cards = await listPagarmeCustomerCards(customerId);
+    const active = cards.filter(
+      (card) => (card.status ?? 'active').toLowerCase() === 'active' && card.id
+    );
+    if (active.length === 0) return null;
+    active.sort((a, b) =>
+      String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
+    );
+    return active[0]?.id ?? null;
+  } catch {
+    return null;
+  }
 }

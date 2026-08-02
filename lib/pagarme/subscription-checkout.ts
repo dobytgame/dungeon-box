@@ -7,10 +7,12 @@ import {
   prepaidMonthsForTerm,
 } from '@/lib/checkout/combo-billing';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
-import { createPagarmeCustomerCard } from '@/lib/pagarme/cards';
+import { resolveLatestPagarmeCustomerCardId } from '@/lib/pagarme/cards';
 import {
+  assertPagarmeCreditCardOrderPaid,
   chargePagarmeOneTimeOrder,
   isPagarmeChargePaid,
+  resolvePagarmeOrderCardId,
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
 import {
@@ -20,6 +22,7 @@ import {
 import { syncPagarmeComboOrderPayment } from '@/lib/pagarme/combo-payment';
 import { pagarmeRequest } from '@/lib/pagarme/client';
 import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export type PagarmeBillingAddressInput = {
   line_1: string;
@@ -82,6 +85,7 @@ type PagarmeSubscriptionResponse = {
   id: string;
   status?: string;
   next_billing_at?: string;
+  card?: { id?: string };
 };
 
 function buildBillingAddress(
@@ -113,12 +117,13 @@ function comboLabel(term: Exclude<BillingTerm, 'monthly'>): string {
   return '12 meses';
 }
 
-function buildSubscriptionCardPayload(
-  billingAddress: PagarmeBillingAddressInput,
-  card: { cardId?: string; cardToken?: string }
-) {
+/** Campos de cartão no POST /subscriptions (card_id no topo; token aninhado). */
+function buildSubscriptionCardFields(card: {
+  cardId?: string;
+  cardToken?: string;
+  billingAddress: PagarmeBillingAddressInput;
+}): Record<string, unknown> {
   if (card.cardId) {
-    // Com card_id salvo, não reenvie billing_address — a API rejeita o objeto card.
     return { card_id: card.cardId };
   }
 
@@ -127,10 +132,12 @@ function buildSubscriptionCardPayload(
   }
 
   return {
-    card_token: card.cardToken,
-    billing_address: {
-      ...billingAddress,
-      country: billingAddress.country ?? 'BR',
+    card: {
+      card_token: card.cardToken,
+      billing_address: {
+        ...card.billingAddress,
+        country: card.billingAddress.country ?? 'BR',
+      },
     },
   };
 }
@@ -145,6 +152,21 @@ function resolveComboRenewalStartAt(prepaidUntil: Date, now: Date): Date {
   renewal.setUTCHours(0, 0, 0, 0);
 
   return renewal.getTime() > minStart.getTime() ? renewal : minStart;
+}
+
+async function resolveCardIdAfterTokenCharge(input: {
+  order: Awaited<ReturnType<typeof chargePagarmeOneTimeOrder>>;
+  customerId: string;
+}): Promise<string> {
+  const fromOrder = await resolvePagarmeOrderCardId(input.order);
+  if (fromOrder) return fromOrder;
+
+  const fromWallet = await resolveLatestPagarmeCustomerCardId(input.customerId);
+  if (fromWallet) return fromWallet;
+
+  throw new Error(
+    'Pagamento aprovado, mas não foi possível vincular o cartão à renovação. Contate o suporte.'
+  );
 }
 
 export async function createPagarmeSubscription(
@@ -236,6 +258,7 @@ export async function createPagarmeSubscription(
   }
 
   const billingAddress = input.billingAddress;
+  const admin = createAdminClient();
 
   if (isCombo) {
     const comboTotal = input.comboTotalCents ?? 0;
@@ -243,19 +266,13 @@ export async function createPagarmeSubscription(
       throw new Error('Valor do combo inválido.');
     }
 
-    // Token é de uso único: salva o cartão antes de cobrar o combo e criar a renovação.
-    const savedCard = await createPagarmeCustomerCard({
-      customerId: pagarmeCustomerId,
-      cardToken: input.cardToken,
-      billingAddress,
-    });
-
+    // Cobrança inicial com token (leva CVV). card_id sem CVV é recusado na 1ª compra.
     const term = input.billingTerm as Exclude<BillingTerm, 'monthly'>;
     const comboOrder = await chargePagarmeOneTimeOrder({
       customerId: pagarmeCustomerId,
       valueCents: comboTotal,
       description: `DungeonBox — Combo ${comboLabel(term)} (${input.planName})`,
-      cardId: savedCard.id,
+      cardToken: input.cardToken,
       billingAddress,
       orderCode: buildPagarmeSubscriptionComboCode(subscriptionId),
       installments: installmentCount,
@@ -270,8 +287,17 @@ export async function createPagarmeSubscription(
       },
     });
 
+    assertPagarmeCreditCardOrderPaid(
+      comboOrder,
+      'Pagamento do combo recusado. Verifique os dados do cartão e tente novamente.'
+    );
+
     const chargeIds = resolvePagarmeOrderChargeIds(comboOrder);
     const comboPaid = isPagarmeChargePaid(chargeIds.chargeStatus);
+    const savedCardId = await resolveCardIdAfterTokenCharge({
+      order: comboOrder,
+      customerId: pagarmeCustomerId,
+    });
 
     const comboPaymentPayload = {
       user_id: input.userId,
@@ -294,7 +320,7 @@ export async function createPagarmeSubscription(
     };
 
     if (chargeIds.chargeId) {
-      const { error: comboPaymentRowError } = await supabase
+      const { error: comboPaymentRowError } = await admin
         .from('payments')
         .upsert(
           {
@@ -312,7 +338,7 @@ export async function createPagarmeSubscription(
         );
       }
     } else {
-      const { error: comboPaymentRowError } = await supabase
+      const { error: comboPaymentRowError } = await admin
         .from('payments')
         .insert(comboPaymentPayload);
 
@@ -343,8 +369,9 @@ export async function createPagarmeSubscription(
           billing_type: 'prepaid',
           start_at: formatPagarmeDate(renewalStart),
           customer_id: pagarmeCustomerId,
-          card: buildSubscriptionCardPayload(billingAddress, {
-            cardId: savedCard.id,
+          ...buildSubscriptionCardFields({
+            cardId: savedCardId,
+            billingAddress,
           }),
           items: [
             {
@@ -383,7 +410,7 @@ export async function createPagarmeSubscription(
     }
 
     if (comboPaid) {
-      await syncPagarmeComboOrderPayment(supabase, comboOrder, subscriptionId);
+      await syncPagarmeComboOrderPayment(admin, comboOrder, subscriptionId);
     }
 
     return {
@@ -394,16 +421,7 @@ export async function createPagarmeSubscription(
     };
   }
 
-  // Se houver cobrança única após a assinatura, o token não pode ser reutilizado.
-  const savedCard =
-    input.oneTimeCents > 0
-      ? await createPagarmeCustomerCard({
-          customerId: pagarmeCustomerId,
-          cardToken: input.cardToken,
-          billingAddress,
-        })
-      : null;
-
+  // Mensal: token na assinatura (1ª cobrança com CVV). card_id só depois, se houver one-time.
   const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
     '/subscriptions',
     {
@@ -416,13 +434,10 @@ export async function createPagarmeSubscription(
         interval_count: 1,
         billing_type: 'prepaid',
         customer_id: pagarmeCustomerId,
-        card: savedCard
-          ? buildSubscriptionCardPayload(billingAddress, {
-              cardId: savedCard.id,
-            })
-          : buildSubscriptionCardPayload(billingAddress, {
-              cardToken: input.cardToken,
-            }),
+        ...buildSubscriptionCardFields({
+          cardToken: input.cardToken,
+          billingAddress,
+        }),
         items: [
           {
             description: `DungeonBox — ${input.planName}`,
@@ -456,14 +471,24 @@ export async function createPagarmeSubscription(
     throw new Error('Não foi possível vincular a assinatura.');
   }
 
-  if (input.oneTimeCents > 0 && savedCard) {
+  if (input.oneTimeCents > 0) {
     try {
+      const cardId =
+        pagarmeSubscription.card?.id?.trim() ||
+        (await resolveLatestPagarmeCustomerCardId(pagarmeCustomerId));
+
+      if (!cardId) {
+        throw new Error(
+          'Assinatura criada, mas o cartão não ficou disponível para a cobrança única.'
+        );
+      }
+
       await chargePagarmeOneTimeOrder({
         customerId: pagarmeCustomerId,
         valueCents: input.oneTimeCents,
         description:
           input.oneTimeDescription ?? 'DungeonBox — cobrança única (1ª caixa)',
-        cardId: savedCard.id,
+        cardId,
         billingAddress,
         orderCode: buildPagarmeSubscriptionOneTimeCode(subscriptionId),
         metadata: {
