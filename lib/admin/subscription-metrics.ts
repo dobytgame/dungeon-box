@@ -10,12 +10,17 @@ import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import {
   brazilDateToEndIso,
   brazilDateToStartIso,
+  eachBrazilDay,
+  formatBrazilDayLabel,
+  todayBrazilDateKey,
   toBrazilDateKey,
 } from '@/lib/datetime/brazil';
 import {
   buildRevenueCountIndexes,
   isComboSubscription,
+  loadRevenueCountIndexes,
   resolvePaymentRevenueCents,
+  shouldCountInAdminSales,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
@@ -68,7 +73,7 @@ type SubscriptionSnapshotRow = {
 
 function listYears(now = new Date()): number[] {
   const [startYear] = OPERATION_CHART_START.split('-').map(Number);
-  const endYear = now.getFullYear();
+  const endYear = Number.parseInt(todayBrazilDateKey(now).slice(0, 4), 10);
   const years: number[] = [];
   for (let year = endYear; year >= startYear; year -= 1) {
     years.push(year);
@@ -76,33 +81,8 @@ function listYears(now = new Date()): number[] {
   return years;
 }
 
-function eachDay(from: string, to: string): string[] {
-  const days: string[] = [];
-  const cursor = new Date(`${from}T12:00:00`);
-  const end = new Date(`${to}T12:00:00`);
-
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return days;
-}
-
-function dayLabel(date: string): string {
-  const parsed = new Date(`${date}T12:00:00`);
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: 'numeric',
-    month: 'short',
-  }).format(parsed);
-}
-
 function dayKey(raw: string | null | undefined): string | null {
   return raw ? toBrazilDateKey(raw) : null;
-}
-
-function endOfDayIso(date: string): string {
-  return `${date}T23:59:59.999Z`;
 }
 
 function isRecurringMrrSubscription(row: SubscriptionSnapshotRow): boolean {
@@ -138,12 +118,33 @@ function isActiveOnDay(
   date: string
 ): boolean {
   const startedAt = row.started_at;
-  if (!startedAt || startedAt > endOfDayIso(date)) return false;
+  if (!startedAt || startedAt > brazilDateToEndIso(date)) return false;
 
   const cancelledAt = row.cancelled_at;
-  if (cancelledAt && cancelledAt <= endOfDayIso(date)) return false;
+  if (cancelledAt && cancelledAt <= brazilDateToEndIso(date)) return false;
 
   return true;
+}
+
+function buildNewSubscriptionDayCounts(
+  payments: RevenuePaymentRow[],
+  indexes: ReturnType<typeof buildRevenueCountIndexes>,
+  from: string,
+  to: string
+): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const payment of payments) {
+    if (!payment.subscription_id) continue;
+    if (!shouldCountInAdminSales(payment, indexes)) continue;
+
+    const day = dayKey(payment.paid_at ?? payment.created_at);
+    if (!day || day < from || day > to) continue;
+
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 function buildRenewalDayCounts(
@@ -203,7 +204,8 @@ export async function getSubscriptionMetricsChartData(
   const filters = parseDailySalesFilters(searchParams);
   const { from, to, periodLabel } = resolveDailySalesBounds(filters);
 
-  const [subscriptionsRes, paymentsRes, activeCountRes, mrrRes] = await Promise.all([
+  const [subscriptionsRes, paymentsRes, activeCountRes, mrrRes, revenueIndexes] =
+    await Promise.all([
     admin
       .from('subscriptions')
       .select(
@@ -250,6 +252,7 @@ export async function getSubscriptionMetricsChartData(
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active'),
     admin.from('mrr').select('*'),
+    loadRevenueCountIndexes(admin, to, { subscriptionOnly: true }),
   ]);
 
   if (subscriptionsRes.error) {
@@ -262,15 +265,15 @@ export async function getSubscriptionMetricsChartData(
   const subscriptions = (subscriptionsRes.data ?? []) as SubscriptionSnapshotRow[];
   const payments = (paymentsRes.data ?? []) as RevenuePaymentRow[];
 
-  const newByDay = new Map<string, number>();
+  const newByDay = buildNewSubscriptionDayCounts(
+    payments,
+    revenueIndexes,
+    from,
+    to
+  );
   const cancelledByDay = new Map<string, number>();
 
   for (const row of subscriptions) {
-    const startedDay = dayKey(row.started_at);
-    if (startedDay && startedDay >= from && startedDay <= to) {
-      newByDay.set(startedDay, (newByDay.get(startedDay) ?? 0) + 1);
-    }
-
     const cancelledDay = dayKey(row.cancelled_at);
     if (cancelledDay && cancelledDay >= from && cancelledDay <= to) {
       cancelledByDay.set(cancelledDay, (cancelledByDay.get(cancelledDay) ?? 0) + 1);
@@ -280,7 +283,7 @@ export async function getSubscriptionMetricsChartData(
   const { counts: renewalsByDay, revenueCents: renewalRevenueByDay } =
     buildRenewalDayCounts(payments, from, to);
 
-  const points: SubscriptionMetricsPoint[] = eachDay(from, to).map((date) => {
+  const points: SubscriptionMetricsPoint[] = eachBrazilDay(from, to).map((date) => {
     const newCount = newByDay.get(date) ?? 0;
     const cancelledCount = cancelledByDay.get(date) ?? 0;
     const renewalCount = renewalsByDay.get(date) ?? 0;
@@ -293,7 +296,7 @@ export async function getSubscriptionMetricsChartData(
 
     return {
       date,
-      label: dayLabel(date),
+      label: formatBrazilDayLabel(date),
       newCount,
       cancelledCount,
       renewalCount,

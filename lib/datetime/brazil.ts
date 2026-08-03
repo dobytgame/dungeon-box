@@ -70,14 +70,79 @@ export function formatBrazilDateTimeSeconds(
   return `${get('day')}/${get('month')}/${get('year')} - ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 /** YYYY-MM-DD no fuso de Brasília. */
 export function toBrazilDateKey(isoTimestamp: string): string {
+  const trimmed = isoTimestamp.trim();
+  if (!trimmed) return trimmed;
+
+  // Datas sem horário (ex.: paymentDate do Asaas) já representam o dia civil no Brasil.
+  if (DATE_ONLY_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: BRAZIL_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date(isoTimestamp));
+  }).format(new Date(trimmed));
+}
+
+/** Hoje (YYYY-MM-DD) no fuso de Brasília. */
+export function todayBrazilDateKey(now = new Date()): string {
+  return toBrazilDateKey(now.toISOString());
+}
+
+/** Soma dias a uma chave YYYY-MM-DD (calendário Brasil). */
+export function addBrazilDays(dateKey: string, delta: number): string {
+  const ms = new Date(`${dateKey}T12:00:00${BRAZIL_UTC_OFFSET}`).getTime();
+  if (Number.isNaN(ms)) return dateKey;
+  return toBrazilDateKey(new Date(ms + delta * 86_400_000).toISOString());
+}
+
+/** Lista dias inclusivos entre from e to (YYYY-MM-DD). */
+export function eachBrazilDay(from: string, to: string): string[] {
+  const days: string[] = [];
+  let cursor = from;
+
+  while (cursor <= to) {
+    days.push(cursor);
+    cursor = addBrazilDays(cursor, 1);
+  }
+
+  return days;
+}
+
+/** Rótulo curto para gráficos (ex.: "3 de ago."). */
+export function formatBrazilDayLabel(dateKey: string): string {
+  const date = parseBrazilDateInput(dateKey);
+  if (!date) return dateKey;
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: BRAZIL_TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+}
+
+/** paid_at real do gateway: preserva existente, depois data do provedor, depois agora. */
+export function resolveGatewayPaidAt(
+  existingPaidAt: string | null | undefined,
+  gatewayPaidAt: string | null | undefined,
+  now = new Date().toISOString()
+): string {
+  if (existingPaidAt?.trim()) return existingPaidAt.trim();
+
+  const gateway = gatewayPaidAt?.trim();
+  if (!gateway) return now;
+
+  if (DATE_ONLY_PATTERN.test(gateway)) {
+    return parseBrazilDateOnlyToIso(gateway);
+  }
+
+  const parsed = new Date(gateway);
+  return Number.isNaN(parsed.getTime()) ? now : parsed.toISOString();
 }
 
 /** Início do dia (00:00 BRT) em ISO UTC. */

@@ -224,8 +224,8 @@ export default function AdminSubscriptionMetricsChart({ data }: Props) {
       </div>
 
       <div className="mt-4 rounded-sm border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-zinc-500">
-        <strong className="font-medium text-emerald-300">Novos</strong> = assinaturas
-        iniciadas no dia.{' '}
+        <strong className="font-medium text-emerald-300">Novos</strong> = 1ª cobrança
+        aprovada no dia (Asaas ou Pagar.me).{' '}
         <strong className="font-medium text-console">Renovações</strong> = 2ª cobrança
         em diante, quando o pagamento é confirmado. Combos não geram renovação durante o
         período pré-pago.

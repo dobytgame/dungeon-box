@@ -16,6 +16,7 @@ import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { applySubscriptionStatusChange } from '@/lib/subscriptions/apply-status-change';
 import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
+import { resolveGatewayPaidAt } from '@/lib/datetime/brazil';
 
 export type PagarmeWebhookCharge = {
   id?: string;
@@ -24,7 +25,13 @@ export type PagarmeWebhookCharge = {
   subscription_id?: string;
   customer_id?: string;
   code?: string | null;
+  paid_at?: string | null;
+  updated_at?: string | null;
   metadata?: Record<string, string>;
+  last_transaction?: {
+    status?: string;
+    updated_at?: string;
+  };
 };
 
 export type PagarmeWebhookSubscription = {
@@ -44,6 +51,19 @@ export type PagarmeWebhookOrder = {
 
 function chargeAmountCents(charge: PagarmeWebhookCharge): number {
   return Math.round(charge.amount ?? 0);
+}
+
+function resolvePagarmeChargePaidAt(
+  charge: PagarmeWebhookCharge,
+  existingPaidAt?: string | null
+): string {
+  const gatewayPaidAt =
+    charge.paid_at?.trim() ||
+    charge.last_transaction?.updated_at?.trim() ||
+    charge.updated_at?.trim() ||
+    null;
+
+  return resolveGatewayPaidAt(existingPaidAt, gatewayPaidAt);
 }
 
 export async function handlePagarmeChargePaid(
@@ -77,6 +97,17 @@ export async function handlePagarmeChargePaid(
   const amountCents = chargeAmountCents(charge);
   const now = new Date().toISOString();
 
+  const { data: existingPayment } = await supabase
+    .from('payments')
+    .select('id, paid_at')
+    .eq('pagarme_charge_id', charge.id)
+    .maybeSingle();
+
+  const paidAt = resolvePagarmeChargePaidAt(
+    charge,
+    existingPayment?.paid_at as string | null
+  );
+
   const { data: paymentRow } = await supabase
     .from('payments')
     .upsert(
@@ -87,7 +118,7 @@ export async function handlePagarmeChargePaid(
         amount_cents: amountCents,
         currency: 'BRL',
         status: 'approved',
-        paid_at: now,
+        paid_at: paidAt,
         payment_method: 'credit_card',
       },
       { onConflict: 'pagarme_charge_id' }
@@ -109,7 +140,7 @@ export async function handlePagarmeChargePaid(
       await markCyclePreparing(supabase, local.id, 1, {
         id: paymentRow.id,
         amount_cents: paymentRow.amount_cents,
-        paid_at: now,
+        paid_at: paidAt,
       });
     }
     void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
@@ -143,7 +174,7 @@ export async function handlePagarmeChargePaid(
         {
           id: paymentRow.id,
           amount_cents: paymentRow.amount_cents,
-          paid_at: now,
+          paid_at: paidAt,
         },
         periodEnd.toISOString()
       );

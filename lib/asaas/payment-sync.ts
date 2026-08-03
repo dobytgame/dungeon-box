@@ -9,6 +9,7 @@ import {
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { markCyclePreparing } from '@/lib/subscriptions/cycles';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
+import { parseBrazilDateOnlyToIso, resolveGatewayPaidAt } from '@/lib/datetime/brazil';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 import { isAsaasPaymentConfirmed } from '@/lib/asaas/payment-status';
@@ -78,6 +79,13 @@ async function activatePendingFromConfirmedPayment(
 ): Promise<boolean> {
   const amountCents = Math.round((confirmed.value ?? 0) * 100);
   const now = new Date().toISOString();
+  const paidAt = resolveGatewayPaidAt(
+    null,
+    confirmed.paymentDate?.trim()
+      ? parseBrazilDateOnlyToIso(confirmed.paymentDate.trim())
+      : null,
+    now
+  );
 
   const { data: paymentRow } = await supabase
     .from('payments')
@@ -89,7 +97,7 @@ async function activatePendingFromConfirmedPayment(
         amount_cents: amountCents,
         currency: 'BRL',
         status: 'approved',
-        paid_at: now,
+        paid_at: paidAt,
       },
       { onConflict: 'asaas_payment_id' }
     )
@@ -105,7 +113,7 @@ async function activatePendingFromConfirmedPayment(
     await markCyclePreparing(supabase, local.id, 1, {
       id: paymentRow.id,
       amount_cents: paymentRow.amount_cents,
-      paid_at: now,
+      paid_at: paidAt,
     });
   }
 
@@ -159,7 +167,13 @@ async function activatePendingFromActiveAsaasSubscription(
 
   if (latest?.id) {
     const paidAt = isAsaasPaymentConfirmed(latest.status)
-      ? new Date().toISOString()
+      ? resolveGatewayPaidAt(
+          null,
+          latest.paymentDate?.trim()
+            ? parseBrazilDateOnlyToIso(latest.paymentDate.trim())
+            : null,
+          new Date().toISOString()
+        )
       : null;
     const { data: paymentRow } = await supabase
       .from('payments')

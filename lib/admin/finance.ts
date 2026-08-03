@@ -1,7 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { getOperationChartPeriod } from '@/lib/admin/chart-period';
-import { brazilDateToEndIso, brazilDateToStartIso } from '@/lib/datetime/brazil';
+import {
+  addBrazilDays,
+  brazilDateToEndIso,
+  brazilDateToStartIso,
+  todayBrazilDateKey,
+} from '@/lib/datetime/brazil';
 import { getProfitByMonth, getProfitSummary } from '@/lib/admin/profit-analytics';
 import {
   buildRevenueCountIndexes,
@@ -27,22 +32,20 @@ export function getFinancialPeriodBounds(period: AdminFinancialPeriod): {
   from: string;
   to: string;
 } {
-  const now = new Date();
-  const to = now.toISOString().slice(0, 10);
+  const to = todayBrazilDateKey();
 
   if (period === 'all') {
     return { from: '2020-01-01', to };
   }
 
   if (period === 'year') {
-    const from = `${now.getFullYear()}-01-01`;
-    return { from, to };
+    const year = to.slice(0, 4);
+    return { from: `${year}-01-01`, to };
   }
 
   const days = PERIOD_DAYS[period];
-  const start = new Date(now);
-  start.setDate(start.getDate() - days);
-  return { from: start.toISOString().slice(0, 10), to };
+  const from = addBrazilDays(to, -days);
+  return { from, to };
 }
 
 function monthKey(dateStr: string): string {

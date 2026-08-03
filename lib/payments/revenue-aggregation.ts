@@ -1,6 +1,12 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
-import { toBrazilDateKey } from '@/lib/datetime/brazil';
+import { OPERATION_CHART_START } from '@/lib/admin/chart-period';
+import {
+  brazilDateToEndIso,
+  brazilDateToStartIso,
+  toBrazilDateKey,
+} from '@/lib/datetime/brazil';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import {
   isComboPrepaidPayment,
@@ -380,6 +386,60 @@ export function resolvePaymentRevenueCents(row: RevenuePaymentRow): number {
     },
     getSubscription(row)
   );
+}
+
+export const REVENUE_PAYMENT_SELECT = `
+  id,
+  amount_cents,
+  status_detail,
+  installments,
+  subscription_id,
+  paid_at,
+  created_at,
+  subscriptions(
+    billing_term,
+    combo_total_cents,
+    combo_installments,
+    prepaid_months,
+    prepaid_until,
+    started_at,
+    plans!plan_id(name)
+  )
+`;
+
+/** Pagamentos aprovados desde o início da operação — base para índices de 1ª cobrança/renovação. */
+export async function fetchRevenuePaymentsForIndex(
+  admin: SupabaseClient,
+  toDateKey: string,
+  options: { subscriptionOnly?: boolean } = {}
+): Promise<RevenuePaymentRow[]> {
+  let query = admin
+    .from('payments')
+    .select(REVENUE_PAYMENT_SELECT)
+    .eq('status', 'approved')
+    .gte('paid_at', brazilDateToStartIso(OPERATION_CHART_START))
+    .lte('paid_at', brazilDateToEndIso(toDateKey));
+
+  if (options.subscriptionOnly) {
+    query = query.not('subscription_id', 'is', null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[revenue] fetchRevenuePaymentsForIndex:', error.message);
+    return [];
+  }
+
+  return (data ?? []) as RevenuePaymentRow[];
+}
+
+export async function loadRevenueCountIndexes(
+  admin: SupabaseClient,
+  toDateKey: string,
+  options: { subscriptionOnly?: boolean } = {}
+): Promise<ReturnType<typeof buildRevenueCountIndexes>> {
+  const rows = await fetchRevenuePaymentsForIndex(admin, toDateKey, options);
+  return buildRevenueCountIndexes(rows);
 }
 
 export function sumPaymentRevenueCents(rows: RevenuePaymentRow[]): number {

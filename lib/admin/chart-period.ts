@@ -1,3 +1,5 @@
+import { todayBrazilDateKey } from '@/lib/datetime/brazil';
+
 /** Início da operação com dados confiáveis para gráficos admin. */
 export const OPERATION_CHART_START = '2026-06-01';
 
@@ -13,7 +15,7 @@ export function getOperationChartPeriod(now = new Date()): {
   monthKeys: string[];
 } {
   const from = OPERATION_CHART_START;
-  const to = now.toISOString().slice(0, 10);
+  const to = todayBrazilDateKey(now);
 
   const [startYear, startMonth] = OPERATION_CHART_START.split('-').map(Number);
   const start = new Date(startYear, startMonth - 1, 1);

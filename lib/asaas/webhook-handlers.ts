@@ -29,6 +29,7 @@ import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-q
 import { isComboSubscription } from '@/lib/payments/revenue-aggregation';
 import { isNonBillingAsaasPayment } from '@/lib/subscriptions/billing-cycle-payments';
 import { isPaymentAlreadyLinkedToSubscriptionCycle } from '@/lib/subscriptions/payment-cycle-link';
+import { parseBrazilDateOnlyToIso, resolveGatewayPaidAt } from '@/lib/datetime/brazil';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -185,7 +186,13 @@ export async function handleAsaasPaymentConfirmed(
     return 'skipped';
   }
 
-  const paidAt = (existingPayment?.paid_at as string | null) ?? now;
+  const paidAt = resolveGatewayPaidAt(
+    existingPayment?.paid_at as string | null,
+    payment.paymentDate?.trim()
+      ? parseBrazilDateOnlyToIso(payment.paymentDate.trim())
+      : null,
+    now
+  );
 
   const { data: paymentRow } = await supabase
     .from('payments')

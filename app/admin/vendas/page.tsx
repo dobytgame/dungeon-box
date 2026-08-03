@@ -49,21 +49,21 @@ export default async function AdminSalesPage({ searchParams }: Props) {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <KpiCard
+          label="Receita no período"
+          value={formatMoney(chartData.totals.totalRevenueCents)}
+          hint={`${chartData.periodLabel} · vendas novas + renovações`}
+          accent="gold"
+        />
+        <KpiCard
           label="Vendas novas"
           value={formatMoney(chartData.totals.totalCents)}
-          hint={`${chartData.periodLabel} · 1ª cobrança (assinatura, combo ou loja)`}
+          hint="1ª cobrança (assinatura, combo ou loja)"
           accent="console"
         />
         <KpiCard
           label="Renovações pagas"
           value={formatMoney(chartData.totals.renewalCents)}
           hint={`${subscriptionMetrics.totals.renewalCount} cobrança(s) recorrente(s) no período`}
-          accent="gold"
-        />
-        <KpiCard
-          label="Receita total"
-          value={formatMoney(chartData.totals.totalRevenueCents)}
-          hint="Vendas novas + renovações confirmadas"
           accent="gold"
         />
         <KpiCard
@@ -101,7 +101,7 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         <KpiCard
           label="Novos clientes"
           value={String(subscriptionMetrics.totals.newCount)}
-          hint={subscriptionMetrics.periodLabel}
+          hint={`${subscriptionMetrics.periodLabel} · 1ª cobrança aprovada`}
           accent="console"
         />
         <KpiCard

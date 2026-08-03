@@ -14,6 +14,7 @@ import {
 } from '@/lib/admin/list-pagination';
 import {
   buildRevenueCountIndexes,
+  loadRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountInAdminSales,
   shouldCountPaymentInRevenue,
@@ -432,7 +433,10 @@ export async function listAdminSales(
   }
 
   const revenueRows = (data ?? []) as RevenuePaymentRow[];
-  const indexes = buildRevenueCountIndexes(revenueRows);
+  const indexes =
+    filters.to != null
+      ? await loadRevenueCountIndexes(admin, filters.to)
+      : buildRevenueCountIndexes(revenueRows);
 
   const rows = (data ?? [])
     .map((row) => mapPaymentRow(row as Record<string, unknown>, indexes))

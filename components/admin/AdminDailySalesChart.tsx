@@ -6,7 +6,6 @@ import {
   Area,
   CartesianGrid,
   ComposedChart,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -22,29 +21,37 @@ interface Props {
   data: DailySalesChartData;
 }
 
-type SeriesKey = 'assinatura' | 'loja';
+type SeriesKey = 'assinatura' | 'loja' | 'renovacoes';
 
-const NEW_SALES_SERIES: {
+const CHART_SERIES: {
   key: SeriesKey;
   label: string;
   color: string;
   fill: string;
+  stackId: string;
 }[] = [
   {
     key: 'assinatura',
     label: 'Assinatura (nova)',
     color: '#2dd4bf',
     fill: 'rgba(45, 212, 191, 0.35)',
+    stackId: 'revenue',
   },
   {
     key: 'loja',
     label: 'Loja (nova)',
     color: '#60a5fa',
     fill: 'rgba(96, 165, 250, 0.35)',
+    stackId: 'revenue',
+  },
+  {
+    key: 'renovacoes',
+    label: 'Renovações',
+    color: '#d4a853',
+    fill: 'rgba(212, 168, 83, 0.35)',
+    stackId: 'revenue',
   },
 ];
-
-const RENEWAL_COLOR = '#d4a853';
 
 const PERIOD_OPTIONS: { value: DailySalesPeriod; label: string }[] = [
   { value: '7d', label: 'Últimos 7 dias' },
@@ -129,8 +136,8 @@ export default function AdminDailySalesChart({ data }: Props) {
   const [activeSeries, setActiveSeries] = useState<Record<SeriesKey, boolean>>({
     assinatura: true,
     loja: true,
+    renovacoes: true,
   });
-  const [showRenewals, setShowRenewals] = useState(true);
 
   const chartData = useMemo(
     () =>
@@ -161,7 +168,7 @@ export default function AdminDailySalesChart({ data }: Props) {
   function toggleSeries(key: SeriesKey) {
     setActiveSeries((current) => {
       const next = { ...current, [key]: !current[key] };
-      if (!next.assinatura && !next.loja) return current;
+      if (!next.assinatura && !next.loja && !next.renovacoes) return current;
       return next;
     });
   }
@@ -174,12 +181,12 @@ export default function AdminDailySalesChart({ data }: Props) {
             Receita diária
           </p>
           <h3 className="mt-2 text-lg font-medium text-zinc-100">
-            Vendas novas e renovações
+            Receita diária (vendas novas + renovações)
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-500">
             {data.periodLabel} ·{' '}
             <span className="text-zinc-300">
-              {formatMoney(data.totals.totalCents)} em vendas novas
+              {formatMoney(data.totals.totalRevenueCents)} receita total
             </span>
             {data.totals.renewalCents > 0 ? (
               <>
@@ -187,6 +194,11 @@ export default function AdminDailySalesChart({ data }: Props) {
                 ·{' '}
                 <span className="text-gold">
                   {formatMoney(data.totals.renewalCents)} em renovações
+                </span>
+                {' '}
+                ·{' '}
+                <span className="text-console">
+                  {formatMoney(data.totals.totalCents)} em vendas novas
                 </span>
               </>
             ) : null}
@@ -254,15 +266,15 @@ export default function AdminDailySalesChart({ data }: Props) {
       </div>
 
       <div className="mt-4 rounded-sm border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-zinc-500">
-        <strong className="font-medium text-zinc-300">Vendas novas</strong> = 1ª
-        cobrança (assinatura, combo ou loja).{' '}
-        <strong className="font-medium text-gold">Renovações</strong> = mensalidades
-        recorrentes já pagas. Combos entram só na compra inicial — não geram
-        renovação mensal durante o período pré-pago.
+        <strong className="font-medium text-zinc-300">Receita do dia</strong> =
+        vendas novas (1ª cobrança de assinatura, combo ou loja) +{' '}
+        <strong className="font-medium text-gold">renovações</strong> pagas.
+        Combos entram só na compra inicial — não geram renovação mensal durante o
+        período pré-pago.
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {NEW_SALES_SERIES.map((series) => {
+        {CHART_SERIES.map((series) => {
           const active = activeSeries[series.key];
           return (
             <button
@@ -284,22 +296,6 @@ export default function AdminDailySalesChart({ data }: Props) {
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={() => setShowRenewals((current) => !current)}
-          className={`inline-flex items-center gap-2 rounded-sm border px-3 py-1.5 text-xs transition ${
-            showRenewals
-              ? 'border-white/15 bg-white/5 text-zinc-100'
-              : 'border-white/5 text-zinc-600'
-          }`}
-        >
-          <span
-            className="h-0.5 w-4"
-            style={{ backgroundColor: showRenewals ? RENEWAL_COLOR : '#52525b' }}
-            aria-hidden="true"
-          />
-          Renovações (linha)
-        </button>
       </div>
 
       {chartData.length === 0 ? (
@@ -314,7 +310,7 @@ export default function AdminDailySalesChart({ data }: Props) {
               margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
             >
               <defs>
-                {NEW_SALES_SERIES.map((series) => (
+                {CHART_SERIES.map((series) => (
                   <linearGradient
                     key={series.key}
                     id={`fill-${series.key}`}
@@ -350,13 +346,13 @@ export default function AdminDailySalesChart({ data }: Props) {
                 tick={{ fill: '#71717a', fontSize: 11 }}
               />
               <Tooltip content={<ChartTooltip />} />
-              {NEW_SALES_SERIES.map((series) =>
+              {CHART_SERIES.map((series) =>
                 activeSeries[series.key] ? (
                   <Area
                     key={series.key}
                     type="monotone"
                     dataKey={series.key}
-                    stackId="new-sales"
+                    stackId={series.stackId}
                     stroke={series.color}
                     strokeWidth={2}
                     fill={`url(#fill-${series.key})`}
@@ -365,22 +361,18 @@ export default function AdminDailySalesChart({ data }: Props) {
                   />
                 ) : null
               )}
-              {showRenewals ? (
-                <Line
-                  type="monotone"
-                  dataKey="renovacoes"
-                  stroke={RENEWAL_COLOR}
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={!isPending}
-                />
-              ) : null}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-4 border-t border-white/[0.06] pt-4 font-mono text-[11px] text-zinc-500">
+        <span>
+          Receita total:{' '}
+          <strong className="text-zinc-100">
+            {formatMoney(data.totals.totalRevenueCents)}
+          </strong>
+        </span>
         <span>
           Vendas novas:{' '}
           <strong className="text-zinc-200">
@@ -401,12 +393,6 @@ export default function AdminDailySalesChart({ data }: Props) {
           Renovações:{' '}
           <strong className="text-gold">
             {formatMoney(data.totals.renewalCents)}
-          </strong>
-        </span>
-        <span>
-          Receita total:{' '}
-          <strong className="text-zinc-100">
-            {formatMoney(data.totals.totalRevenueCents)}
           </strong>
         </span>
       </div>

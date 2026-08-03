@@ -2,13 +2,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { OPERATION_CHART_START } from '@/lib/admin/chart-period';
 import { classifyAdminSale } from '@/lib/admin/sales';
 import {
+  addBrazilDays,
   brazilDateToEndIso,
   brazilDateToStartIso,
+  eachBrazilDay,
+  formatBrazilDayLabel,
+  todayBrazilDateKey,
   toBrazilDateKey,
 } from '@/lib/datetime/brazil';
 import {
   buildRevenueCountIndexes,
+  loadRevenueCountIndexes,
   resolvePaymentRevenueCents,
+  REVENUE_PAYMENT_SELECT,
   shouldCountInAdminSales,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
@@ -65,7 +71,8 @@ function parseFilters(
   searchParams: Record<string, string | undefined>,
   now = new Date()
 ): DailySalesFilters {
-  const currentYear = now.getFullYear();
+  const todayKey = todayBrazilDateKey(now);
+  const currentYear = Number.parseInt(todayKey.slice(0, 4), 10);
   const yearRaw = Number.parseInt(
     searchParams.salesYear ?? searchParams.year ?? String(currentYear),
     10
@@ -90,7 +97,7 @@ function parseFilters(
 
 function listYears(now = new Date()): number[] {
   const [startYear] = OPERATION_CHART_START.split('-').map(Number);
-  const endYear = now.getFullYear();
+  const endYear = Number.parseInt(todayBrazilDateKey(now).slice(0, 4), 10);
   const years: number[] = [];
   for (let year = endYear; year >= startYear; year -= 1) {
     years.push(year);
@@ -102,74 +109,56 @@ function resolveBounds(
   filters: DailySalesFilters,
   now = new Date()
 ): { from: string; to: string; periodLabel: string } {
+  const todayKey = todayBrazilDateKey(now);
+  const todayYear = Number.parseInt(todayKey.slice(0, 4), 10);
+
   if (filters.month) {
     const month = String(filters.month).padStart(2, '0');
     const lastDay = new Date(filters.year, filters.month, 0).getDate();
     const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(
       new Date(filters.year, filters.month - 1, 1)
     );
+    const monthEnd =
+      filters.year === todayYear && filters.month === Number.parseInt(todayKey.slice(5, 7), 10)
+        ? todayKey
+        : `${filters.year}-${month}-${String(lastDay).padStart(2, '0')}`;
     return {
       from: `${filters.year}-${month}-01`,
-      to: `${filters.year}-${month}-${String(lastDay).padStart(2, '0')}`,
+      to: monthEnd,
       periodLabel: `${monthName} ${filters.year}`,
     };
   }
 
-  const isCurrentYear = filters.year === now.getFullYear();
+  const isCurrentYear = filters.year === todayYear;
 
   if (filters.period === 'year') {
     return {
       from: `${filters.year}-01-01`,
-      to: isCurrentYear ? now.toISOString().slice(0, 10) : `${filters.year}-12-31`,
+      to: isCurrentYear ? todayKey : `${filters.year}-12-31`,
       periodLabel: `Ano ${filters.year}`,
     };
   }
 
   const days = PERIOD_DAYS[filters.period];
   if (isCurrentYear) {
-    const start = new Date(now);
-    start.setDate(start.getDate() - (days - 1));
-    const from = start.toISOString().slice(0, 10);
+    const from = addBrazilDays(todayKey, -(days - 1));
     const opStart = OPERATION_CHART_START;
     return {
       from: from < opStart ? opStart : from,
-      to: now.toISOString().slice(0, 10),
+      to: todayKey,
       periodLabel: PERIOD_LABELS[filters.period],
     };
   }
 
-  const end = new Date(filters.year, 11, 31);
-  const start = new Date(end);
-  start.setDate(start.getDate() - (days - 1));
-  const from = start.toISOString().slice(0, 10);
+  const yearEnd = `${filters.year}-12-31`;
+  const from = addBrazilDays(yearEnd, -(days - 1));
   const yearStart = `${filters.year}-01-01`;
 
   return {
     from: from < yearStart ? yearStart : from,
-    to: `${filters.year}-12-31`,
+    to: yearEnd,
     periodLabel: `${PERIOD_LABELS[filters.period]} · ${filters.year}`,
   };
-}
-
-function eachDay(from: string, to: string): string[] {
-  const days: string[] = [];
-  const cursor = new Date(`${from}T12:00:00`);
-  const end = new Date(`${to}T12:00:00`);
-
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return days;
-}
-
-function dayLabel(date: string): string {
-  const parsed = new Date(`${date}T12:00:00`);
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: 'numeric',
-    month: 'short',
-  }).format(parsed);
 }
 
 function chartDayKey(paidAt: string | null, createdAt: string | null): string | null {
@@ -215,38 +204,25 @@ export async function getDailySalesChartData(
   const filters = parseFilters(searchParams);
   const { from, to, periodLabel } = resolveBounds(filters);
 
-  const { data, error } = await admin
-    .from('payments')
-    .select(
-      `
-      id,
-      amount_cents,
-      status_detail,
-      installments,
-      subscription_id,
-      paid_at,
-      created_at,
-      subscriptions(
-        billing_term,
-        combo_total_cents,
-        combo_installments,
-        prepaid_months,
-        prepaid_until,
-        started_at,
-        plans!plan_id(name)
-      )
-    `
-    )
-    .eq('status', 'approved')
-    .gte('paid_at', brazilDateToStartIso(from))
-    .lte('paid_at', brazilDateToEndIso(to));
+  const paidFrom = brazilDateToStartIso(from);
+  const paidTo = brazilDateToEndIso(to);
 
-  if (error) {
-    console.error('[admin] getDailySalesChartData:', error.message);
+  const [periodRes, indexes] = await Promise.all([
+    admin
+      .from('payments')
+      .select(REVENUE_PAYMENT_SELECT)
+      .eq('status', 'approved')
+      .or(
+        `and(paid_at.gte."${paidFrom}",paid_at.lte."${paidTo}"),and(paid_at.is.null,created_at.gte."${paidFrom}",created_at.lte."${paidTo}")`
+      ),
+    loadRevenueCountIndexes(admin, to),
+  ]);
+
+  if (periodRes.error) {
+    console.error('[admin] getDailySalesChartData:', periodRes.error.message);
   }
 
-  const rows = (data ?? []) as RevenuePaymentRow[];
-  const indexes = buildRevenueCountIndexes(rows);
+  const rows = (periodRes.data ?? []) as RevenuePaymentRow[];
 
   const byDay = new Map<
     string,
@@ -302,7 +278,7 @@ export async function getDailySalesChartData(
     byDay.set(day, bucket);
   }
 
-  const points: DailySalesPoint[] = eachDay(from, to).map((date) => {
+  const points: DailySalesPoint[] = eachBrazilDay(from, to).map((date) => {
     const bucket = byDay.get(date) ?? {
       assinaturaCents: 0,
       lojaCents: 0,
@@ -311,7 +287,7 @@ export async function getDailySalesChartData(
     const totalCents = bucket.assinaturaCents + bucket.lojaCents;
     return {
       date,
-      label: dayLabel(date),
+      label: formatBrazilDayLabel(date),
       assinaturaCents: bucket.assinaturaCents,
       lojaCents: bucket.lojaCents,
       renewalCents: bucket.renewalCents,
