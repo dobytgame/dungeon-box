@@ -193,7 +193,16 @@ export default function UpdatePaymentClient({
                       Valor do plano
                     </dt>
                     <dd className="mt-2 tabular-nums text-white">
-                      {formatMoney(preview.priceCents)}
+                      {preview.priceCents < preview.originalPriceCents ? (
+                        <>
+                          <span className="mr-2 text-stone-500 line-through">
+                            {formatMoney(preview.originalPriceCents)}
+                          </span>
+                          {formatMoney(preview.priceCents)}
+                        </>
+                      ) : (
+                        formatMoney(preview.priceCents)
+                      )}
                     </dd>
                   </div>
                   <div>
@@ -201,11 +210,56 @@ export default function UpdatePaymentClient({
                       Frete mensal
                     </dt>
                     <dd className="mt-2 tabular-nums text-white">
-                      {preview.shippingCents > 0
-                        ? formatMoney(preview.shippingCents)
-                        : 'Incluso / grátis'}
+                      {preview.shippingCents > 0 ? (
+                        preview.shippingCents < preview.originalShippingCents ? (
+                          <>
+                            <span className="mr-2 text-stone-500 line-through">
+                              {formatMoney(preview.originalShippingCents)}
+                            </span>
+                            {formatMoney(preview.shippingCents)}
+                          </>
+                        ) : (
+                          formatMoney(preview.shippingCents)
+                        )
+                      ) : preview.originalShippingCents > 0 ? (
+                        <>
+                          <span className="mr-2 text-stone-500 line-through">
+                            {formatMoney(preview.originalShippingCents)}
+                          </span>
+                          Grátis
+                        </>
+                      ) : (
+                        'Incluso / grátis'
+                      )}
                     </dd>
                   </div>
+                  {preview.bumpCents > 0 ? (
+                    <div className="sm:col-span-2">
+                      <dt className="font-display text-[10px] uppercase tracking-[0.28em] text-stone-500">
+                        Adicional recorrente
+                      </dt>
+                      <dd className="mt-2 tabular-nums text-white">
+                        {formatMoney(preview.bumpCents)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {preview.promoCode ? (
+                    <div className="sm:col-span-2">
+                      <dt className="font-display text-[10px] uppercase tracking-[0.28em] text-stone-500">
+                        Cupom aplicado
+                      </dt>
+                      <dd className="mt-2 text-white">
+                        <span className="font-mono text-sm tracking-wide text-frost">
+                          {preview.promoCode}
+                        </span>
+                        {preview.promoSummary ? (
+                          <span className="mt-1 block text-xs text-stone-500">
+                            {preview.promoSummary}
+                          </span>
+                        ) : null}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
 
                 <div className="flex items-end justify-between gap-4 border-t border-white/[0.06] pt-5">
@@ -217,9 +271,16 @@ export default function UpdatePaymentClient({
                       Cobrado apenas na data de vencimento
                     </p>
                   </div>
-                  <p className="font-display text-3xl tabular-nums text-gold">
-                    {formatMoney(preview.totalCents)}
-                  </p>
+                  <div className="text-right">
+                    {preview.totalCents < preview.originalTotalCents ? (
+                      <p className="text-sm tabular-nums text-stone-500 line-through">
+                        {formatMoney(preview.originalTotalCents)}
+                      </p>
+                    ) : null}
+                    <p className="font-display text-3xl tabular-nums text-gold">
+                      {formatMoney(preview.totalCents)}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { resolveSubscriptionRecurringCharge } from '@/lib/subscriptions/recurring-charge';
 
 export type MigrationPreview =
   | {
@@ -9,8 +10,14 @@ export type MigrationPreview =
       planName: string;
       planSlug: string | null;
       priceCents: number;
+      originalPriceCents: number;
       shippingCents: number;
+      originalShippingCents: number;
+      bumpCents: number;
       totalCents: number;
+      originalTotalCents: number;
+      promoCode: string | null;
+      promoSummary: string | null;
       nextBillingDate: string | null;
       billingTerm: string | null;
       subscriptionStatus: string;
@@ -102,6 +109,8 @@ export async function loadMigrationPreviewByToken(
       billing_term,
       next_billing_date,
       shipping_cents,
+      promo_code,
+      special_notes,
       pagarme_subscription_id,
       migrated_to_pagarme_at,
       plans!plan_id(name, slug, price_cents)
@@ -146,7 +155,7 @@ export async function loadMigrationPreviewByToken(
     ? subscription.plans[0]
     : subscription.plans;
 
-  if (!plan?.name || plan.price_cents == null) {
+  if (!plan?.name || !plan.slug || plan.price_cents == null) {
     return {
       ok: false,
       reason: 'incomplete',
@@ -154,7 +163,19 @@ export async function loadMigrationPreviewByToken(
     };
   }
 
-  const shippingCents = subscription.shipping_cents ?? 0;
+  const billingContext = {
+    promo_code: subscription.promo_code,
+    shipping_cents: subscription.shipping_cents,
+    special_notes: subscription.special_notes,
+  };
+
+  const [charge, fullCharge] = await Promise.all([
+    resolveSubscriptionRecurringCharge(admin, plan, billingContext),
+    resolveSubscriptionRecurringCharge(admin, plan, {
+      ...billingContext,
+      promo_code: null,
+    }),
+  ]);
 
   return {
     ok: true,
@@ -162,10 +183,16 @@ export async function loadMigrationPreviewByToken(
     customerName: profile.full_name,
     customerEmail: profile.email,
     planName: plan.name,
-    planSlug: plan.slug ?? null,
-    priceCents: plan.price_cents,
-    shippingCents,
-    totalCents: plan.price_cents + shippingCents,
+    planSlug: plan.slug,
+    priceCents: charge.planCents,
+    originalPriceCents: fullCharge.planCents,
+    shippingCents: charge.shippingCents,
+    originalShippingCents: fullCharge.shippingCents,
+    bumpCents: charge.bumpCents,
+    totalCents: charge.totalCents,
+    originalTotalCents: fullCharge.totalCents,
+    promoCode: subscription.promo_code?.trim() || null,
+    promoSummary: charge.promoSummary,
     nextBillingDate: subscription.next_billing_date,
     billingTerm: subscription.billing_term,
     subscriptionStatus: subscription.status,

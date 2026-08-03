@@ -5,6 +5,7 @@ import { attachPagarmeSubscriptionToExisting } from '@/lib/pagarme/migrate-subsc
 import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
 import { userFacingPagarmeError } from '@/lib/pagarme/errors';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { resolveSubscriptionRecurringCharge } from '@/lib/subscriptions/recurring-charge';
 
 export function isAsaasSubscriptionNeedingPagarmeMigration(sub: {
   status?: string | null;
@@ -48,6 +49,8 @@ export async function completeAsaasToPagarmeMigration(input: {
       status,
       address_id,
       shipping_cents,
+      promo_code,
+      special_notes,
       next_billing_date,
       asaas_subscription_id,
       pagarme_subscription_id,
@@ -109,6 +112,12 @@ export async function completeAsaasToPagarmeMigration(input: {
     };
   }
 
+  const charge = await resolveSubscriptionRecurringCharge(input.admin, planData, {
+    promo_code: subscription.promo_code,
+    shipping_cents: subscription.shipping_cents,
+    special_notes: subscription.special_notes,
+  });
+
   const now = new Date();
 
   try {
@@ -118,7 +127,7 @@ export async function completeAsaasToPagarmeMigration(input: {
       userId: input.userId,
       planSlug: planData.slug as PlanSlug,
       planName: planData.name,
-      priceCents: planData.price_cents + (subscription.shipping_cents ?? 0),
+      priceCents: charge.totalCents,
       cardToken: input.cardToken,
       cardLast4: input.cardLast4,
       cardBrand: input.cardBrand,
