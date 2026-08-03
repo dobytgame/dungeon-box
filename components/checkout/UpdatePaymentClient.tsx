@@ -26,7 +26,9 @@ export default function UpdatePaymentClient({ token }: Props) {
           Cartão atualizado com sucesso
         </h1>
         <p className="text-stone-400">
-          Sua assinatura DungeonBox continua ativa na nova plataforma de pagamentos.
+          Sua assinatura DungeonBox continua ativa na nova plataforma. A próxima
+          cobrança segue na data original do seu ciclo — atualizar o cartão não
+          gera cobrança antecipada.
         </p>
       </div>
     );
@@ -39,8 +41,9 @@ export default function UpdatePaymentClient({ token }: Props) {
           Atualizar método de pagamento
         </h1>
         <p className="mt-2 text-sm text-stone-400">
-          Insira seu cartão para continuar sua assinatura na nova plataforma de
-          pagamentos.
+          Insira seu cartão para continuar sua assinatura na nova plataforma.
+          Não há cobrança agora — o valor segue na data de vencimento do seu
+          ciclo.
         </p>
       </div>
       <PagarmePaymentForm

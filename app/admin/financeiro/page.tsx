@@ -69,6 +69,12 @@ export default async function AdminFinancePage({ searchParams }: Props) {
           Gerenciar gastos
         </Link>
         <Link
+          href="/admin/financeiro/assinantes"
+          className="rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300"
+        >
+          Assinantes do dia
+        </Link>
+        <Link
           href="/admin/financeiro/gateway"
           className="rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300"
         >

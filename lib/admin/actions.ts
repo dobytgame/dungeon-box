@@ -2866,3 +2866,40 @@ export async function syncPagarmeSubscriptionAction(subscriptionId: string) {
     return { error: 'Falha ao sincronizar com Pagar.me.' };
   }
 }
+
+export async function sendGatewayMigrationEmailAction(input: {
+  subscriptionId: string;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { sendMigrationEmailForSubscription } = await import(
+    '@/lib/pagarme/send-migration-email'
+  );
+
+  const result = await sendMigrationEmailForSubscription(
+    admin,
+    input.subscriptionId
+  );
+
+  if ('error' in result) {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.send_migration_email',
+    entityType: 'subscription',
+    entityId: input.subscriptionId,
+    metadata: { email: result.email },
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath('/admin/financeiro/assinantes');
+  revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+
+  return { success: true as const, email: result.email };
+}

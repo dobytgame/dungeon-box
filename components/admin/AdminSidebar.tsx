@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bell,
+  Calendar,
   CreditCard,
   Handshake,
   Landmark,
@@ -39,6 +40,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   receipt: Receipt,
   landmark: Landmark,
   'credit-card': CreditCard,
+  calendar: Calendar,
   wallet: Wallet,
   layers: Layers,
   'shopping-bag': ShoppingBag,

@@ -1,22 +1,36 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { completeAsaasToPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { completeAsaasToPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const bodySchema = z.object({
-  updateToken: z.string().uuid(),
+  subscriptionId: z.string().uuid(),
   cardToken: z.string().min(1),
   cardLast4: z.string().regex(/^\d{4}$/),
   cardBrand: z.string().max(32),
 });
 
+/** Migração Asaas → Pagar.me autenticada (dashboard do usuário). */
 export async function POST(request: Request) {
   if (!PAGARME_CONFIGURED) {
     return NextResponse.json(
       { error: 'Migração de pagamento indisponível.' },
       { status: 503 }
     );
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
 
   let body: z.infer<typeof bodySchema>;
@@ -27,44 +41,13 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const now = new Date();
-
-  const { data: migration } = await admin
-    .from('gateway_migration_log')
-    .select('id, subscription_id, user_id, status, token_expires_at')
-    .eq('update_token', body.updateToken)
-    .eq('status', 'sent')
-    .maybeSingle();
-
-  if (!migration) {
-    return NextResponse.json(
-      { error: 'Link de atualização inválido ou expirado.' },
-      { status: 400 }
-    );
-  }
-
-  if (
-    migration.token_expires_at &&
-    new Date(migration.token_expires_at) < now
-  ) {
-    await admin
-      .from('gateway_migration_log')
-      .update({ status: 'expired' })
-      .eq('id', migration.id);
-    return NextResponse.json(
-      { error: 'Link de atualização expirado.' },
-      { status: 400 }
-    );
-  }
-
   const result = await completeAsaasToPagarmeMigration({
     admin,
-    subscriptionId: migration.subscription_id,
-    userId: migration.user_id,
+    subscriptionId: body.subscriptionId,
+    userId: user.id,
     cardToken: body.cardToken,
     cardLast4: body.cardLast4,
     cardBrand: body.cardBrand,
-    migrationLogId: migration.id,
   });
 
   if ('error' in result) {

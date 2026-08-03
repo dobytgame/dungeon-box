@@ -7,6 +7,7 @@ import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
 import SubscriptionComboUpgrade from '@/components/dashboard/SubscriptionComboUpgrade';
+import SubscriptionGatewayMigration from '@/components/dashboard/SubscriptionGatewayMigration';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { parseCustomerNotes } from '@/lib/checkout/special-notes';
@@ -31,6 +32,7 @@ import {
 } from '@/lib/subscriptions/upgrade';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 
 function resolveComboUpgradeProvider(
   subscription: Subscription
@@ -75,6 +77,15 @@ async function SubscriptionDetailCard({
 
   return (
     <div className="space-y-8">
+      {PAGARME_CONFIGURED &&
+      isAsaasSubscriptionNeedingPagarmeMigration(subscription) ? (
+        <SubscriptionGatewayMigration
+          subscriptionId={subscription.id}
+          planName={plan?.name ?? 'Assinatura'}
+          nextBillingDate={subscription.next_billing_date}
+        />
+      ) : null}
+
       {needsPayment && paymentLink ? (
         <SubscriptionPaymentCallout
           status={isPastDue ? 'past_due' : 'pending'}

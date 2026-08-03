@@ -72,6 +72,14 @@ export const ADMIN_NAV = [
     group: 'operacao',
   },
   {
+    href: '/admin/financeiro/assinantes',
+    label: 'Assinantes do dia',
+    eyebrow: 'Cobrança',
+    description: 'Vencimentos do dia, gateway e e-mail de migração.',
+    icon: 'calendar',
+    group: 'operacao',
+  },
+  {
     href: '/admin/pagamentos',
     label: 'Pagamentos',
     eyebrow: 'Cofre',

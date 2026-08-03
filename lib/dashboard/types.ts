@@ -128,6 +128,7 @@ export interface Subscription {
   asaas_customer_id?: string | null;
   pagarme_subscription_id?: string | null;
   pagarme_customer_id?: string | null;
+  migrated_to_pagarme_at?: string | null;
   card_last4?: string | null;
   card_brand?: string | null;
   stripe_subscription_id?: string | null;

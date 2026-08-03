@@ -9,7 +9,33 @@ type PagarmeSubscriptionResponse = {
   id: string;
   status?: string;
   next_billing_at?: string;
+  start_at?: string;
 };
+
+function formatPagarmeDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Para migração: cobra só a partir da próxima data de cobrança (ex.: cadastra 03/08, cobra 19/08).
+ * Se a data já passou ou é hoje, inicia amanhã (mínimo D+1) para evitar cobrança imediata.
+ */
+export function resolveMigrationStartAt(
+  nextBillingDate: string | Date | null | undefined,
+  now = new Date()
+): Date {
+  const minStart = new Date(now);
+  minStart.setUTCDate(minStart.getUTCDate() + 1);
+  minStart.setUTCHours(0, 0, 0, 0);
+
+  if (!nextBillingDate) return minStart;
+
+  const renewal = new Date(nextBillingDate);
+  if (Number.isNaN(renewal.getTime())) return minStart;
+  renewal.setUTCHours(0, 0, 0, 0);
+
+  return renewal.getTime() > minStart.getTime() ? renewal : minStart;
+}
 
 export async function attachPagarmeSubscriptionToExisting(input: {
   supabase: SupabaseClient;
@@ -22,6 +48,8 @@ export async function attachPagarmeSubscriptionToExisting(input: {
   cardLast4: string;
   cardBrand: string;
   billingAddress: PagarmeBillingAddressInput;
+  /** Data da próxima cobrança Asaas — usada como start_at no Pagar.me. */
+  nextBillingDate?: string | null;
   profile: {
     id: string;
     email: string;
@@ -47,6 +75,8 @@ export async function attachPagarmeSubscriptionToExisting(input: {
     input.address
   );
 
+  const startAt = resolveMigrationStartAt(input.nextBillingDate);
+
   const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
     '/subscriptions',
     {
@@ -58,6 +88,7 @@ export async function attachPagarmeSubscriptionToExisting(input: {
         interval: 'month',
         interval_count: 1,
         billing_type: 'prepaid',
+        start_at: formatPagarmeDate(startAt),
         customer_id: pagarmeCustomerId,
         ...buildPagarmeSubscriptionCardPayload({
           cardToken: input.cardToken,
@@ -77,12 +108,17 @@ export async function attachPagarmeSubscriptionToExisting(input: {
           subscription_id: input.subscriptionId,
           plan_slug: input.planSlug,
           migrated_from: 'asaas',
+          deferred_start: 'true',
         },
       },
     }
   );
 
   const now = new Date().toISOString();
+  const nextBilling =
+    pagarmeSubscription.next_billing_at ??
+    pagarmeSubscription.start_at ??
+    startAt.toISOString();
 
   const { error } = await input.supabase
     .from('subscriptions')
@@ -91,7 +127,7 @@ export async function attachPagarmeSubscriptionToExisting(input: {
       pagarme_customer_id: pagarmeCustomerId,
       card_last4: input.cardLast4,
       card_brand: input.cardBrand,
-      next_billing_date: pagarmeSubscription.next_billing_at ?? null,
+      next_billing_date: nextBilling,
       migrated_to_pagarme_at: now,
       updated_at: now,
     })
@@ -105,5 +141,7 @@ export async function attachPagarmeSubscriptionToExisting(input: {
   return {
     pagarmeSubscriptionId: pagarmeSubscription.id,
     pagarmeCustomerId,
+    startAt,
+    nextBillingDate: nextBilling,
   };
 }

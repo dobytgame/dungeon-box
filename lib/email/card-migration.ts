@@ -30,11 +30,13 @@ export function cardMigrationHtml(data: CardMigrationEmailData): string {
     paragraphs: [
       `${name}, estamos migrando nossa plataforma de pagamentos para melhorar sua experiência.`,
       `Para garantir a continuidade da sua assinatura com vencimento em <strong style="color:#fff;">${billing}</strong>, precisamos que você atualize seu cartão na nova plataforma.`,
+      'Atualizar agora <strong style="color:#fff;">não gera cobrança antecipada</strong> — o valor continua sendo cobrado apenas na data de vencimento.',
       'O processo leva menos de 2 minutos e seu plano e benefícios permanecem exatamente os mesmos.',
     ],
     bullets: [
       'Seus benefícios de fundador continuam ativos',
       'O valor e a data de cobrança não mudam',
+      'Atualizar o cartão não cobra antes do vencimento',
       'Seus dados estão seguros — não armazenamos números de cartão',
     ],
     cta: { label: 'Atualizar meu cartão agora', href: data.updateLink },
