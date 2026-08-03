@@ -14,7 +14,7 @@ import {
   productionActionLabel,
 } from '@/lib/subscriptions/cycle-production';
 import type { CycleStatus } from '@/lib/dashboard/types';
-import { formatDate, formatMoney } from '@/lib/dashboard/format';
+import { formatDate, formatDateTime, formatMoney } from '@/lib/dashboard/format';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
@@ -145,12 +145,14 @@ function KanbanCard({
   onAdvance,
   onOpenDetail,
   onOpenShip,
+  onFeedbackSent,
   pendingAction,
 }: {
   row: AdminCycleRow;
   onAdvance: (cycleId: string, target: CycleStatus) => void;
   onOpenDetail: (row: AdminCycleRow) => void;
   onOpenShip: (row: AdminCycleRow) => void;
+  onFeedbackSent?: () => void;
   pendingAction: PendingAction | null;
 }) {
   const quick = nextQuickAction(row.status);
@@ -231,6 +233,14 @@ function KanbanCard({
                 compact
               />
             )}
+            {row.feedbackRequestSentAt && !row.isStandaloneStoreOrder ? (
+              <span
+                className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-emerald-300"
+                title={`E-mail de avaliação enviado em ${formatDateTime(row.feedbackRequestSentAt)}`}
+              >
+                Feedback enviado
+              </span>
+            ) : null}
           </div>
         </div>
         {row.customerEmail ? (
@@ -345,6 +355,7 @@ function KanbanCard({
             cycleId={row.id}
             feedbackRequestSentAt={row.feedbackRequestSentAt}
             compact
+            onSent={onFeedbackSent}
           />
         </div>
       ) : null}
@@ -487,6 +498,7 @@ export default function ProductionKanban({
                       onAdvance={handleAdvance}
                       onOpenDetail={onOpenDetail}
                       onOpenShip={onOpenShip}
+                      onFeedbackSent={() => router.refresh()}
                     />
                   ))
                 )}
