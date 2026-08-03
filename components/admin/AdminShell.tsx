@@ -5,10 +5,12 @@ import { ADMIN_NAV } from '@/lib/admin/constants';
 import AdminHeader from './AdminHeader';
 import AdminNav from './AdminNav';
 import AdminMarketingNav from './AdminMarketingNav';
+import AdminFinanceNav from './AdminFinanceNav';
 import AdminPageIntro from './AdminPageIntro';
 import AdminSidebar from './AdminSidebar';
 import AdminStoreNav from './AdminStoreNav';
 import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
+import { isAdminFinanceSection } from '@/lib/admin/finance-nav';
 import { isAdminMarketingSection } from '@/lib/admin/marketing-nav';
 import { isAdminStoreSection } from '@/lib/admin/store-nav';
 
@@ -19,6 +21,30 @@ interface Props {
   children: React.ReactNode;
 }
 
+function resolveAdminNavItem(pathname: string) {
+  for (const item of ADMIN_NAV) {
+    if ('children' in item && item.children) {
+      for (const child of item.children) {
+        if (child.href === '/admin/financeiro') {
+          if (pathname === '/admin/financeiro') return item;
+          continue;
+        }
+        if (pathname === child.href || pathname.startsWith(`${child.href}/`)) {
+          return item;
+        }
+      }
+    }
+  }
+
+  return (
+    ADMIN_NAV.find((item) =>
+      item.href === '/admin'
+        ? pathname === '/admin'
+        : pathname.startsWith(item.href)
+    ) ?? ADMIN_NAV[0]
+  );
+}
+
 export default function AdminShell({
   displayName,
   email,
@@ -26,12 +52,7 @@ export default function AdminShell({
   children,
 }: Props) {
   const pathname = usePathname();
-  const navItem =
-    ADMIN_NAV.find((item) =>
-      item.href === '/admin'
-        ? pathname === '/admin'
-        : pathname.startsWith(item.href)
-    ) ?? ADMIN_NAV[0];
+  const navItem = resolveAdminNavItem(pathname);
 
   const isOverview = pathname === '/admin';
   const title = isOverview ? 'Visão operacional' : navItem.label;
@@ -58,6 +79,12 @@ export default function AdminShell({
             {isAdminStoreSection(pathname) ? (
               <div className="mt-6">
                 <AdminStoreNav />
+              </div>
+            ) : null}
+
+            {isAdminFinanceSection(pathname) ? (
+              <div className="mt-6">
+                <AdminFinanceNav />
               </div>
             ) : null}
 

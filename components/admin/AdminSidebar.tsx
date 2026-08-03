@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bell,
-  Calendar,
-  CreditCard,
   Handshake,
   Landmark,
   Layers,
@@ -22,12 +20,12 @@ import {
   Terminal,
   Ticket,
   Users,
-  Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
+import { isAdminFinanceNavActive, isAdminFinanceSection } from '@/lib/admin/finance-nav';
 import { isAdminMarketingNavActive } from '@/lib/admin/marketing-nav';
-import { isAdminStoreNavActive } from '@/lib/admin/store-nav';
+import { isAdminStoreNavActive, isAdminStoreSection } from '@/lib/admin/store-nav';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   bell: Bell,
@@ -39,9 +37,6 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   package: Package,
   receipt: Receipt,
   landmark: Landmark,
-  'credit-card': CreditCard,
-  calendar: Calendar,
-  wallet: Wallet,
   layers: Layers,
   'shopping-bag': ShoppingBag,
   palette: Palette,
@@ -52,7 +47,27 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
 };
 
 function isActive(pathname: string, href: string) {
-  return href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
+  if (href === '/admin') return pathname === '/admin';
+  if (href === '/admin/financeiro') return isAdminFinanceSection(pathname);
+  if (href === '/admin/loja') return isAdminStoreSection(pathname);
+  return pathname.startsWith(href);
+}
+
+function isChildActive(
+  pathname: string,
+  parentHref: string,
+  childHref: string
+): boolean {
+  if (parentHref === '/admin/marketing') {
+    return isAdminMarketingNavActive(pathname, childHref);
+  }
+  if (parentHref === '/admin/financeiro') {
+    return isAdminFinanceNavActive(pathname, childHref);
+  }
+  if (parentHref === '/admin/loja') {
+    return isAdminStoreNavActive(pathname, childHref);
+  }
+  return pathname === childHref || pathname.startsWith(`${childHref}/`);
 }
 
 function formatNavCount(count: number): string {
@@ -117,10 +132,11 @@ export default function AdminSidebar({ whatsappLeadsCount = 0 }: Props) {
                       {children ? (
                         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-zinc-800/80 pl-2">
                           {children.map((child) => {
-                            const childActive =
-                              item.href === '/admin/marketing'
-                                ? isAdminMarketingNavActive(pathname, child.href)
-                                : isAdminStoreNavActive(pathname, child.href);
+                            const childActive = isChildActive(
+                              pathname,
+                              item.href,
+                              child.href
+                            );
                             const showCount =
                               'showCount' in child && child.showCount === true;
 
