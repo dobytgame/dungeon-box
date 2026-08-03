@@ -4,6 +4,9 @@
 .pnp.js
 .yarn/install-state.gz
 
+# claude / ferramentas locais
+/.claude/
+
 # testing
 /coverage
 
