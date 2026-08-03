@@ -3,7 +3,10 @@ import {
   fetchPagarmeOrder,
   isPagarmeChargePaid,
 } from '@/lib/pagarme/one-time-order';
-import { findLocalSubscriptionByPagarmeId } from '@/lib/pagarme/resolve-local-subscription';
+import {
+  findLocalSubscriptionByPagarmeId,
+  resolveLocalSubscriptionFromPagarmeCharge,
+} from '@/lib/pagarme/resolve-local-subscription';
 import {
   handleStoreOrderPagarmeChargePaid,
   handleStoreOrderPagarmePaymentFailed,
@@ -72,7 +75,12 @@ export async function handlePagarmeChargePaid(
 ): Promise<'processed' | 'skipped'> {
   if (!charge.id) return 'skipped';
 
-  if (!charge.subscription_id) {
+  const subscriptionFromCharge = await resolveLocalSubscriptionFromPagarmeCharge(
+    supabase,
+    charge
+  );
+
+  if (!subscriptionFromCharge) {
     const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
       chargeId: charge.id,
       code: charge.code,
@@ -83,16 +91,11 @@ export async function handlePagarmeChargePaid(
 
     const storeResult = await handleStoreOrderPagarmeChargePaid(supabase, charge);
     if (storeResult === 'processed') return 'processed';
+
+    return 'skipped';
   }
 
-  const pagarmeSubscriptionId = charge.subscription_id;
-  if (!pagarmeSubscriptionId) return 'skipped';
-
-  const local = await findLocalSubscriptionByPagarmeId(
-    supabase,
-    pagarmeSubscriptionId
-  );
-  if (!local) return 'skipped';
+  const local = subscriptionFromCharge;
 
   const amountCents = chargeAmountCents(charge);
   const now = new Date().toISOString();
@@ -226,7 +229,8 @@ export async function handlePagarmeChargeFailed(
   supabase: SupabaseClient,
   charge: PagarmeWebhookCharge
 ): Promise<'processed' | 'skipped'> {
-  if (!charge.subscription_id) {
+  const local = await resolveLocalSubscriptionFromPagarmeCharge(supabase, charge);
+  if (!local) {
     const storeFailed = await handleStoreOrderPagarmePaymentFailed(supabase, {
       code: charge.code,
       id: charge.id,
@@ -236,13 +240,7 @@ export async function handlePagarmeChargeFailed(
     return 'skipped';
   }
 
-  const pagarmeSubscriptionId = charge.subscription_id;
-
-  const local = await findLocalSubscriptionByPagarmeId(
-    supabase,
-    pagarmeSubscriptionId
-  );
-  if (!local || local.status !== 'active') return 'skipped';
+  if (local.status !== 'active') return 'skipped';
 
   await supabase
     .from('subscriptions')
