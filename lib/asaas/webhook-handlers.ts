@@ -28,6 +28,7 @@ import { isComboInstallmentSlicePayment } from '@/lib/payments/effective-amount'
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 import { isComboSubscription } from '@/lib/payments/revenue-aggregation';
 import { isNonBillingAsaasPayment } from '@/lib/subscriptions/billing-cycle-payments';
+import { isPaymentAlreadyLinkedToSubscriptionCycle } from '@/lib/subscriptions/payment-cycle-link';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -165,6 +166,26 @@ export async function handleAsaasPaymentConfirmed(
 
   const now = new Date().toISOString();
 
+  const { data: existingPayment } = await supabase
+    .from('payments')
+    .select('id, paid_at, status')
+    .eq('asaas_payment_id', payment.id)
+    .maybeSingle();
+
+  if (
+    existingPayment &&
+    local.status === 'active' &&
+    (await isPaymentAlreadyLinkedToSubscriptionCycle(
+      supabase,
+      local.id,
+      existingPayment.id as string
+    ))
+  ) {
+    return 'skipped';
+  }
+
+  const paidAt = (existingPayment?.paid_at as string | null) ?? now;
+
   const { data: paymentRow } = await supabase
     .from('payments')
     .upsert(
@@ -175,7 +196,7 @@ export async function handleAsaasPaymentConfirmed(
         amount_cents: amountCents,
         currency: 'BRL',
         status: 'approved',
-        paid_at: now,
+        paid_at: paidAt,
       },
       { onConflict: 'asaas_payment_id' }
     )
@@ -201,7 +222,7 @@ export async function handleAsaasPaymentConfirmed(
       await markCyclePreparing(supabase, local.id, 1, {
         id: paymentRow.id,
         amount_cents: paymentRow.amount_cents,
-        paid_at: now,
+        paid_at: paidAt,
       });
     }
     void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
@@ -240,7 +261,7 @@ export async function handleAsaasPaymentConfirmed(
       {
         id: paymentRow.id,
         amount_cents: paymentRow.amount_cents,
-        paid_at: now,
+        paid_at: paidAt,
       },
       periodEnd.toISOString()
     );

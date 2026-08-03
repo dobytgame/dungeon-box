@@ -9,6 +9,10 @@ import {
   resolveMonthlyScheduledProductionMonth,
   resolveRenewalTargetCycleNumberForSubscription,
 } from '@/lib/subscriptions/monthly-production-schedule';
+import {
+  findSubscriptionCycleForPayment,
+  isPaymentAlreadyLinkedToSubscriptionCycle,
+} from '@/lib/subscriptions/payment-cycle-link';
 import { prepareBillingCyclePayments } from '@/lib/subscriptions/billing-cycle-payments';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
@@ -242,6 +246,20 @@ export async function processActiveSubscriptionPayment(
   payment: CyclePaymentLink,
   periodEndIso: string
 ): Promise<'initial' | 'renewal'> {
+  const alreadyLinked = await isPaymentAlreadyLinkedToSubscriptionCycle(
+    supabase,
+    subscriptionId,
+    payment.id
+  );
+  if (alreadyLinked) {
+    const cycleNumber = await findSubscriptionCycleForPayment(
+      supabase,
+      subscriptionId,
+      payment.id
+    );
+    return cycleNumber === 1 ? 'initial' : 'renewal';
+  }
+
   const now = payment.paid_at ?? new Date().toISOString();
 
   const approvedCount = await countApprovedSubscriptionPayments(

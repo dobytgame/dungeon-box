@@ -9,6 +9,7 @@ import {
   prepareBillingCyclePayments,
   type BillingPaymentRow,
 } from '@/lib/subscriptions/billing-cycle-payments';
+import { restoreCorruptedPaymentPaidAt } from '@/lib/subscriptions/payment-cycle-link';
 
 const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
   'upcoming',
@@ -323,6 +324,7 @@ export async function repairMonthlyProductionForSubscription(
   loyaltyFixed: number;
   renewalCyclesAttached: number;
   spuriousCyclesCleared: number;
+  paidAtRestored: number;
   skipped?: 'not_found' | 'combo' | 'no_payments';
 }> {
   const empty = {
@@ -330,6 +332,7 @@ export async function repairMonthlyProductionForSubscription(
     loyaltyFixed: 0,
     renewalCyclesAttached: 0,
     spuriousCyclesCleared: 0,
+    paidAtRestored: 0,
   };
 
   const { data: sub, error } = await supabase
@@ -354,6 +357,18 @@ export async function repairMonthlyProductionForSubscription(
 
   if (!approvedPayments.length) {
     return { ...empty, skipped: 'no_payments' as const };
+  }
+
+  const paidAtRestored = await restoreCorruptedPaymentPaidAt(
+    supabase,
+    subscriptionId
+  );
+  if (paidAtRestored > 0) {
+    approvedPayments.splice(
+      0,
+      approvedPayments.length,
+      ...(await loadApprovedBillingPayments(supabase, subscriptionId))
+    );
   }
 
   let monthsFixed = 0;
@@ -469,13 +484,30 @@ export async function repairMonthlyProductionForSubscription(
   }
 
   const billingPaymentCount = approvedPayments.length;
+  const expectedCurrentCycle = billingPaymentCount + 1;
+
   const { data: strayCycles } = await supabase
     .from('subscription_cycles')
-    .select('cycle_number, payment_id, scheduled_production_month')
+    .select('id, cycle_number, payment_id, scheduled_production_month, status')
     .eq('subscription_id', subscriptionId)
     .gt('cycle_number', billingPaymentCount);
 
   for (const stray of strayCycles ?? []) {
+    const cycleNumber = stray.cycle_number as number;
+    const isEmptyUpcoming =
+      stray.status === 'upcoming' &&
+      !stray.payment_id &&
+      !stray.scheduled_production_month;
+
+    if (isEmptyUpcoming && cycleNumber > expectedCurrentCycle) {
+      const { error: deleteError } = await supabase
+        .from('subscription_cycles')
+        .delete()
+        .eq('id', stray.id as string);
+      if (!deleteError) spuriousCyclesCleared += 1;
+      continue;
+    }
+
     if (!stray.payment_id && !stray.scheduled_production_month) {
       continue;
     }
@@ -490,38 +522,79 @@ export async function repairMonthlyProductionForSubscription(
         updated_at: now,
       })
       .eq('subscription_id', subscriptionId)
-      .eq('cycle_number', stray.cycle_number as number);
+      .eq('cycle_number', cycleNumber);
 
     if (!clearError) spuriousCyclesCleared += 1;
   }
 
+  const { data: upcomingCycle } = await supabase
+    .from('subscription_cycles')
+    .select('id')
+    .eq('subscription_id', subscriptionId)
+    .eq('cycle_number', expectedCurrentCycle)
+    .maybeSingle();
+
+  if (!upcomingCycle) {
+    await supabase.from('subscription_cycles').insert({
+      subscription_id: subscriptionId,
+      cycle_number: expectedCurrentCycle,
+      status: 'upcoming',
+      updated_at: now,
+    });
+  }
+
   const approvedPaymentCount = approvedPayments.length;
   const expectedLoyalty = loyaltyLevelFromApprovedPayments(approvedPaymentCount);
-  const expectedCurrentCycle = approvedPaymentCount + 1;
+
+  const lastPayment = approvedPayments[approvedPayments.length - 1]!;
+  const lastPaidAt =
+    (lastPayment.paid_at as string | null) ??
+    (lastPayment.created_at as string | null) ??
+    now;
+  const nextBillingDate = new Date(lastPaidAt);
+  nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
   const { data: currentSub } = await supabase
     .from('subscriptions')
-    .select('loyalty_level, current_cycle')
+    .select('loyalty_level, current_cycle, next_billing_date')
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (
-    currentSub?.loyalty_level !== expectedLoyalty ||
-    currentSub?.current_cycle !== expectedCurrentCycle
-  ) {
+  const subscriptionPatch: Record<string, unknown> = {
+    updated_at: now,
+  };
+  let shouldUpdateSubscription = false;
+
+  if (currentSub?.loyalty_level !== expectedLoyalty) {
+    subscriptionPatch.loyalty_level = expectedLoyalty;
+    shouldUpdateSubscription = true;
+  }
+  if (currentSub?.current_cycle !== expectedCurrentCycle) {
+    subscriptionPatch.current_cycle = expectedCurrentCycle;
+    shouldUpdateSubscription = true;
+  }
+  if (currentSub?.next_billing_date !== nextBillingDate.toISOString()) {
+    subscriptionPatch.next_billing_date = nextBillingDate.toISOString();
+    subscriptionPatch.current_period_end = nextBillingDate.toISOString();
+    shouldUpdateSubscription = true;
+  }
+
+  if (shouldUpdateSubscription) {
     const { error: loyaltyError } = await supabase
       .from('subscriptions')
-      .update({
-        loyalty_level: expectedLoyalty,
-        current_cycle: expectedCurrentCycle,
-        updated_at: now,
-      })
+      .update(subscriptionPatch)
       .eq('id', subscriptionId);
 
     if (!loyaltyError) loyaltyFixed += 1;
   }
 
-  return { monthsFixed, loyaltyFixed, renewalCyclesAttached, spuriousCyclesCleared };
+  return {
+    monthsFixed,
+    loyaltyFixed,
+    renewalCyclesAttached,
+    spuriousCyclesCleared,
+    paidAtRestored,
+  };
 }
 
 /** Corrige meses de produção e fidelidade em assinaturas mensais já afetadas. */
@@ -533,6 +606,7 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
   loyaltyFixed: number;
   renewalCyclesAttached: number;
   spuriousCyclesCleared: number;
+  paidAtRestored: number;
 }> {
   let query = supabase
     .from('subscriptions')
@@ -551,6 +625,7 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
       loyaltyFixed: 0,
       renewalCyclesAttached: 0,
       spuriousCyclesCleared: 0,
+      paidAtRestored: 0,
     };
   }
 
@@ -558,6 +633,7 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
   let loyaltyFixed = 0;
   let renewalCyclesAttached = 0;
   let spuriousCyclesCleared = 0;
+  let paidAtRestored = 0;
 
   for (const sub of subs) {
     const result = await repairMonthlyProductionForSubscription(
@@ -569,7 +645,14 @@ export async function repairMonthlyProductionMonthsAndLoyalty(
     loyaltyFixed += result.loyaltyFixed;
     renewalCyclesAttached += result.renewalCyclesAttached;
     spuriousCyclesCleared += result.spuriousCyclesCleared;
+    paidAtRestored += result.paidAtRestored;
   }
 
-  return { monthsFixed, loyaltyFixed, renewalCyclesAttached, spuriousCyclesCleared };
+  return {
+    monthsFixed,
+    loyaltyFixed,
+    renewalCyclesAttached,
+    spuriousCyclesCleared,
+    paidAtRestored,
+  };
 }
