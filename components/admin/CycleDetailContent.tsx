@@ -280,6 +280,12 @@ export default function CycleDetailContent({
                 value={detail.orderAddress.recipient}
               />
               <CopyableDataRow label="CPF" value={customerCpf} copyValue={customerCpfDigits} mono />
+              <CopyableDataRow
+                label="Telefone"
+                value={customerPhone}
+                copyValue={detail.customerPhone?.replace(/\D/g, '') ?? ''}
+                mono
+              />
               {detail.orderAddress.label ? (
                 <CopyableDataRow
                   label="Identificação"
@@ -468,12 +474,14 @@ export default function CycleDetailContent({
             label="E-mail"
             value={detail.customerEmail}
           />
-          <CopyableDataRow
-            label="Telefone"
-            value={customerPhone}
-            copyValue={detail.customerPhone?.replace(/\D/g, '') ?? ''}
-            mono
-          />
+          {!detail.orderAddress ? (
+            <CopyableDataRow
+              label="Telefone"
+              value={customerPhone}
+              copyValue={detail.customerPhone?.replace(/\D/g, '') ?? ''}
+              mono
+            />
+          ) : null}
           {!detail.orderAddress ? (
             <CopyableDataRow
               label="CPF"
