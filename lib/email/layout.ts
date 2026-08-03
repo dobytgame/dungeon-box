@@ -1,5 +1,6 @@
 import { COMPANY } from '@/lib/legal/constants';
 import { getSiteUrl } from '@/lib/email/config';
+import { formatBrazilDate } from '@/lib/datetime/brazil';
 
 export const EMAIL_COLORS = {
   bg: '#09090b',
@@ -255,14 +256,7 @@ export function formatCurrencyBrl(cents: number): string {
 }
 
 export function formatDateBr(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value.includes('T') ? value : `${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(date);
+  return formatBrazilDate(value, { month: 'long' });
 }
 
 export function greetingName(name?: string | null): string {

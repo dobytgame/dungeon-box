@@ -2,7 +2,7 @@
 
 import { Check, Copy, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { formatMoney } from '@/lib/dashboard/format';
+import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
 
 export type StorePixDetails = {
   encodedImage?: string;
@@ -89,7 +89,7 @@ export default function StorePixPaymentPanel({
   }, [orderId, onConfirmed]);
 
   const expirationLabel = pix.expirationDate
-    ? new Date(pix.expirationDate).toLocaleString('pt-BR')
+    ? formatDateTime(pix.expirationDate)
     : null;
 
   return (

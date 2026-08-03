@@ -1,4 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  migrationNeedsImmediateCharge,
+  resolveMigrationCatchUpStartAt,
+  resolveMigrationStartAt,
+} from '@/lib/pagarme/migration-schedule';
 import { resolveSubscriptionRecurringCharge } from '@/lib/subscriptions/recurring-charge';
 
 export type MigrationPreview =
@@ -18,7 +23,11 @@ export type MigrationPreview =
       originalTotalCents: number;
       promoCode: string | null;
       promoSummary: string | null;
+      /** Data vencida / atual no Asaas (pode estar no passado se em atraso). */
       nextBillingDate: string | null;
+      /** Data em que a renovação será agendada no Pagar.me. */
+      scheduledBillingDate: string;
+      chargeImmediately: boolean;
       billingTerm: string | null;
       subscriptionStatus: string;
     }
@@ -177,6 +186,17 @@ export async function loadMigrationPreviewByToken(
     }),
   ]);
 
+  const chargeImmediately = migrationNeedsImmediateCharge({
+    status: subscription.status,
+    nextBillingDate: subscription.next_billing_date,
+  });
+
+  const scheduledBillingDate = (
+    chargeImmediately
+      ? resolveMigrationCatchUpStartAt(subscription.next_billing_date)
+      : resolveMigrationStartAt(subscription.next_billing_date)
+  ).toISOString();
+
   return {
     ok: true,
     token: updateToken,
@@ -194,6 +214,8 @@ export async function loadMigrationPreviewByToken(
     promoCode: subscription.promo_code?.trim() || null,
     promoSummary: charge.promoSummary,
     nextBillingDate: subscription.next_billing_date,
+    scheduledBillingDate,
+    chargeImmediately,
     billingTerm: subscription.billing_term,
     subscriptionStatus: subscription.status,
   };

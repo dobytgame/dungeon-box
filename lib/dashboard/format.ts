@@ -1,4 +1,8 @@
 import { maskCep, maskCpf, maskPhone } from '@/lib/masks';
+import {
+  formatBrazilDate,
+  formatBrazilDateTime,
+} from '@/lib/datetime/brazil';
 import type { CycleStatus, PaymentStatus, SubscriptionStatus } from './types';
 
 const subscriptionLabels: Record<SubscriptionStatus, string> = {
@@ -54,28 +58,11 @@ export function formatDate(
   value: string | null | undefined,
   options?: Intl.DateTimeFormatOptions
 ): string {
-  if (!value) return '—';
-  const date = new Date(value.includes('T') ? value : `${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    ...options,
-  }).format(date);
+  return formatBrazilDate(value, options);
 }
 
 export function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  return formatBrazilDateTime(value);
 }
 
 export function formatCpf(value: string | null | undefined): string {

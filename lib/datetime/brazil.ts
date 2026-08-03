@@ -1,6 +1,75 @@
 export const BRAZIL_TIMEZONE = 'America/Sao_Paulo';
 export const BRAZIL_UTC_OFFSET = '-03:00';
 
+function parseBrazilDateInput(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.includes('T')) {
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const date = new Date(`${trimmed}T12:00:00${BRAZIL_UTC_OFFSET}`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Data formatada no fuso de Brasília. */
+export function formatBrazilDate(
+  value: string | null | undefined,
+  options?: Intl.DateTimeFormatOptions
+): string {
+  if (!value) return '—';
+  const date = parseBrazilDateInput(value);
+  if (!date) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: BRAZIL_TIMEZONE,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    ...options,
+  }).format(date);
+}
+
+/** Data e hora formatadas no fuso de Brasília. */
+export function formatBrazilDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = parseBrazilDateInput(value);
+  if (!date) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: BRAZIL_TIMEZONE,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+/** `03/08/2026 - 15:20:24` no fuso de Brasília. */
+export function formatBrazilDateTimeSeconds(
+  value: string | null | undefined
+): string {
+  if (!value) return '—';
+  const date = parseBrazilDateInput(value);
+  if (!date) return '—';
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: BRAZIL_TIMEZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+
+  return `${get('day')}/${get('month')}/${get('year')} - ${get('hour')}:${get('minute')}:${get('second')}`;
+}
+
 /** YYYY-MM-DD no fuso de Brasília. */
 export function toBrazilDateKey(isoTimestamp: string): string {
   return new Intl.DateTimeFormat('en-CA', {

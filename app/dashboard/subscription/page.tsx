@@ -83,6 +83,8 @@ async function SubscriptionDetailCard({
           subscriptionId={subscription.id}
           planName={plan?.name ?? 'Assinatura'}
           nextBillingDate={subscription.next_billing_date}
+          subscriptionStatus={subscription.status}
+          amountCents={currentRecurringPricing?.totalCents ?? plan?.price_cents}
         />
       ) : null}
 

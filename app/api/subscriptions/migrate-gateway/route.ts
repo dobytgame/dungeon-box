@@ -61,5 +61,8 @@ export async function POST(request: Request) {
     success: true,
     subscriptionId: result.subscriptionId,
     pagarmeSubscriptionId: result.pagarmeSubscriptionId,
+    chargedImmediately: result.chargedImmediately,
+    amountChargedCents: result.amountChargedCents,
+    nextBillingDate: result.nextBillingDate,
   });
 }

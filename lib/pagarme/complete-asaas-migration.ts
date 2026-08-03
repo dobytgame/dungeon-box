@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PlanSlug } from '@/lib/checkout/plans';
 import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
-import { attachPagarmeSubscriptionToExisting } from '@/lib/pagarme/migrate-subscription';
+import {
+  attachPagarmeSubscriptionToExisting,
+  migrationNeedsImmediateCharge,
+} from '@/lib/pagarme/migrate-subscription';
 import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
 import { userFacingPagarmeError } from '@/lib/pagarme/errors';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
@@ -23,6 +26,9 @@ export function isAsaasSubscriptionNeedingPagarmeMigration(sub: {
 /**
  * Migra uma assinatura Asaas → Pagar.me com cartão tokenizado.
  * Usado pela página pública (token) e pelo dashboard logado.
+ *
+ * - Em dia: só cadastra cartão e agenda a próxima cobrança.
+ * - Em atraso (past_due / vencido): cobra o ciclo atual agora e agenda a próxima na data correta.
  */
 export async function completeAsaasToPagarmeMigration(input: {
   admin: SupabaseClient;
@@ -33,7 +39,14 @@ export async function completeAsaasToPagarmeMigration(input: {
   cardBrand: string;
   migrationLogId?: string | null;
 }): Promise<
-  | { success: true; pagarmeSubscriptionId: string; subscriptionId: string }
+  | {
+      success: true;
+      pagarmeSubscriptionId: string;
+      subscriptionId: string;
+      chargedImmediately: boolean;
+      amountChargedCents: number | null;
+      nextBillingDate: string;
+    }
   | { error: string; status?: number }
 > {
   if (!PAGARME_CONFIGURED) {
@@ -118,6 +131,11 @@ export async function completeAsaasToPagarmeMigration(input: {
     special_notes: subscription.special_notes,
   });
 
+  const chargeImmediately = migrationNeedsImmediateCharge({
+    status: subscription.status,
+    nextBillingDate: subscription.next_billing_date,
+  });
+
   const now = new Date();
 
   try {
@@ -133,6 +151,8 @@ export async function completeAsaasToPagarmeMigration(input: {
       cardBrand: input.cardBrand,
       billingAddress: buildBillingAddress(address),
       nextBillingDate: subscription.next_billing_date,
+      chargeImmediately,
+      subscriptionStatus: subscription.status,
       profile: {
         id: profile.id,
         email: profile.email,
@@ -181,6 +201,9 @@ export async function completeAsaasToPagarmeMigration(input: {
       success: true,
       subscriptionId: subscription.id,
       pagarmeSubscriptionId: result.pagarmeSubscriptionId,
+      chargedImmediately: result.chargedImmediately,
+      amountChargedCents: result.amountChargedCents,
+      nextBillingDate: result.nextBillingDate,
     };
   } catch (error) {
     console.error('[migrate-asaas-pagarme]', error);

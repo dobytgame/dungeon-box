@@ -53,8 +53,21 @@ function ErrorState({ preview }: { preview: PreviewError }) {
   );
 }
 
-function SuccessState({ preview }: { preview: PreviewOk }) {
-  const billingLabel = formatDate(preview.nextBillingDate);
+function SuccessState({
+  preview,
+  result,
+}: {
+  preview: PreviewOk;
+  result: {
+    chargedImmediately: boolean;
+    nextBillingDate: string | null;
+  } | null;
+}) {
+  const chargedImmediately =
+    result?.chargedImmediately ?? preview.chargeImmediately;
+  const scheduledLabel = formatDate(
+    result?.nextBillingDate ?? preview.scheduledBillingDate
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
@@ -67,7 +80,7 @@ function SuccessState({ preview }: { preview: PreviewOk }) {
         <div className="mt-10 flex items-center gap-3 text-emerald-300">
           <CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />
           <p className="font-display text-xs uppercase tracking-[0.3em]">
-            Cartão atualizado
+            {chargedImmediately ? 'Pagamento regularizado' : 'Cartão atualizado'}
           </p>
         </div>
         <h1 className="mt-3 font-display text-3xl uppercase tracking-wide text-white sm:text-4xl">
@@ -76,14 +89,30 @@ function SuccessState({ preview }: { preview: PreviewOk }) {
         <p className="mt-4 text-sm leading-relaxed text-stone-400">
           Sua assinatura <span className="text-white">{preview.planName}</span>{' '}
           continua ativa na nova plataforma.
-          {billingLabel !== '—' ? (
+          {chargedImmediately ? (
+            <>
+              {' '}
+              A fatura em atraso de{' '}
+              <span className="text-white">
+                {formatMoney(preview.totalCents)}
+              </span>{' '}
+              foi cobrada agora
+              {scheduledLabel !== '—' ? (
+                <>
+                  ; a próxima renovação fica em{' '}
+                  <span className="text-white">{scheduledLabel}</span>
+                </>
+              ) : null}
+              .
+            </>
+          ) : scheduledLabel !== '—' ? (
             <>
               {' '}
               A próxima cobrança de{' '}
               <span className="text-white">
                 {formatMoney(preview.totalCents)}
               </span>{' '}
-              segue em <span className="text-white">{billingLabel}</span> — sem
+              segue em <span className="text-white">{scheduledLabel}</span> — sem
               cobrança antecipada.
             </>
           ) : null}
@@ -105,6 +134,10 @@ export default function UpdatePaymentClient({
   preview: MigrationPreview;
 }) {
   const [success, setSuccess] = useState(false);
+  const [successResult, setSuccessResult] = useState<{
+    chargedImmediately: boolean;
+    nextBillingDate: string | null;
+  } | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -113,12 +146,14 @@ export default function UpdatePaymentClient({
   }
 
   if (success) {
-    return <SuccessState preview={preview} />;
+    return <SuccessState preview={preview} result={successResult} />;
   }
 
   const firstName =
     preview.customerName?.trim().split(/\s+/)[0] ?? null;
-  const billingLabel = formatDate(preview.nextBillingDate);
+  const overdueLabel = formatDate(preview.nextBillingDate);
+  const scheduledLabel = formatDate(preview.scheduledBillingDate);
+  const chargeNow = preview.chargeImmediately;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
@@ -150,8 +185,45 @@ export default function UpdatePaymentClient({
               </h1>
               <p className="mt-4 max-w-md text-sm leading-relaxed text-stone-400">
                 Estamos migrando sua cobrança para o Pagar.me. Confira o resumo
-                da assinatura e cadastre o cartão. Atualizar agora{' '}
-                <span className="text-white">não gera cobrança antecipada</span>.
+                da assinatura e cadastre o cartão.
+                {chargeNow ? (
+                  <>
+                    {' '}
+                    Sua fatura está em atraso
+                    {overdueLabel !== '—' ? (
+                      <>
+                        {' '}
+                        (vencimento {overdueLabel})
+                      </>
+                    ) : null}
+                    : ao confirmar, cobramos{' '}
+                    <span className="text-white">
+                      {formatMoney(preview.totalCents)}
+                    </span>{' '}
+                    agora e agendamos a próxima renovação
+                    {scheduledLabel !== '—' ? (
+                      <>
+                        {' '}
+                        para <span className="text-white">{scheduledLabel}</span>
+                      </>
+                    ) : null}
+                    .
+                  </>
+                ) : (
+                  <>
+                    {' '}
+                    Atualizar agora{' '}
+                    <span className="text-white">não gera cobrança antecipada</span>
+                    {scheduledLabel !== '—' ? (
+                      <>
+                        {' '}
+                        — a próxima fica em{' '}
+                        <span className="text-white">{scheduledLabel}</span>
+                      </>
+                    ) : null}
+                    .
+                  </>
+                )}
               </p>
             </div>
 
@@ -182,11 +254,16 @@ export default function UpdatePaymentClient({
                   </div>
                   <div>
                     <dt className="font-display text-[10px] uppercase tracking-[0.28em] text-stone-500">
-                      Próximo vencimento
+                      {chargeNow ? 'Vencimento em atraso' : 'Próximo vencimento'}
                     </dt>
                     <dd className="mt-2 font-display text-xl tabular-nums text-white">
-                      {billingLabel}
+                      {chargeNow ? overdueLabel : scheduledLabel}
                     </dd>
+                    {chargeNow && scheduledLabel !== '—' ? (
+                      <dd className="mt-1 text-xs text-stone-500">
+                        Próxima renovação: {scheduledLabel}
+                      </dd>
+                    ) : null}
                   </div>
                   <div>
                     <dt className="font-display text-[10px] uppercase tracking-[0.28em] text-stone-500">
@@ -265,10 +342,12 @@ export default function UpdatePaymentClient({
                 <div className="flex items-end justify-between gap-4 border-t border-white/[0.06] pt-5">
                   <div>
                     <p className="font-display text-[10px] uppercase tracking-[0.28em] text-gold">
-                      Total na cobrança
+                      {chargeNow ? 'Cobrar agora' : 'Total na cobrança'}
                     </p>
                     <p className="mt-1 text-xs text-stone-500">
-                      Cobrado apenas na data de vencimento
+                      {chargeNow
+                        ? 'Regulariza o atraso na confirmação do cartão'
+                        : 'Cobrado apenas na data de vencimento'}
                     </p>
                   </div>
                   <div className="text-right">
@@ -317,23 +396,47 @@ export default function UpdatePaymentClient({
                 Cadastre o cartão
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-stone-400">
-                Use o cartão que receberá a cobrança de{' '}
-                <span className="text-white">
-                  {formatMoney(preview.totalCents)}
-                </span>
-                {billingLabel !== '—' ? (
+                {chargeNow ? (
                   <>
-                    {' '}
-                    em <span className="text-white">{billingLabel}</span>
+                    Ao confirmar, cobramos{' '}
+                    <span className="text-white">
+                      {formatMoney(preview.totalCents)}
+                    </span>{' '}
+                    agora para quitar o atraso
+                    {scheduledLabel !== '—' ? (
+                      <>
+                        {' '}
+                        e a próxima renovação fica em{' '}
+                        <span className="text-white">{scheduledLabel}</span>
+                      </>
+                    ) : null}
+                    .
                   </>
-                ) : null}
-                .
+                ) : (
+                  <>
+                    Use o cartão que receberá a cobrança de{' '}
+                    <span className="text-white">
+                      {formatMoney(preview.totalCents)}
+                    </span>
+                    {scheduledLabel !== '—' ? (
+                      <>
+                        {' '}
+                        em <span className="text-white">{scheduledLabel}</span>
+                      </>
+                    ) : null}
+                    .
+                  </>
+                )}
               </p>
             </div>
 
             <PagarmePaymentForm
               submitLabel={
-                submitting ? 'Processando…' : 'Confirmar e atualizar'
+                submitting
+                  ? 'Processando…'
+                  : chargeNow
+                    ? 'Pagar atraso e migrar'
+                    : 'Confirmar e atualizar'
               }
               onSubmit={async (tokenized) => {
                 setError('');
@@ -358,6 +461,13 @@ export default function UpdatePaymentClient({
                     );
                     return;
                   }
+                  setSuccessResult({
+                    chargedImmediately: Boolean(payload.chargedImmediately),
+                    nextBillingDate:
+                      typeof payload.nextBillingDate === 'string'
+                        ? payload.nextBillingDate
+                        : preview.scheduledBillingDate,
+                  });
                   setSuccess(true);
                 } finally {
                   setSubmitting(false);
