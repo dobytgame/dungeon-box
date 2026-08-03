@@ -17,6 +17,7 @@ import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
 import { notifyAdminStoreOrderPaymentFromPaymentRow } from '@/lib/admin/store-payment-notifications';
+import { parseBrazilDateOnlyToIso } from '@/lib/datetime/brazil';
 import { formatVariationSummary } from '@/lib/store/product-variations';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
@@ -27,6 +28,36 @@ import {
   type PagarmeStorePixDetails,
 } from '@/lib/pagarme/one-time-order';
 import { parsePagarmeStoreOrderCode } from '@/lib/pagarme/store-order-code';
+
+/** Aprovações com pagamento mais antigo que isso são sync retroativo (sem alerta de venda). */
+const LATE_STORE_ORDER_APPROVAL_MS = 6 * 60 * 60 * 1000;
+
+type ApproveStoreOrderOptions = {
+  paidAt?: string | null;
+  /** Força sync silencioso (sem e-mail / notificação admin). */
+  silent?: boolean;
+};
+
+function resolveAsaasStoreOrderPaidAt(paymentDate?: string | null): string {
+  if (paymentDate?.trim()) {
+    return parseBrazilDateOnlyToIso(paymentDate.trim());
+  }
+  return new Date().toISOString();
+}
+
+function isLateStoreOrderApproval(paidAt: string): boolean {
+  const paidMs = new Date(paidAt).getTime();
+  if (Number.isNaN(paidMs)) return false;
+  return Date.now() - paidMs > LATE_STORE_ORDER_APPROVAL_MS;
+}
+
+function shouldSilenceStoreOrderApproval(
+  paidAt: string,
+  options?: ApproveStoreOrderOptions
+): boolean {
+  if (options?.silent) return true;
+  return isLateStoreOrderApproval(paidAt);
+}
 
 export type StoreOrderMeta = {
   type: 'store_order';
@@ -628,12 +659,12 @@ export async function syncPendingBundledStoreOrders(
 export async function approveStoreOrderPayment(
   supabase: SupabaseClient,
   asaasPaymentId: string,
-  payment: Pick<AsaasWebhookPayment, 'value'>
+  payment: Pick<AsaasWebhookPayment, 'value' | 'paymentDate'>
 ): Promise<'processed' | 'skipped'> {
   const paymentRow = (
     await supabase
       .from('payments')
-      .select('id, user_id, status, status_detail, amount_cents')
+      .select('id, user_id, status, status_detail, amount_cents, created_at')
       .eq('asaas_payment_id', asaasPaymentId)
       .maybeSingle()
   ).data;
@@ -645,7 +676,13 @@ export async function approveStoreOrderPayment(
       ? Math.round(payment.value * 100)
       : paymentRow.amount_cents;
 
-  return approveStoreOrderPaymentRow(supabase, paymentRow, amountCents);
+  const paidAt = payment.paymentDate?.trim()
+    ? resolveAsaasStoreOrderPaidAt(payment.paymentDate)
+    : (paymentRow.created_at as string | null) ?? new Date().toISOString();
+
+  return approveStoreOrderPaymentRow(supabase, paymentRow, amountCents, {
+    paidAt,
+  });
 }
 
 export function resolvePagarmeStoreOrderReference(input: {
@@ -672,12 +709,13 @@ export function resolvePagarmeStoreOrderReference(input: {
 export async function approveStoreOrderPaymentById(
   supabase: SupabaseClient,
   paymentId: string,
-  amountCents?: number | null
+  amountCents?: number | null,
+  options?: ApproveStoreOrderOptions
 ): Promise<'processed' | 'skipped'> {
   const paymentRow = (
     await supabase
       .from('payments')
-      .select('id, user_id, status, status_detail, amount_cents')
+      .select('id, user_id, status, status_detail, amount_cents, created_at')
       .eq('id', paymentId)
       .maybeSingle()
   ).data;
@@ -687,19 +725,21 @@ export async function approveStoreOrderPaymentById(
   return approveStoreOrderPaymentRow(
     supabase,
     paymentRow,
-    amountCents ?? paymentRow.amount_cents
+    amountCents ?? paymentRow.amount_cents,
+    options
   );
 }
 
 export async function approveStoreOrderPaymentByPagarmeCharge(
   supabase: SupabaseClient,
   pagarmeChargeId: string,
-  amountCents?: number | null
+  amountCents?: number | null,
+  options?: ApproveStoreOrderOptions
 ): Promise<'processed' | 'skipped'> {
   const paymentRow = (
     await supabase
       .from('payments')
-      .select('id, user_id, status, status_detail, amount_cents')
+      .select('id, user_id, status, status_detail, amount_cents, created_at')
       .eq('pagarme_charge_id', pagarmeChargeId)
       .maybeSingle()
   ).data;
@@ -709,7 +749,11 @@ export async function approveStoreOrderPaymentByPagarmeCharge(
   return approveStoreOrderPaymentRow(
     supabase,
     paymentRow,
-    amountCents ?? paymentRow.amount_cents
+    amountCents ?? paymentRow.amount_cents,
+    {
+      paidAt: options?.paidAt ?? (paymentRow.created_at as string | null),
+      silent: options?.silent,
+    }
   );
 }
 
@@ -721,8 +765,10 @@ async function approveStoreOrderPaymentRow(
     status: string;
     status_detail: unknown;
     amount_cents: number | null;
+    created_at?: string | null;
   },
-  amountCents: number | null
+  amountCents: number | null,
+  options?: ApproveStoreOrderOptions
 ): Promise<'processed' | 'skipped'> {
 
   const meta = parseStoreOrderMeta(paymentRow.status_detail);
@@ -732,7 +778,11 @@ async function approveStoreOrderPaymentRow(
     return 'processed';
   }
 
-  const now = new Date().toISOString();
+  const paidAt =
+    options?.paidAt?.trim() ||
+    paymentRow.created_at?.trim() ||
+    new Date().toISOString();
+  const silent = shouldSilenceStoreOrderApproval(paidAt, options);
   const resolvedAmountCents = amountCents ?? paymentRow.amount_cents;
 
   await supabase
@@ -740,7 +790,7 @@ async function approveStoreOrderPaymentRow(
     .update({
       ...(resolvedAmountCents != null ? { amount_cents: resolvedAmountCents } : {}),
       status: 'approved',
-      paid_at: now,
+      paid_at: paidAt,
       ...(meta.shippingMode === 'standalone' ? { subscription_id: null } : {}),
     })
     .eq('id', paymentRow.id);
@@ -770,31 +820,40 @@ async function approveStoreOrderPaymentRow(
   }
 
   await fulfillApprovedStoreOrder(supabase, paymentRow.user_id, meta);
-  await notifyStoreOrderConfirmed(
-    supabase,
-    paymentRow.user_id,
-    meta,
-    resolvedAmountCents ?? paymentRow.amount_cents ?? 0
-  );
 
-  if (meta.couponPromoId && meta.couponCode) {
-    await recordStorePromoRedemption(
+  if (!silent) {
+    await notifyStoreOrderConfirmed(
       supabase,
-      meta.couponPromoId,
-      paymentRow.user_id
+      paymentRow.user_id,
+      meta,
+      resolvedAmountCents ?? paymentRow.amount_cents ?? 0
+    );
+
+    if (meta.couponPromoId && meta.couponCode) {
+      await recordStorePromoRedemption(
+        supabase,
+        meta.couponPromoId,
+        paymentRow.user_id
+      );
+    }
+
+    void notifyAdminStoreOrderPaymentFromPaymentRow(supabase, {
+      type: 'store_order_payment_approved',
+      paymentId: paymentRow.id,
+      userId: paymentRow.user_id,
+      statusDetail: paymentRow.status_detail,
+      amountCents: resolvedAmountCents,
+      paymentMethod: meta.paymentMethod,
+    }).catch((err) => {
+      console.error('[admin] store order approved notification:', err);
+    });
+  } else {
+    console.info(
+      '[store] late store order approval — notifications skipped:',
+      paymentRow.id,
+      paidAt
     );
   }
-
-  void notifyAdminStoreOrderPaymentFromPaymentRow(supabase, {
-    type: 'store_order_payment_approved',
-    paymentId: paymentRow.id,
-    userId: paymentRow.user_id,
-    statusDetail: paymentRow.status_detail,
-    amountCents: resolvedAmountCents,
-    paymentMethod: meta.paymentMethod,
-  }).catch((err) => {
-    console.error('[admin] store order approved notification:', err);
-  });
 
   return 'processed';
 }
@@ -839,6 +898,7 @@ async function recoverStoreOrderPaymentFromWebhook(
   }
 
   const amountCents = Math.round((payment.value ?? remote.value ?? 0) * 100);
+  const paidAt = resolveAsaasStoreOrderPaidAt(remote.paymentDate ?? payment.paymentDate);
 
   await supabase.from('payments').upsert(
     {
@@ -849,13 +909,16 @@ async function recoverStoreOrderPaymentFromWebhook(
       currency: 'BRL',
       status: 'approved',
       status_detail: JSON.stringify(meta),
-      paid_at: new Date().toISOString(),
+      paid_at: paidAt,
       payment_method: remote.billingType?.toLowerCase() ?? null,
     },
     { onConflict: 'asaas_payment_id' }
   );
 
-  return approveStoreOrderPayment(supabase, payment.id, payment);
+  return approveStoreOrderPayment(supabase, payment.id, {
+    ...payment,
+    paymentDate: remote.paymentDate ?? payment.paymentDate,
+  });
 }
 
 export async function handleStoreOrderPagarmeChargePaid(
@@ -1074,7 +1137,10 @@ export async function syncStoreOrderPaymentByOrderId(
     remoteStatus = remote.status;
 
     if (isAsaasPaymentConfirmed(remote.status)) {
-      await approveStoreOrderPayment(supabase, paymentRow.asaas_payment_id, remote);
+      await approveStoreOrderPayment(supabase, paymentRow.asaas_payment_id, {
+        value: remote.value,
+        paymentDate: remote.paymentDate,
+      });
       return buildOrderStatusResult(meta, 'approved', paymentRow.amount_cents);
     }
   } catch (error) {

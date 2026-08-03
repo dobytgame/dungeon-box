@@ -39,6 +39,7 @@ export type AsaasWebhookPayment = {
   billingType?: string;
   installment?: string | null;
   installmentNumber?: number | null;
+  paymentDate?: string | null;
 };
 
 function paymentAmountCents(payment: AsaasWebhookPayment): number {
