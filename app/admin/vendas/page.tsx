@@ -47,26 +47,37 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         availableYears={chartData.availableYears}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <KpiCard
-          label="Receita no período"
-          value={formatMoney(summary.revenueCents)}
-          hint={`${summary.periodLabel} · aprovadas que contam`}
+          label="Vendas novas"
+          value={formatMoney(chartData.totals.totalCents)}
+          hint={`${chartData.periodLabel} · 1ª cobrança (assinatura, combo ou loja)`}
+          accent="console"
+        />
+        <KpiCard
+          label="Renovações pagas"
+          value={formatMoney(chartData.totals.renewalCents)}
+          hint={`${subscriptionMetrics.totals.renewalCount} cobrança(s) recorrente(s) no período`}
+          accent="gold"
+        />
+        <KpiCard
+          label="Receita total"
+          value={formatMoney(chartData.totals.totalRevenueCents)}
+          hint="Vendas novas + renovações confirmadas"
           accent="gold"
         />
         <KpiCard
           label="Vendas aprovadas"
           value={String(summary.approvedCount)}
           hint={`${summary.visibleCount} linha(s) · ${summary.hiddenInstallmentCount} parcela(s) oculta(s)`}
-          accent="console"
         />
         <KpiCard
-          label="Assinaturas"
+          label="Assinaturas (novas)"
           value={String(summary.byType.assinatura.count)}
           hint={formatMoney(summary.byType.assinatura.revenueCents)}
         />
         <KpiCard
-          label="Loja"
+          label="Loja (novas)"
           value={String(
             summary.byType.loja_avulsa.count + summary.byType.loja_bundled.count
           )}
@@ -75,10 +86,13 @@ export default async function AdminSalesPage({ searchParams }: Props) {
               summary.byType.loja_bundled.revenueCents
           )}
         />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Pendentes"
           value={String(summary.pendingCount)}
-          hint="Aguardando confirmação"
+          hint="Aguardando confirmação de pagamento"
           accent="warn"
         />
       </section>
@@ -103,7 +117,11 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         <KpiCard
           label="Renovações"
           value={String(subscriptionMetrics.totals.renewalCount)}
-          hint="Pagamentos recorrentes aprovados"
+          hint={
+            subscriptionMetrics.totals.renewalRevenueCents > 0
+              ? `${formatMoney(subscriptionMetrics.totals.renewalRevenueCents)} confirmados`
+              : 'Pagamentos recorrentes aprovados'
+          }
           accent="gold"
         />
         <KpiCard
@@ -144,7 +162,7 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         </Suspense>
       </AdminSection>
 
-      <AdminSection title="Gráfico de vendas">
+      <AdminSection title="Receita diária">
         <Suspense
           fallback={
             <div className="admin-panel rounded p-6 font-mono text-xs text-zinc-600">
@@ -156,7 +174,7 @@ export default async function AdminSalesPage({ searchParams }: Props) {
         </Suspense>
       </AdminSection>
 
-      <AdminSection title="Lista de vendas">
+      <AdminSection title="Lista de vendas novas">
         <div className="mb-3 px-1 font-mono text-[11px] text-zinc-600">
           {summary.total} venda(s) no período
           {summary.totalPages > 1
@@ -186,7 +204,9 @@ export default async function AdminSalesPage({ searchParams }: Props) {
       </AdminSection>
 
       <p className="font-mono text-[11px] text-zinc-600">
-        Combos parcelados aparecem com o valor total. Clique em{' '}
+        A lista abaixo mostra apenas <span className="text-zinc-400">vendas novas</span>{' '}
+        (1ª cobrança). Renovações mensais aparecem no gráfico acima e no financeiro,
+        mas não nesta lista. Combos parcelados aparecem com o valor total — clique em{' '}
         <span className="text-zinc-400">+</span> na linha para ver as parcelas do Asaas.{' '}
         <Link href="/admin/pagamentos" className="text-console hover:underline">
           Ver pagamentos brutos

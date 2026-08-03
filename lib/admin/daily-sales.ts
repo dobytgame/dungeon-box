@@ -10,6 +10,7 @@ import {
   buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountInAdminSales,
+  shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
 
@@ -26,7 +27,9 @@ export interface DailySalesPoint {
   label: string;
   assinaturaCents: number;
   lojaCents: number;
+  renewalCents: number;
   totalCents: number;
+  totalRevenueCents: number;
 }
 
 export interface DailySalesChartData {
@@ -38,7 +41,9 @@ export interface DailySalesChartData {
   totals: {
     assinaturaCents: number;
     lojaCents: number;
+    renewalCents: number;
     totalCents: number;
+    totalRevenueCents: number;
   };
   availableYears: number[];
 }
@@ -186,6 +191,23 @@ export function resolveDailySalesBounds(
   return resolveBounds(filters, now);
 }
 
+function isRenewalPayment(
+  row: RevenuePaymentRow,
+  indexes: ReturnType<typeof buildRevenueCountIndexes>
+): boolean {
+  if (!row.subscription_id) return false;
+
+  return (
+    shouldCountPaymentInRevenue(
+      row,
+      indexes.canonicalComboBySubscription,
+      indexes.comboPrepaidDayBySubscription,
+      indexes.canonicalMonthlyBySubscriptionMonth,
+      indexes.firstPaymentBySubscription
+    ) && !shouldCountInAdminSales(row, indexes)
+  );
+}
+
 export async function getDailySalesChartData(
   admin: SupabaseClient,
   searchParams: Record<string, string | undefined> = {}
@@ -226,18 +248,34 @@ export async function getDailySalesChartData(
   const rows = (data ?? []) as RevenuePaymentRow[];
   const indexes = buildRevenueCountIndexes(rows);
 
-  const byDay = new Map<string, { assinaturaCents: number; lojaCents: number }>();
+  const byDay = new Map<
+    string,
+    { assinaturaCents: number; lojaCents: number; renewalCents: number }
+  >();
 
   for (const row of rows) {
-    if (!shouldCountInAdminSales(row, indexes)) {
-      continue;
-    }
-
     const day = chartDayKey(
       row.paid_at as string | null,
       row.created_at as string | null
     );
     if (!day || day < from || day > to) continue;
+
+    const amountCents = resolvePaymentRevenueCents(row);
+    const bucket = byDay.get(day) ?? {
+      assinaturaCents: 0,
+      lojaCents: 0,
+      renewalCents: 0,
+    };
+
+    if (isRenewalPayment(row, indexes)) {
+      bucket.renewalCents += amountCents;
+      byDay.set(day, bucket);
+      continue;
+    }
+
+    if (!shouldCountInAdminSales(row, indexes)) {
+      continue;
+    }
 
     const subscription = Array.isArray(row.subscriptions)
       ? row.subscriptions[0]
@@ -256,9 +294,6 @@ export async function getDailySalesChartData(
         ?.billing_term,
     });
 
-    const amountCents = resolvePaymentRevenueCents(row);
-
-    const bucket = byDay.get(day) ?? { assinaturaCents: 0, lojaCents: 0 };
     if (saleType === 'assinatura') {
       bucket.assinaturaCents += amountCents;
     } else {
@@ -268,13 +303,20 @@ export async function getDailySalesChartData(
   }
 
   const points: DailySalesPoint[] = eachDay(from, to).map((date) => {
-    const bucket = byDay.get(date) ?? { assinaturaCents: 0, lojaCents: 0 };
+    const bucket = byDay.get(date) ?? {
+      assinaturaCents: 0,
+      lojaCents: 0,
+      renewalCents: 0,
+    };
+    const totalCents = bucket.assinaturaCents + bucket.lojaCents;
     return {
       date,
       label: dayLabel(date),
       assinaturaCents: bucket.assinaturaCents,
       lojaCents: bucket.lojaCents,
-      totalCents: bucket.assinaturaCents + bucket.lojaCents,
+      renewalCents: bucket.renewalCents,
+      totalCents,
+      totalRevenueCents: totalCents + bucket.renewalCents,
     };
   });
 
@@ -282,9 +324,17 @@ export async function getDailySalesChartData(
     (acc, point) => ({
       assinaturaCents: acc.assinaturaCents + point.assinaturaCents,
       lojaCents: acc.lojaCents + point.lojaCents,
+      renewalCents: acc.renewalCents + point.renewalCents,
       totalCents: acc.totalCents + point.totalCents,
+      totalRevenueCents: acc.totalRevenueCents + point.totalRevenueCents,
     }),
-    { assinaturaCents: 0, lojaCents: 0, totalCents: 0 }
+    {
+      assinaturaCents: 0,
+      lojaCents: 0,
+      renewalCents: 0,
+      totalCents: 0,
+      totalRevenueCents: 0,
+    }
   );
 
   return {

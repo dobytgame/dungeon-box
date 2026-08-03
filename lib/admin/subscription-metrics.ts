@@ -15,6 +15,7 @@ import {
 import {
   buildRevenueCountIndexes,
   isComboSubscription,
+  resolvePaymentRevenueCents,
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
@@ -40,6 +41,7 @@ export interface SubscriptionMetricsChartData {
     newCount: number;
     cancelledCount: number;
     renewalCount: number;
+    renewalRevenueCents: number;
     netGrowth: number;
   };
   summary: {
@@ -148,7 +150,7 @@ function buildRenewalDayCounts(
   payments: RevenuePaymentRow[],
   from: string,
   to: string
-): Map<string, number> {
+): { counts: Map<string, number>; revenueCents: Map<string, number> } {
   const indexes = buildRevenueCountIndexes(payments);
 
   const billingPayments = payments
@@ -172,7 +174,8 @@ function buildRenewalDayCounts(
     });
 
   const firstPaymentBySubscription = new Set<string>();
-  const renewalsByDay = new Map<string, number>();
+  const counts = new Map<string, number>();
+  const revenueCents = new Map<string, number>();
 
   for (const payment of billingPayments) {
     const subscriptionId = payment.subscription_id!;
@@ -185,10 +188,12 @@ function buildRenewalDayCounts(
     }
 
     if (day < from || day > to) continue;
-    renewalsByDay.set(day, (renewalsByDay.get(day) ?? 0) + 1);
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+    const amountCents = resolvePaymentRevenueCents(payment);
+    revenueCents.set(day, (revenueCents.get(day) ?? 0) + amountCents);
   }
 
-  return renewalsByDay;
+  return { counts, revenueCents };
 }
 
 export async function getSubscriptionMetricsChartData(
@@ -272,7 +277,8 @@ export async function getSubscriptionMetricsChartData(
     }
   }
 
-  const renewalsByDay = buildRenewalDayCounts(payments, from, to);
+  const { counts: renewalsByDay, revenueCents: renewalRevenueByDay } =
+    buildRenewalDayCounts(payments, from, to);
 
   const points: SubscriptionMetricsPoint[] = eachDay(from, to).map((date) => {
     const newCount = newByDay.get(date) ?? 0;
@@ -302,9 +308,17 @@ export async function getSubscriptionMetricsChartData(
       newCount: acc.newCount + point.newCount,
       cancelledCount: acc.cancelledCount + point.cancelledCount,
       renewalCount: acc.renewalCount + point.renewalCount,
+      renewalRevenueCents:
+        acc.renewalRevenueCents + (renewalRevenueByDay.get(point.date) ?? 0),
       netGrowth: acc.netGrowth + point.netGrowth,
     }),
-    { newCount: 0, cancelledCount: 0, renewalCount: 0, netGrowth: 0 }
+    {
+      newCount: 0,
+      cancelledCount: 0,
+      renewalCount: 0,
+      renewalRevenueCents: 0,
+      netGrowth: 0,
+    }
   );
 
   const activeAtPeriodStart = subscriptions.filter((row) =>

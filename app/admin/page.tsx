@@ -87,7 +87,11 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
         <KpiCard
           label="Renovações"
           value={String(subscriptionMetrics.totals.renewalCount)}
-          hint={`${subscriptionMetrics.periodLabel}`}
+          hint={
+            subscriptionMetrics.totals.renewalRevenueCents > 0
+              ? `${formatMoney(subscriptionMetrics.totals.renewalRevenueCents)} · ${subscriptionMetrics.periodLabel}`
+              : subscriptionMetrics.periodLabel
+          }
           accent="gold"
         />
         <KpiCard
@@ -145,8 +149,8 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
       </AdminSection>
 
       <AdminSection
-        title="Vendas diárias"
-        action={{ href: '/admin/vendas', label: 'Ver todas as vendas' }}
+        title="Receita diária"
+        action={{ href: '/admin/vendas', label: 'Ver vendas' }}
       >
         <Suspense
           fallback={

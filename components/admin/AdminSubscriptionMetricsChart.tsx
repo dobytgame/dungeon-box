@@ -157,6 +157,15 @@ export default function AdminSubscriptionMetricsChart({ data }: Props) {
             {data.periodLabel} · {data.totals.newCount} novos ·{' '}
             {data.totals.cancelledCount} cancelamentos · {data.totals.renewalCount}{' '}
             renovações
+            {data.totals.renewalRevenueCents > 0 ? (
+              <>
+                {' '}
+                ·{' '}
+                <span className="text-gold">
+                  {formatMoney(data.totals.renewalRevenueCents)} em renovações
+                </span>
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -212,6 +221,14 @@ export default function AdminSubscriptionMetricsChart({ data }: Props) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-sm border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs leading-relaxed text-zinc-500">
+        <strong className="font-medium text-emerald-300">Novos</strong> = assinaturas
+        iniciadas no dia.{' '}
+        <strong className="font-medium text-console">Renovações</strong> = 2ª cobrança
+        em diante, quando o pagamento é confirmado. Combos não geram renovação durante o
+        período pré-pago.
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -341,6 +358,16 @@ export default function AdminSubscriptionMetricsChart({ data }: Props) {
             {data.totals.netGrowth >= 0 ? '+' : ''}
             {data.totals.netGrowth}
           </strong>
+        </span>
+        <span>
+          Renovações pagas:{' '}
+          <strong className="text-console">{data.totals.renewalCount}</strong>
+          {data.totals.renewalRevenueCents > 0 ? (
+            <span className="text-gold">
+              {' '}
+              · {formatMoney(data.totals.renewalRevenueCents)}
+            </span>
+          ) : null}
         </span>
         <span>
           MRR atual:{' '}
