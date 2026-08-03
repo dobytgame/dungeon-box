@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PAINT_KIT_BUMPS } from '@/lib/checkout/order-bumps';
+import { brazilDateToEndIso, brazilDateToStartIso } from '@/lib/datetime/brazil';
 import {
   parsePaintKitBump,
   parsePaintKitBumpRecurring,
@@ -297,8 +298,8 @@ export async function fetchApprovedPaymentsForOrderCost(
     .from('payments')
     .select(PAYMENT_ORDER_COST_SELECT)
     .eq('status', 'approved')
-    .gte('paid_at', `${from}T00:00:00`)
-    .lte('paid_at', `${to}T23:59:59`);
+    .gte('paid_at', brazilDateToStartIso(from))
+    .lte('paid_at', brazilDateToEndIso(to));
 
   if (error) {
     console.error('[admin] fetchApprovedPaymentsForOrderCost:', error.message);

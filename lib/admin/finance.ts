@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { getOperationChartPeriod } from '@/lib/admin/chart-period';
+import { brazilDateToEndIso, brazilDateToStartIso } from '@/lib/datetime/brazil';
 import { getProfitByMonth, getProfitSummary } from '@/lib/admin/profit-analytics';
 import {
   buildRevenueCountIndexes,
@@ -218,8 +219,8 @@ async function fetchApprovedPayments(
     `
     )
     .eq('status', 'approved')
-    .gte('paid_at', `${from}T00:00:00`)
-    .lte('paid_at', `${to}T23:59:59`)
+    .gte('paid_at', brazilDateToStartIso(from))
+    .lte('paid_at', brazilDateToEndIso(to))
     .order('paid_at', { ascending: false });
 
   if (error) {

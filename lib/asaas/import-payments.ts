@@ -15,6 +15,10 @@ import {
   paymentBelongsToLocalSubscription,
 } from '@/lib/asaas/subscription-link';
 import { listAsaasCustomerPayments, parseStoreOrderExternalReference } from '@/lib/asaas/store-order-payment';
+import {
+  earliestIsoTimestamp,
+  parseBrazilDateOnlyToIso,
+} from '@/lib/datetime/brazil';
 import { isComboInstallmentSlicePayment, isComboPrepaidPayment } from '@/lib/payments/effective-amount';
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 
@@ -167,6 +171,20 @@ export async function collectRemotePaymentsForSubscription(
  * Importa cobranças do Asaas para a tabela `payments` sem alterar status da
  * assinatura, ciclos de produção ou enviar e-mails.
  */
+function resolveImportedPaidAt(
+  localStatus: 'approved' | 'pending' | 'refunded' | 'cancelled',
+  paymentDate: string | null | undefined,
+  existingPaidAt: string | null | undefined
+): string | null {
+  if (localStatus !== 'approved') return null;
+
+  const importedPaidAt = paymentDate
+    ? parseBrazilDateOnlyToIso(paymentDate)
+    : new Date().toISOString();
+
+  return earliestIsoTimestamp(existingPaidAt, importedPaidAt) ?? importedPaidAt;
+}
+
 function isFutureUnconfirmedCharge(payment: AsaasPaymentRow): boolean {
   if (isAsaasPaymentConfirmed(payment.status)) return false;
   if (!payment.dueDate) return false;
@@ -210,13 +228,6 @@ export async function importAsaasPaymentsForSubscription(
     if (isAsaasPaymentPending(mapped.status)) {
       localStatus = 'pending';
     }
-    const paidAt =
-      localStatus === 'approved'
-        ? effectivePayment.paymentDate
-          ? new Date(effectivePayment.paymentDate).toISOString()
-          : new Date().toISOString()
-        : null;
-
     const installments =
       isComboInitial && subscription.combo_installments
         ? subscription.combo_installments
@@ -228,9 +239,15 @@ export async function importAsaasPaymentsForSubscription(
 
     const { data: existing } = await supabase
       .from('payments')
-      .select('status_detail, asaas_payment_id')
+      .select('status_detail, asaas_payment_id, paid_at')
       .eq('asaas_payment_id', effectivePayment.id)
       .maybeSingle();
+
+    const paidAt = resolveImportedPaidAt(
+      localStatus,
+      effectivePayment.paymentDate,
+      existing?.paid_at as string | null | undefined
+    );
 
     const existingComboPrepaid = await findCanonicalComboPrepaidPayment(
       supabase,

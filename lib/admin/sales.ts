@@ -7,6 +7,7 @@ import {
   parseDailySalesFilters,
   resolveDailySalesBounds,
 } from '@/lib/admin/daily-sales';
+import { brazilDateToEndIso, brazilDateToStartIso, toBrazilDateKey } from '@/lib/datetime/brazil';
 import {
   parseAdminListPagination,
   paginateList,
@@ -66,7 +67,7 @@ function emptySummaryByType(): Record<
 
 function saleDayKey(row: AdminSaleRow): string | null {
   const raw = row.paid_at ?? row.created_at;
-  return raw ? raw.slice(0, 10) : null;
+  return raw ? toBrazilDateKey(raw) : null;
 }
 
 function matchesSearch(row: AdminSaleRow, q: string): boolean {
@@ -417,8 +418,10 @@ export async function listAdminSales(
   }
 
   if (filters.from && filters.to) {
+    const paidFrom = brazilDateToStartIso(filters.from);
+    const paidTo = brazilDateToEndIso(filters.to);
     query = query.or(
-      `and(paid_at.gte.${filters.from}T00:00:00,paid_at.lte.${filters.to}T23:59:59.999),and(paid_at.is.null,created_at.gte.${filters.from}T00:00:00,created_at.lte.${filters.to}T23:59:59.999)`
+      `and(paid_at.gte."${paidFrom}",paid_at.lte."${paidTo}"),and(paid_at.is.null,created_at.gte."${paidFrom}",created_at.lte."${paidTo}")`
     );
   }
 

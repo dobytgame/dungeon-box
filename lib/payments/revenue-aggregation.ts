@@ -1,5 +1,6 @@
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
+import { toBrazilDateKey } from '@/lib/datetime/brazil';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import {
   isComboPrepaidPayment,
@@ -37,7 +38,7 @@ function getSubscription(row: RevenuePaymentRow): SubscriptionRevenueContext | n
 function paymentDayKey(row: RevenuePaymentRow | null | undefined): string | null {
   if (!row) return null;
   const raw = row.paid_at ?? row.created_at;
-  return raw ? raw.slice(0, 10) : null;
+  return raw ? toBrazilDateKey(raw) : null;
 }
 
 function sortPaymentsChronologically(

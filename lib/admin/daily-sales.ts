@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { OPERATION_CHART_START } from '@/lib/admin/chart-period';
 import { classifyAdminSale } from '@/lib/admin/sales';
 import {
+  brazilDateToEndIso,
+  brazilDateToStartIso,
+  toBrazilDateKey,
+} from '@/lib/datetime/brazil';
+import {
   buildRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountInAdminSales,
@@ -165,7 +170,7 @@ function dayLabel(date: string): string {
 function chartDayKey(paidAt: string | null, createdAt: string | null): string | null {
   const raw = paidAt ?? createdAt;
   if (!raw) return null;
-  return raw.slice(0, 10);
+  return toBrazilDateKey(raw);
 }
 
 export function parseDailySalesFilters(
@@ -211,8 +216,8 @@ export async function getDailySalesChartData(
     `
     )
     .eq('status', 'approved')
-    .gte('paid_at', `${from}T00:00:00`)
-    .lte('paid_at', `${to}T23:59:59.999`);
+    .gte('paid_at', brazilDateToStartIso(from))
+    .lte('paid_at', brazilDateToEndIso(to));
 
   if (error) {
     console.error('[admin] getDailySalesChartData:', error.message);

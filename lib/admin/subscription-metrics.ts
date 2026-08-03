@@ -8,6 +8,11 @@ import {
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import {
+  brazilDateToEndIso,
+  brazilDateToStartIso,
+  toBrazilDateKey,
+} from '@/lib/datetime/brazil';
+import {
   buildRevenueCountIndexes,
   isComboSubscription,
   shouldCountPaymentInRevenue,
@@ -91,7 +96,7 @@ function dayLabel(date: string): string {
 }
 
 function dayKey(raw: string | null | undefined): string | null {
-  return raw ? raw.slice(0, 10) : null;
+  return raw ? toBrazilDateKey(raw) : null;
 }
 
 function endOfDayIso(date: string): string {
@@ -233,8 +238,8 @@ export async function getSubscriptionMetricsChartData(
       )
       .eq('status', 'approved')
       .not('subscription_id', 'is', null)
-      .gte('paid_at', `${OPERATION_CHART_START}T00:00:00`)
-      .lte('paid_at', `${to}T23:59:59.999`),
+      .gte('paid_at', brazilDateToStartIso(OPERATION_CHART_START))
+      .lte('paid_at', brazilDateToEndIso(to)),
     admin
       .from('subscriptions')
       .select('id', { count: 'exact', head: true })
