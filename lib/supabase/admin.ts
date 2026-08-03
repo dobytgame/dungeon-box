@@ -9,7 +9,6 @@ function nodeWebSocketTransport(): RealtimeClientOptions['transport'] | undefine
 
   try {
     // Node < 22: Supabase inicializa Realtime mesmo sem uso — precisa de `ws`.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ws = require('ws') as typeof import('ws');
     cachedNodeWebSocket = ws.WebSocket as RealtimeClientOptions['transport'];
     return cachedNodeWebSocket;
