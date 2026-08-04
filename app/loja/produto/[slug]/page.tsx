@@ -36,8 +36,8 @@ import {
   enrichStoreProductForSubscriber,
   enrichStoreProductsForSubscriber,
   formatSubscriberDiscountSummary,
-  SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
 } from '@/lib/store/subscriber-discount';
+import { formatMoney } from '@/lib/dashboard/format';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -194,14 +194,17 @@ export default async function LojaProductPage({ params }: Props) {
 
           {product.subscriberDiscount ? (
             <p className="mt-2 text-xs text-gold/80">
-              {product.subscriberDiscountAppliedPercent
-                ? formatSubscriberDiscountSummary(
-                    product.subscriberDiscountAppliedPercent
-                  )
-                : SUBSCRIBER_STORE_DISCOUNT_SUMMARY}
+              {formatSubscriberDiscountSummary(
+                product.subscriberDiscountAppliedPercent
+              )}
+            </p>
+          ) : product.subscriberPriceCents != null &&
+            product.subscriberPriceCents < product.priceCents ? (
+            <p className="mt-2 text-xs text-gold/80">
+              Assinantes: {formatMoney(product.subscriberPriceCents)}
             </p>
           ) : product.promoCode ? (
-            <p className="mt-2 text-xs text-ember/80">
+            <p className="mt-2 text-xs text-gold/80">
               Cupom {product.promoCode}
               {product.promoSummary ? ` — ${product.promoSummary}` : ''}
             </p>

@@ -10,8 +10,6 @@ import type { StoreProduct } from '@/lib/store/catalog';
 import {
   formatSubscriberDiscountBadge,
   formatSubscriberDiscountSummary,
-  SUBSCRIBER_STORE_DISCOUNT_BADGE,
-  SUBSCRIBER_STORE_DISCOUNT_SUMMARY,
 } from '@/lib/store/subscriber-discount';
 import { formatMoney } from '@/lib/dashboard/format';
 import { cartLineId } from '@/lib/store/product-variations';
@@ -46,12 +44,16 @@ export default function StoreProductCard({ product }: Props) {
     product.originalPriceCents !== undefined &&
     product.originalPriceCents > product.priceCents;
   const showSubscriberBadge = product.subscriberDiscount && onSale;
-  const subscriberBadgeLabel = product.subscriberDiscountAppliedPercent
-    ? formatSubscriberDiscountBadge(product.subscriberDiscountAppliedPercent)
-    : SUBSCRIBER_STORE_DISCOUNT_BADGE;
-  const subscriberSummary = product.subscriberDiscountAppliedPercent
-    ? formatSubscriberDiscountSummary(product.subscriberDiscountAppliedPercent)
-    : SUBSCRIBER_STORE_DISCOUNT_SUMMARY;
+  const subscriberBadgeLabel = formatSubscriberDiscountBadge(
+    product.subscriberDiscountAppliedPercent
+  );
+  const subscriberSummary = formatSubscriberDiscountSummary(
+    product.subscriberDiscountAppliedPercent
+  );
+  const showSubscriberTeaser =
+    !product.subscriberDiscount &&
+    product.subscriberPriceCents != null &&
+    product.subscriberPriceCents < product.priceCents;
 
   function updateQuantity(next: number) {
     const clamped = Math.min(Math.max(next, 1), maxQty);
@@ -149,6 +151,10 @@ export default function StoreProductCard({ product }: Props) {
         )}
         {product.subscriberDiscount ? (
           <p className="mt-1 text-xs text-gold/80">{subscriberSummary}</p>
+        ) : showSubscriberTeaser ? (
+          <p className="mt-1 text-xs text-gold/80">
+            Assinantes: {formatMoney(product.subscriberPriceCents!)}
+          </p>
         ) : product.promoCode ? (
           <p className="mt-1 text-xs text-gold/80">
             Cupom {product.promoCode} — {product.promoSummary}

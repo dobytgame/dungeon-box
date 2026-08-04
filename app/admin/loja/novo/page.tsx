@@ -18,6 +18,7 @@ export default async function AdminStoreNewPage() {
         planOptions={plans.map((plan) => ({
           slug: plan.slug,
           name: plan.name,
+          priceCents: plan.price_cents,
         }))}
         categoryOptions={categoryOptions}
       />

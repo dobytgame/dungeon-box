@@ -1,8 +1,5 @@
 import { formatMoney } from '@/lib/dashboard/format';
-import {
-  formatSubscriberDiscountBadge,
-  SUBSCRIBER_STORE_DISCOUNT_BADGE,
-} from '@/lib/store/subscriber-discount';
+import { formatSubscriberDiscountBadge } from '@/lib/store/subscriber-discount';
 
 interface Props {
   priceCents: number;
@@ -25,9 +22,9 @@ export default function PriceBadge({
 }: Props) {
   const onSale =
     originalPriceCents !== undefined && originalPriceCents > priceCents;
-  const subscriberBadgeLabel = subscriberDiscountPercent
-    ? formatSubscriberDiscountBadge(subscriberDiscountPercent)
-    : SUBSCRIBER_STORE_DISCOUNT_BADGE;
+  const subscriberBadgeLabel = formatSubscriberDiscountBadge(
+    subscriberDiscountPercent
+  );
   const priceClass =
     size === 'lg' ? 'font-display text-3xl text-ember' : 'font-display text-2xl text-gold';
   const strikeClass =

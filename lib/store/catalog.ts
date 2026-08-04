@@ -61,6 +61,11 @@ export type StoreProduct = {
   promoSummary?: string;
   /** Percentual configurado no admin (null/undefined = 5% padrão). */
   subscriberDiscountPercent?: number | null;
+  /**
+   * Preço fixo para assinantes (ex.: kits do mês = `plans.price_cents`).
+   * Quando definido, prevalece sobre o desconto percentual.
+   */
+  subscriberPriceCents?: number;
   subscriberDiscount?: boolean;
   /** Percentual efetivamente aplicado após enriquecimento para assinante. */
   subscriberDiscountAppliedPercent?: number;

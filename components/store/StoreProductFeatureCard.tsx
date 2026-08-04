@@ -7,10 +7,7 @@ import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { STORE_ROUTES } from '@/lib/store/routes';
-import {
-  formatSubscriberDiscountBadge,
-  SUBSCRIBER_STORE_DISCOUNT_BADGE,
-} from '@/lib/store/subscriber-discount';
+import { formatSubscriberDiscountBadge } from '@/lib/store/subscriber-discount';
 
 interface Props {
   product: StoreProduct;
@@ -24,9 +21,9 @@ export default function StoreProductFeatureCard({ product }: Props) {
     product.originalPriceCents !== undefined &&
     product.originalPriceCents > product.priceCents;
   const showSubscriberBadge = product.subscriberDiscount && onSale;
-  const subscriberBadgeLabel = product.subscriberDiscountAppliedPercent
-    ? formatSubscriberDiscountBadge(product.subscriberDiscountAppliedPercent)
-    : SUBSCRIBER_STORE_DISCOUNT_BADGE;
+  const subscriberBadgeLabel = formatSubscriberDiscountBadge(
+    product.subscriberDiscountAppliedPercent
+  );
 
   function handleAdd(e: MouseEvent) {
     e.preventDefault();
@@ -87,6 +84,13 @@ export default function StoreProductFeatureCard({ product }: Props) {
           ) : null}
           <span className="font-display text-lg text-gold">{product.priceLabel}</span>
         </div>
+        {!product.subscriberDiscount &&
+        product.subscriberPriceCents != null &&
+        product.subscriberPriceCents < product.priceCents ? (
+          <p className="mt-1 text-[10px] text-gold/80">
+            Assinantes: {formatMoney(product.subscriberPriceCents)}
+          </p>
+        ) : null}
 
         <button
           type="button"

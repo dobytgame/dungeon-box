@@ -159,6 +159,8 @@ export type MonthlyKitStoreProductConfig = {
   name: string;
   tagline: string | null;
   price_cents: number;
+  /** Preço da assinatura do plano vinculado (cobrado de assinantes na loja). */
+  plan_price_cents: number | null;
   includes: string[];
   image_url: string | null;
   gallery_urls: string[];
@@ -186,6 +188,33 @@ export async function loadActiveMonthlyKitStoreProductsMap(
   if (error) {
     console.error('[admin] loadActiveMonthlyKitStoreProductsMap:', error.message);
     return new Map();
+  }
+
+  const planSlugs = Array.from(
+    new Set(
+      (data ?? [])
+        .map((row) => row.plan_slug as string | null)
+        .filter((slug): slug is string => Boolean(slug))
+    )
+  );
+
+  const planPriceBySlug = new Map<string, number>();
+  if (planSlugs.length > 0) {
+    const { data: plans, error: plansError } = await admin
+      .from('plans')
+      .select('slug, price_cents')
+      .in('slug', planSlugs);
+
+    if (plansError) {
+      console.error(
+        '[admin] loadActiveMonthlyKitStoreProductsMap plans:',
+        plansError.message
+      );
+    } else {
+      for (const plan of plans ?? []) {
+        planPriceBySlug.set(plan.slug as string, plan.price_cents as number);
+      }
+    }
   }
 
   const visibility = await loadStoreCategoryVisibilityContext(admin);
@@ -219,6 +248,7 @@ export async function loadActiveMonthlyKitStoreProductsMap(
       name: row.name as string,
       tagline: (row.tagline as string | null) ?? null,
       price_cents: row.price_cents as number,
+      plan_price_cents: planPriceBySlug.get(planSlug) ?? null,
       includes: (row.includes as string[] | null) ?? [],
       image_url: (row.image_url as string | null) ?? null,
       gallery_urls: normalizeStoreGalleryUrls(row.gallery_urls),

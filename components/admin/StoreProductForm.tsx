@@ -27,6 +27,7 @@ const labelClass =
 interface PlanOption {
   slug: string;
   name: string;
+  priceCents?: number;
 }
 
 interface CategoryOption {
@@ -62,6 +63,9 @@ export default function StoreProductForm({
   const isMonthlyKit = category === 'monthly-kit';
   const isPaintKit = category === 'paint-kit';
   const isStoreItem = category === 'store-item';
+  const selectedPlan = planOptions.find(
+    (plan) => plan.slug === (product?.plan_slug ?? '')
+  );
   const [name, setName] = useState(product?.name ?? '');
   const [slug, setSlug] = useState(product?.slug ?? '');
   const [slugEdited, setSlugEdited] = useState(Boolean(product?.slug));
@@ -264,8 +268,9 @@ export default function StoreProductForm({
             </select>
           )}
           <p className="mt-1 text-xs text-stone-500">
-            O preço de venda na loja segue o plano (com promoções de assinante).
-            O custo de produção usa o plano ou o valor abaixo, se preenchido.
+            Assinantes pagam o valor deste plano na loja. O preço de loja acima
+            vale para quem não é assinante. O custo de produção usa o plano ou o
+            valor abaixo, se preenchido.
           </p>
         </div>
       ) : isPaintKit ? (
@@ -292,7 +297,9 @@ export default function StoreProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="price_reais" className={labelClass}>
-            {isMonthlyKit ? 'Preço na loja (R$)' : 'Preço referência (R$)'}
+            {isMonthlyKit
+              ? 'Preço na loja — não assinante (R$)'
+              : 'Preço referência (R$)'}
           </label>
           <input
             id="price_reais"
@@ -303,8 +310,12 @@ export default function StoreProductForm({
           />
           {isMonthlyKit ? (
             <p className="mt-1 text-xs text-stone-500">
-              Valor cobrado na loja para este kit. Independente do preço da
-              assinatura em Planos.
+              Valor cobrado de quem não é assinante. Assinantes pagam o valor do
+              plano vinculado
+              {selectedPlan?.priceCents != null
+                ? ` (${formatMoney(selectedPlan.priceCents)})`
+                : ''}
+              .
             </p>
           ) : null}
         </div>
@@ -322,30 +333,42 @@ export default function StoreProductForm({
         </div>
       </div>
 
-      <div>
-        <label htmlFor="subscriber_discount_percent" className={labelClass}>
-          Desconto para assinantes (%)
-        </label>
-        <input
-          id="subscriber_discount_percent"
-          name="subscriber_discount_percent"
-          type="number"
-          min={0}
-          max={100}
-          step={1}
-          placeholder={String(SUBSCRIBER_STORE_DISCOUNT_PERCENT)}
-          defaultValue={
-            product?.subscriber_discount_percent != null
-              ? product.subscriber_discount_percent
-              : ''
-          }
-          className={inputClass}
-        />
-        <p className="mt-1 text-xs text-stone-500">
-          Deixe em branco para usar o padrão de {SUBSCRIBER_STORE_DISCOUNT_PERCENT}%
-          para assinantes ativos. Use 0 para desativar o desconto neste produto.
-        </p>
-      </div>
+      {!isMonthlyKit ? (
+        <div>
+          <label htmlFor="subscriber_discount_percent" className={labelClass}>
+            Desconto para assinantes (%)
+          </label>
+          <input
+            id="subscriber_discount_percent"
+            name="subscriber_discount_percent"
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            placeholder={String(SUBSCRIBER_STORE_DISCOUNT_PERCENT)}
+            defaultValue={
+              product?.subscriber_discount_percent != null
+                ? product.subscriber_discount_percent
+                : ''
+            }
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-stone-500">
+            Deixe em branco para usar o padrão de {SUBSCRIBER_STORE_DISCOUNT_PERCENT}%
+            para assinantes ativos. Use 0 para desativar o desconto neste produto.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-sm border border-white/10 bg-stone-950/60 px-3 py-3 text-xs text-stone-400">
+          Kits do mês usam preço diferenciado: loja (não assinante) vs. valor do
+          plano (assinante). O desconto percentual padrão da loja não se aplica.
+          {selectedPlan?.priceCents != null ? (
+            <span className="mt-1 block text-gold/80">
+              Preço assinante atual: {formatMoney(selectedPlan.priceCents)}
+            </span>
+          ) : null}
+        </div>
+      )}
 
       {!isMonthlyKit ? (
         <div>

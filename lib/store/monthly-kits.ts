@@ -14,6 +14,7 @@ import {
   loadStoreCategoryVisibilityContext,
 } from '@/lib/store/category-visibility';
 import type { StoreProduct } from '@/lib/store/catalog';
+import { applySubscriberDiscountToStoreProduct } from '@/lib/store/subscriber-discount';
 import { resolveBestSubscriptionPromoForStorePlan } from '@/lib/store/subscription-promo';
 import {
   normalizeStoreGalleryUrls,
@@ -262,7 +263,12 @@ function buildMonthlyKitProduct(
     planSlug,
     featured: storeRow.featured,
     maxQuantity: storeRow.max_quantity,
-    subscriberDiscountPercent: storeRow.subscriber_discount_percent ?? null,
+    // Kits do mês: assinantes pagam o valor do plano, não o % padrão da loja.
+    subscriberDiscountPercent: 0,
+    subscriberPriceCents:
+      storeRow.plan_price_cents != null && storeRow.plan_price_cents > 0
+        ? storeRow.plan_price_cents
+        : undefined,
   };
 }
 
@@ -308,7 +314,7 @@ async function applySubscriptionPromoToProduct(
 
   return {
     ...product,
-    originalPriceCents: product.priceCents,
+    originalPriceCents: product.originalPriceCents ?? product.priceCents,
     priceCents: promo.discountedPriceCents,
     priceLabel: formatPriceLabel(promo.discountedPriceCents),
     promoCode: promo.promoCode,
@@ -361,9 +367,10 @@ export async function getMonthlyKitStoreAvailability(
   const baseProducts = await buildMonthlyKitProductsFromStore(admin, theme, {
     bundledWithSubscription: true,
   });
+  const subscriberPriced = baseProducts.map(applySubscriberDiscountToStoreProduct);
   const products = await applySubscriptionPromosToProducts(
     admin,
-    baseProducts,
+    subscriberPriced,
     subscriptions
   );
   const context = await loadStoreCategoryVisibilityContext(admin);
@@ -454,7 +461,8 @@ export async function resolveStoreMonthlyKitBySlugForUser(
   });
   if (!bundled) return null;
 
-  return applySubscriptionPromoToProduct(admin, bundled, subscriptions);
+  const subscriberPriced = applySubscriberDiscountToStoreProduct(bundled);
+  return applySubscriptionPromoToProduct(admin, subscriberPriced, subscriptions);
 }
 
 export async function getMonthlyKitProductsForUser(
@@ -584,10 +592,18 @@ export async function resolveMonthlyKitOrderItem(
     return { error: 'Não foi possível calcular o preço do kit do mês.' };
   }
   const qty = Math.min(Math.max(Math.floor(quantity), 1), product.maxQuantity ?? 9);
+  const subscriberPriced =
+    subscriptions.length > 0
+      ? applySubscriberDiscountToStoreProduct(product)
+      : product;
   const pricedProduct =
     subscriptions.length > 0
-      ? await applySubscriptionPromoToProduct(admin, product, subscriptions)
-      : product;
+      ? await applySubscriptionPromoToProduct(
+          admin,
+          subscriberPriced,
+          subscriptions
+        )
+      : subscriberPriced;
   const unitPrice = pricedProduct.priceCents;
 
   return {
