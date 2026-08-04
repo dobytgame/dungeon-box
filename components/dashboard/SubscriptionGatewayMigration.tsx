@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import PagarmePaymentForm from '@/components/checkout/PagarmePaymentForm';
+import SubscriptionMigrationLinkActions from '@/components/dashboard/SubscriptionMigrationLinkActions';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 import {
   migrationNeedsImmediateCharge,
@@ -220,6 +221,8 @@ export default function SubscriptionGatewayMigration({
           {error}
         </p>
       ) : null}
+
+      <SubscriptionMigrationLinkActions subscriptionId={subscriptionId} />
     </div>
   );
 }

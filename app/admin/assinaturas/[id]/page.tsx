@@ -17,6 +17,9 @@ import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminSubscriptionDetail } from '@/lib/admin/queries';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
 import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
+import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
 import {
   formatDate,
   formatDateTime,
@@ -78,6 +81,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
   const showAsaasSync =
     !subscription.is_partner &&
     Boolean(subscription.asaas_subscription_id || subscription.asaas_customer_id);
+  const showPagarmeMigration =
+    PAGARME_CONFIGURED &&
+    !subscription.is_partner &&
+    isAsaasSubscriptionNeedingPagarmeMigration(subscription);
 
   return (
     <div className="space-y-8">
@@ -238,6 +245,14 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
       {pendingPaymentPanel ? (
         <PendingPaymentLinkPanel {...pendingPaymentPanel} />
+      ) : null}
+
+      {showPagarmeMigration ? (
+        <AdminGatewayMigrationTools
+          subscriptionId={subscription.id}
+          variant="panel"
+          customerEmail={profile?.email}
+        />
       ) : null}
 
       <PartnerSubscriptionPanel subscription={subscription} />

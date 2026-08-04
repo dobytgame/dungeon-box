@@ -155,3 +155,83 @@ export async function cancelPendingUpgradeAction(subscriptionId: string) {
   revalidateDashboard();
   return { success: true as const };
 }
+
+export async function sendCustomerMigrationEmailAction(input: {
+  subscriptionId: string;
+}) {
+  const { user } = await requireDashboardUser();
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const admin = createAdminClient();
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id, user_id')
+    .eq('id', input.subscriptionId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!subscription) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  const { sendMigrationEmailForSubscription } = await import(
+    '@/lib/pagarme/send-migration-email'
+  );
+  const result = await sendMigrationEmailForSubscription(
+    admin,
+    input.subscriptionId
+  );
+
+  if ('error' in result) return { error: result.error };
+
+  revalidatePath('/dashboard/subscription');
+  return {
+    success: true as const,
+    email: result.email,
+    updateLink: result.updateLink,
+  };
+}
+
+export async function createCustomerMigrationLinkAction(input: {
+  subscriptionId: string;
+}) {
+  const { user } = await requireDashboardUser();
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const admin = createAdminClient();
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id, user_id')
+    .eq('id', input.subscriptionId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!subscription) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  const { createOrReuseMigrationUpdateLink } = await import(
+    '@/lib/pagarme/send-migration-email'
+  );
+  const result = await createOrReuseMigrationUpdateLink(
+    admin,
+    input.subscriptionId
+  );
+
+  if ('error' in result) return { error: result.error };
+
+  revalidatePath('/dashboard/subscription');
+  return {
+    success: true as const,
+    updateLink: result.updateLink,
+    expiresAt: result.expiresAt,
+  };
+}

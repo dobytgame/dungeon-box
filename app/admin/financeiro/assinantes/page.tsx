@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import AdminSendMigrationEmailButton from '@/components/admin/AdminSendMigrationEmailButton';
+import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
 import AdminTable from '@/components/admin/AdminTable';
 import { requireAdmin } from '@/lib/admin/auth';
 import {
@@ -246,7 +246,7 @@ export default async function AdminBillingDaySubscribersPage({
             header: 'Ação',
             cell: (row) =>
               row.needsMigration ? (
-                <AdminSendMigrationEmailButton subscriptionId={row.id} />
+                <AdminGatewayMigrationTools subscriptionId={row.id} />
               ) : (
                 <span className="text-zinc-600">—</span>
               ),

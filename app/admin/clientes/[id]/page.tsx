@@ -7,11 +7,14 @@ import CustomerActivatePlanPanel from '@/components/admin/CustomerActivatePlanPa
 import PartnerBadge from '@/components/admin/PartnerBadge';
 import ReferralAttributionBadge from '@/components/admin/ReferralAttributionBadge';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
+import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminCustomerDetail } from '@/lib/admin/queries';
 import { reconcilePendingAsaasSubscriptions } from '@/lib/asaas/reconcile-pending';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import { PLAN_SLUGS } from '@/lib/checkout/plans';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
@@ -260,6 +263,18 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
                   !row.is_partner &&
                   (row.asaas_subscription_id || row.asaas_customer_id) ? (
                     <SyncAsaasButton subscriptionId={row.id} compact />
+                  ) : (
+                    <span className="font-mono text-[10px] text-zinc-600">—</span>
+                  ),
+              },
+              {
+                key: 'migration',
+                header: 'Pagar.me',
+                cell: (row) =>
+                  PAGARME_CONFIGURED &&
+                  !row.is_partner &&
+                  isAsaasSubscriptionNeedingPagarmeMigration(row) ? (
+                    <AdminGatewayMigrationTools subscriptionId={row.id} />
                   ) : (
                     <span className="font-mono text-[10px] text-zinc-600">—</span>
                   ),

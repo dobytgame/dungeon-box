@@ -2900,6 +2900,58 @@ export async function sendGatewayMigrationEmailAction(input: {
 
   revalidatePath('/admin/financeiro/assinantes');
   revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+  revalidatePath(`/admin/clientes`);
 
-  return { success: true as const, email: result.email };
+  return {
+    success: true as const,
+    email: result.email,
+    updateLink: result.updateLink,
+  };
+}
+
+export async function createGatewayMigrationLinkAction(input: {
+  subscriptionId: string;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { createOrReuseMigrationUpdateLink } = await import(
+    '@/lib/pagarme/send-migration-email'
+  );
+
+  const result = await createOrReuseMigrationUpdateLink(
+    admin,
+    input.subscriptionId
+  );
+
+  if ('error' in result) {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.create_migration_link',
+    entityType: 'subscription',
+    entityId: input.subscriptionId,
+    metadata: {
+      email: result.email,
+      reused: result.reused,
+      expiresAt: result.expiresAt,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath('/admin/financeiro/assinantes');
+  revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+
+  return {
+    success: true as const,
+    updateLink: result.updateLink,
+    email: result.email,
+    expiresAt: result.expiresAt,
+    reused: result.reused,
+  };
 }
