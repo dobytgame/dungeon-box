@@ -139,6 +139,7 @@ export default function ChangePagarmeBillingDayPanel({
               parts.push(`Cobrado ${formatMoney(result.chargeAmountCents)}`);
             }
             setMessage(parts.join(' · '));
+            setBillingDay(String(result.billingDay));
             router.refresh();
           });
         }}
@@ -148,12 +149,12 @@ export default function ChangePagarmeBillingDayPanel({
       </button>
 
       {message ? (
-        <p className="mt-3 font-mono text-[11px] text-emerald-300" role="status">
+        <p className="mt-3 max-w-xl font-mono text-[11px] text-emerald-300" role="status">
           {message}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-3 font-mono text-[11px] text-red-400" role="alert">
+        <p className="mt-3 max-w-xl whitespace-pre-wrap font-mono text-[11px] text-red-400" role="alert">
           {error}
         </p>
       ) : null}

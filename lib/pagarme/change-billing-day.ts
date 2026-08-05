@@ -1,7 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  clampSubscriptionBillingDay,
+  resolveBillingDayAfterCatchUpCharge,
+  resolveNextBillingDateForDay,
+} from '@/lib/pagarme/billing-day';
 import { PAGARME_CONFIGURED, pagarmeRequest } from '@/lib/pagarme/client';
 import { userFacingPagarmeError } from '@/lib/pagarme/errors';
 import { chargePagarmeSubscriptionNow } from '@/lib/pagarme/manual-charge';
+
+export {
+  extractBillingDay,
+  resolveBillingDayAfterCatchUpCharge,
+  resolveNextBillingDateForDay,
+  clampSubscriptionBillingDay,
+} from '@/lib/pagarme/billing-day';
 
 type PagarmeSubscriptionBilling = {
   id: string;
@@ -18,63 +30,6 @@ function startOfUtcDay(date: Date): Date {
 
 function formatPagarmeDate(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function clampBillingDay(day: number): number {
-  return Math.min(28, Math.max(1, Math.trunc(day)));
-}
-
-export function extractBillingDay(
-  nextBillingDate: string | Date | null | undefined
-): number | null {
-  if (!nextBillingDate) return null;
-  const parsed =
-    nextBillingDate instanceof Date
-      ? nextBillingDate
-      : new Date(
-          nextBillingDate.includes('T')
-            ? nextBillingDate
-            : `${nextBillingDate}T12:00:00Z`
-        );
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.getUTCDate();
-}
-
-/**
- * Próxima ocorrência do dia de cobrança (1–28), mínimo D+1 UTC.
- * Ex.: hoje 05/08, dia 7 → 07/08; hoje 08/08, dia 7 → 07/09.
- */
-export function resolveNextBillingDateForDay(
-  billingDay: number,
-  now = new Date()
-): Date {
-  const day = clampBillingDay(billingDay);
-  const minStart = startOfUtcDay(now);
-  minStart.setUTCDate(minStart.getUTCDate() + 1);
-
-  let candidate = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day)
-  );
-
-  if (candidate.getTime() < minStart.getTime()) {
-    candidate = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, day)
-    );
-  }
-
-  return candidate;
-}
-
-/**
- * Após quitar o atraso agora: próxima renovação = dia escolhido no mês seguinte.
- * Ex.: cobra em 05/08 e muda para dia 7 → próxima 07/09.
- */
-export function resolveBillingDayAfterCatchUpCharge(
-  billingDay: number,
-  now = new Date()
-): Date {
-  const day = clampBillingDay(billingDay);
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, day));
 }
 
 function isBillingOverdue(
@@ -123,8 +78,8 @@ export type ChangePagarmeBillingDayResult =
   | { status: 'error'; error: string; statusCode?: number };
 
 /**
- * Altera o dia de vencimento no Pagar.me (+ local) e, se houver atraso,
- * dispara a cobrança pendente antes de remarcar a próxima data.
+ * Altera o dia de vencimento no Pagar.me (+ local).
+ * Se pedir cobrança do atraso, só remarcar para o mês seguinte após pagamento confirmado.
  */
 export async function changePagarmeSubscriptionBillingDay(
   admin: SupabaseClient,
@@ -139,7 +94,7 @@ export async function changePagarmeSubscriptionBillingDay(
     return { status: 'error', error: 'Pagar.me não configurado.', statusCode: 503 };
   }
 
-  const billingDay = clampBillingDay(input.billingDay);
+  const billingDay = clampSubscriptionBillingDay(input.billingDay);
   if (!Number.isFinite(billingDay) || billingDay < 1 || billingDay > 28) {
     return {
       status: 'error',
@@ -209,50 +164,95 @@ export async function changePagarmeSubscriptionBillingDay(
         };
       }
 
-      chargedOverdue = true;
       chargeMode = chargeResult.mode;
       chargeAmountCents = chargeResult.amountCents;
-      chargeStatus =
-        chargeResult.status === 'charged'
-          ? chargeResult.chargeStatus
-          : chargeResult.chargeStatus;
+      chargeStatus = chargeResult.chargeStatus;
+
+      // Só avança o calendário (mês seguinte) com pagamento confirmado.
+      if (chargeResult.status !== 'charged') {
+        return {
+          status: 'error',
+          error:
+            `Cobrança ainda não confirmada` +
+            (chargeResult.chargeStatus ? ` (${chargeResult.chargeStatus})` : '') +
+            `. ${'message' in chargeResult ? chargeResult.message : ''} ` +
+            `Não alteramos o dia de vencimento. Aguarde a confirmação ou desmarque "Cobrar atraso" para só remarcar a data.`,
+          statusCode: 409,
+        };
+      }
+
+      chargedOverdue = true;
     }
 
     const nextBillingDate = chargedOverdue
       ? resolveBillingDayAfterCatchUpCharge(billingDay)
       : resolveNextBillingDateForDay(billingDay);
 
-    const remote = await updatePagarmeSubscriptionBillingDate(
-      subscription.pagarme_subscription_id,
-      nextBillingDate
-    );
+    // Data calculada por nós é a fonte da verdade local.
+    const nextBillingIso = nextBillingDate.toISOString();
 
-    const nextBillingIso =
-      remote.next_billing_at ?? nextBillingDate.toISOString();
+    try {
+      await updatePagarmeSubscriptionBillingDate(
+        subscription.pagarme_subscription_id,
+        nextBillingDate
+      );
+    } catch (error) {
+      console.error(
+        '[pagarme] billing-date patch failed after charge:',
+        input.subscriptionId,
+        error
+      );
+      return {
+        status: 'error',
+        error: chargedOverdue
+          ? `Cobrança ok, mas falhou ao remarcar o vencimento no Pagar.me: ${userFacingPagarmeError(error)}`
+          : userFacingPagarmeError(error),
+        statusCode: 502,
+      };
+    }
+
     const nowIso = new Date().toISOString();
+    const localPatch: Record<string, unknown> = {
+      next_billing_date: nextBillingIso,
+      current_period_end: nextBillingIso,
+      updated_at: nowIso,
+    };
 
-    const { error: updateError } = await admin
+    if (chargedOverdue) {
+      localPatch.status = 'active';
+      localPatch.current_period_start = nowIso;
+    }
+
+    const { error: updateError, data: updatedRows } = await admin
       .from('subscriptions')
-      .update({
-        next_billing_date: nextBillingIso,
-        current_period_end: nextBillingIso,
-        ...(chargedOverdue && subscription.status === 'past_due'
-          ? { status: 'active' }
-          : {}),
-        updated_at: nowIso,
-      })
-      .eq('id', subscription.id);
+      .update(localPatch)
+      .eq('id', subscription.id)
+      .select('id, next_billing_date, status');
 
     if (updateError) {
       console.error(
         '[pagarme] billing day local update:',
         subscription.id,
-        updateError.message
+        updateError.message,
+        updateError
       );
       return {
         status: 'error',
         error:
-          'Data alterada no Pagar.me, mas falhou ao sincronizar localmente. Atualize a assinatura manualmente.',
+          `Data alterada no Pagar.me para ${formatPagarmeDate(nextBillingDate)}, mas falhou ao sincronizar no sistema (${updateError.message}). Atualize next_billing_date manualmente.`,
+        statusCode: 502,
+      };
+    }
+
+    if (!updatedRows?.length) {
+      console.error(
+        '[pagarme] billing day local update returned 0 rows:',
+        subscription.id
+      );
+      return {
+        status: 'error',
+        error:
+          `Data alterada no Pagar.me para ${formatPagarmeDate(nextBillingDate)}, mas nenhuma linha local foi atualizada. Verifique permissões/RLS.`,
         statusCode: 502,
       };
     }
