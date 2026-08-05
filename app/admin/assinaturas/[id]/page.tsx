@@ -20,6 +20,7 @@ import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
+import ChangePagarmeBillingDayPanel from '@/components/admin/ChangePagarmeBillingDayPanel';
 import {
   formatDate,
   formatDateTime,
@@ -256,6 +257,14 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
           subscriptionId={subscription.id}
           variant="panel"
           customerEmail={profile?.email}
+        />
+      ) : null}
+
+      {showPagarmePriceSync ? (
+        <ChangePagarmeBillingDayPanel
+          subscriptionId={subscription.id}
+          nextBillingDate={subscription.next_billing_date}
+          subscriptionStatus={subscription.status}
         />
       ) : null}
 

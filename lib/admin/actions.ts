@@ -2907,6 +2907,83 @@ export async function syncPagarmeRecurringPriceAction(subscriptionId: string) {
   return { success: true as const, result };
 }
 
+/**
+ * Cobra agora no Pagar.me (retry de fatura falha ou renovação de ciclo).
+ * Uso típico: past_due / falha de cartão.
+ */
+export async function chargePagarmeSubscriptionNowAction(subscriptionId: string) {
+  const { user, admin } = await requireAdmin();
+
+  if (!subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { chargePagarmeSubscriptionNow } = await import(
+    '@/lib/pagarme/manual-charge'
+  );
+
+  const result = await chargePagarmeSubscriptionNow(admin, subscriptionId);
+
+  if (result.status === 'error') {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.charge_pagarme_now',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: result,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+  revalidatePath('/dashboard/subscription');
+
+  return { success: true as const, result };
+}
+
+/**
+ * Altera o dia de vencimento no Pagar.me e, se houver atraso, cobra antes.
+ */
+export async function changePagarmeBillingDayAction(input: {
+  subscriptionId: string;
+  billingDay: number;
+  chargeOverdue?: boolean;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { changePagarmeSubscriptionBillingDay } = await import(
+    '@/lib/pagarme/change-billing-day'
+  );
+
+  const result = await changePagarmeSubscriptionBillingDay(admin, input);
+
+  if (result.status === 'error') {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.change_pagarme_billing_day',
+    entityType: 'subscription',
+    entityId: input.subscriptionId,
+    metadata: result,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+  revalidatePath('/dashboard/subscription');
+
+  return { success: true as const, result };
+}
+
 export async function sendGatewayMigrationEmailAction(input: {
   subscriptionId: string;
 }) {

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import SyncPagarmeRecurringPriceButton from '@/components/admin/SyncPagarmeRecurringPriceButton';
+import ChargePagarmeNowButton from '@/components/admin/ChargePagarmeNowButton';
 import RepairSubscriptionCyclesButton from '@/components/admin/RepairSubscriptionCyclesButton';
 import {
   adminManualActivateSubscriptionAction,
@@ -119,10 +120,13 @@ export default function AdminSubscriptionActions({
           <SyncAsaasButton subscriptionId={subscription.id} />
         ) : null}
         {showPagarmePriceSync ? (
-          <SyncPagarmeRecurringPriceButton
-            subscriptionId={subscription.id}
-            promoCode={subscription.promo_code}
-          />
+          <>
+            <SyncPagarmeRecurringPriceButton
+              subscriptionId={subscription.id}
+              promoCode={subscription.promo_code}
+            />
+            <ChargePagarmeNowButton subscriptionId={subscription.id} />
+          </>
         ) : null}
         {showCycleRepair ? (
           <RepairSubscriptionCyclesButton subscriptionId={subscription.id} />
