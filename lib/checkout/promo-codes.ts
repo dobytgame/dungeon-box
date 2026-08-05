@@ -151,14 +151,24 @@ export async function resolveStoredPromoForRecurringBilling(
     .eq('code', code)
     .maybeSingle();
 
-  if (error || !promo || !promo.active) return null;
+  if (error || !promo) return null;
 
-  if (promo.expires_at && new Date(promo.expires_at).getTime() < Date.now()) {
+  const bound = Boolean(options?.boundToSubscription);
+
+  // Cupom já gravado na assinatura continua valendo mesmo se o código
+  // foi desativado/expirou depois (ex.: campanha encerrada).
+  if (!bound && !promo.active) return null;
+
+  if (
+    !bound &&
+    promo.expires_at &&
+    new Date(promo.expires_at).getTime() < Date.now()
+  ) {
     return null;
   }
 
   if (
-    !options?.boundToSubscription &&
+    !bound &&
     promo.plan_slugs?.length &&
     !promo.plan_slugs.includes(planSlug)
   ) {

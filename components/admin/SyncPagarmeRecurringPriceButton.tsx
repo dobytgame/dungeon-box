@@ -51,14 +51,22 @@ export default function SyncPagarmeRecurringPriceButton({
             if (result.status === 'already_aligned') {
               setMessage(
                 `Já alinhado em ${formatMoney(result.expectedCents)}${
-                  result.promoCode ? ` · cupom ${result.promoCode}` : ''
+                  result.promoSummary
+                    ? ` · ${result.promoSummary}`
+                    : result.promoCode
+                      ? ` · cupom ${result.promoCode} (desconto não aplicado)`
+                      : ''
                 }`
               );
             } else {
               setMessage(
                 `Atualizado ${formatMoney(result.previousCents)} → ${formatMoney(result.expectedCents)}${
-                  result.promoCode ? ` · cupom ${result.promoCode}` : ''
-                }${result.promoSummary ? ` (${result.promoSummary})` : ''}`
+                  result.promoSummary
+                    ? ` · ${result.promoSummary}`
+                    : result.promoCode
+                      ? ` · cupom ${result.promoCode}`
+                      : ''
+                }`
               );
             }
             router.refresh();
