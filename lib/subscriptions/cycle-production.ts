@@ -182,24 +182,30 @@ function purchaseOrderTimestamp(value: string | null | undefined): number {
 
 /**
  * Ordem de compra no kanban:
- * 1) início da assinatura (prevenda/antecipação entra pela data de contratação)
- * 2) pagamento confirmado
- * 3) criação do ciclo
+ * 1) contratação (started_at → 1º pagamento → criação)
+ * 2) pagamento do ciclo/mês corrente
+ * 3) criação do registro do ciclo
  */
 export function compareCyclesByPurchaseOrder<
   T extends {
+    subscriptionContractedAt?: string | null;
     subscriptionStartedAt?: string | null;
+    currentCyclePaidAt?: string | null;
     paid_at?: string | null;
     created_at?: string | null;
     cycle_number?: number;
   }
 >(a: T, b: T): number {
-  const aStarted = purchaseOrderTimestamp(a.subscriptionStartedAt);
-  const bStarted = purchaseOrderTimestamp(b.subscriptionStartedAt);
-  if (aStarted !== bStarted) return aStarted - bStarted;
+  const aContracted = purchaseOrderTimestamp(
+    a.subscriptionContractedAt ?? a.subscriptionStartedAt
+  );
+  const bContracted = purchaseOrderTimestamp(
+    b.subscriptionContractedAt ?? b.subscriptionStartedAt
+  );
+  if (aContracted !== bContracted) return aContracted - bContracted;
 
-  const aPaid = purchaseOrderTimestamp(a.paid_at);
-  const bPaid = purchaseOrderTimestamp(b.paid_at);
+  const aPaid = purchaseOrderTimestamp(a.currentCyclePaidAt ?? a.paid_at);
+  const bPaid = purchaseOrderTimestamp(b.currentCyclePaidAt ?? b.paid_at);
   if (aPaid !== bPaid) return aPaid - bPaid;
 
   const aCreated = purchaseOrderTimestamp(a.created_at);

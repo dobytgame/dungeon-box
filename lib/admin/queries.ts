@@ -21,6 +21,8 @@ import {
   loadSubscriptionPaymentMaps,
   pickCyclePaymentContext,
   resolveCycleEffectivePaidAt,
+  resolveSubscriptionContractedAt,
+  paymentRecordedAt,
 } from '@/lib/admin/cycle-payment-resolve';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { loadSubscriptionPlanUpgradeInfoByIds } from '@/lib/admin/subscription-plan-upgrade';
@@ -191,6 +193,7 @@ const ADMIN_CYCLE_LIST_SELECT = `
     current_cycle,
     user_id,
     started_at,
+    created_at,
     billing_term,
     combo_total_cents,
     combo_installments,
@@ -266,7 +269,9 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     ),
     userId: (subscription?.user_id as string | null) ?? null,
     subscriptionStatus: (subscription?.status as string | null) ?? null,
+    subscriptionContractedAt: (subscription?.started_at as string | null) ?? null,
     subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
+    currentCyclePaidAt: paidAt,
     subscriptionCurrentCycle:
       (subscription?.current_cycle as number | null) ?? null,
     subscriptionBillingTerm: (subscription?.billing_term as string | null) ?? null,
@@ -398,8 +403,24 @@ async function enrichCycleRowsWithShipmentItems(
       subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
     });
 
+    const subscriptionContractedAt = resolveSubscriptionContractedAt({
+      startedAt: (subscription?.started_at as string | null) ?? null,
+      firstApprovedPaidAt: firstApproved?.paid_at ?? null,
+      firstApprovedCreatedAt: firstApproved?.created_at ?? null,
+      subscriptionCreatedAt: (subscription?.created_at as string | null) ?? null,
+      cycleCreatedAt: row.created_at,
+    });
+
+    const currentCyclePaidAt =
+      paymentRecordedAt(
+        linkedPayment?.paid_at ?? row.paid_at,
+        linkedPayment?.created_at ?? row.created_at
+      ) ?? effectivePaidAt;
+
     const enrichedRow: AdminCycleRow = {
       ...row,
+      subscriptionContractedAt,
+      currentCyclePaidAt,
       paid_at: effectivePaidAt,
     };
 

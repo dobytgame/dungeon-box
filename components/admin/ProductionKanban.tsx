@@ -86,7 +86,7 @@ const COLUMN_META: Record<
 > = {
   upcoming: {
     label: 'Aguardando',
-    hint: 'Pagamento confirmado — fila por ordem de compra',
+    hint: 'Fila por contratação, depois pagamento do ciclo',
   },
   production: {
     label: 'Produção',
@@ -252,10 +252,12 @@ function KanbanCard({
           <CycleProductionNotesHighlight notes={row.productionNotes} compact />
         ) : null}
         <dl className="grid gap-1 text-[11px] text-zinc-500">
-          {row.paid_at ? (
+          {row.currentCyclePaidAt ?? row.paid_at ? (
             <div className="flex justify-between gap-2">
               <dt>Compra</dt>
-              <dd className="text-zinc-400">{formatDate(row.paid_at)}</dd>
+              <dd className="text-zinc-400">
+                {formatDate(row.currentCyclePaidAt ?? row.paid_at)}
+              </dd>
             </div>
           ) : null}
           {row.planName ? (

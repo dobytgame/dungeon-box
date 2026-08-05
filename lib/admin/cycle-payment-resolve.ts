@@ -12,19 +12,38 @@ export type SubscriptionPaymentRecord = PaymentAmountContext & {
   created_at?: string | null;
 };
 
-function paymentRecordedAt(
+export function paymentRecordedAt(
   paidAt: string | null | undefined,
   createdAt?: string | null
 ): string | null {
   return paidAt ?? createdAt ?? null;
 }
 
-function earliestRecordedAt(
+export function earliestRecordedAt(
   ...values: (string | null | undefined)[]
 ): string | null {
   const valid = values.filter((value): value is string => Boolean(value));
   if (valid.length === 0) return null;
   return valid.sort((a, b) => a.localeCompare(b))[0]!;
+}
+
+/** Data de contratação para fila do kanban (início, 1º pagamento ou criação). */
+export function resolveSubscriptionContractedAt(input: {
+  startedAt?: string | null;
+  firstApprovedPaidAt?: string | null;
+  firstApprovedCreatedAt?: string | null;
+  subscriptionCreatedAt?: string | null;
+  cycleCreatedAt?: string | null;
+}): string | null {
+  return earliestRecordedAt(
+    input.startedAt,
+    paymentRecordedAt(
+      input.firstApprovedPaidAt,
+      input.firstApprovedCreatedAt
+    ),
+    input.subscriptionCreatedAt,
+    input.cycleCreatedAt
+  );
 }
 
 function toPaymentRecord(payment: {
