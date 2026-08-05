@@ -220,7 +220,7 @@ export interface AdminCycleRow {
   shippingAddressLine: string | null;
   userId: string | null;
   subscriptionStatus: string | null;
-  /** Início da assinatura / 1º pagamento / criação — ordem primária no kanban. */
+  /** Criação da assinatura — ordem primária no kanban. */
   subscriptionContractedAt: string | null;
   subscriptionStartedAt: string | null;
   /** Pagamento deste ciclo (sem mesclar com started_at) — ordem secundária no kanban. */

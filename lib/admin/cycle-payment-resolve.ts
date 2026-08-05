@@ -27,7 +27,21 @@ export function earliestRecordedAt(
   return valid.sort((a, b) => a.localeCompare(b))[0]!;
 }
 
-/** Data de contratação para fila do kanban (início, 1º pagamento ou criação). */
+/** Criação da assinatura para fila do kanban (não usa 1º pagamento). */
+export function resolveKanbanSubscriptionCreatedAt(input: {
+  subscriptionCreatedAt?: string | null;
+  startedAt?: string | null;
+}): string | null {
+  const created = input.subscriptionCreatedAt?.trim();
+  if (created) return created;
+
+  const started = input.startedAt?.trim();
+  if (started) return started;
+
+  return null;
+}
+
+/** @deprecated Prefer resolveKanbanSubscriptionCreatedAt para ordenação do kanban. */
 export function resolveSubscriptionContractedAt(input: {
   startedAt?: string | null;
   firstApprovedPaidAt?: string | null;
@@ -36,12 +50,12 @@ export function resolveSubscriptionContractedAt(input: {
   cycleCreatedAt?: string | null;
 }): string | null {
   return earliestRecordedAt(
+    input.subscriptionCreatedAt,
     input.startedAt,
     paymentRecordedAt(
       input.firstApprovedPaidAt,
       input.firstApprovedCreatedAt
     ),
-    input.subscriptionCreatedAt,
     input.cycleCreatedAt
   );
 }

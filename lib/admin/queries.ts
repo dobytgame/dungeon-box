@@ -21,7 +21,7 @@ import {
   loadSubscriptionPaymentMaps,
   pickCyclePaymentContext,
   resolveCycleEffectivePaidAt,
-  resolveSubscriptionContractedAt,
+  resolveKanbanSubscriptionCreatedAt,
   paymentRecordedAt,
 } from '@/lib/admin/cycle-payment-resolve';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
@@ -269,7 +269,10 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     ),
     userId: (subscription?.user_id as string | null) ?? null,
     subscriptionStatus: (subscription?.status as string | null) ?? null,
-    subscriptionContractedAt: (subscription?.started_at as string | null) ?? null,
+    subscriptionContractedAt:
+      (subscription?.created_at as string | null) ??
+      (subscription?.started_at as string | null) ??
+      null,
     subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
     currentCyclePaidAt: paidAt,
     subscriptionCurrentCycle:
@@ -403,13 +406,11 @@ async function enrichCycleRowsWithShipmentItems(
       subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
     });
 
-    const subscriptionContractedAt = resolveSubscriptionContractedAt({
-      startedAt: (subscription?.started_at as string | null) ?? null,
-      firstApprovedPaidAt: firstApproved?.paid_at ?? null,
-      firstApprovedCreatedAt: firstApproved?.created_at ?? null,
-      subscriptionCreatedAt: (subscription?.created_at as string | null) ?? null,
-      cycleCreatedAt: row.created_at,
-    });
+    const subscriptionContractedAt =
+      resolveKanbanSubscriptionCreatedAt({
+        subscriptionCreatedAt: (subscription?.created_at as string | null) ?? null,
+        startedAt: (subscription?.started_at as string | null) ?? null,
+      }) ?? row.created_at;
 
     const currentCyclePaidAt =
       paymentRecordedAt(

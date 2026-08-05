@@ -158,7 +158,7 @@ export function buildStandaloneStoreCycleRow(
     shippingAddressLine: order.shippingAddressLine,
     userId: order.userId,
     subscriptionStatus: null,
-    subscriptionContractedAt: order.paidAt ?? order.createdAt,
+    subscriptionContractedAt: order.createdAt ?? order.paidAt,
     subscriptionStartedAt: null,
     currentCyclePaidAt: order.paidAt ?? order.createdAt,
     subscriptionCurrentCycle: null,

@@ -86,7 +86,7 @@ const COLUMN_META: Record<
 > = {
   upcoming: {
     label: 'Aguardando',
-    hint: 'Fila por contratação, depois pagamento do ciclo',
+    hint: 'Fila por criação da assinatura, depois pagamento do ciclo',
   },
   production: {
     label: 'Produção',

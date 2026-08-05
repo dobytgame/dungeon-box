@@ -182,7 +182,7 @@ function purchaseOrderTimestamp(value: string | null | undefined): number {
 
 /**
  * Ordem de compra no kanban:
- * 1) contratação (started_at → 1º pagamento → criação)
+ * 1) criação da assinatura (subscriptions.created_at)
  * 2) pagamento do ciclo/mês corrente
  * 3) criação do registro do ciclo
  */
