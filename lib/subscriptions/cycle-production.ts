@@ -174,15 +174,37 @@ export function pipelineStepIndex(status: CycleStatus): number {
   return PRODUCTION_PIPELINE.indexOf(status);
 }
 
-/** Ordem de compra: quem pagou primeiro entra primeiro na fila. */
+function purchaseOrderTimestamp(value: string | null | undefined): number {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Ordem de compra no kanban:
+ * 1) início da assinatura (prevenda/antecipação entra pela data de contratação)
+ * 2) pagamento confirmado
+ * 3) criação do ciclo
+ */
 export function compareCyclesByPurchaseOrder<
-  T extends { paid_at?: string | null; created_at?: string | null }
+  T extends {
+    subscriptionStartedAt?: string | null;
+    paid_at?: string | null;
+    created_at?: string | null;
+    cycle_number?: number;
+  }
 >(a: T, b: T): number {
-  const aPaid = a.paid_at ? new Date(a.paid_at).getTime() : Number.POSITIVE_INFINITY;
-  const bPaid = b.paid_at ? new Date(b.paid_at).getTime() : Number.POSITIVE_INFINITY;
+  const aStarted = purchaseOrderTimestamp(a.subscriptionStartedAt);
+  const bStarted = purchaseOrderTimestamp(b.subscriptionStartedAt);
+  if (aStarted !== bStarted) return aStarted - bStarted;
+
+  const aPaid = purchaseOrderTimestamp(a.paid_at);
+  const bPaid = purchaseOrderTimestamp(b.paid_at);
   if (aPaid !== bPaid) return aPaid - bPaid;
 
-  const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
-  const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
-  return aCreated - bCreated;
+  const aCreated = purchaseOrderTimestamp(a.created_at);
+  const bCreated = purchaseOrderTimestamp(b.created_at);
+  if (aCreated !== bCreated) return aCreated - bCreated;
+
+  return (a.cycle_number ?? 0) - (b.cycle_number ?? 0);
 }

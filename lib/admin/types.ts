@@ -220,6 +220,7 @@ export interface AdminCycleRow {
   shippingAddressLine: string | null;
   userId: string | null;
   subscriptionStatus: string | null;
+  subscriptionStartedAt: string | null;
   subscriptionCurrentCycle: number | null;
   subscriptionBillingTerm: string | null;
   isPartner: boolean;

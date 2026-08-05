@@ -266,6 +266,7 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     ),
     userId: (subscription?.user_id as string | null) ?? null,
     subscriptionStatus: (subscription?.status as string | null) ?? null,
+    subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
     subscriptionCurrentCycle:
       (subscription?.current_cycle as number | null) ?? null,
     subscriptionBillingTerm: (subscription?.billing_term as string | null) ?? null,
