@@ -2867,6 +2867,46 @@ export async function syncPagarmeSubscriptionAction(subscriptionId: string) {
   }
 }
 
+/**
+ * Corrige o valor recorrente no Pagar.me (aplica cupom/frete/bump locais).
+ * Útil após migração Asaas → Pagar.me que gravou o preço cheio.
+ */
+export async function syncPagarmeRecurringPriceAction(subscriptionId: string) {
+  const { user, admin } = await requireAdmin();
+
+  if (!subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { syncPagarmeSubscriptionRecurringPrice } = await import(
+    '@/lib/pagarme/sync-recurring-price'
+  );
+
+  const result = await syncPagarmeSubscriptionRecurringPrice(
+    admin,
+    subscriptionId
+  );
+
+  if (result.status === 'error') {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.sync_pagarme_recurring_price',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: result,
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+  revalidatePath('/dashboard/subscription');
+
+  return { success: true as const, result };
+}
+
 export async function sendGatewayMigrationEmailAction(input: {
   subscriptionId: string;
 }) {

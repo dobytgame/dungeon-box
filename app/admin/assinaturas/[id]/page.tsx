@@ -85,6 +85,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
     PAGARME_CONFIGURED &&
     !subscription.is_partner &&
     isAsaasSubscriptionNeedingPagarmeMigration(subscription);
+  const showPagarmePriceSync =
+    PAGARME_CONFIGURED &&
+    !subscription.is_partner &&
+    Boolean(subscription.pagarme_subscription_id);
 
   return (
     <div className="space-y-8">
@@ -260,6 +264,7 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
       <AdminSubscriptionActions
         subscription={subscription}
         showAsaasSync={showAsaasSync}
+        showPagarmePriceSync={showPagarmePriceSync}
       />
 
       <section>

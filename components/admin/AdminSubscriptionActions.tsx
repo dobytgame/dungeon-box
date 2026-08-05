@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
+import SyncPagarmeRecurringPriceButton from '@/components/admin/SyncPagarmeRecurringPriceButton';
 import RepairSubscriptionCyclesButton from '@/components/admin/RepairSubscriptionCyclesButton';
 import {
   adminManualActivateSubscriptionAction,
@@ -15,11 +16,13 @@ import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 interface Props {
   subscription: Subscription;
   showAsaasSync?: boolean;
+  showPagarmePriceSync?: boolean;
 }
 
 export default function AdminSubscriptionActions({
   subscription,
   showAsaasSync = false,
+  showPagarmePriceSync = false,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -114,6 +117,12 @@ export default function AdminSubscriptionActions({
       <div className="mt-4 flex flex-wrap items-start gap-3">
         {showAsaasSync ? (
           <SyncAsaasButton subscriptionId={subscription.id} />
+        ) : null}
+        {showPagarmePriceSync ? (
+          <SyncPagarmeRecurringPriceButton
+            subscriptionId={subscription.id}
+            promoCode={subscription.promo_code}
+          />
         ) : null}
         {showCycleRepair ? (
           <RepairSubscriptionCyclesButton subscriptionId={subscription.id} />
