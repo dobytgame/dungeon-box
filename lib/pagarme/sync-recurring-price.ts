@@ -180,6 +180,9 @@ export async function syncPagarmeSubscriptionRecurringPrice(
       {
         method: 'PUT',
         body: {
+          // Pagar.me exige status no PUT do item (422 sem o campo).
+          status: item.status?.trim() || 'active',
+          name: item.name ?? undefined,
           description: charge.description,
           quantity: item.quantity && item.quantity > 0 ? item.quantity : 1,
           pricing_scheme: {
