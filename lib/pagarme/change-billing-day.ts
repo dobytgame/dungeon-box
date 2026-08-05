@@ -38,6 +38,12 @@ function formatPagarmeDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function addUtcMonths(date: Date, months: number): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate())
+  );
+}
+
 function isBillingOverdue(
   status: string | null | undefined,
   nextBillingDate: string | null | undefined,
@@ -81,6 +87,77 @@ async function fetchPagarmeSubscriptionBilling(
   return pagarmeRequest<PagarmeSubscriptionBilling>(
     `/subscriptions/${encodeURIComponent(pagarmeSubscriptionId)}`
   );
+}
+
+/**
+ * Data alvo: sempre ancora no next_billing do gateway (ou local), nunca “amanhã”
+ * se o ciclo remoto já estiver no mês seguinte — isso causa 412.
+ */
+export function resolveDesiredPagarmeBillingDate(input: {
+  billingDay: number;
+  remoteNextBillingAt?: string | null;
+  localNextBillingDate?: string | null;
+  afterCatchUpCharge?: boolean;
+}): Date {
+  const anchor =
+    input.remoteNextBillingAt ||
+    input.localNextBillingDate ||
+    null;
+
+  if (input.afterCatchUpCharge) {
+    if (anchor) {
+      return applyBillingDayToAnchor(anchor, input.billingDay);
+    }
+    return resolveBillingDayAfterCatchUpCharge(input.billingDay);
+  }
+
+  if (anchor) {
+    return applyBillingDayToAnchor(anchor, input.billingDay);
+  }
+
+  return resolveNextBillingDateForDay(input.billingDay);
+}
+
+/**
+ * Tenta PATCH billing-date; se 412, tenta +1 mês uma vez.
+ * Retorna se sincronizou no gateway e a data efetiva usada.
+ */
+async function trySyncPagarmeBillingDate(
+  pagarmeSubscriptionId: string,
+  desired: Date
+): Promise<{ synced: boolean; nextBillingDate: Date; blockedByBilledPeriod: boolean }> {
+  try {
+    await updatePagarmeSubscriptionBillingDate(pagarmeSubscriptionId, desired);
+    return {
+      synced: true,
+      nextBillingDate: desired,
+      blockedByBilledPeriod: false,
+    };
+  } catch (error) {
+    if (!isPeriodAlreadyBilledError(error)) {
+      throw error;
+    }
+  }
+
+  const shifted = addUtcMonths(desired, 1);
+  try {
+    await updatePagarmeSubscriptionBillingDate(pagarmeSubscriptionId, shifted);
+    return {
+      synced: true,
+      nextBillingDate: shifted,
+      blockedByBilledPeriod: false,
+    };
+  } catch (error) {
+    if (!isPeriodAlreadyBilledError(error)) {
+      throw error;
+    }
+  }
+
+  return {
+    synced: false,
+    nextBillingDate: desired,
+    blockedByBilledPeriod: true,
+  };
 }
 
 export type ChangePagarmeBillingDayResult =
@@ -136,12 +213,8 @@ async function syncLocalSubscriptionBilling(
 /**
  * Altera o dia de vencimento no Pagar.me (+ local).
  *
- * Com cobrança de atraso:
- * 1) tenta remarcar a data ANTES de cobrar (evita 412 "period already billed");
- * 2) cobra;
- * 3) se a data ainda não foi sincronizada no gateway, tenta de novo após a cobrança
- *    usando o next_billing remoto como âncora; se o Pagar.me bloquear (412),
- *    sincroniza o sistema local mesmo assim e avisa.
+ * Se o gateway retornar 412 ("period already billed"), o sistema local
+ * ainda é atualizado — nunca devolvemos esse erro cru ao admin.
  */
 export async function changePagarmeSubscriptionBillingDay(
   admin: SupabaseClient,
@@ -211,19 +284,40 @@ export async function changePagarmeSubscriptionBillingDay(
   let chargeAmountCents: number | null = null;
   let chargeStatus: string | null = null;
   let pagarmeBillingDateSynced = false;
-
-  const desiredAfterCatchUp = resolveBillingDayAfterCatchUpCharge(billingDay);
-  const desiredWithoutCharge = resolveNextBillingDateForDay(billingDay);
+  let remoteNext: string | null = null;
 
   try {
+    try {
+      const remoteBefore = await fetchPagarmeSubscriptionBilling(
+        pagarmeSubscriptionId
+      );
+      remoteNext = remoteBefore.next_billing_at ?? null;
+    } catch (error) {
+      console.warn(
+        '[pagarme] fetch subscription before billing-day change:',
+        input.subscriptionId,
+        error instanceof Error ? error.message : error
+      );
+    }
+
     // 1) Remarcar ANTES da cobrança quando possível (evita 412 pós-billing).
     if (shouldCharge) {
+      const desiredBeforeCharge = resolveDesiredPagarmeBillingDate({
+        billingDay,
+        remoteNextBillingAt: remoteNext,
+        localNextBillingDate: subscription.next_billing_date,
+        afterCatchUpCharge: true,
+      });
+
       try {
-        await updatePagarmeSubscriptionBillingDate(
+        const early = await trySyncPagarmeBillingDate(
           pagarmeSubscriptionId,
-          desiredAfterCatchUp
+          desiredBeforeCharge
         );
-        pagarmeBillingDateSynced = true;
+        pagarmeBillingDateSynced = early.synced;
+        if (early.synced) {
+          remoteNext = formatPagarmeDate(early.nextBillingDate);
+        }
       } catch (error) {
         console.warn(
           '[pagarme] billing-date before charge skipped:',
@@ -264,53 +358,56 @@ export async function changePagarmeSubscriptionBillingDay(
       }
 
       chargedOverdue = true;
+
+      try {
+        const remoteAfter = await fetchPagarmeSubscriptionBilling(
+          pagarmeSubscriptionId
+        );
+        remoteNext = remoteAfter.next_billing_at ?? remoteNext;
+      } catch {
+        /* keep previous remoteNext */
+      }
     }
 
-    let nextBillingDate = chargedOverdue
-      ? desiredAfterCatchUp
-      : desiredWithoutCharge;
+    let nextBillingDate = resolveDesiredPagarmeBillingDate({
+      billingDay,
+      remoteNextBillingAt: remoteNext,
+      localNextBillingDate: subscription.next_billing_date,
+      afterCatchUpCharge: chargedOverdue,
+    });
 
-    // 2) Se ainda não sincronizou no gateway, tenta de novo (âncora = next_billing remoto).
+    // 2) Sincroniza no gateway se ainda não sincronizou.
     if (!pagarmeBillingDateSynced) {
       try {
-        const remote = await fetchPagarmeSubscriptionBilling(pagarmeSubscriptionId);
-        if (remote.next_billing_at) {
-          nextBillingDate = applyBillingDayToAnchor(
-            remote.next_billing_at,
-            billingDay
-          );
-        }
-
-        await updatePagarmeSubscriptionBillingDate(
+        const sync = await trySyncPagarmeBillingDate(
           pagarmeSubscriptionId,
           nextBillingDate
         );
-        pagarmeBillingDateSynced = true;
-      } catch (error) {
-        if (isPeriodAlreadyBilledError(error) && chargedOverdue) {
-          // Cobrança ok; Pagar.me não deixa mais PATCH billing-date neste período.
-          // Mantemos a data desejada no sistema local e avisamos.
+        nextBillingDate = sync.nextBillingDate;
+        pagarmeBillingDateSynced = sync.synced;
+
+        if (sync.blockedByBilledPeriod) {
           console.warn(
-            '[pagarme] billing-date blocked after charge (412); syncing local only:',
+            '[pagarme] billing-date blocked (412); syncing local only:',
             input.subscriptionId,
             formatPagarmeDate(nextBillingDate)
           );
-          pagarmeBillingDateSynced = false;
-        } else if (!chargedOverdue) {
+        }
+      } catch (error) {
+        // Erros não-412 ainda sincronizam local se já cobramos (não deixar past_due).
+        if (!chargedOverdue && subscription.status !== 'past_due') {
           return {
             status: 'error',
             error: userFacingPagarmeError(error),
             statusCode: 502,
           };
-        } else {
-          console.error(
-            '[pagarme] billing-date patch failed after charge:',
-            input.subscriptionId,
-            error
-          );
-          // Ainda sincroniza local para não deixar past_due após cobrança ok.
-          pagarmeBillingDateSynced = false;
         }
+        console.error(
+          '[pagarme] billing-date patch failed; continuing with local sync:',
+          input.subscriptionId,
+          error
+        );
+        pagarmeBillingDateSynced = false;
       }
     }
 
@@ -326,7 +423,7 @@ export async function changePagarmeSubscriptionBillingDay(
         status: 'error',
         error: pagarmeBillingDateSynced
           ? `Gateway atualizado para ${formatPagarmeDate(nextBillingDate)}, mas falhou no sistema local (${local.error}).`
-          : `Cobrança pode ter sido ok, mas falhou ao salvar a nova data localmente (${local.error}).`,
+          : `Não foi possível salvar a nova data localmente (${local.error}).`,
         statusCode: 502,
       };
     }
@@ -335,13 +432,18 @@ export async function changePagarmeSubscriptionBillingDay(
     let message: string;
     if (chargedOverdue && pagarmeBillingDateSynced) {
       message = `Atraso cobrado e próximo vencimento remarcado para todo dia ${dayLabel}.`;
-    } else if (chargedOverdue && !pagarmeBillingDateSynced) {
+    } else if (pagarmeBillingDateSynced) {
+      message = `Próximo vencimento remarcado para todo dia ${dayLabel}.`;
+    } else if (chargedOverdue) {
       message =
         `Atraso cobrado e sistema atualizado para dia ${dayLabel} (${formatPagarmeDate(nextBillingDate)}). ` +
-        `O Pagar.me bloqueou a alteração da data neste período ("already been billed"). ` +
-        `Confira no painel Pagar.me se a próxima cobrança automática está no dia correto.`;
+        `O Pagar.me bloqueou a alteração da data neste período. ` +
+        `Confira no painel Pagar.me a próxima cobrança automática.`;
     } else {
-      message = `Próximo vencimento remarcado para todo dia ${dayLabel}.`;
+      message =
+        `Sistema atualizado para dia ${dayLabel} (${formatPagarmeDate(nextBillingDate)}). ` +
+        `O Pagar.me bloqueou a alteração neste período (já faturado). ` +
+        `Confira no painel Pagar.me se a próxima cobrança automática está no dia correto.`;
     }
 
     return {

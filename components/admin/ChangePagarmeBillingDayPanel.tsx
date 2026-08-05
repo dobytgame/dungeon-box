@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { changePagarmeBillingDayAction } from '@/lib/admin/actions';
 import { formatDate, formatMoney } from '@/lib/dashboard/format';
 import {
+  applyBillingDayToAnchor,
   extractBillingDay,
   resolveBillingDayAfterCatchUpCharge,
   resolveNextBillingDateForDay,
@@ -42,10 +43,15 @@ export default function ChangePagarmeBillingDayPanel({
   const previewDate = useMemo(() => {
     const day = Number(billingDay);
     if (!Number.isFinite(day) || day < 1 || day > 28) return null;
-    return chargeOverdue
-      ? resolveBillingDayAfterCatchUpCharge(day)
+    if (chargeOverdue) {
+      return nextBillingDate
+        ? applyBillingDayToAnchor(nextBillingDate, day)
+        : resolveBillingDayAfterCatchUpCharge(day);
+    }
+    return nextBillingDate
+      ? applyBillingDayToAnchor(nextBillingDate, day)
       : resolveNextBillingDateForDay(day);
-  }, [billingDay, chargeOverdue]);
+  }, [billingDay, chargeOverdue, nextBillingDate]);
 
   return (
     <section className="rounded-sm border border-frost/25 bg-frost/[0.04] p-5 md:p-6">
