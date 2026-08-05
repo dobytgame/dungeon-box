@@ -65,6 +65,38 @@ export function resolveBillingDayAfterCatchUpCharge(
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, day));
 }
 
+/**
+ * Ajusta o dia mantendo o mês/ano da âncora (ex.: next_billing do Pagar.me).
+ * Se o dia novo for anterior à âncora no mesmo mês, usa o mês seguinte.
+ * Ex.: âncora 05/09 + dia 7 → 07/09; âncora 05/09 + dia 3 → 03/10.
+ */
+export function applyBillingDayToAnchor(
+  anchor: string | Date,
+  billingDay: number
+): Date {
+  const day = clampBillingDay(billingDay);
+  const base =
+    anchor instanceof Date
+      ? startOfUtcDay(anchor)
+      : startOfUtcDay(
+          new Date(
+            anchor.includes('T') ? anchor : `${anchor}T12:00:00Z`
+          )
+        );
+
+  let candidate = new Date(
+    Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), day)
+  );
+
+  if (candidate.getTime() < base.getTime()) {
+    candidate = new Date(
+      Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, day)
+    );
+  }
+
+  return candidate;
+}
+
 export function clampSubscriptionBillingDay(day: number): number {
   return clampBillingDay(day);
 }

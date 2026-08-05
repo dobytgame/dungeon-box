@@ -36,6 +36,7 @@ export default function ChangePagarmeBillingDayPanel({
   const [chargeOverdue, setChargeOverdue] = useState(overdueDefault);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState('');
+  const [messageTone, setMessageTone] = useState<'ok' | 'warn'>('ok');
   const [error, setError] = useState('');
 
   const previewDate = useMemo(() => {
@@ -117,6 +118,7 @@ export default function ChangePagarmeBillingDayPanel({
           if (!window.confirm(confirmMsg)) return;
 
           setMessage('');
+          setMessageTone('ok');
           setError('');
           startTransition(async () => {
             const response = await changePagarmeBillingDayAction({
@@ -139,6 +141,9 @@ export default function ChangePagarmeBillingDayPanel({
               parts.push(`Cobrado ${formatMoney(result.chargeAmountCents)}`);
             }
             setMessage(parts.join(' · '));
+            setMessageTone(
+              result.pagarmeBillingDateSynced === false ? 'warn' : 'ok'
+            );
             setBillingDay(String(result.billingDay));
             router.refresh();
           });
@@ -149,7 +154,14 @@ export default function ChangePagarmeBillingDayPanel({
       </button>
 
       {message ? (
-        <p className="mt-3 max-w-xl font-mono text-[11px] text-emerald-300" role="status">
+        <p
+          className={
+            messageTone === 'warn'
+              ? 'mt-3 max-w-xl font-mono text-[11px] text-amber-300'
+              : 'mt-3 max-w-xl font-mono text-[11px] text-emerald-300'
+          }
+          role="status"
+        >
           {message}
         </p>
       ) : null}
