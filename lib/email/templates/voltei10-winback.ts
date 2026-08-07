@@ -4,6 +4,7 @@ import {
   buildEmailText,
   greetingName,
 } from '@/lib/email/layout';
+import { buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
 
 export const VOLTEI10_CAMPAIGN = 'voltei10_winback';
 export const VOLTEI10_PROMO_CODE = 'VOLTEI10';
@@ -13,6 +14,7 @@ export const VOLTEI10_SUBJECT =
 
 export interface Voltei10WinbackTemplateData {
   name?: string | null;
+  recipientEmail?: string;
 }
 
 function campaignUrl(path: string, content: string): string {
@@ -26,6 +28,9 @@ export function voltei10WinbackHtml(data: Voltei10WinbackTemplateData): string {
   const name = greetingName(data.name);
   const plansUrl = campaignUrl('/#planos', 'cta_assinar');
   const siteUrl = campaignUrl('/', 'footer');
+  const unsubscribeUrl = data.recipientEmail
+    ? buildUnsubscribeUrl(data.recipientEmail)
+    : null;
 
   return buildEmailHtml({
     subject: VOLTEI10_SUBJECT,
@@ -61,8 +66,9 @@ export function voltei10WinbackHtml(data: Voltei10WinbackTemplateData): string {
       href: siteUrl,
       hrefLabel: 'dungeonbox.com.br',
     },
-    footerNote:
-      'Você recebeu este e-mail por ter criado conta na DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.',
+    footerNote: unsubscribeUrl
+      ? `Você recebeu este e-mail por ter criado conta na DungeonBox. <a href="${unsubscribeUrl}" style="color:#78716c;text-decoration:underline;">Descadastrar</a>.`
+      : 'Você recebeu este e-mail por ter criado conta na DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.',
   });
 }
 
@@ -70,8 +76,7 @@ export function voltei10WinbackText(data: Voltei10WinbackTemplateData): string {
   const name = greetingName(data.name);
   const plansUrl = campaignUrl('/#planos', 'cta_assinar');
   const siteUrl = campaignUrl('/', 'footer');
-
-  return buildEmailText([
+  const blocks = [
     `Oi ${name},`,
     'Você se cadastrou na DungeonBox mas ainda não escolheu seu plano.',
     'A gente ficou curioso — ficou alguma dúvida? O preço pesou? Não era o momento certo?',
@@ -87,5 +92,9 @@ export function voltei10WinbackText(data: Voltei10WinbackTemplateData): string {
     'Qualquer dúvida é só responder este e-mail — eu mesmo leio tudo.',
     'Alessandro — DungeonBox',
     siteUrl,
-  ]);
+  ];
+  if (data.recipientEmail) {
+    blocks.push(`Descadastrar: ${buildUnsubscribeUrl(data.recipientEmail)}`);
+  }
+  return buildEmailText(blocks);
 }

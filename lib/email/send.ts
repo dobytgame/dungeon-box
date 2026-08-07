@@ -2,10 +2,13 @@ import { COMPANY } from '@/lib/legal/constants';
 import type { EmailSenderRole } from '@/lib/email/config';
 import { getEmailFrom, isEmailConfigured } from '@/lib/email/config';
 import { getResendClient } from '@/lib/email/resend';
+import { buildMarketingListUnsubscribeHeaders } from '@/lib/email/unsubscribe';
 
 export type SendEmailResult =
   | { sent: true; id: string }
   | { sent: false; reason: 'not_configured' | 'provider_error'; message?: string };
+
+const MARKETING_ROLES: EmailSenderRole[] = ['marketing', 'newsletter'];
 
 export interface SendEmailInput {
   role: EmailSenderRole;
@@ -15,6 +18,13 @@ export interface SendEmailInput {
   text: string;
   replyTo?: string;
   tags?: { name: string; value: string }[];
+  /** Cabeçalhos extras (ex.: List-Unsubscribe). */
+  headers?: Record<string, string>;
+  /**
+   * Inclui List-Unsubscribe one-click (obrigatório para marketing em Gmail/Yahoo).
+   * Padrão: true para roles marketing/newsletter.
+   */
+  includeListUnsubscribe?: boolean;
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
@@ -22,6 +32,16 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     console.warn(`[email] Resend não configurado para ${input.role} — envio ignorado.`);
     return { sent: false, reason: 'not_configured' };
   }
+
+  const includeListUnsubscribe =
+    input.includeListUnsubscribe ?? MARKETING_ROLES.includes(input.role);
+
+  const headers: Record<string, string> = {
+    ...(includeListUnsubscribe
+      ? buildMarketingListUnsubscribeHeaders(input.to)
+      : {}),
+    ...(input.headers ?? {}),
+  };
 
   try {
     const resend = getResendClient();
@@ -33,6 +53,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       html: input.html,
       text: input.text,
       tags: input.tags,
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
 
     if (error) {

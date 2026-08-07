@@ -4,6 +4,7 @@ import {
   buildEmailText,
   escapeHtml,
 } from '@/lib/email/layout';
+import { buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
 
 export interface MarketingBroadcastTemplateData {
   subject: string;
@@ -11,6 +12,7 @@ export interface MarketingBroadcastTemplateData {
   body: string;
   ctaLabel?: string;
   ctaHref?: string;
+  recipientEmail?: string;
 }
 
 function resolveCtaHref(href?: string): string | undefined {
@@ -29,6 +31,14 @@ function bodyToParagraphs(body: string): string[] {
     .map((block) => block.trim())
     .filter(Boolean)
     .map((block) => escapeHtml(block).replace(/\n/g, '<br>'));
+}
+
+function unsubscribeFooter(email?: string): string {
+  if (!email) {
+    return 'Você recebeu este e-mail por fazer parte da comunidade DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.';
+  }
+  const unsubscribeUrl = buildUnsubscribeUrl(email);
+  return `Você recebeu este e-mail por fazer parte da comunidade DungeonBox. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#78716c;text-decoration:underline;">Descadastrar</a>.`;
 }
 
 export function marketingBroadcastHtml(
@@ -50,8 +60,7 @@ export function marketingBroadcastHtml(
       data.ctaLabel && ctaHref
         ? { label: data.ctaLabel, href: ctaHref }
         : undefined,
-    footerNote:
-      'Você recebeu este e-mail por fazer parte da comunidade DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.',
+    footerNote: unsubscribeFooter(data.recipientEmail),
   });
 }
 
@@ -62,6 +71,9 @@ export function marketingBroadcastText(
   const blocks = [data.title, data.body];
   if (data.ctaLabel && ctaHref) {
     blocks.push(`${data.ctaLabel}: ${ctaHref}`);
+  }
+  if (data.recipientEmail) {
+    blocks.push(`Descadastrar: ${buildUnsubscribeUrl(data.recipientEmail)}`);
   }
   return buildEmailText(blocks);
 }

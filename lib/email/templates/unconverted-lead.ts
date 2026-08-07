@@ -4,17 +4,22 @@ import {
   buildEmailText,
   greetingName,
 } from '@/lib/email/layout';
+import { buildUnsubscribeUrl } from '@/lib/email/unsubscribe';
 
 export const UNCONVERTED_LEAD_SUBJECT =
   'Sua dungeon ainda está esperando, Mestre ⚔️';
 
 export interface UnconvertedLeadTemplateData {
   name?: string | null;
+  recipientEmail?: string;
 }
 
 export function unconvertedLeadHtml(data: UnconvertedLeadTemplateData): string {
   const name = greetingName(data.name);
   const siteUrl = getSiteUrl();
+  const unsubscribeUrl = data.recipientEmail
+    ? buildUnsubscribeUrl(data.recipientEmail)
+    : null;
 
   return buildEmailHtml({
     subject: UNCONVERTED_LEAD_SUBJECT,
@@ -39,16 +44,16 @@ export function unconvertedLeadHtml(data: UnconvertedLeadTemplateData): string {
       title: 'Condição de fundador ativa',
       body: 'Use o cupom FUNDADOR10 no checkout e garanta 10% de desconto no primeiro mês. Disponível por tempo limitado.',
     },
-    footerNote:
-      'Você recebeu este e-mail por fazer parte da comunidade DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.',
+    footerNote: unsubscribeUrl
+      ? `Você recebeu este e-mail por fazer parte da comunidade DungeonBox. <a href="${unsubscribeUrl}" style="color:#78716c;text-decoration:underline;">Descadastrar</a>.`
+      : 'Você recebeu este e-mail por fazer parte da comunidade DungeonBox. Para parar de receber comunicados, responda pedindo descadastro.',
   });
 }
 
 export function unconvertedLeadText(data: UnconvertedLeadTemplateData): string {
   const name = greetingName(data.name);
   const siteUrl = getSiteUrl();
-
-  return buildEmailText([
+  const blocks = [
     `${name}, você se cadastrou na DungeonBox mas ainda não escolheu seu plano.`,
     'Cenários 3D modulares para RPG entregues na sua porta todo mês. Sistema OpenLOCK. Escala 28mm. Pronto para jogar no dia 1.',
     'Planos disponíveis:',
@@ -58,5 +63,9 @@ export function unconvertedLeadText(data: UnconvertedLeadTemplateData): string {
     'Cupom de fundador: FUNDADOR10 (10% off no primeiro mês)',
     `Escolha seu plano: ${siteUrl}/#planos`,
     `Como funciona: ${siteUrl}/como-funciona`,
-  ]);
+  ];
+  if (data.recipientEmail) {
+    blocks.push(`Descadastrar: ${buildUnsubscribeUrl(data.recipientEmail)}`);
+  }
+  return buildEmailText(blocks);
 }

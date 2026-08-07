@@ -1980,8 +1980,14 @@ export async function sendVoltei10WinbackCampaignAction(input: {
         role: 'marketing',
         to: recipient.email,
         subject: VOLTEI10_SUBJECT,
-        html: voltei10WinbackHtml({ name: recipient.name }),
-        text: voltei10WinbackText({ name: recipient.name }),
+        html: voltei10WinbackHtml({
+          name: recipient.name,
+          recipientEmail: recipient.email,
+        }),
+        text: voltei10WinbackText({
+          name: recipient.name,
+          recipientEmail: recipient.email,
+        }),
         tags: [
           { name: 'category', value: 'voltei10_winback' },
           { name: 'campaign', value: VOLTEI10_CAMPAIGN },

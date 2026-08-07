@@ -38,8 +38,14 @@ export async function sendUnconvertedLeadCampaign(
       role: 'marketing',
       to: recipient.email,
       subject: UNCONVERTED_LEAD_SUBJECT,
-      html: unconvertedLeadHtml({ name: recipient.name }),
-      text: unconvertedLeadText({ name: recipient.name }),
+      html: unconvertedLeadHtml({
+        name: recipient.name,
+        recipientEmail: recipient.email,
+      }),
+      text: unconvertedLeadText({
+        name: recipient.name,
+        recipientEmail: recipient.email,
+      }),
       tags: [
         { name: 'category', value: 'unconverted_lead' },
         { name: 'campaign', value: 'admin_console' },
