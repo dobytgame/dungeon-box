@@ -18,7 +18,9 @@ import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notif
 import {
   handleComboPaymentConfirmed,
   parseComboPaymentReference,
+  parseComboTierPaymentReference,
 } from '@/lib/asaas/combo-payment';
+import { handleComboTierUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-tier-upgrade';
 import { resolveConfirmedInstallmentPayment } from '@/lib/asaas/installment-payments';
 import {
   handleStoreOrderPaymentConfirmed,
@@ -58,6 +60,39 @@ export async function handleAsaasPaymentConfirmed(
   if (storeReference) {
     const storeResult = await handleStoreOrderPaymentConfirmed(supabase, payment);
     return storeResult;
+  }
+
+  const comboTierSubscriptionId = parseComboTierPaymentReference(
+    payment.externalReference
+  );
+  if (comboTierSubscriptionId) {
+    const confirmed = await resolveConfirmedInstallmentPayment({
+      id: payment.id,
+      status: payment.status,
+      externalReference: payment.externalReference,
+      installment: payment.installment,
+      installmentNumber: payment.installmentNumber,
+      value: payment.value,
+    });
+    if (!confirmed) {
+      return 'skipped';
+    }
+
+    const subscriptionId =
+      parseComboTierPaymentReference(confirmed.externalReference) ??
+      comboTierSubscriptionId;
+
+    return handleComboTierUpgradePaymentConfirmed(
+      supabase,
+      {
+        id: confirmed.id,
+        externalReference: confirmed.externalReference ?? undefined,
+        value: confirmed.value,
+        status: confirmed.status,
+        billingType: payment.billingType,
+      },
+      subscriptionId
+    );
   }
 
   const comboSubscriptionId = parseComboPaymentReference(payment.externalReference);

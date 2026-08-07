@@ -9,7 +9,11 @@ export function normalizeAsaasSubscriptionRef(
   return null;
 }
 
-const SUBSCRIPTION_REF_SUFFIXES = [':combo', ':one-time'] as const;
+const SUBSCRIPTION_REF_SUFFIXES = [
+  ':combo-tier',
+  ':combo',
+  ':one-time',
+] as const;
 
 /** Extrai o ID local da assinatura a partir de externalReference do Asaas. */
 export function parseSubscriptionExternalReference(
@@ -31,7 +35,15 @@ export function parseSubscriptionExternalReference(
 export function isComboExternalReference(
   externalReference?: string | null
 ): boolean {
-  return Boolean(externalReference?.trim().endsWith(':combo'));
+  const ref = externalReference?.trim() ?? '';
+  // Não incluir :combo-tier — é cobrança de diferença, não combo pré-pago.
+  return ref.endsWith(':combo') && !ref.endsWith(':combo-tier');
+}
+
+export function isComboTierExternalReference(
+  externalReference?: string | null
+): boolean {
+  return Boolean(externalReference?.trim().endsWith(':combo-tier'));
 }
 
 export function isPaintKitExternalReference(

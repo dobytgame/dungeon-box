@@ -66,6 +66,7 @@ export async function updateAsaasSubscriptionDetails(
   input: {
     valueCents: number;
     description?: string;
+    updatePendingPayments?: boolean;
   }
 ) {
   const body: Record<string, unknown> = {
@@ -74,6 +75,10 @@ export async function updateAsaasSubscriptionDetails(
 
   if (input.description) {
     body.description = input.description;
+  }
+
+  if (input.updatePendingPayments) {
+    body.updatePendingPayments = true;
   }
 
   await asaasRequest<AsaasSubscriptionResponse>(

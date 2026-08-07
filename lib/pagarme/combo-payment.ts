@@ -8,13 +8,16 @@ import {
   resolvePagarmeOrderChargeIds,
   type PagarmeOrderResponse,
 } from '@/lib/pagarme/one-time-order';
-import { parsePagarmeSubscriptionComboCode } from '@/lib/pagarme/store-order-code';
+import { parsePagarmeSubscriptionComboCode, parsePagarmeSubscriptionComboTierCode } from '@/lib/pagarme/store-order-code';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { activateSubscriptionFromPagarme } from '@/lib/subscriptions/activate-pagarme';
 import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
 import { handlePagarmeComboUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-upgrade';
+import {
+  handlePagarmeComboTierUpgradePaymentConfirmed,
+} from '@/lib/subscriptions/combo-tier-upgrade';
 import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-checkout';
 
 function resolveSubscriptionIdFromComboOrder(input: {
@@ -23,12 +26,16 @@ function resolveSubscriptionIdFromComboOrder(input: {
 }): string | null {
   if (
     (input.metadata?.charge_kind === 'combo' ||
-      input.metadata?.charge_kind === 'combo_upgrade') &&
+      input.metadata?.charge_kind === 'combo_upgrade' ||
+      input.metadata?.charge_kind === 'combo_tier_upgrade') &&
     input.metadata.subscription_id
   ) {
     return input.metadata.subscription_id;
   }
-  return parsePagarmeSubscriptionComboCode(input.code);
+  return (
+    parsePagarmeSubscriptionComboTierCode(input.code) ??
+    parsePagarmeSubscriptionComboCode(input.code)
+  );
 }
 
 function buildBillingAddressFromProfileAddress(address: {
@@ -69,12 +76,32 @@ export async function handlePagarmeComboPaymentConfirmed(
   const { data: local } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, user_id, prepaid_until, billing_term, pending_billing_term, combo_total_cents, combo_installments, pagarme_customer_id, address_id'
+      'id, status, user_id, prepaid_until, billing_term, pending_billing_term, pending_plan_id, combo_total_cents, combo_installments, pagarme_customer_id, address_id'
     )
     .eq('id', subscriptionId)
     .maybeSingle();
 
   if (!local) return 'skipped';
+
+  const isTierUpgrade =
+    input.metadata?.charge_kind === 'combo_tier_upgrade' ||
+    Boolean(parsePagarmeSubscriptionComboTierCode(input.code));
+
+  if (
+    isTierUpgrade &&
+    local.status === 'active' &&
+    local.pending_plan_id
+  ) {
+    return handlePagarmeComboTierUpgradePaymentConfirmed(
+      supabase,
+      {
+        chargeId: input.chargeId,
+        orderId: input.orderId,
+        amountCents: input.amountCents,
+      },
+      subscriptionId
+    );
+  }
 
   const pendingUpgradeTerm = local.pending_billing_term as BillingTerm | null;
   if (

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
 import type { PlanSlug } from '@/lib/checkout/plans';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import {
   isHigherPlanSlug,
   upgradeOptionsForSlug,
@@ -245,7 +246,7 @@ export async function scheduleSubscriptionUpgrade(
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, asaas_subscription_id, plan_id, promo_code, shipping_cents, special_notes, plans!plan_id(*)'
+      'id, status, asaas_subscription_id, plan_id, promo_code, shipping_cents, special_notes, billing_term, prepaid_until, plans!plan_id(*)'
     )
     .eq('id', subscriptionId)
     .eq('user_id', userId)
@@ -258,6 +259,18 @@ export async function scheduleSubscriptionUpgrade(
   if (subscription.status !== 'active') {
     return {
       error: 'Só é possível fazer upgrade de assinaturas ativas.',
+    };
+  }
+
+  const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
+  if (
+    isComboTerm(billingTerm) &&
+    subscription.prepaid_until &&
+    new Date(subscription.prepaid_until) > new Date()
+  ) {
+    return {
+      error:
+        'Para combos pré-pagos, use o upgrade de plano do combo (cobrança da diferença).',
     };
   }
 

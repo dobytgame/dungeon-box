@@ -7,9 +7,12 @@ import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionActions from '@/components/dashboard/SubscriptionActions';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
 import SubscriptionComboUpgrade from '@/components/dashboard/SubscriptionComboUpgrade';
+import SubscriptionComboTierUpgrade from '@/components/dashboard/SubscriptionComboTierUpgrade';
 import SubscriptionGatewayMigration from '@/components/dashboard/SubscriptionGatewayMigration';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
+import { getComboTermLabel } from '@/lib/checkout/combo-display';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import { parseCustomerNotes } from '@/lib/checkout/special-notes';
 import type { CustomerSubscriptionPaymentLink } from '@/lib/dashboard/pending-payment';
 import {
@@ -26,6 +29,11 @@ import {
   canUpgradeSubscriptionToCombo,
 } from '@/lib/subscriptions/combo-upgrade';
 import {
+  buildComboTierUpgradeOptions,
+  canUpgradeComboPlanTier,
+  isActivePrepaidCombo,
+} from '@/lib/subscriptions/combo-tier-upgrade';
+import {
   buildUpgradeOptionsPricing,
   resolveCurrentSubscriptionRecurringPricing,
   resolvePendingUpgradePricing,
@@ -37,10 +45,16 @@ import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/comple
 function resolveComboUpgradeProvider(
   subscription: Subscription
 ): 'asaas' | 'pagarme' | null {
-  if (subscription.pagarme_subscription_id && PAGARME_CONFIGURED) {
+  if (
+    (subscription.pagarme_subscription_id || subscription.pagarme_customer_id) &&
+    PAGARME_CONFIGURED
+  ) {
     return 'pagarme';
   }
-  if (subscription.asaas_subscription_id && ASAAS_CONFIGURED) {
+  if (
+    (subscription.asaas_subscription_id || subscription.asaas_customer_id) &&
+    ASAAS_CONFIGURED
+  ) {
     return 'asaas';
   }
   return null;
@@ -56,16 +70,31 @@ async function SubscriptionDetailCard({
   paymentLink?: CustomerSubscriptionPaymentLink | null;
 }) {
   const comboUpgradeProvider = resolveComboUpgradeProvider(subscription);
-  const [upgradeOptions, pendingUpgradePricing, currentRecurringPricing, comboUpgradeOptions] =
-    await Promise.all([
-      buildUpgradeOptionsPricing(subscription),
-      resolvePendingUpgradePricing(subscription),
-      resolveCurrentSubscriptionRecurringPricing(subscription),
-      comboUpgradeProvider && canUpgradeSubscriptionToCombo(subscription)
-        ? buildComboUpgradeOptions(subscription)
-        : Promise.resolve([]),
-    ]);
+  const isComboPrepaid = isActivePrepaidCombo(subscription);
+  const [
+    upgradeOptions,
+    pendingUpgradePricing,
+    currentRecurringPricing,
+    comboUpgradeOptions,
+    comboTierUpgradeOptions,
+  ] = await Promise.all([
+    isComboPrepaid
+      ? Promise.resolve([])
+      : buildUpgradeOptionsPricing(subscription),
+    resolvePendingUpgradePricing(subscription),
+    resolveCurrentSubscriptionRecurringPricing(subscription),
+    comboUpgradeProvider && canUpgradeSubscriptionToCombo(subscription)
+      ? buildComboUpgradeOptions(subscription)
+      : Promise.resolve([]),
+    comboUpgradeProvider && canUpgradeComboPlanTier(subscription)
+      ? buildComboTierUpgradeOptions(subscription)
+      : Promise.resolve([]),
+  ]);
   const plan = relOne(subscription.plans);
+  const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
+  const comboLabel = isComboTerm(billingTerm)
+    ? getComboTermLabel(billingTerm)
+    : 'Combo';
   const address = relOne(subscription.addresses);
   const customerNotes = parseCustomerNotes(subscription.special_notes);
   const isPending = subscription.status === 'pending';
@@ -240,6 +269,15 @@ async function SubscriptionDetailCard({
                 pendingUpgradePricing?.promoSummary ?? null
               }
             />
+            {comboUpgradeProvider && comboTierUpgradeOptions.length > 0 ? (
+              <SubscriptionComboTierUpgrade
+                subscriptionId={subscription.id}
+                currentPlanName={plan?.name ?? 'atual'}
+                comboLabel={comboLabel}
+                options={comboTierUpgradeOptions}
+                paymentProvider={comboUpgradeProvider}
+              />
+            ) : null}
             {comboUpgradeProvider && comboUpgradeOptions.length > 0 ? (
               <SubscriptionComboUpgrade
                 subscriptionId={subscription.id}

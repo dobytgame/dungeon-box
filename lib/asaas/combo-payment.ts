@@ -7,15 +7,21 @@ import { listAsaasCustomerPayments } from '@/lib/asaas/store-order-payment';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { handleComboUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-upgrade';
+import { handleComboTierUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-tier-upgrade';
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { notifyPurchaseCompleted } from '@/lib/email/subscription-notify';
 import { notifyReferrerOnReferralConverted } from '@/lib/referral/referrer-notify';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const COMBO_REF_SUFFIX = ':combo';
+const COMBO_TIER_REF_SUFFIX = ':combo-tier';
 
 function comboExternalReference(subscriptionId: string): string {
   return `${subscriptionId}${COMBO_REF_SUFFIX}`;
+}
+
+export function comboTierExternalReference(subscriptionId: string): string {
+  return `${subscriptionId}${COMBO_TIER_REF_SUFFIX}`;
 }
 
 function toWebhookPayment(payment: {
@@ -81,7 +87,19 @@ export function parseComboPaymentReference(
   externalReference?: string | null
 ): string | null {
   if (!externalReference?.endsWith(COMBO_REF_SUFFIX)) return null;
+  if (externalReference.endsWith(COMBO_TIER_REF_SUFFIX)) return null;
   const subscriptionId = externalReference.slice(0, -COMBO_REF_SUFFIX.length);
+  return subscriptionId.length > 0 ? subscriptionId : null;
+}
+
+export function parseComboTierPaymentReference(
+  externalReference?: string | null
+): string | null {
+  if (!externalReference?.endsWith(COMBO_TIER_REF_SUFFIX)) return null;
+  const subscriptionId = externalReference.slice(
+    0,
+    -COMBO_TIER_REF_SUFFIX.length
+  );
   return subscriptionId.length > 0 ? subscriptionId : null;
 }
 
@@ -90,6 +108,15 @@ export async function handleComboPaymentConfirmed(
   payment: AsaasWebhookPayment,
   subscriptionId: string
 ): Promise<'processed' | 'skipped'> {
+  const tierResult = await handleComboTierUpgradePaymentConfirmed(
+    supabase,
+    payment,
+    subscriptionId
+  );
+  if (tierResult === 'processed') {
+    return 'processed';
+  }
+
   const upgradeResult = await handleComboUpgradePaymentConfirmed(
     supabase,
     payment,

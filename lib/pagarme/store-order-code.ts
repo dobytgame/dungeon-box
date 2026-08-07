@@ -29,12 +29,28 @@ export function buildPagarmeSubscriptionComboCode(subscriptionId: string): strin
   return `${subscriptionId}-combo`;
 }
 
+export function buildPagarmeSubscriptionComboTierCode(
+  subscriptionId: string
+): string {
+  return `${subscriptionId}-combo-tier`;
+}
+
 export function parsePagarmeSubscriptionComboCode(
   code?: string | null
 ): string | null {
   const trimmed = code?.trim() ?? '';
   const match = trimmed.match(
     /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo$/i
+  );
+  return match?.[1] ?? null;
+}
+
+export function parsePagarmeSubscriptionComboTierCode(
+  code?: string | null
+): string | null {
+  const trimmed = code?.trim() ?? '';
+  const match = trimmed.match(
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo-tier$/i
   );
   return match?.[1] ?? null;
 }
