@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import { formatMoney } from '@/lib/dashboard/format';
 import { resolveCartLines } from '@/lib/store/cart';
 import { maxQuantityForCartLine } from '@/lib/store/cart-validation';
@@ -149,12 +150,12 @@ export default function CartDrawer({ open, onClose }: Props) {
                           className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-sm bg-stone-900"
                         >
                           {line.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <StoreMediaImage
                               src={line.imageUrl}
                               alt=""
                               width={STORE_PRODUCT_IMAGE_SIZE}
                               height={STORE_PRODUCT_IMAGE_SIZE}
+                              sizes="80px"
                               className="h-full w-full object-cover transition hover:scale-105"
                             />
                           ) : (

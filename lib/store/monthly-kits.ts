@@ -416,15 +416,33 @@ export async function resolveStoreMonthlyKitBySlug(
   );
   if (!storeRow) return null;
 
-  const theme = await getCurrentMonthlyTheme(admin, []);
+  const [{ data: detailRow }, theme] = await Promise.all([
+    admin
+      .from('store_products')
+      .select('page_content_html')
+      .eq('slug', slug)
+      .eq('category', 'monthly-kit')
+      .eq('is_active', true)
+      .maybeSingle(),
+    getCurrentMonthlyTheme(admin, []),
+  ]);
   if (!theme) return null;
 
   const planNames = await fetchPlanNamesBySlug(admin, [storeRow.plan_slug]);
   const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
 
-  const product = buildMonthlyKitProduct(storeRow, theme, planName, {
-    bundledWithSubscription: options?.bundledWithSubscription ?? false,
-  });
+  const product = buildMonthlyKitProduct(
+    {
+      ...storeRow,
+      page_content_html:
+        (detailRow?.page_content_html as string | null | undefined) ?? null,
+    },
+    theme,
+    planName,
+    {
+      bundledWithSubscription: options?.bundledWithSubscription ?? false,
+    }
+  );
   if (!product) return null;
 
   const context = await loadStoreCategoryVisibilityContext(admin);

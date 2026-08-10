@@ -3,6 +3,7 @@
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useStoreCatalog } from '@/components/store/StoreCatalogProvider';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { CartLineResolved } from '@/lib/store/cart';
 import { maxQuantityForCartLine } from '@/lib/store/cart-validation';
@@ -37,12 +38,12 @@ function LineImage({
 
   return (
     <div className={`${dimension} shrink-0 overflow-hidden rounded-sm bg-stone-900`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <StoreMediaImage
         src={imageUrl}
         alt=""
         width={STORE_PRODUCT_IMAGE_SIZE}
         height={STORE_PRODUCT_IMAGE_SIZE}
+        sizes={size === 'lg' ? '64px' : '48px'}
         className="h-full w-full object-cover"
       />
     </div>

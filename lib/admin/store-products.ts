@@ -164,7 +164,8 @@ export type MonthlyKitStoreProductConfig = {
   includes: string[];
   image_url: string | null;
   gallery_urls: string[];
-  page_content_html: string | null;
+  /** Só preenchido na PDP; listagens omitem o HTML. */
+  page_content_html?: string | null;
   featured: boolean;
   max_quantity: number;
   store_category_id: string | null;
@@ -174,7 +175,7 @@ export type MonthlyKitStoreProductConfig = {
 };
 
 const MONTHLY_KIT_STORE_SELECT =
-  'plan_slug, slug, name, tagline, price_cents, includes, image_url, gallery_urls, page_content_html, featured, max_quantity, store_category_id, subscriber_discount_percent, store_categories(slug, name)';
+  'plan_slug, slug, name, tagline, price_cents, includes, image_url, gallery_urls, featured, max_quantity, store_category_id, subscriber_discount_percent, store_categories(slug, name)';
 
 export async function loadActiveMonthlyKitStoreProductsMap(
   admin: SupabaseClient
@@ -252,7 +253,6 @@ export async function loadActiveMonthlyKitStoreProductsMap(
       includes: (row.includes as string[] | null) ?? [],
       image_url: (row.image_url as string | null) ?? null,
       gallery_urls: normalizeStoreGalleryUrls(row.gallery_urls),
-      page_content_html: (row.page_content_html as string | null) ?? null,
       featured: Boolean(row.featured),
       max_quantity: row.max_quantity as number,
       store_category_id: storeCategoryId,

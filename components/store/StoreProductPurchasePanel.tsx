@@ -7,6 +7,7 @@ import StoreProductPurchaseActions from '@/components/store/StoreProductPurchase
 import VarietyProductPurchasePanel from '@/components/store/VarietyProductPurchasePanel';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreProduct } from '@/lib/store/catalog';
 import {
   cartLineId,
@@ -129,10 +130,12 @@ function MultiVariationPurchasePanel({ product }: Props) {
                     >
                       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-stone-900">
                         {option.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <StoreMediaImage
                             src={option.imageUrl}
                             alt=""
+                            width={80}
+                            height={80}
+                            sizes="40px"
                             className="h-full w-full object-cover"
                           />
                         ) : (

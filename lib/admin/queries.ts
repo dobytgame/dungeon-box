@@ -34,6 +34,7 @@ import {
   filterProductionBoardRowsForMonth,
   groupProductionBoardRows,
 } from '@/lib/admin/production-board-filter';
+import { monthKeyFromDate } from '@/lib/admin/chart-period';
 import type { Payment, Plan, Subscription, SubscriptionCycle, Theme } from '@/lib/dashboard/types';
 import type {
   AdminActivePlanCount,
@@ -1098,10 +1099,17 @@ async function loadAdminProductionCycleRows(
   mapped: AdminCycleRow[];
   rawRows: Record<string, unknown>[];
 }> {
+  // Delivered antigos incham o payload; manter só os últimos meses no board.
+  const deliveredCutoff = new Date();
+  deliveredCutoff.setMonth(deliveredCutoff.getMonth() - 4);
+  const deliveredMonthFrom = monthKeyFromDate(deliveredCutoff);
+
   const { data, error } = await admin
     .from('subscription_cycles')
     .select(ADMIN_CYCLE_LIST_SELECT)
-    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered'])
+    .or(
+      `status.in.(upcoming,production,preparing,shipped),and(status.eq.delivered,scheduled_production_month.gte.${deliveredMonthFrom})`
+    )
     .order('scheduled_production_month', { ascending: true, nullsFirst: false })
     .order('paid_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });

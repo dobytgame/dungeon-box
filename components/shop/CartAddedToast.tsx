@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ShoppingBag, X } from 'lucide-react';
 import { useEffect } from 'react';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import { formatMoney } from '@/lib/dashboard/format';
 import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 import { STORE_ROUTES } from '@/lib/store/routes';
@@ -40,12 +41,12 @@ export default function CartAddedToast() {
             <div className="flex items-start gap-3 p-4">
               <div className="relative shrink-0">
                 {addFeedback.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <StoreMediaImage
                     src={addFeedback.imageUrl}
                     alt=""
                     width={STORE_PRODUCT_IMAGE_SIZE}
                     height={STORE_PRODUCT_IMAGE_SIZE}
+                    sizes="56px"
                     className="aspect-square h-14 w-14 rounded-sm object-cover"
                   />
                 ) : (

@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { headers } from 'next/headers';
 import { importAsaasPaymentsForSubscription } from '@/lib/asaas/import-payments';
 import {
@@ -57,6 +57,8 @@ import {
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
 import type { StoreProductCategory } from '@/lib/store/catalog';
 import { STORE_PRODUCTS } from '@/lib/store/catalog';
+import { STORE_CATALOG_CACHE_TAG } from '@/lib/store/cached-catalog';
+import { ADMIN_FINANCE_CACHE_TAG } from '@/lib/admin/cache-tags';
 import {
   normalizeStoreProductVariations,
   parseStoreProductVariations,
@@ -90,6 +92,15 @@ import {
 function revalidateAdmin() {
   revalidatePath('/admin', 'layout');
   revalidatePath('/dashboard', 'layout');
+}
+
+function revalidateStorefrontCatalog() {
+  revalidateTag(STORE_CATALOG_CACHE_TAG);
+  revalidatePath('/loja');
+}
+
+function revalidateAdminFinance() {
+  revalidateTag(ADMIN_FINANCE_CACHE_TAG);
 }
 
 function revalidateCycleBoard() {
@@ -2246,6 +2257,7 @@ export async function saveFinancialExpenseAction(
     });
 
     revalidateAdmin();
+    revalidateAdminFinance();
     return { success: true as const, id: expenseId };
   }
 
@@ -2267,6 +2279,7 @@ export async function saveFinancialExpenseAction(
   });
 
   revalidateAdmin();
+  revalidateAdminFinance();
   return { success: true as const, id: data.id as string };
 }
 
@@ -2292,6 +2305,7 @@ export async function cancelFinancialExpenseAction(expenseId: string) {
   });
 
   revalidateAdmin();
+  revalidateAdminFinance();
   return { success: true as const };
 }
 
@@ -2503,7 +2517,7 @@ export async function saveStoreProductAction(
     });
 
     revalidateAdmin();
-    revalidatePath('/loja');
+    revalidateStorefrontCatalog();
     revalidatePath(`/loja/produto/${slug}`);
     return { success: true as const, id: productId };
   }
@@ -2526,7 +2540,7 @@ export async function saveStoreProductAction(
   });
 
   revalidateAdmin();
-  revalidatePath('/loja');
+  revalidateStorefrontCatalog();
   revalidatePath(`/loja/produto/${slug}`);
   return { success: true as const, id: data.id as string };
 }
@@ -2564,7 +2578,7 @@ export async function deleteStoreProductAction(productId: string) {
   });
 
   revalidateAdmin();
-  revalidatePath('/loja');
+  revalidateStorefrontCatalog();
   return { success: true as const };
 }
 
@@ -2636,7 +2650,7 @@ export async function saveStoreCategoryAction(
     });
 
     revalidateAdmin();
-    revalidatePath('/loja');
+    revalidateStorefrontCatalog();
     revalidatePath(`/loja/${slug}`);
     return { success: true as const, id: categoryId };
   }
@@ -2659,7 +2673,7 @@ export async function saveStoreCategoryAction(
   });
 
   revalidateAdmin();
-  revalidatePath('/loja');
+  revalidateStorefrontCatalog();
   revalidatePath(`/loja/${slug}`);
   return { success: true as const, id: data.id as string };
 }
@@ -2703,7 +2717,7 @@ export async function deleteStoreCategoryAction(categoryId: string) {
   });
 
   revalidateAdmin();
-  revalidatePath('/loja');
+  revalidateStorefrontCatalog();
   return { success: true as const };
 }
 
@@ -2748,7 +2762,7 @@ export async function saveStoreBannerAction(
     });
 
     revalidateAdmin();
-    revalidatePath('/loja');
+    revalidateStorefrontCatalog();
     return { success: true as const, id: bannerId };
   }
 
@@ -2770,7 +2784,7 @@ export async function saveStoreBannerAction(
   });
 
   revalidateAdmin();
-  revalidatePath('/loja');
+  revalidateStorefrontCatalog();
   return { success: true as const, id: data.id as string };
 }
 
@@ -2790,7 +2804,7 @@ export async function deleteStoreBannerAction(bannerId: string) {
   });
 
   revalidateAdmin();
-  revalidatePath('/loja');
+  revalidateStorefrontCatalog();
   return { success: true as const };
 }
 

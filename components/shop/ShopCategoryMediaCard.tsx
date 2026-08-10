@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreCategory } from '@/lib/store/load-catalog';
 import { stripHtmlTags } from '@/lib/ui/strip-html';
 import { STORE_ROUTES } from '@/lib/store/routes';
@@ -25,11 +26,12 @@ export default function ShopCategoryMediaCard({ category, className = '' }: Prop
     >
       <div className="relative aspect-square w-full">
         {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <StoreMediaImage
             src={imageUrl}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
+            className="object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (
           <div

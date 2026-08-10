@@ -1,4 +1,5 @@
 import ProductDescriptionContent from '@/components/shop/ProductDescriptionContent';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreCategory } from '@/lib/store/load-catalog';
 
 interface Props {
@@ -17,11 +18,13 @@ export default function ShopCategoryHero({ category }: Props) {
       <div className="category-hero__frame relative">
         {imageUrl ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <StoreMediaImage
               src={imageUrl}
               alt=""
-              className="category-hero__image absolute inset-0 h-full w-full"
+              fill
+              priority
+              sizes="100vw"
+              className="category-hero__image object-cover"
             />
             <div className="category-hero__overlay-left" aria-hidden="true" />
             <div className="category-hero__overlay-bottom" aria-hidden="true" />

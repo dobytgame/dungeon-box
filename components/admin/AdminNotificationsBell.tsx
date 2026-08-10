@@ -73,7 +73,7 @@ export default function AdminNotificationsBell() {
     void loadNotifications();
     const interval = window.setInterval(() => {
       void loadNotifications();
-    }, 60_000);
+    }, 180_000);
     return () => window.clearInterval(interval);
   }, [loadNotifications]);
 

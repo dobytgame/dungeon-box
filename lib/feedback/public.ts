@@ -1,10 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { unstable_cache } from 'next/cache';
 import { getFeedbackImageSignedUrls } from '@/lib/admin/feedback';
 import { relOne } from '@/lib/dashboard/format';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const LP_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24;
 const DEFAULT_LIMIT = 12;
+const TESTIMONIALS_REVALIDATE_SECONDS = 60 * 60;
 
 function isFeaturedColumnMissing(message: string): boolean {
   return /featured_on_lp/i.test(message);
@@ -70,8 +72,8 @@ async function mapPublicTestimonial(
   };
 }
 
-export async function getPublicTestimonials(
-  limit = DEFAULT_LIMIT
+async function fetchPublicTestimonials(
+  limit: number
 ): Promise<PublicTestimonial[]> {
   const admin = createAdminClient();
 
@@ -111,4 +113,14 @@ export async function getPublicTestimonials(
   }
 
   return testimonials;
+}
+
+export async function getPublicTestimonials(
+  limit = DEFAULT_LIMIT
+): Promise<PublicTestimonial[]> {
+  return unstable_cache(
+    () => fetchPublicTestimonials(limit),
+    ['public-testimonials', String(limit)],
+    { revalidate: TESTIMONIALS_REVALIDATE_SECONDS }
+  )();
 }

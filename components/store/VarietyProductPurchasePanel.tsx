@@ -4,6 +4,7 @@ import { Check, ShoppingCart } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import StoreProductQuantityStepper from '@/components/store/StoreProductQuantityStepper';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { formatMoney } from '@/lib/dashboard/format';
 import { trackStoreAddToCart } from '@/lib/analytics/store-events';
@@ -195,10 +196,12 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
                 <div className="flex gap-3">
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-stone-900">
                     {option.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <StoreMediaImage
                         src={option.imageUrl}
                         alt={label}
+                        width={128}
+                        height={128}
+                        sizes="64px"
                         className="h-full w-full object-cover"
                       />
                     ) : (

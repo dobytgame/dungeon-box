@@ -12,8 +12,13 @@ import {
 } from '@/lib/store/access';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { loadActiveStoreCategories, loadAllActiveStoreProducts, filterStoreProductsForVitrine } from '@/lib/store/load-catalog';
-import { getMonthlyKitProductsForUser, getPublicMonthlyKitProducts } from '@/lib/store/monthly-kits';
+import {
+  getCachedActiveStoreCategories,
+  getCachedActiveStoreProducts,
+  getCachedPublicMonthlyKitProducts,
+} from '@/lib/store/cached-catalog';
+import { filterStoreProductsForVitrine } from '@/lib/store/load-catalog';
+import { getMonthlyKitProductsForUser } from '@/lib/store/monthly-kits';
 import { enrichStoreProductsForSubscriber } from '@/lib/store/subscriber-discount';
 
 export const metadata: Metadata = {
@@ -44,19 +49,17 @@ export default async function LojaLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const showFullCatalog = isStorePublic();
-
   const [profile, publicMonthlyKits, userBundleMonthlyKits, categories, catalogProducts] =
     await Promise.all([
       user ? getProfile(user.id) : Promise.resolve(null),
-      getPublicMonthlyKitProducts(admin),
+      getCachedPublicMonthlyKitProducts(),
       isStorePublic()
         ? user
           ? getMonthlyKitProductsForUser(user.id, supabase)
           : Promise.resolve([])
         : Promise.resolve([]),
-      loadActiveStoreCategories(admin),
-      loadAllActiveStoreProducts(admin),
+      getCachedActiveStoreCategories(),
+      getCachedActiveStoreProducts(),
     ]);
 
   const monthlyKits = (() => {

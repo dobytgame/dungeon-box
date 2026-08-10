@@ -15,17 +15,19 @@ import {
   filterPublicStoreProducts,
   isStorePublic,
 } from '@/lib/store/access';
-import { loadActiveStoreBanners } from '@/lib/store/banners';
 import {
-  loadActivePaintKitProducts,
-  loadActiveStoreCategories,
-  loadFeaturedProducts,
-  loadNewestProducts,
+  getCachedActiveStoreBanners,
+  getCachedActiveStoreCategories,
+  getCachedFeaturedProducts,
+  getCachedNewestProducts,
+  getCachedPaintKitProducts,
+  getCachedPublicMonthlyKitProducts,
+} from '@/lib/store/cached-catalog';
+import {
   filterStoreProductsForVitrine,
 } from '@/lib/store/load-catalog';
 import {
   getMonthlyKitStoreAvailability,
-  getPublicMonthlyKitProducts,
 } from '@/lib/store/monthly-kits';
 import { enrichStoreProductsForSubscriber } from '@/lib/store/subscriber-discount';
 import { STORE_ROUTES } from '@/lib/store/routes';
@@ -91,8 +93,8 @@ export default async function LojaHomePage() {
 
   const [categories, banners, monthlyKitStore, publicMonthlyKits, paintKitProducts, featured, newest] =
     await Promise.all([
-      loadActiveStoreCategories(admin),
-      loadActiveStoreBanners(admin),
+      getCachedActiveStoreCategories(),
+      getCachedActiveStoreBanners(),
       showFullCatalog && user
         ? getMonthlyKitStoreAvailability(user.id, supabase)
         : Promise.resolve({
@@ -101,10 +103,10 @@ export default async function LojaHomePage() {
             hasTheme: false,
             issue: 'no_subscription' as const,
           }),
-      getPublicMonthlyKitProducts(admin),
-      loadActivePaintKitProducts(admin),
-      showFullCatalog ? loadFeaturedProducts(admin) : Promise.resolve([]),
-      showFullCatalog ? loadNewestProducts(admin) : Promise.resolve([]),
+      getCachedPublicMonthlyKitProducts(),
+      getCachedPaintKitProducts(),
+      showFullCatalog ? getCachedFeaturedProducts() : Promise.resolve([]),
+      showFullCatalog ? getCachedNewestProducts() : Promise.resolve([]),
     ]);
 
   const planKits =

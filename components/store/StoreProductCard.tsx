@@ -6,6 +6,7 @@ import { useState } from 'react';
 import StoreProductPurchaseActions from '@/components/store/StoreProductPurchaseActions';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreProduct } from '@/lib/store/catalog';
 import {
   formatSubscriberDiscountBadge,
@@ -105,14 +106,14 @@ export default function StoreProductCard({ product }: Props) {
           onMouseEnter={() => setImageHover(true)}
           onMouseLeave={() => setImageHover(false)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <StoreMediaImage
             src={
               imageHover && hoverImageUrl ? hoverImageUrl : primaryImageUrl
             }
             alt={product.name}
             width={STORE_PRODUCT_IMAGE_SIZE}
             height={STORE_PRODUCT_IMAGE_SIZE}
+            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 40vw, 280px"
             className={`${storeProductImageClassName} transition duration-300 group-hover/image:scale-[1.02]`}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-stone-950/90 to-transparent p-4 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">

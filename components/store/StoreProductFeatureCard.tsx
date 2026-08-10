@@ -4,6 +4,7 @@ import { ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { StoreProduct } from '@/lib/store/catalog';
 import { STORE_ROUTES } from '@/lib/store/routes';
@@ -39,11 +40,12 @@ export default function StoreProductFeatureCard({ product }: Props) {
         className="relative block aspect-square overflow-hidden bg-stone-900"
       >
         {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <StoreMediaImage
             src={imageUrl}
             alt={product.name}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            fill
+            sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 220px"
+            className="object-cover transition duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div

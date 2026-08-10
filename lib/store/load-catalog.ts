@@ -31,7 +31,7 @@ export interface DbStoreProductRow {
   store_category_id: string | null;
   image_url: string | null;
   gallery_urls: string[] | null;
-  page_content_html: string | null;
+  page_content_html?: string | null;
   price_cents: number;
   production_cost_cents: number;
   includes: string[] | null;
@@ -130,8 +130,39 @@ async function enrichMonthlyKitProducts(
   });
 }
 
-const PRODUCT_CATEGORY_SELECT =
-  '*, store_categories(slug, name, parent_id, parent:parent_id(slug, name))';
+const STORE_CATEGORY_EMBED =
+  'store_categories(slug, name, parent_id, parent:parent_id(slug, name))';
+
+/** Listagens / layout da loja — sem HTML pesado da PDP. */
+const PRODUCT_LIST_SELECT = [
+  'id',
+  'slug',
+  'name',
+  'tagline',
+  'category',
+  'store_category_id',
+  'image_url',
+  'gallery_urls',
+  'price_cents',
+  'production_cost_cents',
+  'includes',
+  'paint_kit_bump_id',
+  'plan_slug',
+  'max_quantity',
+  'min_quantity',
+  'requires_unit_uploads',
+  'featured',
+  'is_active',
+  'sort_order',
+  'variations_enabled',
+  'variations',
+  'subscriber_discount_percent',
+  'created_at',
+  STORE_CATEGORY_EMBED,
+].join(', ');
+
+/** Página do produto — inclui page_content_html. */
+const PRODUCT_DETAIL_SELECT = `${PRODUCT_LIST_SELECT}, page_content_html`;
 
 async function mapVisibleStoreProductRows(
   admin: SupabaseClient,
@@ -170,7 +201,7 @@ export async function loadActivePaintKitProducts(
 ): Promise<StoreProduct[]> {
   const { data, error } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT)
+    .select(PRODUCT_LIST_SELECT)
     .eq('category', 'paint-kit')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
@@ -179,7 +210,7 @@ export async function loadActivePaintKitProducts(
     return [];
   }
 
-  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
+  return mapVisibleStoreProductRows(admin, data as unknown as DbStoreProductRow[]);
 }
 
 export async function loadAllActiveStoreProducts(
@@ -187,14 +218,14 @@ export async function loadAllActiveStoreProducts(
 ): Promise<StoreProduct[]> {
   const { data, error } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT)
+    .select(PRODUCT_LIST_SELECT)
     .eq('is_active', true)
     .neq('category', 'monthly-kit')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
   if (error || !data?.length) return [];
-  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
+  return mapVisibleStoreProductRows(admin, data as unknown as DbStoreProductRow[]);
 }
 
 export async function getStoreProductBySlugFromDb(
@@ -203,7 +234,7 @@ export async function getStoreProductBySlugFromDb(
 ): Promise<StoreProduct | null> {
   const { data, error } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT)
+    .select(PRODUCT_DETAIL_SELECT)
     .eq('slug', slug)
     .eq('is_active', true)
     .maybeSingle();
@@ -211,7 +242,7 @@ export async function getStoreProductBySlugFromDb(
   if (error || !data) return null;
 
   const visibility = await loadStoreCategoryVisibilityContext(admin);
-  const row = data as DbStoreProductRow;
+  const row = data as unknown as DbStoreProductRow;
   if (
     !isStoreProductVisibleInVitrine(
       {
@@ -397,7 +428,7 @@ export async function loadActiveProductsByCategory(
 
   const { data, error, count } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT, { count: 'exact' })
+    .select(PRODUCT_LIST_SELECT, { count: 'exact' })
     .eq('is_active', true)
     .in('store_category_id', categoryIds)
     .order(orderColumn, { ascending })
@@ -409,7 +440,7 @@ export async function loadActiveProductsByCategory(
 
   const products = await enrichMonthlyKitProducts(
     admin,
-    await mapVisibleStoreProductRows(admin, data as DbStoreProductRow[], visibility)
+    await mapVisibleStoreProductRows(admin, data as unknown as DbStoreProductRow[], visibility)
   );
 
   return {
@@ -424,7 +455,7 @@ export async function loadFeaturedProducts(
 ): Promise<StoreProduct[]> {
   const { data, error } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT)
+    .select(PRODUCT_LIST_SELECT)
     .eq('is_active', true)
     .eq('featured', true)
     .neq('category', 'monthly-kit')
@@ -432,7 +463,7 @@ export async function loadFeaturedProducts(
     .limit(8);
 
   if (error || !data?.length) return [];
-  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
+  return mapVisibleStoreProductRows(admin, data as unknown as DbStoreProductRow[]);
 }
 
 export async function loadNewestProducts(
@@ -441,14 +472,14 @@ export async function loadNewestProducts(
 ): Promise<StoreProduct[]> {
   const { data, error } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT)
+    .select(PRODUCT_LIST_SELECT)
     .eq('is_active', true)
     .neq('category', 'monthly-kit')
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error || !data?.length) return [];
-  return mapVisibleStoreProductRows(admin, data as DbStoreProductRow[]);
+  return mapVisibleStoreProductRows(admin, data as unknown as DbStoreProductRow[]);
 }
 
 export async function loadRelatedProducts(
@@ -482,7 +513,7 @@ export async function loadRelatedProducts(
 
   const { data, error } = await admin
     .from('store_products')
-    .select(PRODUCT_CATEGORY_SELECT)
+    .select(PRODUCT_LIST_SELECT)
     .eq('is_active', true)
     .in('store_category_id', categoryIds)
     .neq('slug', product.slug)
@@ -493,6 +524,6 @@ export async function loadRelatedProducts(
   if (error || !data?.length) return [];
   return enrichMonthlyKitProducts(
     admin,
-    await mapVisibleStoreProductRows(admin, data as DbStoreProductRow[], visibility)
+    await mapVisibleStoreProductRows(admin, data as unknown as DbStoreProductRow[], visibility)
   );
 }

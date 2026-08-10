@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { unstable_cache } from 'next/cache';
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { getOperationChartPeriod } from '@/lib/admin/chart-period';
 import {
@@ -14,6 +15,8 @@ import {
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { ADMIN_FINANCE_CACHE_TAG } from '@/lib/admin/cache-tags';
 import type {
   AdminFinancialCategoryRow,
   AdminFinancialDashboard,
@@ -22,6 +25,10 @@ import type {
   AdminFinancialPeriod,
   AdminFinancialSummary,
 } from '@/lib/admin/types';
+
+export { ADMIN_FINANCE_CACHE_TAG } from '@/lib/admin/cache-tags';
+
+const ADMIN_FINANCE_REVALIDATE_SECONDS = 120;
 
 const PERIOD_DAYS: Record<Exclude<AdminFinancialPeriod, 'year' | 'all'>, number> = {
   '30d': 30,
@@ -162,6 +169,48 @@ export async function listFinancialExpenses(
 
 type ApprovedPaymentRevenueRow = RevenuePaymentRow;
 
+/** Campos necessários para regras de receita — sem profiles (menor egress). */
+const PAYMENT_REVENUE_AGG_SELECT = `
+  id,
+  amount_cents,
+  status,
+  paid_at,
+  created_at,
+  subscription_id,
+  status_detail,
+  installments,
+  subscriptions(
+    billing_term,
+    combo_total_cents,
+    combo_installments,
+    prepaid_months,
+    prepaid_until,
+    started_at,
+    plans!plan_id(name)
+  )
+`;
+
+const PAYMENT_MOVEMENT_SELECT = `
+  id,
+  amount_cents,
+  status,
+  paid_at,
+  created_at,
+  subscription_id,
+  status_detail,
+  installments,
+  profiles(full_name, display_name, email),
+  subscriptions(
+    billing_term,
+    combo_total_cents,
+    combo_installments,
+    prepaid_months,
+    prepaid_until,
+    started_at,
+    plans!plan_id(name)
+  )
+`;
+
 export function sumApprovedPaymentsRevenueCents(
   payments: ApprovedPaymentRevenueRow[]
 ): number {
@@ -185,49 +234,62 @@ export function sumApprovedPaymentsRevenueCents(
 }
 
 export async function getTotalApprovedRevenue(
-  admin: SupabaseClient
+  _admin?: SupabaseClient
 ): Promise<{ revenueCents: number; paymentCount: number }> {
-  const { from, to } = getFinancialPeriodBounds('all');
-  const payments = await fetchApprovedPayments(admin, from, to);
-  return {
-    revenueCents: sumApprovedPaymentsRevenueCents(payments),
-    paymentCount: payments.length,
-  };
+  return unstable_cache(
+    async () => {
+      const admin = createAdminClient();
+      const { from, to } = getFinancialPeriodBounds('all');
+      const payments = await fetchApprovedPaymentsForAggregation(admin, from, to);
+      return {
+        revenueCents: sumApprovedPaymentsRevenueCents(payments),
+        paymentCount: payments.length,
+      };
+    },
+    ['admin-total-approved-revenue'],
+    {
+      revalidate: ADMIN_FINANCE_REVALIDATE_SECONDS,
+      tags: [ADMIN_FINANCE_CACHE_TAG],
+    }
+  )();
 }
 
-async function fetchApprovedPayments(
+async function fetchApprovedPaymentsForAggregation(
   admin: SupabaseClient,
   from: string,
   to: string
-) {
+): Promise<ApprovedPaymentRevenueRow[]> {
   const { data, error } = await admin
     .from('payments')
-    .select(
-      `
-      id,
-      amount_cents,
-      status,
-      paid_at,
-      created_at,
-      subscription_id,
-      status_detail,
-      installments,
-      profiles(full_name, display_name, email),
-      subscriptions(
-        billing_term,
-        combo_total_cents,
-        combo_installments,
-        plans!plan_id(name)
-      )
-    `
-    )
+    .select(PAYMENT_REVENUE_AGG_SELECT)
     .eq('status', 'approved')
     .gte('paid_at', brazilDateToStartIso(from))
     .lte('paid_at', brazilDateToEndIso(to))
     .order('paid_at', { ascending: false });
 
   if (error) {
-    console.error('[admin] fetchApprovedPayments:', error.message);
+    console.error('[admin] fetchApprovedPaymentsForAggregation:', error.message);
+    return [];
+  }
+
+  return (data ?? []) as ApprovedPaymentRevenueRow[];
+}
+
+async function fetchApprovedPaymentsForMovements(
+  admin: SupabaseClient,
+  from: string,
+  to: string
+) {
+  const { data, error } = await admin
+    .from('payments')
+    .select(PAYMENT_MOVEMENT_SELECT)
+    .eq('status', 'approved')
+    .gte('paid_at', brazilDateToStartIso(from))
+    .lte('paid_at', brazilDateToEndIso(to))
+    .order('paid_at', { ascending: false });
+
+  if (error) {
+    console.error('[admin] fetchApprovedPaymentsForMovements:', error.message);
     return [];
   }
 
@@ -254,6 +316,66 @@ async function fetchRefundedPayments(
   return data ?? [];
 }
 
+/** Linhas leves para totais/cashflow — sem notes/vendor. */
+async function fetchExpenseAggRows(
+  admin: SupabaseClient,
+  filters: {
+    from: string;
+    to: string;
+    status?: string;
+  }
+): Promise<
+  Array<{
+    amount_cents: number;
+    expense_date: string;
+    paid_at: string | null;
+    status: string;
+    category_id: string;
+    category_name: string;
+  }>
+> {
+  let query = admin
+    .from('financial_expenses')
+    .select(
+      `
+      amount_cents,
+      expense_date,
+      paid_at,
+      status,
+      category_id,
+      financial_expense_categories(name)
+    `
+    )
+    .gte('expense_date', filters.from)
+    .lte('expense_date', filters.to)
+    .order('expense_date', { ascending: false })
+    .limit(5000);
+
+  if (filters.status) {
+    query = query.eq('status', filters.status);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('[admin] fetchExpenseAggRows:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => {
+    const category = Array.isArray(row.financial_expense_categories)
+      ? row.financial_expense_categories[0]
+      : row.financial_expense_categories;
+    return {
+      amount_cents: row.amount_cents as number,
+      expense_date: row.expense_date as string,
+      paid_at: (row.paid_at as string | null) ?? null,
+      status: row.status as string,
+      category_id: row.category_id as string,
+      category_name: (category?.name as string | null) ?? 'Sem categoria',
+    };
+  });
+}
+
 export async function getFinancialSummary(
   admin: SupabaseClient,
   period: AdminFinancialPeriod = '30d'
@@ -261,14 +383,12 @@ export async function getFinancialSummary(
   const { from, to } = getFinancialPeriodBounds(period);
 
   const [payments, refunds, expenses] = await Promise.all([
-    fetchApprovedPayments(admin, from, to),
+    fetchApprovedPaymentsForAggregation(admin, from, to),
     fetchRefundedPayments(admin, from, to),
-    listFinancialExpenses(admin, { from, to, limit: 5000 }),
+    fetchExpenseAggRows(admin, { from, to }),
   ]);
 
-  const revenueCents = sumApprovedPaymentsRevenueCents(
-    payments as ApprovedPaymentRevenueRow[]
-  );
+  const revenueCents = sumApprovedPaymentsRevenueCents(payments);
   const refundCents = refunds.reduce(
     (sum, row) => sum + (row.amount_cents as number),
     0
@@ -287,15 +407,15 @@ export async function getFinancialSummary(
 
   const expensesByCategory: Record<string, { name: string; cents: number; count: number }> = {};
   for (const expense of paidExpenses) {
-    if (!expensesByCategory[expense.categoryId]) {
-      expensesByCategory[expense.categoryId] = {
-        name: expense.categoryName,
+    if (!expensesByCategory[expense.category_id]) {
+      expensesByCategory[expense.category_id] = {
+        name: expense.category_name,
         cents: 0,
         count: 0,
       };
     }
-    expensesByCategory[expense.categoryId].cents += expense.amount_cents;
-    expensesByCategory[expense.categoryId].count += 1;
+    expensesByCategory[expense.category_id].cents += expense.amount_cents;
+    expensesByCategory[expense.category_id].count += 1;
   }
 
   return {
@@ -323,9 +443,9 @@ export async function getCashFlowByMonth(
   const { from, to, monthKeys } = getOperationChartPeriod();
 
   const [payments, refunds, expenses] = await Promise.all([
-    fetchApprovedPayments(admin, from, to),
+    fetchApprovedPaymentsForAggregation(admin, from, to),
     fetchRefundedPayments(admin, from, to),
-    listFinancialExpenses(admin, { from, to, status: 'paid', limit: 5000 }),
+    fetchExpenseAggRows(admin, { from, to, status: 'paid' }),
   ]);
 
   const buckets = new Map<string, { inflow: number; outflow: number }>();
@@ -390,7 +510,7 @@ export async function listFinancialMovements(
   const to = filters.to ?? new Date().toISOString().slice(0, 10);
 
   const [payments, refunds, expenses] = await Promise.all([
-    fetchApprovedPayments(admin, from, to),
+    fetchApprovedPaymentsForMovements(admin, from, to),
     fetchRefundedPayments(admin, from, to),
     listFinancialExpenses(admin, { from, to, limit: 500 }),
   ]);

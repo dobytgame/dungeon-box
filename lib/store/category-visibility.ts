@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { unstable_cache } from 'next/cache';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { STORE_CATALOG_CACHE_TAG } from '@/lib/store/cache-tags';
 import type { StoreProductCategory } from '@/lib/store/catalog';
 
 type CategoryStatusRow = {
@@ -13,12 +16,19 @@ export type StoreCategoryVisibilityContext = {
   slugToId: Map<string, string>;
 };
 
+type SerializableVisibility = {
+  visibleCategoryIds: string[];
+  slugToId: Array<[string, string]>;
+};
+
 const DEFAULT_STORE_CATEGORY_SLUG_BY_PRODUCT_TYPE: Partial<
   Record<StoreProductCategory, string>
 > = {
   'paint-kit': 'kits-pintura',
   'monthly-kit': 'kits-mes',
 };
+
+const VISIBILITY_REVALIDATE_SECONDS = 120;
 
 export type StoreProductCategoryVisibilityRef = {
   storeCategoryId?: string | null;
@@ -82,15 +92,42 @@ async function loadStoreCategoryStatusRows(
   }));
 }
 
-export async function loadStoreCategoryVisibilityContext(
-  admin: SupabaseClient
-): Promise<StoreCategoryVisibilityContext> {
-  const rows = await loadStoreCategoryStatusRows(admin);
-
+function hydrateVisibility(
+  cached: SerializableVisibility
+): StoreCategoryVisibilityContext {
   return {
-    visibleCategoryIds: buildVisibleStoreCategoryIds(rows),
-    slugToId: new Map(rows.map((row) => [row.slug, row.id])),
+    visibleCategoryIds: new Set(cached.visibleCategoryIds),
+    slugToId: new Map(cached.slugToId),
   };
+}
+
+async function fetchSerializableVisibility(): Promise<SerializableVisibility> {
+  const admin = createAdminClient();
+  const rows = await loadStoreCategoryStatusRows(admin);
+  return {
+    visibleCategoryIds: Array.from(buildVisibleStoreCategoryIds(rows)),
+    slugToId: rows.map((row) => [row.slug, row.id]),
+  };
+}
+
+/** Cache curto — invalidado junto com o catálogo da loja. */
+export async function getCachedStoreCategoryVisibilityContext(): Promise<StoreCategoryVisibilityContext> {
+  const cached = await unstable_cache(
+    fetchSerializableVisibility,
+    ['store-category-visibility'],
+    {
+      revalidate: VISIBILITY_REVALIDATE_SECONDS,
+      tags: [STORE_CATALOG_CACHE_TAG],
+    }
+  )();
+
+  return hydrateVisibility(cached);
+}
+
+export async function loadStoreCategoryVisibilityContext(
+  _admin?: SupabaseClient
+): Promise<StoreCategoryVisibilityContext> {
+  return getCachedStoreCategoryVisibilityContext();
 }
 
 export async function loadVisibleStoreCategoryIds(

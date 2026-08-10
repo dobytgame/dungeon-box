@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, ZoomIn } from 'lucide-react';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import {
   STORE_PRODUCT_IMAGE_SIZE,
   storeProductImageClassName,
@@ -96,12 +97,13 @@ export default function ProductGallery({ name, images }: Props) {
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <StoreMediaImage
           src={activeImage}
           alt={name}
           width={STORE_PRODUCT_IMAGE_SIZE}
           height={STORE_PRODUCT_IMAGE_SIZE}
+          sizes="(max-width: 1024px) 100vw, 560px"
+          priority
           className={`${storeProductImageClassName} transition duration-300 group-hover:scale-[1.02]`}
           draggable={false}
         />
@@ -162,12 +164,12 @@ export default function ProductGallery({ name, images }: Props) {
                   aria-label={`Ver imagem ${index + 1}`}
                   aria-current={index === activeIndex}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <StoreMediaImage
                     src={url}
                     alt=""
                     width={STORE_PRODUCT_IMAGE_SIZE}
                     height={STORE_PRODUCT_IMAGE_SIZE}
+                    sizes="80px"
                     className={storeProductThumbClassName}
                     draggable={false}
                   />
@@ -219,12 +221,12 @@ export default function ProductGallery({ name, images }: Props) {
             </>
           ) : null}
 
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <StoreMediaImage
             src={activeImage}
             alt={name}
             width={STORE_PRODUCT_IMAGE_SIZE}
             height={STORE_PRODUCT_IMAGE_SIZE}
+            sizes="90vw"
             className="max-h-[85vh] max-w-[min(100%,85vh)] object-contain"
             draggable={false}
           />

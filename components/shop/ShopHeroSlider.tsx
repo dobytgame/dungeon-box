@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreBanner } from '@/lib/store/banners';
 
 interface Props {
@@ -37,11 +38,13 @@ export default function ShopHeroSlider({ banners }: Props) {
         >
           {banner.imageUrl ? (
             <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <StoreMediaImage
                 src={banner.imageUrl}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                priority={index === 0}
+                sizes="100vw"
+                className="object-cover"
               />
               <div
                 className="absolute inset-0 bg-gradient-to-r from-[#0A0C10] via-[#0A0C10]/80 to-transparent"

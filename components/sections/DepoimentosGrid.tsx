@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Star, ZoomIn } from 'lucide-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 import ImageLightbox from '@/components/ui/ImageLightbox';
+import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { PublicTestimonial } from '@/lib/feedback/public';
 
 const AUTO_ADVANCE_MS = 8000;
@@ -117,12 +118,12 @@ function TestimonialSlide({
                 className="group/photo relative block h-full w-full cursor-zoom-in overflow-hidden text-left"
                 aria-label="Ampliar foto do depoimento"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <StoreMediaImage
                   src={item.imageUrls[0]}
                   alt="Foto enviada pelo assinante"
-                  loading="lazy"
-                  className="h-full w-full object-cover transition duration-300 group-hover/photo:scale-[1.03]"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 420px"
+                  className="object-cover transition duration-300 group-hover/photo:scale-[1.03]"
                 />
                 <div
                   className="pointer-events-none absolute inset-0 bg-gradient-to-t from-stone-950/60 via-stone-950/10 to-transparent"
@@ -146,12 +147,12 @@ function TestimonialSlide({
                       className="relative h-12 w-16 shrink-0 cursor-zoom-in overflow-hidden rounded-sm border border-white/[0.08] bg-stone-900 transition hover:border-ember/30"
                       aria-label={`Ampliar foto adicional ${index + 2}`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <StoreMediaImage
                         src={url}
                         alt={`Foto adicional ${index + 2}`}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
+                        fill
+                        sizes="64px"
+                        className="object-cover"
                       />
                     </button>
                   ))

@@ -382,7 +382,7 @@ export async function listAdminSales(
   admin: SupabaseClient,
   filters: Partial<AdminSalesListFilters> & { limit?: number } = {}
 ): Promise<AdminSaleRow[]> {
-  const limit = filters.limit ?? 5000;
+  const limit = filters.limit ?? 1000;
   let query = admin
     .from('payments')
     .select(
@@ -520,7 +520,7 @@ export async function getAdminSalesSummary(
     .eq('status', 'approved')
     .order('paid_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .limit(1000);
 
   const summary: Record<AdminSaleType, { count: number; revenueCents: number }> = {
     assinatura: { count: 0, revenueCents: 0 },
