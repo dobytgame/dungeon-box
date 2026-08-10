@@ -25,9 +25,32 @@ function paymentTimestamp(row: PaymentRow): string {
   return row.paid_at ?? row.created_at ?? '';
 }
 
+/**
+ * Chave de mês para dedupe de fantasmas.
+ * Se paid_at estiver muito deslocado do created_at (ex.: cobrança de junho
+ * confirmada/importada em julho), usa created_at para não colapsar meses distintos.
+ */
 function paymentMonthKey(row: PaymentRow): string | null {
-  const timestamp = paymentTimestamp(row);
-  if (!row.subscription_id || !timestamp) return null;
+  if (!row.subscription_id) return null;
+
+  const paidAt = row.paid_at ? new Date(row.paid_at) : null;
+  const createdAt = row.created_at ? new Date(row.created_at) : null;
+  let timestamp = row.paid_at ?? row.created_at;
+
+  if (
+    paidAt &&
+    createdAt &&
+    !Number.isNaN(paidAt.getTime()) &&
+    !Number.isNaN(createdAt.getTime())
+  ) {
+    const diffDays =
+      Math.abs(paidAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays > 20) {
+      timestamp = row.created_at;
+    }
+  }
+
+  if (!timestamp) return null;
   return `${row.subscription_id}:${timestamp.slice(0, 7)}`;
 }
 
