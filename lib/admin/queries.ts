@@ -1099,7 +1099,8 @@ async function loadAdminProductionCycleRows(
   mapped: AdminCycleRow[];
   rawRows: Record<string, unknown>[];
 }> {
-  // Delivered antigos incham o payload; manter só os últimos meses no board.
+  // Delivered antigos incham o payload; cortamos em memória (sem .or() no PostgREST,
+  // que quebrava o board ao falhar o filtro aninhado).
   const deliveredCutoff = new Date();
   deliveredCutoff.setMonth(deliveredCutoff.getMonth() - 4);
   const deliveredMonthFrom = monthKeyFromDate(deliveredCutoff);
@@ -1107,9 +1108,7 @@ async function loadAdminProductionCycleRows(
   const { data, error } = await admin
     .from('subscription_cycles')
     .select(ADMIN_CYCLE_LIST_SELECT)
-    .or(
-      `status.in.(upcoming,production,preparing,shipped),and(status.eq.delivered,scheduled_production_month.gte.${deliveredMonthFrom})`
-    )
+    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered'])
     .order('scheduled_production_month', { ascending: true, nullsFirst: false })
     .order('paid_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });
@@ -1119,7 +1118,17 @@ async function loadAdminProductionCycleRows(
     return { mapped: [], rawRows: [] };
   }
 
-  const rawRows = (data ?? []) as Record<string, unknown>[];
+  const rawRows = ((data ?? []) as Record<string, unknown>[]).filter((row) => {
+    if ((row.status as string) !== 'delivered') return true;
+
+    const scheduledMonth = row.scheduled_production_month as string | null;
+    if (scheduledMonth) return scheduledMonth >= deliveredMonthFrom;
+
+    const anchor = (row.paid_at as string | null) ?? (row.created_at as string | null);
+    if (!anchor) return true;
+    return monthKeyFromDate(new Date(anchor)) >= deliveredMonthFrom;
+  });
+
   return { mapped: rawRows.map((row) => mapCycleRow(row)), rawRows };
 }
 
