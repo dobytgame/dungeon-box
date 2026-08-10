@@ -92,6 +92,16 @@ export async function getLatestSubscription(
   return pickPrimarySubscription(subscriptions);
 }
 
+/** Renovação mensal ainda sem pagamento — card vazio com "—" no dashboard. */
+function isVisibleDashboardCycle(
+  cycle: SubscriptionCycle,
+  billingTerm: string | null | undefined
+): boolean {
+  if (billingTerm !== 'monthly') return true;
+  if (cycle.cycle_number <= 1) return true;
+  return Boolean(cycle.payment_id || cycle.paid_at);
+}
+
 export async function getSubscriptionWithCycles(
   userId: string
 ): Promise<Subscription | null> {
@@ -111,7 +121,9 @@ export async function getSubscriptionWithCycles(
 
   return {
     ...primary,
-    subscription_cycles: (cycles ?? []) as SubscriptionCycle[],
+    subscription_cycles: ((cycles ?? []) as SubscriptionCycle[]).filter((cycle) =>
+      isVisibleDashboardCycle(cycle, primary.billing_term)
+    ),
   };
 }
 
@@ -193,19 +205,25 @@ export async function getCycles(userId: string): Promise<SubscriptionCycle[]> {
   const supabase = createClient();
   const { data: subs } = await supabase
     .from('subscriptions')
-    .select('id')
+    .select('id, billing_term')
     .eq('user_id', userId);
 
   if (!subs?.length) return [];
 
   const ids = subs.map((s) => s.id);
+  const billingBySub = new Map(
+    subs.map((s) => [s.id as string, s.billing_term as string | null])
+  );
+
   const { data } = await supabase
     .from('subscription_cycles')
     .select(`*, themes(*)`)
     .in('subscription_id', ids)
     .order('cycle_number', { ascending: false });
 
-  return (data ?? []) as SubscriptionCycle[];
+  return ((data ?? []) as SubscriptionCycle[]).filter((cycle) =>
+    isVisibleDashboardCycle(cycle, billingBySub.get(cycle.subscription_id))
+  );
 }
 
 export async function getPayments(userId: string): Promise<Payment[]> {
