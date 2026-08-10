@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/auth';
-import { uploadStoreMediaFile } from '@/lib/admin/store-upload';
+import { uploadStoreMediaFile } from '@/lib/admin/store-media-optimize';
 
 export async function POST(request: Request) {
   try {

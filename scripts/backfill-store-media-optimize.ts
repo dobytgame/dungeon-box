@@ -18,9 +18,9 @@ import {
   STORE_MEDIA_CACHE_CONTROL,
   STORE_MEDIA_MAX_EDGE_PX,
   getStoreMediaPublicUrl,
-  optimizeStoreMediaBytes,
   parseStoreMediaObjectPath,
 } from '../lib/admin/store-upload';
+import { optimizeStoreMediaBytes } from '../lib/admin/store-media-optimize';
 import {
   parseStoreProductVariations,
   type StoreProductVariation,
