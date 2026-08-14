@@ -151,7 +151,7 @@ export async function handlePagarmeComboPaymentConfirmed(
     );
   }
 
-  if (local.status !== 'pending') {
+  if (local.status !== 'pending' && local.status !== 'active' && local.status !== 'past_due') {
     return 'skipped';
   }
 
@@ -165,6 +165,7 @@ export async function handlePagarmeComboPaymentConfirmed(
       : Math.max(0, input.amountCents ?? 0);
   const installments = local.combo_installments ?? 1;
   const now = new Date().toISOString();
+  const wasPending = local.status === 'pending';
 
   const paymentPayload = {
     user_id: local.user_id,
@@ -204,54 +205,63 @@ export async function handlePagarmeComboPaymentConfirmed(
     paymentRow = data;
   }
 
-  const activated = await activateSubscriptionFromPagarme(supabase, local.id);
-  if (!activated) {
-    console.error(
-      '[pagarme] combo payment confirmed but activation failed:',
-      local.id
-    );
-    return 'skipped';
+  if (wasPending) {
+    const activated = await activateSubscriptionFromPagarme(supabase, local.id);
+    if (!activated) {
+      console.error(
+        '[pagarme] combo payment confirmed but activation failed:',
+        local.id
+      );
+      return 'skipped';
+    }
   }
 
   if (paymentRow) {
+    const { count: existingCycles } = await supabase
+      .from('subscription_cycles')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_id', local.id);
+
     await seedPrepaidComboProductionSchedule(supabase, {
       subscriptionId: local.id,
-      billingTerm:
-        (local.billing_term as 'combo_3' | 'combo_6' | 'combo_12') ?? 'combo_3',
+      billingTerm: (local.billing_term as BillingTerm) ?? 'combo_3',
       paymentLink: {
         id: paymentRow.id,
         amount_cents: paymentRow.amount_cents,
         paid_at: now,
       },
       anchorDate: new Date(now),
+      resyncOnly: (existingCycles ?? 0) > 0,
     });
   }
 
-  void notifyPurchaseCompleted(
-    supabase,
-    local.id,
-    paymentRow?.amount_cents ?? amountCents,
-    1
-  ).catch((err) => {
-    console.error('[email] pagarme combo purchase notify failed:', err);
-  });
+  if (wasPending) {
+    void notifyPurchaseCompleted(
+      supabase,
+      local.id,
+      paymentRow?.amount_cents ?? amountCents,
+      1
+    ).catch((err) => {
+      console.error('[email] pagarme combo purchase notify failed:', err);
+    });
 
-  void notifyReferrerOnReferralConverted(supabase, local.id).catch((err) => {
-    console.error('[email] referral converted notify failed:', err);
-  });
+    void notifyReferrerOnReferralConverted(supabase, local.id).catch((err) => {
+      console.error('[email] referral converted notify failed:', err);
+    });
 
-  void notifyAdminSubscriptionEvent(supabase, {
-    type: 'subscription_activated',
-    subscriptionId: local.id,
-    userId: local.user_id,
-    paymentId: paymentRow?.id ?? null,
-    amountCents,
-    paymentMethod: 'credit_card',
-    gateway: 'pagarme',
-    cycleNumber: 1,
-  }).catch((err) => {
-    console.error('[admin] pagarme combo activated notify failed:', err);
-  });
+    void notifyAdminSubscriptionEvent(supabase, {
+      type: 'subscription_activated',
+      subscriptionId: local.id,
+      userId: local.user_id,
+      paymentId: paymentRow?.id ?? null,
+      amountCents,
+      paymentMethod: 'credit_card',
+      gateway: 'pagarme',
+      cycleNumber: 1,
+    }).catch((err) => {
+      console.error('[admin] pagarme combo activated notify failed:', err);
+    });
+  }
 
   return 'processed';
 }

@@ -10,11 +10,13 @@
     "backfill:store-media": "tsx scripts/backfill-store-media-optimize.ts"
   },
   "dependencies": {
+    "@googlemaps/markerclusterer": "^2.6.2",
     "@react-email/render": "^1.4.0",
     "@stripe/react-stripe-js": "^6.6.0",
     "@stripe/stripe-js": "^9.7.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
+    "@vis.gl/react-google-maps": "^1.9.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.469.0",
     "mercadopago": "^3.1.0",
@@ -31,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.65.5",
     "@types/node": "^20.17.14",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.18",

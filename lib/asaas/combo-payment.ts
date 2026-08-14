@@ -5,6 +5,7 @@ import {
 } from '@/lib/asaas/installment-payments';
 import { listAsaasCustomerPayments } from '@/lib/asaas/store-order-payment';
 import type { AsaasWebhookPayment } from '@/lib/asaas/webhook-handlers';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import { activateSubscriptionFromAsaas } from '@/lib/subscriptions/activate-asaas';
 import { handleComboUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-upgrade';
 import { handleComboTierUpgradePaymentConfirmed } from '@/lib/subscriptions/combo-tier-upgrade';
@@ -134,7 +135,15 @@ export async function handleComboPaymentConfirmed(
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (!local || local.status !== 'pending') {
+  if (!local) return 'skipped';
+  if (
+    local.status !== 'pending' &&
+    local.status !== 'active' &&
+    local.status !== 'past_due'
+  ) {
+    return 'skipped';
+  }
+  if (!isComboTerm((local.billing_term as BillingTerm | null) ?? 'monthly')) {
     return 'skipped';
   }
 
@@ -145,6 +154,15 @@ export async function handleComboPaymentConfirmed(
       : asaasAmountCents;
   const installments = local.combo_installments ?? 1;
   const now = new Date().toISOString();
+  const wasPending = local.status === 'pending';
+
+  const { data: existingPayment } = await supabase
+    .from('payments')
+    .select('id, paid_at')
+    .eq('asaas_payment_id', payment.id)
+    .maybeSingle();
+
+  const paidAt = (existingPayment?.paid_at as string | null) ?? now;
 
   const { data: paymentRow } = await supabase
     .from('payments')
@@ -156,7 +174,7 @@ export async function handleComboPaymentConfirmed(
         amount_cents: amountCents,
         currency: 'BRL',
         status: 'approved',
-        paid_at: now,
+        paid_at: paidAt,
         installments,
         status_detail: JSON.stringify({
           type: 'combo_prepaid',
@@ -167,40 +185,50 @@ export async function handleComboPaymentConfirmed(
       },
       { onConflict: 'asaas_payment_id' }
     )
-    .select('id, amount_cents')
+    .select('id, amount_cents, paid_at')
     .single();
 
-  const activated = await activateSubscriptionFromAsaas(supabase, local.id);
-  if (!activated) {
-    console.error('[asaas] combo payment confirmed but activation failed:', local.id);
-    return 'skipped';
+  if (wasPending) {
+    const activated = await activateSubscriptionFromAsaas(supabase, local.id);
+    if (!activated) {
+      console.error('[asaas] combo payment confirmed but activation failed:', local.id);
+      return 'skipped';
+    }
   }
 
   if (paymentRow) {
+    const { count: existingCycles } = await supabase
+      .from('subscription_cycles')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_id', local.id);
+
     await seedPrepaidComboProductionSchedule(supabase, {
       subscriptionId: local.id,
-      billingTerm: (local.billing_term as 'combo_3' | 'combo_6' | 'combo_12') ?? 'combo_3',
+      billingTerm: (local.billing_term as BillingTerm) ?? 'combo_3',
       paymentLink: {
         id: paymentRow.id,
         amount_cents: paymentRow.amount_cents,
-        paid_at: now,
+        paid_at: (paymentRow.paid_at as string | null) ?? paidAt,
       },
-      anchorDate: new Date(now),
+      anchorDate: new Date((paymentRow.paid_at as string | null) ?? paidAt),
+      resyncOnly: (existingCycles ?? 0) > 0,
     });
   }
 
-  void notifyPurchaseCompleted(
-    supabase,
-    local.id,
-    paymentRow?.amount_cents ?? amountCents,
-    1
-  ).catch((err) => {
-    console.error('[email] combo purchase notify failed:', err);
-  });
+  if (wasPending) {
+    void notifyPurchaseCompleted(
+      supabase,
+      local.id,
+      paymentRow?.amount_cents ?? amountCents,
+      1
+    ).catch((err) => {
+      console.error('[email] combo purchase notify failed:', err);
+    });
 
-  void notifyReferrerOnReferralConverted(supabase, local.id).catch((err) => {
-    console.error('[email] referral converted notify failed:', err);
-  });
+    void notifyReferrerOnReferralConverted(supabase, local.id).catch((err) => {
+      console.error('[email] referral converted notify failed:', err);
+    });
+  }
 
   return 'processed';
 }

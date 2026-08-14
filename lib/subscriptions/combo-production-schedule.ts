@@ -6,8 +6,7 @@ import {
   prepaidMonthsForTerm,
   type BillingTerm,
 } from '@/lib/checkout/combo-billing';
-import { isComboPrepaidPayment } from '@/lib/payments/effective-amount';
-import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
+import { findComboSchedulePayment } from '@/lib/payments/combo-payment-queries';
 import {
   ensureSubscriptionCycle,
   markCyclePreparing,
@@ -52,13 +51,32 @@ export function scheduledProductionMonthForComboCycle(
   return `${year}-${month}-01`;
 }
 
+function comboCyclePaymentPatch(
+  existing: {
+    payment_id?: string | null;
+    paid_at?: string | null;
+  } | null,
+  paymentLink: CyclePaymentLink | null | undefined,
+  options: { includePaidAt: boolean }
+): Record<string, unknown> {
+  if (!paymentLink?.id) return {};
+  if (existing?.payment_id) return {};
+
+  const patch: Record<string, unknown> = { payment_id: paymentLink.id };
+  if (options.includePaidAt && !existing?.paid_at && paymentLink.paid_at) {
+    patch.paid_at = paymentLink.paid_at;
+    patch.amount_cents = paymentLink.amount_cents;
+  }
+  return patch;
+}
+
 async function upsertScheduledComboCycle(
   supabase: SupabaseClient,
   input: {
     subscriptionId: string;
     cycleNumber: number;
     scheduledMonth: string;
-    paymentLink: CyclePaymentLink;
+    paymentLink?: CyclePaymentLink | null;
     activateNow: boolean;
     resyncOnly?: boolean;
   }
@@ -67,10 +85,16 @@ async function upsertScheduledComboCycle(
 
   const { data: existing } = await supabase
     .from('subscription_cycles')
-    .select('status')
+    .select('status, payment_id, paid_at')
     .eq('subscription_id', input.subscriptionId)
     .eq('cycle_number', input.cycleNumber)
     .maybeSingle();
+
+  const now = new Date().toISOString();
+  const monthPatch = {
+    scheduled_production_month: input.scheduledMonth,
+    updated_at: now,
+  };
 
   const lockedStatus = existing?.status as string | undefined;
   if (
@@ -82,8 +106,10 @@ async function upsertScheduledComboCycle(
     const { error } = await supabase
       .from('subscription_cycles')
       .update({
-        scheduled_production_month: input.scheduledMonth,
-        updated_at: new Date().toISOString(),
+        ...monthPatch,
+        ...comboCyclePaymentPatch(existing, input.paymentLink, {
+          includePaidAt: input.activateNow,
+        }),
       })
       .eq('subscription_id', input.subscriptionId)
       .eq('cycle_number', input.cycleNumber);
@@ -94,7 +120,7 @@ async function upsertScheduledComboCycle(
     return;
   }
 
-  if (input.activateNow && !input.resyncOnly) {
+  if (input.activateNow && !input.resyncOnly && input.paymentLink) {
     await markCyclePreparing(
       supabase,
       input.subscriptionId,
@@ -103,10 +129,7 @@ async function upsertScheduledComboCycle(
     );
     const { error } = await supabase
       .from('subscription_cycles')
-      .update({
-        scheduled_production_month: input.scheduledMonth,
-        updated_at: new Date().toISOString(),
-      })
+      .update(monthPatch)
       .eq('subscription_id', input.subscriptionId)
       .eq('cycle_number', input.cycleNumber);
 
@@ -116,12 +139,14 @@ async function upsertScheduledComboCycle(
     return;
   }
 
-  if (input.activateNow && input.resyncOnly) {
+  if (input.activateNow) {
     const { error } = await supabase
       .from('subscription_cycles')
       .update({
-        scheduled_production_month: input.scheduledMonth,
-        updated_at: new Date().toISOString(),
+        ...monthPatch,
+        ...comboCyclePaymentPatch(existing, input.paymentLink, {
+          includePaidAt: true,
+        }),
       })
       .eq('subscription_id', input.subscriptionId)
       .eq('cycle_number', input.cycleNumber);
@@ -132,16 +157,16 @@ async function upsertScheduledComboCycle(
     return;
   }
 
+  const futurePatch: Record<string, unknown> = { ...monthPatch, status: 'upcoming' };
+  if (input.paymentLink?.id) {
+    futurePatch.payment_id = input.paymentLink.id;
+    futurePatch.paid_at = null;
+    futurePatch.amount_cents = null;
+  }
+
   const { error } = await supabase
     .from('subscription_cycles')
-    .update({
-      scheduled_production_month: input.scheduledMonth,
-      payment_id: input.paymentLink.id,
-      status: 'upcoming',
-      paid_at: null,
-      amount_cents: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(futurePatch)
     .eq('subscription_id', input.subscriptionId)
     .eq('cycle_number', input.cycleNumber);
 
@@ -156,7 +181,7 @@ export async function seedPrepaidComboProductionSchedule(
   input: {
     subscriptionId: string;
     billingTerm: BillingTerm;
-    paymentLink: CyclePaymentLink;
+    paymentLink?: CyclePaymentLink | null;
     anchorDate?: Date;
     resyncOnly?: boolean;
     /** Primeiro ciclo do combo (padrão 1; em upgrade mensal→combo use current_cycle + 1). */
@@ -171,7 +196,7 @@ export async function seedPrepaidComboProductionSchedule(
   const startCycle = Math.max(1, input.startCycleNumber ?? 1);
   const anchor = input.anchorDate
     ? comboProductionAnchorFromPayment(input.anchorDate)
-    : input.paymentLink.paid_at
+    : input.paymentLink?.paid_at
       ? comboProductionAnchorFromPayment(input.paymentLink.paid_at)
       : comboProductionAnchorFromPayment(new Date());
 
@@ -192,6 +217,30 @@ export async function seedPrepaidComboProductionSchedule(
   }
 
   return totalMonths;
+}
+
+async function resolveComboScheduleAnchorDate(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  paymentPaidAt: string | null | undefined,
+  startedAt: string | null | undefined
+): Promise<Date> {
+  if (paymentPaidAt) return new Date(paymentPaidAt);
+  if (startedAt) return new Date(startedAt);
+
+  const { data: cycle1 } = await supabase
+    .from('subscription_cycles')
+    .select('paid_at, created_at')
+    .eq('subscription_id', subscriptionId)
+    .eq('cycle_number', 1)
+    .maybeSingle();
+
+  const cycleAnchor =
+    (cycle1?.paid_at as string | null) ??
+    (cycle1?.created_at as string | null);
+  if (cycleAnchor) return new Date(cycleAnchor);
+
+  return new Date();
 }
 
 /** Garante ciclos futuros e corrige meses de produção de combos existentes. */
@@ -218,31 +267,32 @@ export async function backfillPrepaidComboProductionSchedules(
     const totalMonths = prepaidMonthsForTerm(billingTerm);
     if (!totalMonths) continue;
 
-    const comboPayment = await findCanonicalComboPrepaidPayment(
+    const comboPayment = await findComboSchedulePayment(
       supabase,
       subscription.id as string
     );
 
-    if (!comboPayment || !isComboPrepaidPayment(comboPayment.status_detail as string)) {
-      continue;
-    }
-
-    const paymentLink: CyclePaymentLink = {
-      id: comboPayment.id as string,
-      amount_cents: comboPayment.amount_cents as number,
-      paid_at: (comboPayment.paid_at as string | null) ?? null,
-    };
-
-    const anchor = paymentLink.paid_at
-      ? new Date(paymentLink.paid_at)
-      : subscription.started_at
-        ? new Date(subscription.started_at as string)
-        : new Date();
+    const paymentLink: CyclePaymentLink | null = comboPayment
+      ? {
+          id: comboPayment.id as string,
+          amount_cents: (comboPayment.amount_cents as number | null) ?? null,
+          paid_at: (comboPayment.paid_at as string | null) ?? null,
+        }
+      : null;
 
     const { count: beforeCount } = await supabase
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
       .eq('subscription_id', subscription.id as string);
+
+    if (!paymentLink && (beforeCount ?? 0) === 0) continue;
+
+    const anchor = await resolveComboScheduleAnchorDate(
+      supabase,
+      subscription.id as string,
+      paymentLink?.paid_at,
+      subscription.started_at as string | null
+    );
 
     await seedPrepaidComboProductionSchedule(supabase, {
       subscriptionId: subscription.id as string,

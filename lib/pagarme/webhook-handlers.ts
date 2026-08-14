@@ -368,6 +368,12 @@ export async function handlePagarmeSubscriptionActive(
       local.id,
       subscription.next_billing_at ?? null
     );
+    if (activated) {
+      const { importPaidInvoicesForPagarmeSubscription } = await import(
+        '@/lib/pagarme/import-charges'
+      );
+      await importPaidInvoicesForPagarmeSubscription(supabase, subscription.id);
+    }
     return activated ? 'processed' : 'skipped';
   }
 
@@ -380,6 +386,11 @@ export async function handlePagarmeSubscriptionActive(
       })
       .eq('id', local.id);
   }
+
+  const { importPaidInvoicesForPagarmeSubscription } = await import(
+    '@/lib/pagarme/import-charges'
+  );
+  await importPaidInvoicesForPagarmeSubscription(supabase, subscription.id);
 
   return 'processed';
 }

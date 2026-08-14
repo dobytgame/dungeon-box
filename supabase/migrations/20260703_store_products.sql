@@ -51,8 +51,7 @@ INSERT INTO store_products (
     0,
     ARRAY[
       '3 tintas acrílicas base (cinza, marrom, preto)',
-      '2 pincéis essenciais',
-      'Guia PDF de pintura para iniciantes'
+      '2 pincéis essenciais'
     ],
     'amador',
     1,
@@ -66,9 +65,7 @@ INSERT INTO store_products (
     9999,
     0,
     ARRAY[
-      '8 tintas + washes e efeitos',
-      '5 pincéis de detalhe profissional',
-      'Paleta, diluente e guia avançado'
+      '5 pincéis de detalhe profissional'
     ],
     'profissional',
     2,

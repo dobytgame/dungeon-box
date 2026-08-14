@@ -70,3 +70,54 @@ export async function importMissingPagarmeCharges(
 
   return { imported, skipped, chargeIds };
 }
+
+export async function importPaidInvoicesForPagarmeSubscription(
+  supabase: SupabaseClient,
+  pagarmeSubscriptionId: string
+): Promise<{ imported: number; skipped: number; chargeIds: string[] }> {
+  const response = await pagarmeRequest<{
+    data?: Array<{
+      id?: string;
+      status?: string;
+      charge?: PagarmeWebhookCharge | null;
+    }>;
+  }>(
+    `/invoices?subscription_id=${encodeURIComponent(pagarmeSubscriptionId)}&size=20&page=1`
+  );
+
+  let imported = 0;
+  let skipped = 0;
+  const chargeIds: string[] = [];
+
+  for (const invoice of response.data ?? []) {
+    const charge = invoice.charge;
+    if (!charge?.id || !isPagarmeChargePaid(charge.status)) {
+      skipped += 1;
+      continue;
+    }
+
+    const { data: existing } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('pagarme_charge_id', charge.id)
+      .maybeSingle();
+
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    const result = await handlePagarmeChargePaid(supabase, {
+      ...charge,
+      subscription_id: pagarmeSubscriptionId,
+    });
+    if (result === 'processed') {
+      imported += 1;
+      chargeIds.push(charge.id);
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return { imported, skipped, chargeIds };
+}

@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createAdminClient } from '../lib/supabase/admin';
-import { repairMonthlyProductionMonthsAndLoyalty } from '../lib/subscriptions/monthly-production-schedule';
+import { backfillPrepaidComboProductionSchedules } from '../lib/subscriptions/combo-production-schedule';
+import { pinMissingScheduledProductionMonths } from '../lib/subscriptions/ensure-kanban-cycles';
 
 function loadEnvFile(path: string) {
   if (!existsSync(path)) return;
@@ -27,8 +28,9 @@ loadEnvFile(resolve(process.cwd(), '.env'));
 
 async function main() {
   const admin = createAdminClient();
-  const result = await repairMonthlyProductionMonthsAndLoyalty(admin);
-  console.log(JSON.stringify(result, null, 2));
+  const comboBackfill = await backfillPrepaidComboProductionSchedules(admin);
+  const kitMonthsPinned = await pinMissingScheduledProductionMonths(admin);
+  console.log(JSON.stringify({ comboBackfill, kitMonthsPinned }, null, 2));
 }
 
 main().catch((error) => {

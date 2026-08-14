@@ -8,10 +8,12 @@ import AdminMarketingNav from './AdminMarketingNav';
 import AdminFinanceNav from './AdminFinanceNav';
 import AdminPageIntro from './AdminPageIntro';
 import AdminSidebar from './AdminSidebar';
+import AdminSalesNav from './AdminSalesNav';
 import AdminStoreNav from './AdminStoreNav';
 import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
 import { isAdminFinanceSection } from '@/lib/admin/finance-nav';
 import { isAdminMarketingSection } from '@/lib/admin/marketing-nav';
+import { isAdminSalesSection } from '@/lib/admin/sales-nav';
 import { isAdminStoreSection } from '@/lib/admin/store-nav';
 
 interface Props {
@@ -27,6 +29,10 @@ function resolveAdminNavItem(pathname: string) {
       for (const child of item.children) {
         if (child.href === '/admin/financeiro') {
           if (pathname === '/admin/financeiro') return item;
+          continue;
+        }
+        if (child.href === '/admin/vendas') {
+          if (pathname === '/admin/vendas') return item;
           continue;
         }
         if (pathname === child.href || pathname.startsWith(`${child.href}/`)) {
@@ -75,6 +81,12 @@ export default function AdminShell({
             <div className="mt-6 lg:hidden">
               <AdminNav />
             </div>
+
+            {isAdminSalesSection(pathname) ? (
+              <div className="mt-6">
+                <AdminSalesNav />
+              </div>
+            ) : null}
 
             {isAdminStoreSection(pathname) ? (
               <div className="mt-6">

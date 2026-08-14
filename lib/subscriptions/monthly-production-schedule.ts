@@ -18,6 +18,13 @@ const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
   'shipped',
 ]);
 
+const PROTECTED_CYCLE_STATUSES = new Set([
+  'production',
+  'preparing',
+  'shipped',
+  'delivered',
+]);
+
 type CycleMonthRow = {
   cycle_number: number;
   status: string;
@@ -411,6 +418,33 @@ export async function repairMonthlyProductionForSubscription(
       .eq('cycle_number', cycleNumber)
       .maybeSingle();
 
+    if (existing && PROTECTED_CYCLE_STATUSES.has(existing.status as string)) {
+      if (!existing.scheduled_production_month) {
+        const { error: pinError } = await supabase
+          .from('subscription_cycles')
+          .update({
+            scheduled_production_month: scheduledProductionMonth,
+            updated_at: now,
+          })
+          .eq('subscription_id', subscriptionId)
+          .eq('cycle_number', cycleNumber);
+
+        if (!pinError) {
+          monthsFixed += 1;
+          const localIndex = cycles.findIndex(
+            (cycle) => cycle.cycle_number === cycleNumber
+          );
+          if (localIndex >= 0) {
+            cycles[localIndex] = {
+              ...cycles[localIndex]!,
+              scheduled_production_month: scheduledProductionMonth,
+            };
+          }
+        }
+      }
+      continue;
+    }
+
     const needsUpdate =
       existing?.payment_id !== payment.id ||
       existing?.scheduled_production_month !== scheduledProductionMonth;
@@ -494,6 +528,8 @@ export async function repairMonthlyProductionForSubscription(
 
   for (const stray of strayCycles ?? []) {
     const cycleNumber = stray.cycle_number as number;
+    if (PROTECTED_CYCLE_STATUSES.has(stray.status as string)) continue;
+
     const isEmptyUpcoming =
       stray.status === 'upcoming' &&
       !stray.payment_id &&

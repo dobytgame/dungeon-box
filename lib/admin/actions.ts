@@ -35,7 +35,11 @@ import {
 } from '@/lib/subscriptions/cycles';
 import { reconcileProductionDataCases } from '@/lib/admin/reconcile-production-cases';
 import { repairMonthlyProductionForSubscription } from '@/lib/subscriptions/monthly-production-schedule';
-import { backfillPrepaidComboProductionSchedules } from '@/lib/subscriptions/combo-production-schedule';
+import {
+  backfillPrepaidComboProductionSchedules,
+  seedPrepaidComboProductionSchedule,
+} from '@/lib/subscriptions/combo-production-schedule';
+import { findComboSchedulePayment } from '@/lib/payments/combo-payment-queries';
 import {
   syncPendingBundledStoreOrders,
   syncStoreOrdersFromAsaasForSubscriptions,
@@ -86,6 +90,7 @@ import {
 import { createAdminSubscriptionWithPix } from '@/lib/admin/admin-subscription-pix';
 import {
   BILLING_TERMS,
+  isComboTerm,
   type BillingTerm,
 } from '@/lib/checkout/combo-billing';
 
@@ -675,8 +680,53 @@ export async function repairSubscriptionCyclesAction(subscriptionId: string) {
   }
 
   if (productionRepair.skipped === 'combo') {
+    const billingTerm = (subscription.billing_term as BillingTerm | null) ?? 'monthly';
+    if (!isComboTerm(billingTerm)) {
+      return { error: 'Reparo automático não se aplica a este tipo de cobrança.' };
+    }
+
+    const comboPayment = await findComboSchedulePayment(admin, subscriptionId);
+    const { count: existingCycles } = await admin
+      .from('subscription_cycles')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_id', subscriptionId);
+
+    const comboCycles = await seedPrepaidComboProductionSchedule(admin, {
+      subscriptionId,
+      billingTerm,
+      paymentLink: comboPayment
+        ? {
+            id: comboPayment.id,
+            amount_cents: comboPayment.amount_cents ?? null,
+            paid_at: comboPayment.paid_at ?? null,
+          }
+        : null,
+      anchorDate: comboPayment?.paid_at
+        ? new Date(comboPayment.paid_at)
+        : undefined,
+      resyncOnly: (existingCycles ?? 0) > 0,
+    });
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.repair_cycles',
+      entityType: 'subscription',
+      entityId: subscriptionId,
+      metadata: { combo: true, comboCycles },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidateCycleBoard();
+    revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+
     return {
-      error: 'Reparo automático de ciclos mensais não se aplica a combos pré-pagos.',
+      success: true as const,
+      monthsFixed: comboCycles,
+      loyaltyFixed: 0,
+      renewalCyclesAttached: Math.max(0, comboCycles - 1),
+      spuriousCyclesCleared: 0,
+      paidAtRestored: 0,
     };
   }
 

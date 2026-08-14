@@ -25,6 +25,7 @@ import type { LucideIcon } from 'lucide-react';
 import { ADMIN_NAV, ADMIN_NAV_GROUPS } from '@/lib/admin/constants';
 import { isAdminFinanceNavActive, isAdminFinanceSection } from '@/lib/admin/finance-nav';
 import { isAdminMarketingNavActive } from '@/lib/admin/marketing-nav';
+import { isAdminSalesNavActive, isAdminSalesSection } from '@/lib/admin/sales-nav';
 import { isAdminStoreNavActive, isAdminStoreSection } from '@/lib/admin/store-nav';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
@@ -49,6 +50,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
 function isActive(pathname: string, href: string) {
   if (href === '/admin') return pathname === '/admin';
   if (href === '/admin/financeiro') return isAdminFinanceSection(pathname);
+  if (href === '/admin/vendas') return isAdminSalesSection(pathname);
   if (href === '/admin/loja') return isAdminStoreSection(pathname);
   return pathname.startsWith(href);
 }
@@ -63,6 +65,9 @@ function isChildActive(
   }
   if (parentHref === '/admin/financeiro') {
     return isAdminFinanceNavActive(pathname, childHref);
+  }
+  if (parentHref === '/admin/vendas') {
+    return isAdminSalesNavActive(pathname, childHref);
   }
   if (parentHref === '/admin/loja') {
     return isAdminStoreNavActive(pathname, childHref);

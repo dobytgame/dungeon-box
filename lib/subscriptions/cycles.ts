@@ -302,6 +302,22 @@ export async function processActiveSubscriptionPayment(
   const billingTerm = (subscription?.billing_term as BillingTerm | null) ?? 'monthly';
 
   if (isComboTerm(billingTerm)) {
+    const { count: existingCycles } = await supabase
+      .from('subscription_cycles')
+      .select('id', { count: 'exact', head: true })
+      .eq('subscription_id', subscriptionId);
+
+    const { seedPrepaidComboProductionSchedule } = await import(
+      '@/lib/subscriptions/combo-production-schedule'
+    );
+    await seedPrepaidComboProductionSchedule(supabase, {
+      subscriptionId,
+      billingTerm,
+      paymentLink: payment,
+      anchorDate: payment.paid_at ? new Date(payment.paid_at) : new Date(),
+      resyncOnly: (existingCycles ?? 0) > 0,
+    });
+
     const paidCycleNumber = resolvePaidCycleNumber(currentCycle);
     const approvedPayments = approvedCount;
     await supabase

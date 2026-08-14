@@ -8,7 +8,6 @@ export const PAINT_KIT_BUMPS = [
     includes: [
       '3 tintas acrílicas base (cinza, marrom, preto)',
       '2 pincéis essenciais',
-      'Guia PDF de pintura para iniciantes',
     ],
   },
   {
@@ -17,11 +16,7 @@ export const PAINT_KIT_BUMPS = [
     priceCents: 9999,
     priceLabel: 'R$ 99,99',
     tagline: 'Acabamento de mesa com qualidade de loja',
-    includes: [
-      '8 tintas + washes e efeitos',
-      '5 pincéis de detalhe profissional',
-      'Paleta, diluente e guia avançado',
-    ],
+    includes: ['5 pincéis de detalhe profissional'],
     featured: true,
   },
 ] as const;

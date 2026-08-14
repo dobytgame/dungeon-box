@@ -8,6 +8,7 @@ import { annotateComboInstallmentSlicePayments, dedupeComboPrepaidPayments } fro
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
 import { repairAsaasPaymentIncoherencies } from '@/lib/payments/repair-asaas-incoherencies';
 import { backfillMissingCyclePaymentLinks } from '@/lib/subscriptions/cycles';
+import { ensurePaidSubscriptionsHaveKanbanCycles } from '@/lib/subscriptions/ensure-kanban-cycles';
 import { repairMonthlyProductionMonthsAndLoyalty } from '@/lib/subscriptions/monthly-production-schedule';
 import type { CycleStatus } from '@/lib/dashboard/types';
 
@@ -32,6 +33,9 @@ export type ProductionReconcileResult = {
   monthlyLoyaltyFixed: number;
   monthlyRenewalCyclesAttached: number;
   monthlySpuriousCyclesCleared: number;
+  comboSubscriptionsScheduled: number;
+  comboCyclesCreated: number;
+  kitMonthsPinned: number;
   asaasIncoherenciesRepaired: RepairAsaasIncoherenciesSummary;
 };
 
@@ -417,6 +421,7 @@ export async function reconcileProductionDataCases(
   ).updated;
   const asaasRepair = await repairAsaasPaymentIncoherencies(supabase);
   const monthlyRepair = await repairMonthlyProductionMonthsAndLoyalty(supabase);
+  const kanbanRepair = await ensurePaidSubscriptionsHaveKanbanCycles(supabase);
 
   return {
     prematurePaymentsCleared,
@@ -432,6 +437,9 @@ export async function reconcileProductionDataCases(
     monthlyLoyaltyFixed: monthlyRepair.loyaltyFixed,
     monthlyRenewalCyclesAttached: monthlyRepair.renewalCyclesAttached,
     monthlySpuriousCyclesCleared: monthlyRepair.spuriousCyclesCleared,
+    comboSubscriptionsScheduled: kanbanRepair.comboSubscriptionsScheduled,
+    comboCyclesCreated: kanbanRepair.comboCyclesCreated,
+    kitMonthsPinned: kanbanRepair.kitMonthsPinned,
     asaasIncoherenciesRepaired: {
       comboDuplicateRowsFixed: asaasRepair.comboDuplicateRowsFixed,
       comboAmountsFixed: asaasRepair.comboAmountsFixed,

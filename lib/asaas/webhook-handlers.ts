@@ -31,6 +31,8 @@ import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-q
 import { isComboSubscription } from '@/lib/payments/revenue-aggregation';
 import { isNonBillingAsaasPayment } from '@/lib/subscriptions/billing-cycle-payments';
 import { isPaymentAlreadyLinkedToSubscriptionCycle } from '@/lib/subscriptions/payment-cycle-link';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
+import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { parseBrazilDateOnlyToIso, resolveGatewayPaidAt } from '@/lib/datetime/brazil';
 
 export type AsaasWebhookPayment = {
@@ -262,11 +264,26 @@ export async function handleAsaasPaymentConfirmed(
       return 'skipped';
     }
     if (paymentRow) {
-      await markCyclePreparing(supabase, local.id, 1, {
-        id: paymentRow.id,
-        amount_cents: paymentRow.amount_cents,
-        paid_at: paidAt,
-      });
+      const billingTerm =
+        (subscriptionBilling?.billing_term as BillingTerm | null) ?? 'monthly';
+      if (isComboTerm(billingTerm)) {
+        await seedPrepaidComboProductionSchedule(supabase, {
+          subscriptionId: local.id,
+          billingTerm,
+          paymentLink: {
+            id: paymentRow.id,
+            amount_cents: paymentRow.amount_cents,
+            paid_at: paidAt,
+          },
+          anchorDate: new Date(paidAt),
+        });
+      } else {
+        await markCyclePreparing(supabase, local.id, 1, {
+          id: paymentRow.id,
+          amount_cents: paymentRow.amount_cents,
+          paid_at: paidAt,
+        });
+      }
     }
     void notifyPurchaseCompleted(supabase, local.id, amountCents, 1).catch(
       (err) => {

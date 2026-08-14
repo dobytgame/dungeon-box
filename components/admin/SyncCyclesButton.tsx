@@ -46,6 +46,12 @@ export default function SyncCyclesButton() {
                 reconcile?.monthlySpuriousCyclesCleared
                   ? `${reconcile.monthlySpuriousCyclesCleared} Mês 2+ fantasma(s) removido(s)`
                   : null,
+                reconcile?.comboCyclesCreated
+                  ? `${reconcile.comboCyclesCreated} ciclo(s) de combo criado(s)`
+                  : null,
+                reconcile?.kitMonthsPinned
+                  ? `${reconcile.kitMonthsPinned} mês(es) do kit vinculado(s)`
+                  : null,
               ].filter(Boolean);
 
               setMessage(

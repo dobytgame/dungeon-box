@@ -54,6 +54,10 @@ export const ADMIN_NAV = [
     description: 'Todas as vendas: assinaturas, loja avulsa e pedidos bundled.',
     icon: 'receipt',
     group: 'operacao',
+    children: [
+      { href: '/admin/vendas', label: 'Resumo' },
+      { href: '/admin/vendas/mapa', label: 'Mapa' },
+    ],
   },
   {
     href: '/admin/financeiro',
