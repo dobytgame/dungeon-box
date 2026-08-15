@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List, Layers } from 'lucide-react';
 
-export type ProductionViewMode = 'kanban' | 'list';
+export type ProductionViewMode = 'kanban' | 'list' | 'andamento';
 
 interface Props {
   current: ProductionViewMode;
@@ -37,6 +37,7 @@ export default function ProductionViewToggle({ current, disabled }: Props) {
   }> = [
     { value: 'kanban', label: 'Kanban', icon: LayoutGrid },
     { value: 'list', label: 'Lista', icon: List },
+    { value: 'andamento', label: 'Andamento', icon: Layers },
   ];
 
   return (

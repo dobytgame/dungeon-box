@@ -11,6 +11,8 @@ export async function notifySubscriptionPixPayment(
     paymentUrl: string;
     pixPayload: string;
     expirationDate?: string | null;
+    purpose?: 'activation' | 'renewal';
+    periodLabel?: string | null;
   }
 ): Promise<{ sent: boolean; reason?: string }> {
   const profile = await getUserEmailProfile(supabase, input.userId);
@@ -26,6 +28,8 @@ export async function notifySubscriptionPixPayment(
     paymentUrl: input.paymentUrl,
     pixPayload: input.pixPayload,
     expirationDate: input.expirationDate,
+    purpose: input.purpose,
+    periodLabel: input.periodLabel,
   });
 
   if (!result.sent) {

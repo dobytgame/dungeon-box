@@ -32,18 +32,14 @@ export function formatProductionMonthBadgeLabel(input: {
   cycleNumber: number;
   compact?: boolean;
 }): string {
+  const cycleLabel =
+    input.cycleNumber > 0 ? `Ciclo ${input.cycleNumber}` : 'Ciclo';
+
+  if (input.compact) return cycleLabel;
+
   if (input.productionMonthKey) {
-    const slot = productionMonthSlotIndex(
-      input.productionMonthKey,
-      input.paidAt
-    );
-    if (slot != null) {
-      return input.compact
-        ? `Mês ${slot}`
-        : `Mês ${slot} · ${productionMonthLabel(input.productionMonthKey)}`;
-    }
-    return productionMonthLabel(input.productionMonthKey);
+    return `${cycleLabel} · ${productionMonthLabel(input.productionMonthKey)}`;
   }
 
-  return `Ciclo #${input.cycleNumber}`;
+  return cycleLabel;
 }

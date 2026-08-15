@@ -214,3 +214,45 @@ export function compareCyclesByPurchaseOrder<
 
   return (a.cycle_number ?? 0) - (b.cycle_number ?? 0);
 }
+
+/** Data do pagamento deste kit: renovação, combo prepaid ou 1ª compra. */
+export function cycleKitPaymentAt<
+  T extends {
+    currentCyclePaidAt?: string | null;
+    paid_at?: string | null;
+    subscriptionStartedAt?: string | null;
+    subscriptionContractedAt?: string | null;
+    created_at?: string | null;
+  }
+>(row: T): string | null {
+  return (
+    row.currentCyclePaidAt ??
+    row.paid_at ??
+    row.subscriptionStartedAt ??
+    row.subscriptionContractedAt ??
+    row.created_at ??
+    null
+  );
+}
+
+/** Fila do kanban por ciclo: quem pagou o kit primeiro entra primeiro. */
+export function compareCyclesByKitPaymentDate<
+  T extends {
+    currentCyclePaidAt?: string | null;
+    paid_at?: string | null;
+    subscriptionStartedAt?: string | null;
+    subscriptionContractedAt?: string | null;
+    created_at?: string | null;
+    cycle_number?: number;
+    id?: string;
+  }
+>(a: T, b: T): number {
+  const aPaid = purchaseOrderTimestamp(cycleKitPaymentAt(a));
+  const bPaid = purchaseOrderTimestamp(cycleKitPaymentAt(b));
+  if (aPaid !== bPaid) return aPaid - bPaid;
+
+  const cycleDiff = (a.cycle_number ?? 0) - (b.cycle_number ?? 0);
+  if (cycleDiff !== 0) return cycleDiff;
+
+  return (a.id ?? '').localeCompare(b.id ?? '');
+}

@@ -26,12 +26,12 @@ import {
 } from '@/lib/admin/cycle-payment-resolve';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { loadSubscriptionPlanUpgradeInfoByIds } from '@/lib/admin/subscription-plan-upgrade';
-import { compareCyclesByPurchaseOrder } from '@/lib/subscriptions/cycle-production';
+import { compareCyclesByKitPaymentDate } from '@/lib/subscriptions/cycle-production';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
 import {
   buildProductionSubscriptionMeta,
   filterProductionBoardRows,
-  filterProductionBoardRowsForMonth,
+  filterProductionBoardRowsForCycle,
   groupProductionBoardRows,
 } from '@/lib/admin/production-board-filter';
 import { monthKeyFromDate } from '@/lib/admin/chart-period';
@@ -70,7 +70,8 @@ import {
 } from '@/lib/payments/effective-amount';
 import { sumPaymentRevenueCents, type RevenuePaymentRow } from '@/lib/payments/revenue-aggregation';
 import {
-  integrateStandaloneStoreOrdersIntoBoard,
+  integrateStandaloneStoreOrdersIntoCycleBoard,
+  integrateStandaloneStoreOrdersIntoOverviewBoard,
   listStandaloneStoreOrdersForProduction,
 } from '@/lib/admin/standalone-store-production';
 
@@ -1158,7 +1159,7 @@ export async function listAdminProductionEnrichedCycles(
 export function buildProductionKanbanFromCycles(
   enriched: AdminCycleRow[],
   options?: {
-    monthKey?: string;
+    cycleNumber?: number;
     standaloneOrders?: Awaited<
       ReturnType<typeof listStandaloneStoreOrdersForProduction>
     >;
@@ -1173,11 +1174,11 @@ export function buildProductionKanbanFromCycles(
   };
 
   if (enriched.length === 0) {
-    if (options?.monthKey && options?.standaloneOrders?.length) {
-      return integrateStandaloneStoreOrdersIntoBoard(
+    if (options?.cycleNumber && options?.standaloneOrders?.length) {
+      return integrateStandaloneStoreOrdersIntoCycleBoard(
         empty,
         options.standaloneOrders,
-        options.monthKey
+        options.cycleNumber
       );
     }
     return empty;
@@ -1185,27 +1186,94 @@ export function buildProductionKanbanFromCycles(
 
   const metaBySubscriptionId = buildProductionSubscriptionMeta(enriched);
 
-  const filtered = options?.monthKey
-    ? filterProductionBoardRowsForMonth(
-        enriched,
-        options.monthKey,
-        metaBySubscriptionId
-      )
-    : filterProductionBoardRows(enriched, metaBySubscriptionId);
+  const filtered =
+    options?.cycleNumber != null
+      ? filterProductionBoardRowsForCycle(
+          enriched,
+          options.cycleNumber,
+          metaBySubscriptionId
+        )
+      : filterProductionBoardRows(enriched, metaBySubscriptionId);
 
   const board = groupProductionBoardRows(filtered);
 
   const finalBoard =
-    options?.monthKey && options?.standaloneOrders
-      ? integrateStandaloneStoreOrdersIntoBoard(
+    options?.cycleNumber != null && options?.standaloneOrders
+      ? integrateStandaloneStoreOrdersIntoCycleBoard(
           board,
           options.standaloneOrders,
-          options.monthKey
+          options.cycleNumber
         )
       : board;
 
   for (const status of Object.keys(finalBoard) as Array<keyof ProductionKanbanBoard>) {
-    finalBoard[status].sort(compareCyclesByPurchaseOrder);
+    finalBoard[status].sort(compareCyclesByKitPaymentDate);
+  }
+
+  return finalBoard;
+}
+
+/** Todos os ciclos no mesmo quadro — visão macro, sem filtrar por ciclo. */
+export function buildProductionOverviewBoard(
+  enriched: AdminCycleRow[],
+  options?: {
+    standaloneOrders?: Awaited<
+      ReturnType<typeof listStandaloneStoreOrdersForProduction>
+    >;
+  }
+): ProductionKanbanBoard {
+  const empty: ProductionKanbanBoard = {
+    upcoming: [],
+    production: [],
+    preparing: [],
+    shipped: [],
+    delivered: [],
+  };
+
+  if (enriched.length === 0) {
+    if (options?.standaloneOrders?.length) {
+      return integrateStandaloneStoreOrdersIntoOverviewBoard(
+        empty,
+        options.standaloneOrders
+      );
+    }
+    return empty;
+  }
+
+  const metaBySubscriptionId = buildProductionSubscriptionMeta(enriched);
+  const cycleNumbers = Array.from(
+    new Set(
+      enriched
+        .map((row) => row.cycle_number)
+        .filter((n): n is number => n >= 1)
+    )
+  ).sort((a, b) => a - b);
+
+  const seen = new Set<string>();
+  const eligible: AdminCycleRow[] = [];
+  for (const cycleNumber of cycleNumbers) {
+    const rows = filterProductionBoardRowsForCycle(
+      enriched,
+      cycleNumber,
+      metaBySubscriptionId
+    );
+    for (const row of rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      eligible.push(row);
+    }
+  }
+
+  const board = groupProductionBoardRows(eligible);
+  const finalBoard = options?.standaloneOrders
+    ? integrateStandaloneStoreOrdersIntoOverviewBoard(
+        board,
+        options.standaloneOrders
+      )
+    : board;
+
+  for (const status of Object.keys(finalBoard) as Array<keyof ProductionKanbanBoard>) {
+    finalBoard[status].sort(compareCyclesByKitPaymentDate);
   }
 
   return finalBoard;
@@ -1213,7 +1281,7 @@ export function buildProductionKanbanFromCycles(
 
 export async function listAdminProductionKanban(
   admin: SupabaseClient,
-  options?: { monthKey?: string }
+  options?: { cycleNumber?: number }
 ): Promise<ProductionKanbanBoard> {
   const [enriched, standaloneOrders] = await Promise.all([
     listAdminProductionEnrichedCycles(admin),
@@ -1225,7 +1293,7 @@ export async function listAdminProductionKanban(
   });
 }
 
-/** Todos os ciclos operacionais para o calendário (inclui combos nos meses futuros). */
+/** Todos os ciclos operacionais para o navegador de ciclos. */
 export async function listAdminProductionCalendarSource(
   admin: SupabaseClient
 ): Promise<AdminCycleRow[]> {

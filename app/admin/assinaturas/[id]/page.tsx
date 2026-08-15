@@ -7,6 +7,7 @@ import PartnerSubscriptionPanel from '@/components/admin/PartnerSubscriptionPane
 import AdminTable from '@/components/admin/AdminTable';
 import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
 import PendingPaymentLinkPanel from '@/components/admin/PendingPaymentLinkPanel';
+import SendPixRenewalEmailPanel from '@/components/admin/SendPixRenewalEmailPanel';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { hasPaintKitBump } from '@/lib/checkout/special-notes';
@@ -17,6 +18,7 @@ import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminSubscriptionDetail } from '@/lib/admin/queries';
 import { reconcilePendingAsaasSubscription } from '@/lib/asaas/reconcile-pending';
 import { buildAdminPendingPaymentPanel } from '@/lib/admin/pending-payment';
+import { getPixRenewalPreview } from '@/lib/admin/pix-renewal';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
@@ -75,6 +77,12 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
       ? await buildAdminPendingPaymentPanel(admin, {
           subscriptionId: subscription.id,
         })
+      : null;
+
+  const pixRenewalPreview =
+    (subscription.status === 'active' || subscription.status === 'past_due') &&
+    !subscription.is_partner
+      ? await getPixRenewalPreview(admin, subscription.id)
       : null;
 
   const combo = getSubscriptionComboSummary(subscription, plan?.slug ?? null);
@@ -250,6 +258,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
       {pendingPaymentPanel ? (
         <PendingPaymentLinkPanel {...pendingPaymentPanel} />
+      ) : null}
+
+      {pixRenewalPreview ? (
+        <SendPixRenewalEmailPanel preview={pixRenewalPreview} />
       ) : null}
 
       {showPagarmeMigration ? (

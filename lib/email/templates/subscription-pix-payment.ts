@@ -8,6 +8,9 @@ import {
 export const SUBSCRIPTION_PIX_PAYMENT_SUBJECT =
   'Pague com PIX e ative seu plano — DungeonBox';
 
+export const SUBSCRIPTION_PIX_RENEWAL_SUBJECT =
+  'PIX da renovação do mês — DungeonBox';
+
 export interface SubscriptionPixPaymentTemplateData {
   name?: string | null;
   planName?: string | null;
@@ -15,6 +18,8 @@ export interface SubscriptionPixPaymentTemplateData {
   paymentUrl: string;
   pixPayload: string;
   expirationDate?: string | null;
+  purpose?: 'activation' | 'renewal';
+  periodLabel?: string | null;
 }
 
 function formatExpiration(raw?: string | null): string | null {
@@ -27,6 +32,18 @@ function formatExpiration(raw?: string | null): string | null {
   }).format(date);
 }
 
+function isRenewal(data: SubscriptionPixPaymentTemplateData): boolean {
+  return data.purpose === 'renewal';
+}
+
+export function subscriptionPixPaymentSubject(
+  data: SubscriptionPixPaymentTemplateData
+): string {
+  return isRenewal(data)
+    ? SUBSCRIPTION_PIX_RENEWAL_SUBJECT
+    : SUBSCRIPTION_PIX_PAYMENT_SUBJECT;
+}
+
 export function subscriptionPixPaymentHtml(
   data: SubscriptionPixPaymentTemplateData
 ): string {
@@ -36,18 +53,30 @@ export function subscriptionPixPaymentHtml(
     ? ` do plano <strong style="color:#fff;">${data.planName}</strong>`
     : '';
   const expiration = formatExpiration(data.expirationDate);
+  const renewal = isRenewal(data);
+  const periodLine = data.periodLabel
+    ? ` referente a <strong style="color:#fff;">${data.periodLabel}</strong>`
+    : '';
 
   return buildEmailHtml({
-    subject: SUBSCRIPTION_PIX_PAYMENT_SUBJECT,
-    preheader: `PIX de ${amount} para ativar sua assinatura DungeonBox.`,
-    eyebrow: 'Pagamento PIX',
-    headline: 'Seu plano está quase ativo.',
+    subject: subscriptionPixPaymentSubject(data),
+    preheader: renewal
+      ? `PIX de ${amount} da renovação da sua DungeonBox.`
+      : `PIX de ${amount} para ativar sua assinatura DungeonBox.`,
+    eyebrow: renewal ? 'Renovação PIX' : 'Pagamento PIX',
+    headline: renewal
+      ? 'Sua renovação está pronta para pagar.'
+      : 'Seu plano está quase ativo.',
     headlineAccent: 'PIX',
     paragraphs: [
-      `${name}, geramos um pagamento PIX${planLine} no valor de <strong style="color:#fff;">${amount}</strong>.`,
+      renewal
+        ? `${name}, geramos o PIX da renovação${planLine}${periodLine} no valor de <strong style="color:#fff;">${amount}</strong>.`
+        : `${name}, geramos um pagamento PIX${planLine} no valor de <strong style="color:#fff;">${amount}</strong>.`,
       expiration
         ? `O código expira em <strong style="color:#fff;">${expiration}</strong>.`
-        : 'Conclua o pagamento para liberar a produção da sua caixa.',
+        : renewal
+          ? 'Conclua o pagamento para manter a produção da próxima caixa.'
+          : 'Conclua o pagamento para liberar a produção da sua caixa.',
       'Copie o código PIX abaixo no app do seu banco ou use o botão para abrir a página de pagamento.',
     ],
     cta: { label: 'Abrir pagamento', href: data.paymentUrl },
@@ -65,9 +94,12 @@ export function subscriptionPixPaymentText(
   const amount = formatCurrencyBrl(data.amountCents);
   const planLine = data.planName ? ` — plano ${data.planName}` : '';
   const expiration = formatExpiration(data.expirationDate);
+  const periodLine = data.periodLabel ? ` (${data.periodLabel})` : '';
 
   return buildEmailText([
-    `${name}, seu pagamento PIX${planLine} de ${amount} está disponível.`,
+    isRenewal(data)
+      ? `${name}, o PIX da renovação${planLine}${periodLine} de ${amount} está disponível.`
+      : `${name}, seu pagamento PIX${planLine} de ${amount} está disponível.`,
     expiration ? `Expira em: ${expiration}.` : '',
     `Código PIX: ${data.pixPayload}`,
     `Link: ${data.paymentUrl}`,

@@ -8,7 +8,7 @@ import type { AdminCycleRow } from '@/lib/admin/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import {
-  compareCyclesByPurchaseOrder,
+  compareCyclesByKitPaymentDate,
   getCycleRollbackTargets,
   PRODUCTION_PIPELINE,
   productionActionLabel,
@@ -24,17 +24,21 @@ import { resolveProductionMonthKey } from '@/lib/admin/production-month';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { adminPlanCardClasses } from '@/lib/plan-theme';
+import {
+  getProductionCycleVisual,
+  productionCycleCardClasses,
+} from '@/lib/admin/production-cycle-theme';
 import SendFeedbackEmailButton from '@/components/admin/SendFeedbackEmailButton';
 
-type BoardColumn = keyof ProductionKanbanBoard;
+export type ProductionBoardColumn = keyof ProductionKanbanBoard;
 
-type PendingAction = {
+export type ProductionPendingAction = {
   cycleId: string;
   target: CycleStatus;
 };
 
 const KANBAN_COLUMNS = PRODUCTION_PIPELINE.filter(
-  (status): status is BoardColumn =>
+  (status): status is ProductionBoardColumn =>
     status === 'upcoming' ||
     status === 'production' ||
     status === 'preparing' ||
@@ -55,14 +59,13 @@ function cloneBoard(board: ProductionKanbanBoard): ProductionKanbanBoard {
 function moveCardInBoard(
   board: ProductionKanbanBoard,
   cycleId: string,
-  target: CycleStatus
+  target: CycleStatus,
+  visibleColumns: ProductionBoardColumn[]
 ): ProductionKanbanBoard | null {
-  if (!KANBAN_COLUMNS.includes(target as BoardColumn)) return null;
-
   const next = cloneBoard(board);
   let row: AdminCycleRow | null = null;
 
-  for (const status of KANBAN_COLUMNS) {
+  for (const status of visibleColumns) {
     const index = next[status].findIndex((item) => item.id === cycleId);
     if (index >= 0) {
       row = next[status][index];
@@ -74,14 +77,16 @@ function moveCardInBoard(
   if (!row) return null;
 
   const updated: AdminCycleRow = { ...row, status: target };
-  const column = target as BoardColumn;
-  next[column].push(updated);
-  next[column].sort(compareCyclesByPurchaseOrder);
+  if (visibleColumns.includes(target as ProductionBoardColumn)) {
+    const column = target as ProductionBoardColumn;
+    next[column].push(updated);
+    next[column].sort(compareCyclesByKitPaymentDate);
+  }
   return next;
 }
 
 const COLUMN_META: Record<
-  BoardColumn,
+  ProductionBoardColumn,
   { label: string; hint: string }
 > = {
   upcoming: {
@@ -114,6 +119,8 @@ interface Props {
   };
   onOpenDetail: (row: AdminCycleRow) => void;
   onOpenShip: (row: AdminCycleRow) => void;
+  columns?: ProductionBoardColumn[];
+  groupByCycle?: boolean;
 }
 
 function nextQuickAction(
@@ -140,24 +147,29 @@ function nextQuickAction(
   return null;
 }
 
-function KanbanCard({
+export function ProductionKanbanCard({
   row,
   onAdvance,
   onOpenDetail,
   onOpenShip,
   onFeedbackSent,
   pendingAction,
+  colorByCycle = false,
 }: {
   row: AdminCycleRow;
   onAdvance: (cycleId: string, target: CycleStatus) => void;
   onOpenDetail: (row: AdminCycleRow) => void;
   onOpenShip: (row: AdminCycleRow) => void;
   onFeedbackSent?: () => void;
-  pendingAction: PendingAction | null;
+  pendingAction: ProductionPendingAction | null;
+  colorByCycle?: boolean;
 }) {
   const quick = nextQuickAction(row.status);
   const rollbackTargets = getCycleRollbackTargets(row.status);
   const isCardBusy = pendingAction?.cycleId === row.id;
+  const cycleVisual = colorByCycle
+    ? getProductionCycleVisual(row.cycle_number)
+    : null;
 
   function isButtonBusy(target: CycleStatus) {
     return (
@@ -165,13 +177,20 @@ function KanbanCard({
     );
   }
 
+  const cardTone = colorByCycle
+    ? productionCycleCardClasses(
+        row.cycle_number,
+        row.paymentPendingHighlight
+      )
+    : row.paymentPendingHighlight
+      ? 'border-amber-500/50 bg-amber-500/5 hover:border-amber-500/70'
+      : adminPlanCardClasses(row.planSlug, row.planName);
+
   return (
     <article
-      className={`relative admin-panel rounded border p-3 transition hover:brightness-110 ${
-        row.paymentPendingHighlight
-          ? 'border-amber-500/50 bg-amber-500/5 hover:border-amber-500/70'
-          : adminPlanCardClasses(row.planSlug, row.planName)
-      } ${row.paymentPendingHighlight ? '' : 'hover:border-opacity-80'}`}
+      className={`relative rounded border p-3 transition duration-200 hover:brightness-110 ${
+        colorByCycle ? '' : 'admin-panel'
+      } ${cardTone}`}
     >
       {isCardBusy ? (
         <div
@@ -188,12 +207,21 @@ function KanbanCard({
       <button
         type="button"
         onClick={() => onOpenDetail(row)}
-        className="block w-full space-y-2 text-left"
+        className="block w-full cursor-pointer space-y-2 text-left"
       >
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-zinc-200">
-            {row.customerName ?? 'Cliente sem nome'}
-          </p>
+          <div className="min-w-0">
+            {cycleVisual ? (
+              <p
+                className={`font-mono text-[10px] font-medium uppercase tracking-[0.16em] ${cycleVisual.headingClass}`}
+              >
+                {cycleVisual.label}
+              </p>
+            ) : null}
+            <p className="text-sm font-medium text-zinc-200">
+              {row.customerName ?? 'Cliente sem nome'}
+            </p>
+          </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {row.subscriptionBillingTerm &&
             isComboTerm(row.subscriptionBillingTerm as BillingTerm) ? (
@@ -221,7 +249,7 @@ function KanbanCard({
               <span className="rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-sky-300">
                 Loja avulsa
               </span>
-            ) : (
+            ) : cycleVisual ? null : (
               <ProductionMonthBadge
                 productionMonthKey={resolveProductionMonthKey({
                   scheduledProductionMonth: row.scheduledProductionMonth,
@@ -367,7 +395,9 @@ function KanbanCard({
           <button
             type="button"
             onClick={() => onOpenShip(row)}
-            className="inline-flex min-h-[32px] flex-1 cursor-pointer items-center justify-center rounded border border-console/30 bg-console/10 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-console transition hover:bg-console/20"
+            className={`inline-flex flex-1 cursor-pointer items-center justify-center rounded border border-console/30 bg-console/10 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-console transition duration-200 hover:bg-console/20 ${
+              colorByCycle ? 'min-h-11' : 'min-h-[32px]'
+            }`}
           >
             Registrar envio
           </button>
@@ -376,7 +406,9 @@ function KanbanCard({
             type="button"
             disabled={isCardBusy}
             onClick={() => onAdvance(row.id, quick.target)}
-            className="inline-flex min-h-[32px] flex-1 items-center justify-center gap-1.5 rounded border border-zinc-700 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-300 transition hover:border-console/40 hover:text-console disabled:opacity-50"
+            className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded border border-zinc-700 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-300 transition duration-200 hover:border-console/40 hover:text-console disabled:opacity-50 ${
+              colorByCycle ? 'min-h-11' : 'min-h-[32px]'
+            }`}
           >
             {isButtonBusy(quick.target) ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -394,7 +426,9 @@ function KanbanCard({
               type="button"
               disabled={isCardBusy}
               onClick={() => onAdvance(row.id, rollbackTarget)}
-              className="inline-flex min-h-[32px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border border-amber-500/25 bg-amber-500/5 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-200/90 transition hover:border-amber-500/40 hover:bg-amber-500/10 disabled:opacity-50"
+              className={`inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded border border-amber-500/25 bg-amber-500/5 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-amber-200/90 transition duration-200 hover:border-amber-500/40 hover:bg-amber-500/10 disabled:opacity-50 ${
+                colorByCycle ? 'min-h-11' : 'min-h-[32px]'
+              }`}
             >
               {isButtonBusy(rollbackTarget) ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -406,7 +440,9 @@ function KanbanCard({
         <button
           type="button"
           onClick={() => onOpenDetail(row)}
-          className="inline-flex min-h-[32px] cursor-pointer items-center justify-center rounded border border-zinc-800 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300"
+          className={`inline-flex cursor-pointer items-center justify-center rounded border border-zinc-800 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-500 transition duration-200 hover:border-zinc-700 hover:text-zinc-300 ${
+            colorByCycle ? 'min-h-11' : 'min-h-[32px]'
+          }`}
         >
           Detalhes
         </button>
@@ -415,19 +451,40 @@ function KanbanCard({
   );
 }
 
+function groupRowsByCycle(rows: AdminCycleRow[]): Array<{
+  cycleNumber: number;
+  rows: AdminCycleRow[];
+}> {
+  const byCycle = new Map<number, AdminCycleRow[]>();
+  for (const row of rows) {
+    const cycleNumber = row.cycle_number >= 1 ? row.cycle_number : 1;
+    const list = byCycle.get(cycleNumber) ?? [];
+    list.push(row);
+    byCycle.set(cycleNumber, list);
+  }
+
+  return Array.from(byCycle.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([cycleNumber, grouped]) => ({ cycleNumber, rows: grouped }));
+}
+
 export default function ProductionKanban({
   board,
   counts,
   onOpenDetail,
   onOpenShip,
+  columns = KANBAN_COLUMNS,
+  groupByCycle = false,
 }: Props) {
   const router = useRouter();
   const [optimisticBoard, setOptimisticBoard] =
     useState<ProductionKanbanBoard | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<ProductionPendingAction | null>(null);
   const [error, setError] = useState('');
 
   const displayBoard = optimisticBoard ?? board;
+  const gridClass =
+    columns.length <= 2 ? 'grid gap-4 xl:grid-cols-2' : 'grid gap-4 xl:grid-cols-5';
 
   useEffect(() => {
     setOptimisticBoard(null);
@@ -439,7 +496,7 @@ export default function ProductionKanban({
 
     setOptimisticBoard((current) => {
       const base = current ?? board;
-      return moveCardInBoard(base, cycleId, target) ?? current;
+      return moveCardInBoard(base, cycleId, target, columns) ?? current;
     });
 
     void advanceCycleProductionAction(cycleId, target).then((result) => {
@@ -464,10 +521,11 @@ export default function ProductionKanban({
         </p>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-5">
-        {KANBAN_COLUMNS.map((status) => {
+      <div className={gridClass}>
+        {columns.map((status) => {
           const meta = COLUMN_META[status];
           const cards = displayBoard[status];
+          const cycleGroups = groupByCycle ? groupRowsByCycle(cards) : null;
 
           return (
             <section
@@ -491,9 +549,31 @@ export default function ProductionKanban({
                   <p className="rounded border border-dashed border-zinc-800 px-3 py-8 text-center font-mono text-[10px] text-zinc-600">
                     Nenhum pedido
                   </p>
+                ) : cycleGroups ? (
+                  cycleGroups.map((group) => (
+                    <div key={group.cycleNumber} className="space-y-2">
+                      <p className="sticky top-0 z-[1] bg-zinc-950/90 px-1 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-500 backdrop-blur-sm">
+                        Ciclo {group.cycleNumber}
+                        <span className="ml-2 tabular-nums text-zinc-600">
+                          {group.rows.length}
+                        </span>
+                      </p>
+                      {group.rows.map((row) => (
+                        <ProductionKanbanCard
+                          key={row.id}
+                          row={row}
+                          pendingAction={pendingAction}
+                          onAdvance={handleAdvance}
+                          onOpenDetail={onOpenDetail}
+                          onOpenShip={onOpenShip}
+                          onFeedbackSent={() => router.refresh()}
+                        />
+                      ))}
+                    </div>
+                  ))
                 ) : (
                   cards.map((row) => (
-                    <KanbanCard
+                    <ProductionKanbanCard
                       key={row.id}
                       row={row}
                       pendingAction={pendingAction}

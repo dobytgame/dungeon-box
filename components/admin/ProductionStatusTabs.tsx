@@ -7,24 +7,24 @@ import type { CycleStatusCounts } from '@/lib/admin/queries';
 interface Props {
   currentStatus: string;
   counts: CycleStatusCounts;
-  currentView?: 'kanban' | 'list';
-  productionMonth?: string;
+  currentView?: 'kanban' | 'list' | 'andamento';
+  productionCycle?: number;
 }
 
 function tabHref(
   tabValue: string,
-  currentView?: 'kanban' | 'list',
-  productionMonth?: string
+  currentView?: 'kanban' | 'list' | 'andamento',
+  productionCycle?: number
 ): string {
   const params = new URLSearchParams();
   if (tabValue !== 'preparing') {
     params.set('status', tabValue);
   }
-  if (currentView === 'list') {
-    params.set('view', 'list');
+  if (currentView === 'list' || currentView === 'andamento') {
+    params.set('view', currentView);
   }
-  if (productionMonth) {
-    params.set('month', productionMonth);
+  if (productionCycle != null && currentView !== 'andamento') {
+    params.set('ciclo', String(productionCycle));
   }
   const query = params.toString();
   if (tabValue === 'preparing' && !query) return '/admin/ciclos';
@@ -36,7 +36,7 @@ export default function ProductionStatusTabs({
   currentStatus,
   counts,
   currentView,
-  productionMonth,
+  productionCycle,
 }: Props) {
   return (
     <nav
@@ -51,7 +51,7 @@ export default function ProductionStatusTabs({
         return (
           <Link
             key={tab.value}
-            href={tabHref(tab.value, currentView, productionMonth)}
+            href={tabHref(tab.value, currentView, productionCycle)}
             aria-current={active ? 'page' : undefined}
             className={`inline-flex min-h-[40px] items-center gap-2 rounded border px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console ${
               active

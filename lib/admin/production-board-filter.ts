@@ -295,6 +295,80 @@ export function filterProductionBoardRowsForMonth(
   });
 }
 
+function cycleHasKitPayment(row: AdminCycleRow): boolean {
+  if (row.isStandaloneStoreOrder) return true;
+  return cycleHasFulfillmentSignal(row);
+}
+
+/**
+ * Um card por kit do ciclo N. Não colapsa assinatura em um único ciclo:
+ * quem já enviou o ciclo 1 continua no ciclo 2 quando o kit 2 está pago.
+ */
+export function filterProductionBoardRowsForCycle(
+  rows: AdminCycleRow[],
+  cycleNumber: number,
+  metaBySubscriptionId: Map<string, ProductionSubscriptionMeta>
+): AdminCycleRow[] {
+  const bySubscription = new Map<string, AdminCycleRow[]>();
+  for (const row of rows) {
+    const list = bySubscription.get(row.subscription_id) ?? [];
+    list.push(row);
+    bySubscription.set(row.subscription_id, list);
+  }
+
+  const eligible: AdminCycleRow[] = [];
+  for (const row of rows) {
+    if (row.cycle_number !== cycleNumber) continue;
+
+    if (row.isStandaloneStoreOrder) {
+      eligible.push(row);
+      continue;
+    }
+
+    const siblings = bySubscription.get(row.subscription_id) ?? [];
+    const meta = metaBySubscriptionId.get(row.subscription_id);
+    if (!shouldShowSubscriptionOnBoard(meta, siblings)) continue;
+    if (isUnpaidMonthlyRenewalPlaceholder(row)) continue;
+    if (!cycleHasKitPayment(row)) continue;
+    eligible.push(row);
+  }
+
+  const perUser = keepPrimarySubscriptionPerUser(
+    eligible,
+    metaBySubscriptionId
+  );
+
+  const seen = new Set<string>();
+  return perUser.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+}
+
+export function countDedupedProductionCyclesByCycle(
+  rows: AdminCycleRow[],
+  metaBySubscriptionId: Map<string, ProductionSubscriptionMeta>
+): Map<number, number> {
+  const cycleNumbers = new Set<number>();
+  for (const row of rows) {
+    if (row.cycle_number >= 1) cycleNumbers.add(row.cycle_number);
+  }
+
+  const counts = new Map<number, number>();
+  for (const cycleNumber of Array.from(cycleNumbers)) {
+    counts.set(
+      cycleNumber,
+      filterProductionBoardRowsForCycle(
+        rows,
+        cycleNumber,
+        metaBySubscriptionId
+      ).length
+    );
+  }
+  return counts;
+}
+
 export function countDedupedProductionCyclesByMonth(
   rows: AdminCycleRow[],
   metaBySubscriptionId: Map<string, ProductionSubscriptionMeta>

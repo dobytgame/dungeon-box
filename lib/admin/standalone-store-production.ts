@@ -26,6 +26,7 @@ import { notifyStandaloneStoreFulfillmentStatus } from '@/lib/email/standalone-f
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
   canTransitionCycle,
+  compareCyclesByKitPaymentDate,
   compareCyclesByPurchaseOrder,
   cycleTransitionErrorMessage,
   isCycleReopenTransition,
@@ -133,7 +134,7 @@ export function buildStandaloneStoreCycleRow(
   return {
     id: standaloneStoreCardId(order.paymentId),
     subscription_id: order.paymentId,
-    cycle_number: 0,
+    cycle_number: 1,
     status: order.status,
     tracking_code: order.meta.trackingCode ?? null,
     carrier: order.meta.carrier ?? null,
@@ -293,6 +294,17 @@ export async function listStandaloneStoreOrdersForProduction(
   });
 }
 
+function isRecentStandaloneForCycleBoard(
+  order: StandaloneStoreOrderRow
+): boolean {
+  if (order.status !== 'delivered') return true;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 4);
+  const anchor = order.paidAt ?? order.createdAt;
+  if (!anchor) return true;
+  return new Date(anchor) >= cutoff;
+}
+
 export function integrateStandaloneStoreOrdersIntoBoard(
   board: ProductionKanbanBoard,
   orders: StandaloneStoreOrderRow[],
@@ -326,6 +338,84 @@ export function integrateStandaloneStoreOrdersIntoBoard(
   }
 
   return next;
+}
+
+/** Pedidos avulsos entram no ciclo 1; se o cliente já tem card no ciclo, o item é anexado. */
+export function integrateStandaloneStoreOrdersIntoCycleBoard(
+  board: ProductionKanbanBoard,
+  orders: StandaloneStoreOrderRow[],
+  cycleNumber: number
+): ProductionKanbanBoard {
+  const next: ProductionKanbanBoard = {
+    upcoming: [...board.upcoming],
+    production: [...board.production],
+    preparing: [...board.preparing],
+    shipped: [...board.shipped],
+    delivered: [...board.delivered],
+  };
+
+  for (const order of orders) {
+    const mergeTarget = findMergeTargetForUser(next, order.userId);
+    if (mergeTarget) {
+      appendStandaloneItemsToRow(mergeTarget, order);
+      continue;
+    }
+
+    if (cycleNumber !== 1) continue;
+    if (!isRecentStandaloneForCycleBoard(order)) continue;
+
+    const card = buildStandaloneStoreCycleRow(order);
+    if (!(card.status in next)) continue;
+    next[card.status as keyof ProductionKanbanBoard].push(card);
+  }
+
+  for (const status of Object.keys(next) as Array<keyof ProductionKanbanBoard>) {
+    next[status].sort(compareCyclesByKitPaymentDate);
+  }
+
+  return next;
+}
+
+/** Pedidos avulsos em todas as colunas; anexa ao card do cliente se ele já está no quadro. */
+export function integrateStandaloneStoreOrdersIntoOverviewBoard(
+  board: ProductionKanbanBoard,
+  orders: StandaloneStoreOrderRow[]
+): ProductionKanbanBoard {
+  const next: ProductionKanbanBoard = {
+    upcoming: [...board.upcoming],
+    production: [...board.production],
+    preparing: [...board.preparing],
+    shipped: [...board.shipped],
+    delivered: [...board.delivered],
+  };
+
+  for (const order of orders) {
+    const mergeTarget = findMergeTargetForUser(next, order.userId);
+    if (mergeTarget) {
+      appendStandaloneItemsToRow(mergeTarget, order);
+      continue;
+    }
+
+    if (!isRecentStandaloneForCycleBoard(order)) continue;
+
+    const card = buildStandaloneStoreCycleRow(order);
+    if (!(card.status in next)) continue;
+    next[card.status as keyof ProductionKanbanBoard].push(card);
+  }
+
+  for (const status of Object.keys(next) as Array<keyof ProductionKanbanBoard>) {
+    next[status].sort(compareCyclesByKitPaymentDate);
+  }
+
+  return next;
+}
+
+export function pseudoRowsForStandaloneCycleCounts(
+  orders: StandaloneStoreOrderRow[]
+): AdminCycleRow[] {
+  return orders
+    .filter((order) => isRecentStandaloneForCycleBoard(order))
+    .map((order) => buildStandaloneStoreCycleRow(order));
 }
 
 export function pseudoRowsForStandaloneMonthCounts(

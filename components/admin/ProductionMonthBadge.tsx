@@ -35,8 +35,8 @@ export default function ProductionMonthBadge({
       }`}
       title={
         productionMonthKey
-          ? `Mês de produção no kanban (ciclo #${cycleNumber})`
-          : undefined
+          ? `Kit do ciclo #${cycleNumber} · referência ${productionMonthKey}`
+          : `Kit do ciclo #${cycleNumber}`
       }
     >
       {label}

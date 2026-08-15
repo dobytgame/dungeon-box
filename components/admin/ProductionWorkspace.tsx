@@ -9,19 +9,20 @@ import ArchiveCyclesTable from '@/components/admin/ArchiveCyclesTable';
 import AdminSection from '@/components/admin/AdminSection';
 import CycleDetailModalView from '@/components/admin/CycleDetailModalView';
 import CycleShipModal from '@/components/admin/CycleShipModal';
-import ProductionCalendar from '@/components/admin/ProductionCalendar';
+import ProductionCycleNav from '@/components/admin/ProductionCycleNav';
+import ProductionFloorView from '@/components/admin/ProductionFloorView';
 import ProductionKanban from '@/components/admin/ProductionKanban';
 import ProductionListView from '@/components/admin/ProductionListView';
 import AdminPlanLegend from '@/components/admin/AdminPlanLegend';
 import ProductionViewToggle, {
   type ProductionViewMode,
 } from '@/components/admin/ProductionViewToggle';
-import type { ProductionMonthNavItem } from '@/lib/admin/production-month';
+import type { ProductionCycleNavItem } from '@/lib/admin/production-cycle-nav';
 
 interface Props {
   board: ProductionKanbanBoard;
-  calendarMonths: ProductionMonthNavItem[];
-  productionMonth: string;
+  cycleNav: ProductionCycleNavItem[];
+  productionCycle: number;
   counts: {
     cancelled: number;
     failed: number;
@@ -47,8 +48,8 @@ function cycleLabel(
 
 export default function ProductionWorkspace({
   board,
-  calendarMonths,
-  productionMonth,
+  cycleNav,
+  productionCycle,
   counts,
   archiveCycles,
   showArchiveList,
@@ -97,22 +98,32 @@ export default function ProductionWorkspace({
 
   return (
     <>
-      {!showArchiveList ? (
-        <ProductionCalendar
-          months={calendarMonths}
-          selectedMonth={productionMonth}
+      {!showArchiveList && viewMode !== 'andamento' ? (
+        <ProductionCycleNav
+          cycles={cycleNav}
+          selectedCycle={productionCycle}
         />
       ) : null}
 
       {!showArchiveList ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <AdminPlanLegend />
+        <div
+          className={`flex flex-wrap items-center gap-3 ${
+            viewMode === 'andamento' ? 'justify-end' : 'justify-between'
+          }`}
+        >
+          {viewMode !== 'andamento' ? <AdminPlanLegend /> : null}
           <ProductionViewToggle current={viewMode} />
         </div>
       ) : null}
 
       {showArchiveList ? null : viewMode === 'list' ? (
         <ProductionListView board={board} onOpenDetail={openDetail} />
+      ) : viewMode === 'andamento' ? (
+        <ProductionFloorView
+          board={board}
+          onOpenDetail={openDetail}
+          onOpenShip={openShip}
+        />
       ) : (
         <ProductionKanban
           board={board}

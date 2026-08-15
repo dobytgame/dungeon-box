@@ -2201,6 +2201,60 @@ export async function sendPendingPaymentLinkEmailAction(input: {
   return { success: true as const };
 }
 
+export async function sendSubscriptionPixRenewalEmailAction(
+  subscriptionId: string
+) {
+  const { user, admin } = await requireAdmin();
+
+  try {
+    const { issuePixRenewalAndNotify } = await import(
+      '@/lib/admin/pix-renewal'
+    );
+    const result = await issuePixRenewalAndNotify(admin, subscriptionId);
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.send_pix_renewal',
+      entityType: 'subscription',
+      entityId: subscriptionId,
+      metadata: {
+        payment_id: result.paymentId,
+        amount_cents: result.amountCents,
+        period: result.period,
+        reused: result.reused,
+        email_sent: result.emailSent,
+      },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+    revalidateAdminFinance();
+
+    if (!result.emailSent) {
+      return {
+        error:
+          'PIX gerado, mas o e-mail não foi enviado. Verifique o Resend e o e-mail do cliente.',
+        paymentId: result.paymentId,
+      };
+    }
+
+    return {
+      success: true as const,
+      reused: result.reused,
+      amountCents: result.amountCents,
+      periodLabel: result.periodLabel,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível enviar o PIX da renovação.',
+    };
+  }
+}
+
 function parseMoneyField(value: FormDataEntryValue | null, label: string) {
   const raw = String(value ?? '').trim().replace(',', '.');
   const parsed = Number.parseFloat(raw);
