@@ -1,13 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
-import { userFacingAsaasError } from '@/lib/asaas/errors';
-import { createAsaasPixPayment } from '@/lib/asaas/one-time-payment';
-import {
-  asaasPaymentShareUrl,
-  fetchAsaasPaymentDetails,
-} from '@/lib/asaas/payment-details';
-import { cancelAsaasSubscriptionBestEffort } from '@/lib/asaas/subscription-api';
 import {
   BILLING_TERMS,
   calculateComboTotalCents,
@@ -26,6 +17,13 @@ import {
 } from '@/lib/checkout/promo-codes';
 import { getSiteUrl } from '@/lib/email/config';
 import { notifySubscriptionPixPayment } from '@/lib/email/subscription-pix-notify';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
+import { userFacingPagarmeError } from '@/lib/pagarme/errors';
+import { handlePagarmeChargePaid } from '@/lib/pagarme/webhook-handlers';
+import { handlePagarmeComboPaymentConfirmed } from '@/lib/pagarme/combo-payment';
+import { createPagarmeSubscriptionPixPayment } from '@/lib/pagarme/subscription-pix';
+import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
 import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
@@ -48,9 +46,10 @@ export type AdminCreateSubscriptionPixResult = {
   amountCents: number;
   planName: string;
   pix: {
-    encodedImage: string;
+    encodedImage?: string;
     payload: string;
     expirationDate: string;
+    imageUrl?: string;
   };
   paymentUrl: string;
   emailSent: boolean;
@@ -70,8 +69,8 @@ export async function createAdminSubscriptionWithPix(
   admin: SupabaseClient,
   input: AdminCreateSubscriptionPixInput
 ): Promise<AdminCreateSubscriptionPixResult> {
-  if (!ASAAS_CONFIGURED) {
-    throw new Error('Asaas não configurado.');
+  if (!PAGARME_CONFIGURED) {
+    throw new Error('Pagar.me não configurado.');
   }
 
   if (!BILLING_TERMS.includes(input.billingTerm)) {
@@ -80,7 +79,7 @@ export async function createAdminSubscriptionWithPix(
 
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, email, cpf, full_name, phone, asaas_customer_id')
+    .select('id, email, cpf, full_name, phone, pagarme_customer_id')
     .eq('id', input.userId)
     .maybeSingle();
 
@@ -143,12 +142,12 @@ export async function createAdminSubscriptionWithPix(
   if (retrySubscriptionId) {
     const { data: previous } = await admin
       .from('subscriptions')
-      .select('asaas_subscription_id')
+      .select('pagarme_subscription_id')
       .eq('id', retrySubscriptionId)
       .maybeSingle();
 
-    if (previous?.asaas_subscription_id) {
-      await cancelAsaasSubscriptionBestEffort(previous.asaas_subscription_id);
+    if (previous?.pagarme_subscription_id) {
+      await cancelPagarmeSubscriptionBestEffort(previous.pagarme_subscription_id);
     }
   }
 
@@ -247,7 +246,7 @@ export async function createAdminSubscriptionWithPix(
     throw new Error('Valor de cobrança inválido.');
   }
 
-  const asaasCustomerId = await getOrCreateAsaasCustomer(
+  const pagarmeCustomerId = await getOrCreatePagarmeCustomer(
     admin,
     {
       id: profile.id,
@@ -255,7 +254,7 @@ export async function createAdminSubscriptionWithPix(
       full_name: profile.full_name,
       cpf: profile.cpf,
       phone: profile.phone,
-      asaas_customer_id: profile.asaas_customer_id,
+      pagarme_customer_id: profile.pagarme_customer_id,
     },
     address
   );
@@ -270,7 +269,8 @@ export async function createAdminSubscriptionWithPix(
     address_id: input.addressId,
     special_notes: builtSpecialNotes,
     status: 'pending' as const,
-    asaas_customer_id: asaasCustomerId,
+    pagarme_customer_id: pagarmeCustomerId,
+    pagarme_subscription_id: null,
     asaas_subscription_id: null,
     stripe_subscription_id: null,
     mp_subscription_id: null,
@@ -321,49 +321,27 @@ export async function createAdminSubscriptionWithPix(
     ? `DungeonBox — ${comboLabel(input.billingTerm)} (${plan.name}${bump ? ` + ${bump.name}` : ''})`
     : `DungeonBox — ${plan.name}${bump ? ` + ${bump.name}` : ''}`;
 
-  const externalReference = isCombo
-    ? `${subscriptionId}:combo`
-    : subscriptionId;
-
-  let pixPayment;
+  let pixCharge;
   try {
-    pixPayment = await createAsaasPixPayment({
-      customerId: asaasCustomerId,
+    pixCharge = await createPagarmeSubscriptionPixPayment(admin, {
+      customerId: pagarmeCustomerId,
+      userId: input.userId,
+      subscriptionId,
       valueCents: chargeTotalCents,
       description,
-      externalReference,
+      chargeKind: isCombo ? 'combo' : 'admin_pix',
+      billingTerm: input.billingTerm,
+      statusDetail: isCombo
+        ? JSON.stringify({
+            type: 'combo_prepaid',
+            billing_term: input.billingTerm,
+            combo_total_cents: chargeTotalCents,
+            gateway: 'pagarme',
+          })
+        : null,
     });
   } catch (error) {
-    throw new Error(userFacingAsaasError(error));
-  }
-
-  const { data: paymentRow, error: paymentError } = await admin
-    .from('payments')
-    .upsert(
-      {
-        user_id: input.userId,
-        subscription_id: subscriptionId,
-        asaas_payment_id: pixPayment.id,
-        amount_cents: chargeTotalCents,
-        currency: 'BRL',
-        status: 'pending',
-        payment_method: 'pix',
-        installments: 1,
-        status_detail: isCombo
-          ? JSON.stringify({
-              type: 'combo_prepaid',
-              billing_term: input.billingTerm,
-              combo_total_cents: chargeTotalCents,
-            })
-          : null,
-      },
-      { onConflict: 'asaas_payment_id' }
-    )
-    .select('id')
-    .single();
-
-  if (paymentError || !paymentRow) {
-    throw new Error('Não foi possível registrar o pagamento PIX.');
+    throw new Error(userFacingPagarmeError(error));
   }
 
   if (resolvedCoupon) {
@@ -376,25 +354,50 @@ export async function createAdminSubscriptionWithPix(
     );
   }
 
-  const remote = await fetchAsaasPaymentDetails(pixPayment.id);
-  const paymentUrl =
-    asaasPaymentShareUrl(remote) ?? `${getSiteUrl()}/dashboard/subscription`;
+  if (pixCharge.alreadyPaid) {
+    if (isCombo) {
+      await handlePagarmeComboPaymentConfirmed(admin, {
+        chargeId: pixCharge.chargeId,
+        orderId: pixCharge.orderId,
+        amountCents: chargeTotalCents,
+        metadata: {
+          subscription_id: subscriptionId,
+          charge_kind: 'combo',
+          billing_term: input.billingTerm,
+        },
+      });
+    } else {
+      await handlePagarmeChargePaid(admin, {
+        id: pixCharge.chargeId,
+        amount: chargeTotalCents,
+        payment_method: 'pix',
+        metadata: {
+          subscription_id: subscriptionId,
+          charge_kind: 'admin_pix',
+        },
+      });
+    }
+  }
 
-  const emailNotify = await notifySubscriptionPixPayment(admin, {
-    userId: input.userId,
-    planName: plan.name as string,
-    amountCents: chargeTotalCents,
-    paymentUrl,
-    pixPayload: pixPayment.pix.payload,
-    expirationDate: pixPayment.pix.expirationDate,
-  });
+  const paymentUrl = `${getSiteUrl()}/dashboard/subscription`;
+
+  const emailNotify = pixCharge.pix.payload
+    ? await notifySubscriptionPixPayment(admin, {
+        userId: input.userId,
+        planName: plan.name as string,
+        amountCents: chargeTotalCents,
+        paymentUrl,
+        pixPayload: pixCharge.pix.payload,
+        expirationDate: pixCharge.pix.expirationDate || null,
+      })
+    : { sent: false };
 
   return {
     subscriptionId,
-    paymentId: paymentRow.id as string,
+    paymentId: pixCharge.paymentId,
     amountCents: chargeTotalCents,
     planName: plan.name as string,
-    pix: pixPayment.pix,
+    pix: pixCharge.pix,
     paymentUrl,
     emailSent: emailNotify.sent,
   };

@@ -44,7 +44,7 @@ export default function SendPixRenewalEmailPanel({ preview }: Props) {
             !window.confirm(
               preview.pendingPaymentId
                 ? `Reenviar o PIX de ${formatMoney(preview.amountCents)} (${preview.periodLabel}) por e-mail?`
-                : `Gerar um PIX de ${formatMoney(preview.amountCents)} para ${preview.periodLabel} no Asaas e enviar por e-mail?\n\nIsso cria uma cobrança real.`
+                : `Gerar um PIX de ${formatMoney(preview.amountCents)} para ${preview.periodLabel} no Pagar.me e enviar por e-mail?\n\nIsso cria uma cobrança real.`
             )
           ) {
             return;

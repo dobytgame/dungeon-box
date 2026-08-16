@@ -38,9 +38,10 @@ type PixResult = {
   paymentUrl: string;
   emailSent: boolean;
   pix: {
-    encodedImage: string;
+    encodedImage?: string;
     payload: string;
     expirationDate: string;
+    imageUrl?: string;
   };
 };
 
@@ -228,8 +229,8 @@ export default function CustomerActivatePlanPanel({
             Ativar plano com PIX
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-400">
-            Cria assinatura pendente, gera cobrança PIX no Asaas e envia o link
-            por e-mail para o cliente.
+            Cria assinatura pendente, gera cobrança PIX no Pagar.me e envia o
+            copia e cola por e-mail para o cliente.
           </p>
         </div>
       </div>
@@ -457,17 +458,24 @@ export default function CustomerActivatePlanPanel({
                 {formatMoney(result.amountCents)}
               </p>
               <p className="mt-2 text-xs text-stone-500">
-                Expira em{' '}
-                {new Intl.DateTimeFormat('pt-BR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                }).format(new Date(result.pix.expirationDate))}
+                {result.pix.expirationDate
+                  ? `Expira em ${new Intl.DateTimeFormat('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    }).format(new Date(result.pix.expirationDate))}`
+                  : 'Pague com o copia e cola ou o QR Code.'}
               </p>
             </div>
 
             {result.pix.encodedImage ? (
               <img
                 src={`data:image/png;base64,${result.pix.encodedImage}`}
+                alt="QR Code PIX"
+                className="h-36 w-36 rounded-sm border border-white/10 bg-white p-2"
+              />
+            ) : result.pix.imageUrl ? (
+              <img
+                src={result.pix.imageUrl}
                 alt="QR Code PIX"
                 className="h-36 w-36 rounded-sm border border-white/10 bg-white p-2"
               />

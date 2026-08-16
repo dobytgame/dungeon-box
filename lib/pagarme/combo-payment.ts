@@ -65,6 +65,7 @@ export async function handlePagarmeComboPaymentConfirmed(
     code?: string | null;
     amountCents?: number | null;
     metadata?: Record<string, string> | null;
+    paymentMethod?: 'pix' | 'credit_card' | null;
   }
 ): Promise<'processed' | 'skipped'> {
   const subscriptionId = resolveSubscriptionIdFromComboOrder({
@@ -167,6 +168,19 @@ export async function handlePagarmeComboPaymentConfirmed(
   const now = new Date().toISOString();
   const wasPending = local.status === 'pending';
 
+  let paymentMethod: 'pix' | 'credit_card' =
+    input.paymentMethod === 'pix' ? 'pix' : 'credit_card';
+  if (input.chargeId) {
+    const { data: existing } = await supabase
+      .from('payments')
+      .select('payment_method')
+      .eq('pagarme_charge_id', input.chargeId)
+      .maybeSingle();
+    if (existing?.payment_method === 'pix') {
+      paymentMethod = 'pix';
+    }
+  }
+
   const paymentPayload = {
     user_id: local.user_id,
     subscription_id: local.id,
@@ -175,7 +189,7 @@ export async function handlePagarmeComboPaymentConfirmed(
     status: 'approved' as const,
     paid_at: now,
     installments,
-    payment_method: 'credit_card',
+    payment_method: paymentMethod,
     status_detail: JSON.stringify({
       type: 'combo_prepaid',
       billing_term: local.billing_term,
@@ -255,7 +269,7 @@ export async function handlePagarmeComboPaymentConfirmed(
       userId: local.user_id,
       paymentId: paymentRow?.id ?? null,
       amountCents,
-      paymentMethod: 'credit_card',
+      paymentMethod,
       gateway: 'pagarme',
       cycleNumber: 1,
     }).catch((err) => {

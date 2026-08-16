@@ -116,6 +116,27 @@ export function extractPagarmeStorePix(
   };
 }
 
+export async function extractPagarmePixWithRetry(
+  order: PagarmeOrderResponse,
+  attempts = 4
+): Promise<PagarmeStorePixDetails | null> {
+  let current = order;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const pix = extractPagarmeStorePix(current);
+    if (pix?.payload?.trim()) return pix;
+
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, 350 * (attempt + 1))
+      );
+      current = await fetchPagarmeOrder(order.id);
+    }
+  }
+
+  return extractPagarmeStorePix(current);
+}
+
 export async function fetchPagarmeOrder(
   orderId: string
 ): Promise<PagarmeOrderResponse> {

@@ -2956,25 +2956,33 @@ export async function syncPagarmeSubscriptionAction(subscriptionId: string) {
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  if (!subscription?.pagarme_subscription_id) {
-    return { error: 'Assinatura sem vínculo Pagar.me para sincronizar.' };
+  if (!subscription) {
+    return { error: 'Assinatura não encontrada.' };
   }
 
   try {
-    const { reconcilePendingPagarmeSubscription } = await import(
-      '@/lib/pagarme/reconcile-pending'
-    );
-    const reconciled = await reconcilePendingPagarmeSubscription(
+    const {
+      reconcilePendingPagarmePixOrder,
+      reconcilePendingPagarmeSubscription,
+    } = await import('@/lib/pagarme/reconcile-pending');
+    const pixReconciled = await reconcilePendingPagarmePixOrder(
       admin,
-      subscription
+      subscriptionId
     );
+    const reconciled =
+      pixReconciled ||
+      (await reconcilePendingPagarmeSubscription(admin, subscription));
+
+    if (!subscription.pagarme_subscription_id && !pixReconciled && !reconciled) {
+      return { error: 'Assinatura sem vínculo Pagar.me para sincronizar.' };
+    }
 
     await logAdminAction(admin, {
       actorId: user.id,
       action: 'subscription.sync_pagarme',
       entityType: 'subscription',
       entityId: subscriptionId,
-      metadata: { reconciled },
+      metadata: { reconciled, pix_reconciled: pixReconciled },
       ipAddress: await clientIp(),
     });
 

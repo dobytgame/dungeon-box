@@ -20,11 +20,13 @@ import { applySubscriptionStatusChange } from '@/lib/subscriptions/apply-status-
 import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { resolveGatewayPaidAt } from '@/lib/datetime/brazil';
+import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 
 export type PagarmeWebhookCharge = {
   id?: string;
   status?: string;
   amount?: number;
+  payment_method?: string;
   subscription_id?: string;
   customer_id?: string;
   code?: string | null;
@@ -69,11 +71,57 @@ function resolvePagarmeChargePaidAt(
   return resolveGatewayPaidAt(existingPaidAt, gatewayPaidAt);
 }
 
+function isComboChargeKind(kind?: string | null): boolean {
+  return (
+    kind === 'combo' ||
+    kind === 'combo_upgrade' ||
+    kind === 'combo_tier_upgrade'
+  );
+}
+
+function resolvePagarmePaymentMethod(
+  charge: PagarmeWebhookCharge,
+  existing?: string | null
+): 'pix' | 'credit_card' {
+  if (existing === 'pix') return 'pix';
+  const method = charge.payment_method?.trim().toLowerCase();
+  if (method === 'pix') return 'pix';
+  const kind = charge.metadata?.charge_kind;
+  if (kind === 'admin_pix' || kind === 'pix_renewal') return 'pix';
+  if (existing === 'credit_card') return 'credit_card';
+  return 'credit_card';
+}
+
+function mergeChargeFromOrder(
+  charge: PagarmeWebhookCharge,
+  order: PagarmeWebhookOrder
+): PagarmeWebhookCharge {
+  return {
+    ...charge,
+    code: charge.code ?? order.code,
+    metadata: {
+      ...(order.metadata ?? {}),
+      ...(charge.metadata ?? {}),
+    },
+  };
+}
+
 export async function handlePagarmeChargePaid(
   supabase: SupabaseClient,
   charge: PagarmeWebhookCharge
 ): Promise<'processed' | 'skipped'> {
   if (!charge.id) return 'skipped';
+
+  if (isComboChargeKind(charge.metadata?.charge_kind)) {
+    const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
+      chargeId: charge.id,
+      code: charge.code,
+      amountCents: chargeAmountCents(charge),
+      metadata: charge.metadata ?? null,
+      paymentMethod: resolvePagarmePaymentMethod(charge),
+    });
+    if (comboResult === 'processed') return 'processed';
+  }
 
   const subscriptionFromCharge = await resolveLocalSubscriptionFromPagarmeCharge(
     supabase,
@@ -86,6 +134,7 @@ export async function handlePagarmeChargePaid(
       code: charge.code,
       amountCents: chargeAmountCents(charge),
       metadata: charge.metadata ?? null,
+      paymentMethod: resolvePagarmePaymentMethod(charge),
     });
     if (comboResult === 'processed') return 'processed';
 
@@ -97,18 +146,46 @@ export async function handlePagarmeChargePaid(
 
   const local = subscriptionFromCharge;
 
+  if (!charge.subscription_id) {
+    const { data: extra } = await supabase
+      .from('subscriptions')
+      .select('billing_term, status')
+      .eq('id', local.id)
+      .maybeSingle();
+
+    if (
+      extra?.status === 'pending' &&
+      isComboTerm((extra.billing_term as BillingTerm | null) ?? 'monthly')
+    ) {
+      return handlePagarmeComboPaymentConfirmed(supabase, {
+        chargeId: charge.id,
+        code: charge.code,
+        amountCents: chargeAmountCents(charge),
+        metadata: {
+          ...(charge.metadata ?? {}),
+          subscription_id: local.id,
+          charge_kind: charge.metadata?.charge_kind ?? 'combo',
+        },
+        paymentMethod: resolvePagarmePaymentMethod(charge),
+      });
+    }
+  }
+
   const amountCents = chargeAmountCents(charge);
-  const now = new Date().toISOString();
 
   const { data: existingPayment } = await supabase
     .from('payments')
-    .select('id, paid_at')
+    .select('id, paid_at, payment_method')
     .eq('pagarme_charge_id', charge.id)
     .maybeSingle();
 
   const paidAt = resolvePagarmeChargePaidAt(
     charge,
     existingPayment?.paid_at as string | null
+  );
+  const paymentMethod = resolvePagarmePaymentMethod(
+    charge,
+    existingPayment?.payment_method as string | null
   );
 
   const { data: paymentRow } = await supabase
@@ -122,7 +199,7 @@ export async function handlePagarmeChargePaid(
         currency: 'BRL',
         status: 'approved',
         paid_at: paidAt,
-        payment_method: 'credit_card',
+        payment_method: paymentMethod,
       },
       { onConflict: 'pagarme_charge_id' }
     )
@@ -157,7 +234,7 @@ export async function handlePagarmeChargePaid(
       userId: local.user_id,
       paymentId: paymentRow?.id ?? null,
       amountCents,
-      paymentMethod: 'credit_card',
+      paymentMethod,
       gateway: 'pagarme',
       cycleNumber: 1,
     }).catch((err) => {
@@ -166,7 +243,7 @@ export async function handlePagarmeChargePaid(
     return 'processed';
   }
 
-  if (local.status === 'active') {
+  if (local.status === 'active' || local.status === 'past_due') {
     const periodEnd = new Date();
     periodEnd.setMonth(periodEnd.getMonth() + 1);
     if (paymentRow) {
@@ -188,7 +265,7 @@ export async function handlePagarmeChargePaid(
       userId: local.user_id,
       paymentId: paymentRow?.id ?? null,
       amountCents,
-      paymentMethod: 'credit_card',
+      paymentMethod,
       gateway: 'pagarme',
       cycleNumber: local.current_cycle,
     }).catch((err) => {
@@ -268,21 +345,22 @@ export async function handlePagarmeOrderPaid(
   const charges = order.charges ?? [];
 
   for (const charge of charges) {
+    const merged = mergeChargeFromOrder(charge, order);
     const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
-      chargeId: charge.id,
+      chargeId: merged.id,
       orderId: order.id,
-      code: charge.code ?? order.code,
-      amountCents: chargeAmountCents(charge),
-      metadata: charge.metadata ?? order.metadata ?? null,
+      code: merged.code,
+      amountCents: chargeAmountCents(merged),
+      metadata: merged.metadata ?? null,
+      paymentMethod: resolvePagarmePaymentMethod(merged),
     });
     if (comboResult === 'processed') return 'processed';
 
-    const result = await handleStoreOrderPagarmeChargePaid(supabase, {
-      ...charge,
-      code: charge.code ?? order.code,
-      metadata: charge.metadata ?? order.metadata,
-    });
+    const result = await handleStoreOrderPagarmeChargePaid(supabase, merged);
     if (result === 'processed') return 'processed';
+
+    const subscriptionResult = await handlePagarmeChargePaid(supabase, merged);
+    if (subscriptionResult === 'processed') return 'processed';
   }
 
   if (order.id) {
@@ -293,22 +371,31 @@ export async function handlePagarmeOrderPaid(
         charge?.status ?? charge?.last_transaction?.status ?? remote.status;
 
       if (charge?.id && isPagarmeChargePaid(chargeStatus)) {
+        const merged: PagarmeWebhookCharge = {
+          id: charge.id,
+          status: charge.status,
+          amount: charge.amount,
+          code: remote.code ?? order.code,
+          metadata: remote.metadata ?? order.metadata,
+        };
         const comboResult = await handlePagarmeComboPaymentConfirmed(supabase, {
           chargeId: charge.id,
           orderId: remote.id ?? order.id,
           code: remote.code ?? order.code,
           amountCents: Math.round(charge.amount ?? 0),
           metadata: remote.metadata ?? order.metadata ?? null,
+          paymentMethod: resolvePagarmePaymentMethod(merged),
         });
         if (comboResult === 'processed') return 'processed';
 
-        const result = await handleStoreOrderPagarmeChargePaid(supabase, {
-          id: charge.id,
-          amount: charge.amount,
-          code: remote.code ?? order.code,
-          metadata: remote.metadata ?? order.metadata,
-        });
+        const result = await handleStoreOrderPagarmeChargePaid(supabase, merged);
         if (result === 'processed') return 'processed';
+
+        const subscriptionResult = await handlePagarmeChargePaid(
+          supabase,
+          merged
+        );
+        if (subscriptionResult === 'processed') return 'processed';
       }
     } catch (error) {
       console.error('[pagarme] order.paid fetch order:', order.id, error);
@@ -326,7 +413,12 @@ export async function handlePagarmeOrderPaid(
     code: order.code,
     metadata: order.metadata,
   });
-  return fallback;
+  if (fallback === 'processed') return 'processed';
+
+  return handlePagarmeChargePaid(supabase, {
+    code: order.code,
+    metadata: order.metadata,
+  });
 }
 
 export async function handlePagarmeOrderPaymentFailed(

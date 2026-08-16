@@ -50,12 +50,17 @@ export function parsePagarmeSubscriptionChargeCode(
   if (cycleMatch?.[1]) return cycleMatch[1];
 
   const oneTimeMatch = trimmed.match(
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-one-time$/i
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-one-time(?:-[a-z0-9]+)?$/i
   );
   if (oneTimeMatch?.[1]) return oneTimeMatch[1];
 
+  const pixMatch = trimmed.match(
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-pix(?:-[a-z0-9]+)?$/i
+  );
+  if (pixMatch?.[1]) return pixMatch[1];
+
   const comboMatch = trimmed.match(
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo$/i
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo(?:-[a-z0-9]+)?$/i
   );
   if (comboMatch?.[1]) return comboMatch[1];
 
@@ -65,6 +70,7 @@ export function parsePagarmeSubscriptionChargeCode(
 export async function resolveLocalSubscriptionFromPagarmeCharge(
   supabase: SupabaseClient,
   charge: {
+    id?: string | null;
     subscription_id?: string | null;
     code?: string | null;
     metadata?: Record<string, string> | null;
@@ -90,7 +96,27 @@ export async function resolveLocalSubscriptionFromPagarmeCharge(
 
   const codeSubscriptionId = parsePagarmeSubscriptionChargeCode(charge.code);
   if (codeSubscriptionId) {
-    return findLocalSubscriptionByPagarmeMetadata(supabase, codeSubscriptionId);
+    const byCode = await findLocalSubscriptionByPagarmeMetadata(
+      supabase,
+      codeSubscriptionId
+    );
+    if (byCode) return byCode;
+  }
+
+  const chargeId = charge.id?.trim();
+  if (chargeId) {
+    const { data: payment } = await supabase
+      .from('payments')
+      .select('subscription_id')
+      .eq('pagarme_charge_id', chargeId)
+      .maybeSingle();
+    const paymentSubscriptionId = payment?.subscription_id as string | null;
+    if (paymentSubscriptionId) {
+      return findLocalSubscriptionByPagarmeMetadata(
+        supabase,
+        paymentSubscriptionId
+      );
+    }
   }
 
   return null;

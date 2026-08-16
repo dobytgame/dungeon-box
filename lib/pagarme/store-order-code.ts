@@ -35,12 +35,23 @@ export function buildPagarmeSubscriptionComboTierCode(
   return `${subscriptionId}-combo-tier`;
 }
 
+/** Código único para PIX avulso (ativação/renovação admin). */
+export function buildPagarmeSubscriptionPixCode(
+  subscriptionId: string,
+  kind: 'pix' | 'combo' = 'pix'
+): string {
+  const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 4)}`;
+  return `${subscriptionId}-${kind}-${unique}`;
+}
+
 export function parsePagarmeSubscriptionComboCode(
   code?: string | null
 ): string | null {
+  if (parsePagarmeSubscriptionComboTierCode(code)) return null;
+
   const trimmed = code?.trim() ?? '';
   const match = trimmed.match(
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo$/i
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo(?:-[a-z0-9]+)?$/i
   );
   return match?.[1] ?? null;
 }
@@ -50,7 +61,7 @@ export function parsePagarmeSubscriptionComboTierCode(
 ): string | null {
   const trimmed = code?.trim() ?? '';
   const match = trimmed.match(
-    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo-tier$/i
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo-tier(?:-[a-z0-9]+)?$/i
   );
   return match?.[1] ?? null;
 }

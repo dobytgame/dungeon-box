@@ -1,9 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
-import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
-import { userFacingAsaasError } from '@/lib/asaas/errors';
 import {
-  createAsaasPixPayment,
   fetchAsaasPixQrCode,
 } from '@/lib/asaas/one-time-payment';
 import {
@@ -16,6 +12,18 @@ import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription
 import { getSiteUrl } from '@/lib/email/config';
 import { notifySubscriptionPixPayment } from '@/lib/email/subscription-pix-notify';
 import { relOne } from '@/lib/dashboard/format';
+import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
+import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
+import { userFacingPagarmeError } from '@/lib/pagarme/errors';
+import {
+  extractPagarmePixWithRetry,
+  fetchPagarmeOrder,
+  isPagarmeChargeFailed,
+  isPagarmeChargePaid,
+  isPagarmeChargePending,
+  resolvePagarmeOrderChargeIds,
+} from '@/lib/pagarme/one-time-order';
+import { createPagarmeSubscriptionPixPayment } from '@/lib/pagarme/subscription-pix';
 
 export type PixRenewalPreview = {
   subscriptionId: string;
@@ -189,12 +197,16 @@ async function findPeriodPixPayment(
 ): Promise<{
   id: string;
   asaas_payment_id: string | null;
+  pagarme_order_id: string | null;
+  pagarme_charge_id: string | null;
   status: string;
   amount_cents: number;
 } | null> {
   const { data } = await admin
     .from('payments')
-    .select('id, asaas_payment_id, status, amount_cents, status_detail')
+    .select(
+      'id, asaas_payment_id, pagarme_order_id, pagarme_charge_id, status, amount_cents, status_detail'
+    )
     .eq('subscription_id', subscriptionId)
     .eq('payment_method', 'pix')
     .in('status', statuses)
@@ -207,6 +219,8 @@ async function findPeriodPixPayment(
       return {
         id: row.id as string,
         asaas_payment_id: (row.asaas_payment_id as string | null) ?? null,
+        pagarme_order_id: (row.pagarme_order_id as string | null) ?? null,
+        pagarme_charge_id: (row.pagarme_charge_id as string | null) ?? null,
         status: row.status as string,
         amount_cents: (row.amount_cents as number) ?? 0,
       };
@@ -227,10 +241,6 @@ export async function issuePixRenewalAndNotify(
   reused: boolean;
   emailSent: boolean;
 }> {
-  if (!ASAAS_CONFIGURED) {
-    throw new Error('Asaas não configurado.');
-  }
-
   const { data: subscription } = await admin
     .from('subscriptions')
     .select(
@@ -249,7 +259,7 @@ export async function issuePixRenewalAndNotify(
       pagarme_subscription_id,
       stripe_subscription_id,
       mp_subscription_id,
-      asaas_customer_id,
+      pagarme_customer_id,
       plans!plan_id(name, price_cents)
     `
     )
@@ -322,7 +332,7 @@ export async function issuePixRenewalAndNotify(
 
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, email, cpf, full_name, phone, asaas_customer_id')
+    .select('id, email, cpf, full_name, phone, pagarme_customer_id')
     .eq('id', userId)
     .maybeSingle();
 
@@ -340,7 +350,42 @@ export async function issuePixRenewalAndNotify(
     'pending',
   ]);
 
-  if (pending?.asaas_payment_id) {
+  if (pending?.pagarme_order_id) {
+    try {
+      const order = await fetchPagarmeOrder(pending.pagarme_order_id);
+      const ids = resolvePagarmeOrderChargeIds(order);
+      if (isPagarmeChargePaid(ids.chargeStatus)) {
+        await admin
+          .from('payments')
+          .update({
+            status: 'approved',
+            paid_at: new Date().toISOString(),
+          })
+          .eq('id', pending.id);
+        throw new Error(`Já existe PIX pago para ${periodLabel}.`);
+      }
+      if (isPagarmeChargePending(ids.chargeStatus)) {
+        const pix = await extractPagarmePixWithRetry(order);
+        if (pix?.payload?.trim()) {
+          paymentId = pending.id;
+          reused = true;
+          pixPayload = pix.payload;
+          expirationDate = pix.expirationDate || null;
+          paymentUrl = `${getSiteUrl()}/dashboard/subscription`;
+        }
+      } else if (isPagarmeChargeFailed(ids.chargeStatus)) {
+        await admin
+          .from('payments')
+          .update({ status: 'failed' })
+          .eq('id', pending.id);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Já existe PIX')) {
+        throw error;
+      }
+      console.error('[admin] pix renewal pagarme reuse failed:', error);
+    }
+  } else if (pending?.asaas_payment_id) {
     try {
       const remote = await fetchAsaasPaymentDetails(pending.asaas_payment_id);
       if (isAsaasPaymentPending(remote.status)) {
@@ -363,11 +408,15 @@ export async function issuePixRenewalAndNotify(
           .eq('id', pending.id);
       }
     } catch (error) {
-      console.error('[admin] pix renewal reuse failed:', error);
+      console.error('[admin] pix renewal asaas reuse failed:', error);
     }
   }
 
   if (!reused) {
+    if (!PAGARME_CONFIGURED) {
+      throw new Error('Pagar.me não configurado.');
+    }
+
     const addressId = subscription.address_id as string | null;
     if (!addressId) {
       throw new Error('Assinatura sem endereço de entrega.');
@@ -395,7 +444,7 @@ export async function issuePixRenewalAndNotify(
       throw new Error('Cliente precisa ter telefone cadastrado para gerar PIX.');
     }
 
-    const asaasCustomerId = await getOrCreateAsaasCustomer(admin, profile, {
+    const pagarmeCustomerId = await getOrCreatePagarmeCustomer(admin, profile, {
       recipient: address.recipient as string,
       zip_code: address.zip_code as string,
       street: address.street as string,
@@ -407,47 +456,29 @@ export async function issuePixRenewalAndNotify(
     });
 
     const planName = plan?.name ?? 'assinatura';
-    let pixPayment;
+    let pixCharge;
     try {
-      pixPayment = await createAsaasPixPayment({
-        customerId: asaasCustomerId,
+      pixCharge = await createPagarmeSubscriptionPixPayment(admin, {
+        customerId: pagarmeCustomerId,
+        userId,
+        subscriptionId,
         valueCents: amountCents,
         description: `DungeonBox — ${planName} (renovação ${periodLabel})`,
-        externalReference: `${subscriptionId}:pix-renewal:${period}`,
+        chargeKind: 'pix_renewal',
+        statusDetail: serializePixRenewalDetail(period),
       });
     } catch (error) {
-      throw new Error(userFacingAsaasError(error));
+      throw new Error(userFacingPagarmeError(error));
     }
 
-    const { data: paymentRow, error: paymentError } = await admin
-      .from('payments')
-      .upsert(
-        {
-          user_id: userId,
-          subscription_id: subscriptionId,
-          asaas_payment_id: pixPayment.id,
-          amount_cents: amountCents,
-          currency: 'BRL',
-          status: 'pending',
-          payment_method: 'pix',
-          installments: 1,
-          status_detail: serializePixRenewalDetail(period),
-        },
-        { onConflict: 'asaas_payment_id' }
-      )
-      .select('id')
-      .single();
-
-    if (paymentError || !paymentRow) {
-      throw new Error('Não foi possível registrar o PIX de renovação.');
+    if (pixCharge.alreadyPaid) {
+      throw new Error(`Já existe PIX pago para ${periodLabel}.`);
     }
 
-    const remote = await fetchAsaasPaymentDetails(pixPayment.id);
-    paymentId = paymentRow.id as string;
-    pixPayload = pixPayment.pix.payload;
-    expirationDate = pixPayment.pix.expirationDate ?? null;
-    paymentUrl =
-      asaasPaymentShareUrl(remote) ?? `${getSiteUrl()}/dashboard/subscription`;
+    paymentId = pixCharge.paymentId;
+    pixPayload = pixCharge.pix.payload;
+    expirationDate = pixCharge.pix.expirationDate || null;
+    paymentUrl = `${getSiteUrl()}/dashboard/subscription`;
   }
 
   if (!paymentId || !pixPayload || !paymentUrl) {
