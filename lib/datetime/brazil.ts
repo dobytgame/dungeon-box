@@ -95,7 +95,74 @@ export function todayBrazilDateKey(now = new Date()): string {
   return toBrazilDateKey(now.toISOString());
 }
 
-/** Soma dias a uma chave YYYY-MM-DD (calendário Brasil). */
+/** 0 = domingo … 6 = sábado, no calendário de Brasília. */
+export function brazilWeekday(dateKey: string): number {
+  return new Date(`${dateKey}T12:00:00${BRAZIL_UTC_OFFSET}`).getUTCDay();
+}
+
+export function isBrazilBusinessDay(dateKey: string): boolean {
+  const weekday = brazilWeekday(dateKey);
+  return weekday >= 1 && weekday <= 5;
+}
+
+/**
+ * N-ésimo dia útil a partir de `startKey` (inclusive, se for dia útil).
+ * Ex.: se start é segunda e n=15, devolve a 15ª segunda–sexta a contar dessa data.
+ */
+export function addBrazilBusinessDays(startKey: string, count: number): string {
+  if (count <= 0) return startKey;
+
+  let cursor = startKey;
+  let seen = 0;
+  for (let i = 0; i < 400 && seen < count; i += 1) {
+    if (isBrazilBusinessDay(cursor)) {
+      seen += 1;
+      if (seen === count) return cursor;
+    }
+    cursor = addBrazilDays(cursor, 1);
+  }
+  return cursor;
+}
+
+/** Quantidade de dias úteis no intervalo inclusivo. */
+export function countBrazilBusinessDaysInclusive(
+  fromKey: string,
+  toKey: string
+): number {
+  if (fromKey > toKey) return 0;
+  let count = 0;
+  for (const day of eachBrazilDay(fromKey, toKey)) {
+    if (isBrazilBusinessDay(day)) count += 1;
+  }
+  return count;
+}
+
+/** Soma meses civis a uma data YYYY-MM-DD, preservando o dia (31/01 → 28/02). */
+export function addBrazilCalendarMonths(dateKey: string, months: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  if (!year || !month || !day) return dateKey;
+
+  const target = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  const clampedDay = Math.min(day, lastDay);
+  const nextYear = target.getUTCFullYear();
+  const nextMonth = String(target.getUTCMonth() + 1).padStart(2, '0');
+  const nextDay = String(clampedDay).padStart(2, '0');
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+/** Soma meses civis a um timestamp, devolvendo ISO ao meio-dia em Brasília. */
+export function addBrazilCalendarMonthsToIso(
+  iso: string,
+  months: number
+): string {
+  const dateKey = toBrazilDateKey(iso);
+  if (!dateKey || months === 0) return iso;
+  return parseBrazilDateOnlyToIso(addBrazilCalendarMonths(dateKey, months));
+}
+
 export function addBrazilDays(dateKey: string, delta: number): string {
   const ms = new Date(`${dateKey}T12:00:00${BRAZIL_UTC_OFFSET}`).getTime();
   if (Number.isNaN(ms)) return dateKey;

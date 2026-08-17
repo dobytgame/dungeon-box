@@ -20,6 +20,8 @@ import {
   loadPaymentContextByIds,
   loadSubscriptionPaymentMaps,
   pickCyclePaymentContext,
+  resolveComboPurchaseAnchor,
+  resolveComboStartCycleNumber,
   resolveCycleEffectivePaidAt,
   resolveKanbanSubscriptionCreatedAt,
   paymentRecordedAt,
@@ -277,6 +279,8 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
       null,
     subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
     currentCyclePaidAt: paidAt,
+    comboPurchasePaidAt: null,
+    comboStartCycleNumber: null,
     subscriptionCurrentCycle:
       (subscription?.current_cycle as number | null) ?? null,
     subscriptionBillingTerm: (subscription?.billing_term as string | null) ?? null,
@@ -318,6 +322,7 @@ function toShipmentContext(row: AdminCycleRow): CycleShipmentContext {
     status: row.status,
     paidAt: row.paid_at,
     createdAt: row.created_at,
+    paymentId: row.payment_id,
   };
 }
 
@@ -383,7 +388,8 @@ async function enrichCycleRowsWithShipmentItems(
       combo_installments:
         (subscription?.combo_installments as number | null) ?? null,
     };
-    const billingTerm = subscriptionContext.billing_term;
+    const billingTerm =
+      row.subscriptionBillingTerm ?? subscriptionContext.billing_term;
     const plan = relOne(
       subscription?.plans as Record<string, unknown> | Record<string, unknown>[] | null
     );
@@ -393,6 +399,30 @@ async function enrichCycleRowsWithShipmentItems(
     const comboPayment = paymentMaps.comboBySub.get(row.subscription_id) ?? null;
     const firstApproved =
       paymentMaps.firstApprovedBySub.get(row.subscription_id) ?? null;
+    const comboPurchasePaidAt = isComboTerm(billingTerm)
+      ? resolveComboPurchaseAnchor({
+          cyclePaidAt: row.paid_at,
+          linkedPaymentPaidAt: linkedPayment?.paid_at ?? null,
+          linkedPaymentCreatedAt: linkedPayment?.created_at ?? null,
+          comboPaymentPaidAt: comboPayment?.paid_at ?? null,
+          comboPaymentCreatedAt: comboPayment?.created_at ?? null,
+          firstApprovedPaymentPaidAt: firstApproved?.paid_at ?? null,
+          firstApprovedPaymentCreatedAt: firstApproved?.created_at ?? null,
+          subscriptionStartedAt:
+            (subscription?.started_at as string | null) ?? null,
+        })
+      : null;
+
+    const comboStartCycleNumber = resolveComboStartCycleNumber({
+      billingTerm,
+      paymentId: row.payment_id,
+      comboPurchasePaidAt,
+      siblings: (siblingsBySub.get(row.subscription_id) ?? []).map((sibling) => ({
+        cycleNumber: sibling.cycleNumber,
+        paymentId: sibling.paymentId ?? null,
+        paidAt: sibling.paidAt ?? null,
+      })),
+    });
 
     const effectivePaidAt = resolveCycleEffectivePaidAt({
       cycleNumber: row.cycle_number,
@@ -406,6 +436,7 @@ async function enrichCycleRowsWithShipmentItems(
       firstApprovedPaymentPaidAt: firstApproved?.paid_at ?? null,
       firstApprovedPaymentCreatedAt: firstApproved?.created_at ?? null,
       subscriptionStartedAt: (subscription?.started_at as string | null) ?? null,
+      comboStartCycleNumber,
     });
 
     const subscriptionContractedAt =
@@ -415,16 +446,22 @@ async function enrichCycleRowsWithShipmentItems(
       }) ?? row.created_at;
 
     const currentCyclePaidAt =
-      paymentRecordedAt(
-        linkedPayment?.paid_at ?? row.paid_at,
-        linkedPayment?.created_at ?? row.created_at
-      ) ?? effectivePaidAt;
+      billingTerm && isComboTerm(billingTerm)
+        ? effectivePaidAt
+        : paymentRecordedAt(
+            linkedPayment?.paid_at ?? row.paid_at,
+            linkedPayment?.created_at ?? row.created_at
+          ) ?? effectivePaidAt;
 
     const enrichedRow: AdminCycleRow = {
       ...row,
       subscriptionContractedAt,
       currentCyclePaidAt,
       paid_at: effectivePaidAt,
+      comboPurchasePaidAt,
+      comboStartCycleNumber: isComboTerm(billingTerm)
+        ? comboStartCycleNumber
+        : null,
     };
 
     let cyclePayment = pickCyclePaymentContext({

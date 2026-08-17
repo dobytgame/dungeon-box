@@ -109,8 +109,10 @@ export function comboGrantsFreeShipping(term: BillingTerm): boolean {
   return term === 'combo_12';
 }
 
-export function isComboTerm(term: BillingTerm): term is Exclude<BillingTerm, 'monthly'> {
-  return term !== 'monthly';
+export function isComboTerm(
+  term?: string | null
+): term is Exclude<BillingTerm, 'monthly'> {
+  return term === 'combo_3' || term === 'combo_6' || term === 'combo_12';
 }
 
 export function prepaidMonthsForTerm(term: BillingTerm): number | null {

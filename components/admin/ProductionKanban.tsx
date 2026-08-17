@@ -28,7 +28,9 @@ import {
   getProductionCycleVisual,
   productionCycleCardClasses,
 } from '@/lib/admin/production-cycle-theme';
+import { kanbanCyclePaidAt } from '@/lib/admin/cycle-payment-resolve';
 import SendFeedbackEmailButton from '@/components/admin/SendFeedbackEmailButton';
+import ProductionSlaStrip from '@/components/admin/ProductionSlaStrip';
 
 export type ProductionBoardColumn = keyof ProductionKanbanBoard;
 
@@ -170,6 +172,7 @@ export function ProductionKanbanCard({
   const cycleVisual = colorByCycle
     ? getProductionCycleVisual(row.cycle_number)
     : null;
+  const cyclePaidAt = kanbanCyclePaidAt(row);
 
   function isButtonBusy(target: CycleStatus) {
     return (
@@ -188,7 +191,7 @@ export function ProductionKanbanCard({
 
   return (
     <article
-      className={`relative rounded border p-3 transition duration-200 hover:brightness-110 ${
+      className={`relative overflow-hidden rounded border p-3 transition duration-200 hover:brightness-110 ${
         colorByCycle ? '' : 'admin-panel'
       } ${cardTone}`}
     >
@@ -280,11 +283,11 @@ export function ProductionKanbanCard({
           <CycleProductionNotesHighlight notes={row.productionNotes} compact />
         ) : null}
         <dl className="grid gap-1 text-[11px] text-zinc-500">
-          {row.currentCyclePaidAt ?? row.paid_at ? (
+          {cyclePaidAt ? (
             <div className="flex justify-between gap-2">
               <dt>Compra</dt>
               <dd className="text-zinc-400">
-                {formatDate(row.currentCyclePaidAt ?? row.paid_at)}
+                {formatDate(cyclePaidAt)}
               </dd>
             </div>
           ) : null}
@@ -447,6 +450,12 @@ export function ProductionKanbanCard({
           Detalhes
         </button>
       </div>
+
+      <ProductionSlaStrip
+        paidAt={cyclePaidAt}
+        status={row.status}
+        shippedAt={row.shipped_at}
+      />
     </article>
   );
 }

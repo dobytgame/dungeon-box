@@ -7,6 +7,7 @@ import {
   PRODUCTION_BOARD_COLUMNS,
   PRODUCTION_SECTION_META,
 } from '@/lib/admin/production-list';
+import { kanbanCyclePaidAt } from '@/lib/admin/cycle-payment-resolve';
 import { formatDate } from '@/lib/dashboard/format';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
@@ -200,7 +201,9 @@ export default function ProductionListView({ board, onOpenDetail }: Props) {
                           )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-4 align-top font-mono text-xs tabular-nums text-zinc-400 md:px-5">
-                          {row.paid_at ? formatDate(row.paid_at) : '—'}
+                          {kanbanCyclePaidAt(row)
+                            ? formatDate(kanbanCyclePaidAt(row))
+                            : '—'}
                         </td>
                       </tr>
                       );

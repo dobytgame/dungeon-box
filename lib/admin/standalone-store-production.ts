@@ -162,6 +162,8 @@ export function buildStandaloneStoreCycleRow(
     subscriptionContractedAt: order.createdAt ?? order.paidAt,
     subscriptionStartedAt: null,
     currentCyclePaidAt: order.paidAt ?? order.createdAt,
+    comboPurchasePaidAt: null,
+    comboStartCycleNumber: null,
     subscriptionCurrentCycle: null,
     subscriptionBillingTerm: null,
     isPartner: false,

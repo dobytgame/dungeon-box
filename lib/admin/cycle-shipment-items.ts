@@ -62,6 +62,7 @@ export interface CycleShipmentContext {
   status: CycleStatus;
   paidAt: string | null;
   createdAt: string | null;
+  paymentId?: string | null;
 }
 
 export interface StoreOrderPaymentRow {
@@ -483,7 +484,7 @@ export async function loadSiblingCyclesBySubscription(
 
   const { data, error } = await admin
     .from('subscription_cycles')
-    .select('id, cycle_number, subscription_id, status, paid_at, created_at')
+    .select('id, cycle_number, subscription_id, status, paid_at, created_at, payment_id')
     .in('subscription_id', subscriptionIds)
     .order('cycle_number', { ascending: true });
 
@@ -502,6 +503,7 @@ export async function loadSiblingCyclesBySubscription(
       status: row.status as CycleStatus,
       paidAt: (row.paid_at as string | null) ?? null,
       createdAt: (row.created_at as string | null) ?? null,
+      paymentId: (row.payment_id as string | null) ?? null,
     });
     result.set(subscriptionId, list);
   }
@@ -671,7 +673,7 @@ export async function listSiblingCyclesForShipment(
 ): Promise<CycleShipmentContext[]> {
   const { data, error } = await admin
     .from('subscription_cycles')
-    .select('id, cycle_number, subscription_id, status, paid_at, created_at')
+    .select('id, cycle_number, subscription_id, status, paid_at, created_at, payment_id')
     .eq('subscription_id', subscriptionId)
     .order('cycle_number', { ascending: true });
 
@@ -687,6 +689,7 @@ export async function listSiblingCyclesForShipment(
     status: row.status as CycleStatus,
     paidAt: (row.paid_at as string | null) ?? null,
     createdAt: (row.created_at as string | null) ?? null,
+    paymentId: (row.payment_id as string | null) ?? null,
   }));
 }
 

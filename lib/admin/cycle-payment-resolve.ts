@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
+import {
+  addBrazilCalendarMonthsToIso,
+  toBrazilDateKey,
+} from '@/lib/datetime/brazil';
 import {
   isComboPrepaidPayment,
   type PaymentAmountContext,
@@ -189,7 +192,7 @@ export function pickCyclePaymentContext(input: {
   if (
     (!payment || input.amountCents == null) &&
     input.billingTerm &&
-    isComboTerm(input.billingTerm as BillingTerm)
+    isComboTerm(input.billingTerm)
   ) {
     payment = input.comboBySub.get(input.subscriptionId) ?? payment;
   }
@@ -199,6 +202,110 @@ export function pickCyclePaymentContext(input: {
   }
 
   return payment;
+}
+
+export function resolveComboStartCycleNumber(input: {
+  billingTerm: string | null;
+  paymentId?: string | null;
+  comboPurchasePaidAt?: string | null;
+  siblings?: Array<{
+    cycleNumber: number;
+    paymentId?: string | null;
+    paidAt?: string | null;
+  }>;
+}): number {
+  if (!isComboTerm(input.billingTerm)) {
+    return 1;
+  }
+
+  const cycle1 = input.siblings?.find((sibling) => sibling.cycleNumber === 1);
+  if (cycle1) {
+    const cycle1Paid = cycle1.paidAt?.trim() || null;
+    const comboPaid = input.comboPurchasePaidAt?.trim() || null;
+    if (
+      !cycle1Paid ||
+      !comboPaid ||
+      toBrazilDateKey(cycle1Paid) === toBrazilDateKey(comboPaid)
+    ) {
+      return 1;
+    }
+  }
+
+  const paymentId = input.paymentId?.trim();
+  if (paymentId && input.siblings?.length) {
+    const samePayment = input.siblings.filter(
+      (sibling) => sibling.paymentId === paymentId
+    );
+    if (samePayment.length > 0) {
+      return Math.min(...samePayment.map((sibling) => sibling.cycleNumber));
+    }
+  }
+
+  return 1;
+}
+
+export function comboCyclePaidAtFromPurchase(
+  purchasePaidAt: string | null | undefined,
+  cycleNumber: number,
+  startCycleNumber = 1
+): string | null {
+  if (!purchasePaidAt) return null;
+  const offset = cycleNumber - Math.max(1, startCycleNumber);
+  if (offset <= 0) return purchasePaidAt;
+  return addBrazilCalendarMonthsToIso(purchasePaidAt, offset);
+}
+
+export function kanbanCyclePaidAt(row: {
+  cycle_number: number;
+  subscriptionBillingTerm?: string | null;
+  comboPurchasePaidAt?: string | null;
+  comboStartCycleNumber?: number | null;
+  currentCyclePaidAt?: string | null;
+  paid_at?: string | null;
+}): string | null {
+  if (!isComboTerm(row.subscriptionBillingTerm)) {
+    return row.currentCyclePaidAt ?? row.paid_at ?? null;
+  }
+
+  if (row.comboPurchasePaidAt) {
+    return comboCyclePaidAtFromPurchase(
+      row.comboPurchasePaidAt,
+      row.cycle_number,
+      row.comboStartCycleNumber ?? 1
+    );
+  }
+
+  if (row.comboStartCycleNumber == null) {
+    return comboCyclePaidAtFromPurchase(
+      row.paid_at ?? row.currentCyclePaidAt,
+      row.cycle_number,
+      1
+    );
+  }
+
+  return row.currentCyclePaidAt ?? row.paid_at ?? null;
+}
+
+export function resolveComboPurchaseAnchor(input: {
+  cyclePaidAt: string | null;
+  linkedPaymentPaidAt?: string | null;
+  linkedPaymentCreatedAt?: string | null;
+  comboPaymentPaidAt?: string | null;
+  comboPaymentCreatedAt?: string | null;
+  firstApprovedPaymentPaidAt?: string | null;
+  firstApprovedPaymentCreatedAt?: string | null;
+  subscriptionStartedAt?: string | null;
+}): string | null {
+  return earliestRecordedAt(
+    paymentRecordedAt(input.comboPaymentPaidAt, input.comboPaymentCreatedAt),
+    paymentRecordedAt(
+      input.firstApprovedPaymentPaidAt,
+      input.firstApprovedPaymentCreatedAt
+    ),
+    input.subscriptionStartedAt,
+    input.cyclePaidAt,
+    paymentRecordedAt(input.linkedPaymentPaidAt, input.linkedPaymentCreatedAt)
+  );
 }
 
 export function resolveCycleEffectivePaidAt(input: {
@@ -213,7 +320,15 @@ export function resolveCycleEffectivePaidAt(input: {
   firstApprovedPaymentPaidAt?: string | null;
   firstApprovedPaymentCreatedAt?: string | null;
   subscriptionStartedAt?: string | null;
+  comboStartCycleNumber?: number;
 }): string | null {
+  if (isComboTerm(input.billingTerm)) {
+    const startCycle = Math.max(1, input.comboStartCycleNumber ?? 1);
+    const anchor = resolveComboPurchaseAnchor(input);
+    if (!anchor) return input.cyclePaidAt;
+    return comboCyclePaidAtFromPurchase(anchor, input.cycleNumber, startCycle);
+  }
+
   if (input.cycleNumber === 1) {
     return earliestRecordedAt(
       paymentRecordedAt(
@@ -234,18 +349,6 @@ export function resolveCycleEffectivePaidAt(input: {
   }
 
   if (input.cyclePaidAt) return input.cyclePaidAt;
-
-  if (
-    input.billingTerm &&
-    isComboTerm(input.billingTerm as BillingTerm) &&
-    input.cycleNumber > 1 &&
-    input.paymentId
-  ) {
-    return earliestRecordedAt(
-      input.comboPaymentPaidAt,
-      input.firstApprovedPaymentPaidAt
-    );
-  }
 
   return paymentRecordedAt(
     input.linkedPaymentPaidAt,

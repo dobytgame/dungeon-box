@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/auth';
-import { resolveCycleProductionDataWithFinance, type CycleShipmentItem, type ProductionChecklistItem } from '@/lib/admin/cycle-shipment-items';
+import { resolveCycleProductionDataWithFinance, listSiblingCyclesForShipment, type CycleShipmentItem, type ProductionChecklistItem } from '@/lib/admin/cycle-shipment-items';
 import {
   loadPaymentContextByIds,
   loadSubscriptionPaymentMaps,
+  resolveComboPurchaseAnchor,
+  resolveComboStartCycleNumber,
   resolveCycleEffectivePaidAt,
 } from '@/lib/admin/cycle-payment-resolve';
 import { toAdminCycleDetailView, type AdminCyclePendingStoreOrder } from '@/lib/admin/cycle-detail-view';
@@ -49,11 +51,12 @@ export async function GET(_request: Request, context: RouteContext) {
     const subscriptionId = subscription?.id;
 
     if (subscriptionId) {
-      const [paymentsById, paymentMaps] = await Promise.all([
+      const [paymentsById, paymentMaps, siblingCycles] = await Promise.all([
         cycle.payment_id
           ? loadPaymentContextByIds(admin, [cycle.payment_id])
           : Promise.resolve(new Map()),
         loadSubscriptionPaymentMaps(admin, [subscriptionId]),
+        listSiblingCyclesForShipment(admin, subscriptionId),
       ]);
       const linkedPayment = cycle.payment_id
         ? paymentsById.get(cycle.payment_id) ?? null
@@ -61,6 +64,26 @@ export async function GET(_request: Request, context: RouteContext) {
       const comboPayment = paymentMaps.comboBySub.get(subscriptionId) ?? null;
       const firstApproved =
         paymentMaps.firstApprovedBySub.get(subscriptionId) ?? null;
+      const comboPurchasePaidAt = resolveComboPurchaseAnchor({
+        cyclePaidAt: cycle.paid_at,
+        linkedPaymentPaidAt: linkedPayment?.paid_at ?? null,
+        linkedPaymentCreatedAt: linkedPayment?.created_at ?? null,
+        comboPaymentPaidAt: comboPayment?.paid_at ?? null,
+        comboPaymentCreatedAt: comboPayment?.created_at ?? null,
+        firstApprovedPaymentPaidAt: firstApproved?.paid_at ?? null,
+        firstApprovedPaymentCreatedAt: firstApproved?.created_at ?? null,
+        subscriptionStartedAt: subscription?.started_at ?? null,
+      });
+      const comboStartCycleNumber = resolveComboStartCycleNumber({
+        billingTerm: subscription?.billing_term ?? null,
+        paymentId: cycle.payment_id,
+        comboPurchasePaidAt,
+        siblings: siblingCycles.map((sibling) => ({
+          cycleNumber: sibling.cycleNumber,
+          paymentId: sibling.paymentId ?? null,
+          paidAt: sibling.paidAt ?? null,
+        })),
+      });
 
       cycle = {
         ...cycle,
@@ -76,6 +99,7 @@ export async function GET(_request: Request, context: RouteContext) {
           firstApprovedPaymentPaidAt: firstApproved?.paid_at ?? null,
           firstApprovedPaymentCreatedAt: firstApproved?.created_at ?? null,
           subscriptionStartedAt: subscription?.started_at ?? null,
+          comboStartCycleNumber,
         }),
       };
     }

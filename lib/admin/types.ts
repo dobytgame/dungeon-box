@@ -225,6 +225,9 @@ export interface AdminCycleRow {
   subscriptionStartedAt: string | null;
   /** Pagamento deste ciclo (sem mesclar com started_at) — ordem secundária no kanban. */
   currentCyclePaidAt: string | null;
+  /** Data da compra do combo (ciclo 1); ciclos seguintes avançam o mesmo dia do mês. */
+  comboPurchasePaidAt: string | null;
+  comboStartCycleNumber: number | null;
   subscriptionCurrentCycle: number | null;
   subscriptionBillingTerm: string | null;
   isPartner: boolean;
