@@ -27,6 +27,7 @@ import { isAdminFinanceNavActive, isAdminFinanceSection } from '@/lib/admin/fina
 import { isAdminMarketingNavActive } from '@/lib/admin/marketing-nav';
 import { isAdminSalesNavActive, isAdminSalesSection } from '@/lib/admin/sales-nav';
 import { isAdminStoreNavActive, isAdminStoreSection } from '@/lib/admin/store-nav';
+import { isAdminThemesNavActive } from '@/lib/admin/themes-nav';
 
 const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   bell: Bell,
@@ -71,6 +72,9 @@ function isChildActive(
   }
   if (parentHref === '/admin/loja') {
     return isAdminStoreNavActive(pathname, childHref);
+  }
+  if (parentHref === '/admin/temas') {
+    return isAdminThemesNavActive(pathname, childHref);
   }
   return pathname === childHref || pathname.startsWith(`${childHref}/`);
 }

@@ -100,9 +100,13 @@ export const ADMIN_NAV = [
     href: '/admin/temas',
     label: 'Temas',
     eyebrow: 'Lore',
-    description: 'Temas mensais, reveal e arte das caixas.',
+    description: 'Temas mensais, reveal e votação das próximas caixas.',
     icon: 'palette',
     group: 'catalogo',
+    children: [
+      { href: '/admin/temas', label: 'Temas mensais' },
+      { href: '/admin/temas/votacao', label: 'Votação' },
+    ],
   },
   {
     href: '/admin/cupons',

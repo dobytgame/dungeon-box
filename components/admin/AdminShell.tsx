@@ -15,6 +15,8 @@ import { isAdminFinanceSection } from '@/lib/admin/finance-nav';
 import { isAdminMarketingSection } from '@/lib/admin/marketing-nav';
 import { isAdminSalesSection } from '@/lib/admin/sales-nav';
 import { isAdminStoreSection } from '@/lib/admin/store-nav';
+import { isAdminThemesSection } from '@/lib/admin/themes-nav';
+import AdminThemesNav from './AdminThemesNav';
 
 interface Props {
   displayName: string;
@@ -91,6 +93,12 @@ export default function AdminShell({
             {isAdminStoreSection(pathname) ? (
               <div className="mt-6">
                 <AdminStoreNav />
+              </div>
+            ) : null}
+
+            {isAdminThemesSection(pathname) ? (
+              <div className="mt-6">
+                <AdminThemesNav />
               </div>
             ) : null}
 

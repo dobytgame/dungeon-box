@@ -4,6 +4,7 @@ import { privatePageMetadata } from '@/lib/seo/metadata';
 import { buildDashboardNav } from '@/lib/dashboard/constants';
 import { userHasActiveReferralAccess } from '@/lib/referral/access';
 import { isStoreLinkVisible } from '@/lib/store/access';
+import { userCanSeeThemeVote } from '@/lib/theme-votes/access';
 
 export const metadata: Metadata = privatePageMetadata('Minha conta');
 import {
@@ -22,7 +23,8 @@ export default async function DashboardLayout({
   const name = displayName(profile, user.email);
   const showReferral = await userHasActiveReferralAccess(supabase, user.id);
   const showStore = isStoreLinkVisible();
-  const navItems = buildDashboardNav(showReferral, showStore);
+  const showThemeVote = userCanSeeThemeVote(profile?.is_admin === true);
+  const navItems = buildDashboardNav(showReferral, showStore, showThemeVote);
 
   return (
     <DashboardShell

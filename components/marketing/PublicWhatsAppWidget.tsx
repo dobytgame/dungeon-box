@@ -3,6 +3,12 @@
 import { usePathname } from 'next/navigation';
 import FloatingWhatsAppWidget from '@/components/marketing/FloatingWhatsAppWidget';
 
+function isGuildCampaignPath(pathname: string): boolean {
+  return (
+    pathname === '/entre-para-guilda' || pathname === '/entre-para-guilda-v1'
+  );
+}
+
 function shouldShowWhatsAppWidget(pathname: string): boolean {
   if (pathname.startsWith('/admin') || pathname.startsWith('/dashboard')) {
     return false;
@@ -11,7 +17,7 @@ function shouldShowWhatsAppWidget(pathname: string): boolean {
   return (
     pathname === '/' ||
     pathname.startsWith('/loja') ||
-    pathname === '/entre-para-guilda'
+    isGuildCampaignPath(pathname)
   );
 }
 
@@ -24,9 +30,11 @@ export default function PublicWhatsAppWidget() {
 
   const source = pathname.startsWith('/loja')
     ? 'floating_widget_loja'
-    : pathname === '/entre-para-guilda'
-      ? 'floating_widget_guilda'
-      : 'floating_widget_lp';
+    : pathname === '/entre-para-guilda-v1'
+      ? 'floating_widget_guilda_v1'
+      : pathname === '/entre-para-guilda'
+        ? 'floating_widget_guilda'
+        : 'floating_widget_lp';
 
   return <FloatingWhatsAppWidget source={source} />;
 }

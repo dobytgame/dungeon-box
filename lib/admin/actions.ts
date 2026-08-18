@@ -2943,6 +2943,7 @@ export async function switchGatewayAction(gateway: 'asaas' | 'pagarme') {
   revalidatePath('/admin/financeiro');
   revalidatePath('/loja/checkout');
   revalidatePath('/entre-para-guilda');
+  revalidatePath('/entre-para-guilda-v1');
   revalidatePath('/api/checkout/provider');
   return { success: true as const, active_gateway: gateway };
 }

@@ -22,6 +22,17 @@ module.exports = {
           DEFAULT: '#ffd600',
           bright: '#ffe566',
         },
+        relic: {
+          ink: '#0D0D0D',
+          surface: '#1A1A1A',
+          raised: '#252525',
+          gold: '#ff6b2b',
+          goldLight: '#ff9060',
+          ember: '#ff6b2b',
+          parchment: '#E8E4DC',
+          muted: '#8A8680',
+          faint: '#555550',
+        },
         silver: '#a0aabb',
         console: {
           DEFAULT: '#2dd4bf',
@@ -32,6 +43,8 @@ module.exports = {
       fontFamily: {
         display: ['var(--font-display)', 'sans-serif'],
         body: ['var(--font-body)', 'sans-serif'],
+        cinzel: ['var(--font-guild-display)', 'serif'],
+        sora: ['var(--font-guild-body)', 'sans-serif'],
       },
       animation: {
         marquee: 'marquee 30s linear infinite',

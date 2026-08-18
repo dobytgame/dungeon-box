@@ -36,6 +36,13 @@ export const DASHBOARD_NAV = [
     description: 'Ciclos mensais, temas, rastreio e histórico de envios.',
   },
   {
+    href: '/dashboard/votacao',
+    label: 'Votação',
+    icon: 'star',
+    eyebrow: 'Próxima caixa',
+    description: 'Dois temas na mesa. Um voto decide a próxima caixa.',
+  },
+  {
     href: '/dashboard/pedidos',
     label: 'Pedidos',
     icon: 'package',
@@ -98,13 +105,20 @@ export type DashboardNavItem = (typeof DASHBOARD_NAV)[number] | typeof REFERRAL_
 
 export function buildDashboardNav(
   showReferral: boolean,
-  showStore = true
+  showStore = true,
+  showThemeVote = true
 ): DashboardNavItem[] {
-  const base = showStore
-    ? DASHBOARD_NAV
+  let items: DashboardNavItem[] = showStore
+    ? [...DASHBOARD_NAV]
     : DASHBOARD_NAV.filter((item) => item.href !== '/loja');
-  if (!showReferral) return [...base];
-  const items: DashboardNavItem[] = [...base];
-  items.splice(items.length - 2, 0, REFERRAL_NAV_ITEM);
+
+  if (!showThemeVote) {
+    items = items.filter((item) => item.href !== '/dashboard/votacao');
+  }
+
+  if (showReferral) {
+    items.splice(items.length - 2, 0, REFERRAL_NAV_ITEM);
+  }
+
   return items;
 }

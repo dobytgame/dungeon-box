@@ -6,6 +6,7 @@ import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
+import ThemeVoteBanner from '@/components/dashboard/ThemeVoteBanner';
 import {
   formatDate,
   formatMoney,
@@ -19,6 +20,14 @@ import {
   getProfile,
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
+import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  getOpenThemePoll,
+  getUserVoteOptionId,
+  userHasActiveSubscription,
+} from '@/lib/theme-votes/queries';
+import { userCanCastThemeVote, userCanSeeThemeVote } from '@/lib/theme-votes/access';
+import { getThemePollStatus } from '@/lib/theme-votes/window';
 
 export default async function DashboardPage() {
   const { user } = await requireDashboardUser();
@@ -40,6 +49,30 @@ export default async function DashboardPage() {
       )
     : null;
 
+  const isAdmin = profile?.is_admin === true;
+  const showThemeVote = userCanSeeThemeVote(isAdmin);
+  const admin = createAdminClient();
+  const isActiveSubscriber = showThemeVote
+    ? await userHasActiveSubscription(admin, user.id)
+    : false;
+  const canVote = userCanCastThemeVote(isAdmin, isActiveSubscriber);
+  const openPoll = showThemeVote ? await getOpenThemePoll(admin) : null;
+  const openPollVoteId = openPoll
+    ? await getUserVoteOptionId(admin, user.id, openPoll.id)
+    : null;
+  const voteBanner =
+    openPoll &&
+    openPoll.options.length >= 2 &&
+    getThemePollStatus(openPoll.starts_at, openPoll.ends_at) === 'open' &&
+    (canVote || openPollVoteId)
+      ? {
+          cycleNumber: openPoll.cycle_number,
+          endsAt: openPoll.ends_at,
+          options: openPoll.options,
+          votedOptionId: openPollVoteId,
+        }
+      : null;
+
   const pastDueSubscription = manageable.find((sub) => sub.status === 'past_due');
   const pastDuePaymentLink = pastDueSubscription
     ? await getCustomerSubscriptionPaymentLink(user.id, pastDueSubscription.id)
@@ -60,6 +93,7 @@ export default async function DashboardPage() {
           dueDate={pastDuePaymentLink.dueDate}
         />
       ) : null}
+      {voteBanner ? <ThemeVoteBanner poll={voteBanner} /> : null}
       {manageable.length === 0 ? (
         <EmptyState
           title="Sem assinatura ativa"
@@ -172,6 +206,9 @@ export default async function DashboardPage() {
             { href: '/dashboard/addresses', label: 'Endereços', desc: 'Entrega e padrão' },
             { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e troca de cartão' },
             { href: '/dashboard/loyalty', label: 'Fidelidade', desc: 'Níveis e votos' },
+            ...(showThemeVote
+              ? [{ href: '/dashboard/votacao', label: 'Votação', desc: 'Tema do próximo ciclo' }]
+              : []),
           ].map((item) => (
             <Link
               key={item.href}

@@ -1,15 +1,17 @@
-import LaunchCapture from '@/components/launch/LaunchCapture';
-import LaunchFAQ from '@/components/launch/LaunchFAQ';
-import LaunchFinalCTA from '@/components/launch/LaunchFinalCTA';
-import LaunchHero from '@/components/launch/LaunchHero';
-import LaunchMarquee from '@/components/launch/LaunchMarquee';
-import LaunchPlans from '@/components/launch/LaunchPlans';
-import LaunchProblem from '@/components/launch/LaunchProblem';
-import LaunchSocialProof from '@/components/launch/LaunchSocialProof';
-import LaunchSolution from '@/components/launch/LaunchSolution';
-import LaunchFooter from '@/components/layout/LaunchFooter';
-import LaunchNavbar from '@/components/layout/LaunchNavbar';
+import GuildLpBenefits from '@/components/guild-lp/GuildLpBenefits';
+import GuildLpFaq from '@/components/guild-lp/GuildLpFaq';
+import GuildLpFinalCta from '@/components/guild-lp/GuildLpFinalCta';
+import GuildLpFooter from '@/components/guild-lp/GuildLpFooter';
+import GuildLpHero from '@/components/guild-lp/GuildLpHero';
+import GuildLpHowItWorks from '@/components/guild-lp/GuildLpHowItWorks';
+import GuildLpIdentification from '@/components/guild-lp/GuildLpIdentification';
+import GuildLpMidCta from '@/components/guild-lp/GuildLpMidCta';
+import GuildLpNav from '@/components/guild-lp/GuildLpNav';
+import GuildLpPlans from '@/components/guild-lp/GuildLpPlans';
+import GuildLpProduct from '@/components/guild-lp/GuildLpProduct';
+import GuildLpSocialProof from '@/components/guild-lp/GuildLpSocialProof';
 import { displayName, getProfile } from '@/lib/dashboard/queries';
+import { guildMemberCount } from '@/lib/guild-lp/constants';
 import { getWaitlistCount } from '@/lib/launch/waitlist';
 import { guildCampaignPageMetadata } from '@/lib/seo/metadata';
 import { createClient } from '@/lib/supabase/server';
@@ -25,22 +27,24 @@ export default async function GuildCampaignPage() {
   const userName = user ? displayName(profile, user.email) : null;
   const isLoggedIn = !!user;
   const waitlistCount = await getWaitlistCount();
+  const memberCount = guildMemberCount(waitlistCount);
 
   return (
     <>
-      <LaunchNavbar isLoggedIn={isLoggedIn} userName={userName} />
+      <GuildLpNav isLoggedIn={isLoggedIn} userName={userName} />
       <main id="conteudo-principal">
-        <LaunchHero waitlistCount={waitlistCount} />
-        <LaunchMarquee />
-        <LaunchProblem />
-        <LaunchSolution />
-        <LaunchPlans />
-        <LaunchSocialProof waitlistCount={waitlistCount} />
-        <LaunchCapture />
-        <LaunchFAQ />
-        <LaunchFinalCTA />
+        <GuildLpHero memberCount={memberCount} />
+        <GuildLpSocialProof />
+        <GuildLpIdentification />
+        <GuildLpProduct />
+        <GuildLpHowItWorks />
+        <GuildLpMidCta />
+        <GuildLpBenefits />
+        <GuildLpPlans />
+        <GuildLpFinalCta memberCount={memberCount} />
+        <GuildLpFaq />
       </main>
-      <LaunchFooter isLoggedIn={isLoggedIn} />
+      <GuildLpFooter isLoggedIn={isLoggedIn} memberCount={memberCount} />
     </>
   );
 }
