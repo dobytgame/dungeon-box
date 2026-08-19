@@ -18,6 +18,8 @@ import { listApprovedComboPrepaidPayments } from '@/lib/payments/combo-payment-q
 const COMBO_CYCLE_STATUSES = [
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ] as const;

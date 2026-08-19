@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
+import { cloneProductionKanbanBoard } from '@/lib/admin/production-list';
 import {
   compareCyclesByKitPaymentDate,
   getCycleRollbackTargets,
@@ -44,18 +45,14 @@ const KANBAN_COLUMNS = PRODUCTION_PIPELINE.filter(
     status === 'upcoming' ||
     status === 'production' ||
     status === 'preparing' ||
+    status === 'packed' ||
+    status === 'awaiting_pickup' ||
     status === 'shipped' ||
     status === 'delivered'
 );
 
 function cloneBoard(board: ProductionKanbanBoard): ProductionKanbanBoard {
-  return {
-    upcoming: [...board.upcoming],
-    production: [...board.production],
-    preparing: [...board.preparing],
-    shipped: [...board.shipped],
-    delivered: [...board.delivered],
-  };
+  return cloneProductionKanbanBoard(board);
 }
 
 function moveCardInBoard(
@@ -103,6 +100,14 @@ const COLUMN_META: Record<
     label: 'Em preparo',
     hint: 'Caixa sendo montada no estoque',
   },
+  packed: {
+    label: 'Embalado',
+    hint: 'Caixa conferida e fechada',
+  },
+  awaiting_pickup: {
+    label: 'Aguardando coleta',
+    hint: 'Na fila da Loggi — ainda sem rastreio',
+  },
   shipped: {
     label: 'Enviado',
     hint: 'Em trânsito com rastreio',
@@ -138,6 +143,19 @@ function nextQuickAction(
     return {
       target: 'preparing',
       label: productionActionLabel('production', 'preparing') ?? 'Iniciar preparo',
+    };
+  }
+  if (status === 'preparing') {
+    return {
+      target: 'packed',
+      label: productionActionLabel('preparing', 'packed') ?? 'Marcar embalado',
+    };
+  }
+  if (status === 'packed') {
+    return {
+      target: 'awaiting_pickup',
+      label:
+        productionActionLabel('packed', 'awaiting_pickup') ?? 'Enviar para coleta',
     };
   }
   if (status === 'shipped') {
@@ -394,7 +412,7 @@ export function ProductionKanbanCard({
       ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-800/80 pt-3">
-        {row.status === 'preparing' ? (
+        {row.status === 'awaiting_pickup' ? (
           <button
             type="button"
             onClick={() => onOpenShip(row)}
@@ -492,8 +510,12 @@ export default function ProductionKanban({
   const [error, setError] = useState('');
 
   const displayBoard = optimisticBoard ?? board;
-  const gridClass =
-    columns.length <= 2 ? 'grid gap-4 xl:grid-cols-2' : 'grid gap-4 xl:grid-cols-5';
+  const wideBoard = columns.length >= 7;
+  const gridClass = columns.length <= 2
+    ? 'grid gap-4 xl:grid-cols-2'
+    : wideBoard
+      ? 'grid min-w-[92rem] grid-cols-7 gap-4'
+      : 'grid gap-4 xl:grid-cols-5';
 
   useEffect(() => {
     setOptimisticBoard(null);
@@ -530,8 +552,9 @@ export default function ProductionKanban({
         </p>
       ) : null}
 
-      <div className={gridClass}>
-        {columns.map((status) => {
+      <div className={wideBoard ? 'overflow-x-auto pb-2' : undefined}>
+        <div className={gridClass}>
+          {columns.map((status) => {
           const meta = COLUMN_META[status];
           const cards = displayBoard[status];
           const cycleGroups = groupByCycle ? groupRowsByCycle(cards) : null;
@@ -597,6 +620,7 @@ export default function ProductionKanban({
             </section>
           );
         })}
+        </div>
       </div>
 
       {(counts.cancelled > 0 || counts.failed > 0) && (

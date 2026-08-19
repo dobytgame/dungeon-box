@@ -16,6 +16,7 @@ import {
   formatPhone,
 } from '@/lib/dashboard/format';
 import { cycleStatusLabel } from '@/lib/subscriptions/cycle-production';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 
 interface Props {
   order: AdminStoreOrderDetail;
@@ -108,13 +109,13 @@ export default function StoreOrderDetailPanel({ order, onUpdated }: Props) {
         <CycleProductionPanel
           cycleId={cardId}
           status={detail.status}
-          defaultCarrier={detail.carrier ?? 'Correios'}
+          defaultCarrier={detail.carrier ?? DEFAULT_SHIPPING_CARRIER}
           productionNotes={detail.production_notes}
-          shipMode={detail.status === 'preparing' ? 'inline' : 'modal'}
+          shipMode={detail.status === 'awaiting_pickup' ? 'inline' : 'modal'}
           onUpdated={refresh}
         />
 
-        {detail.status === 'preparing' ? (
+        {detail.status === 'awaiting_pickup' ? (
           <section className="admin-panel rounded p-5 md:p-6">
             <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">
               Registrar envio
@@ -122,7 +123,7 @@ export default function StoreOrderDetailPanel({ order, onUpdated }: Props) {
             <div className="mt-4">
               <CycleShipForm
                 cycleId={cardId}
-                defaultCarrier={detail.carrier ?? 'Correios'}
+                defaultCarrier={detail.carrier ?? DEFAULT_SHIPPING_CARRIER}
                 defaultShippingCostCents={detail.shippingCostCents}
                 onSuccess={refresh}
               />

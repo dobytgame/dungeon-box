@@ -56,6 +56,8 @@ export type AdminStoreOrderStatusCounts = {
   upcoming: number;
   production: number;
   preparing: number;
+  packed: number;
+  awaiting_pickup: number;
   shipped: number;
   delivered: number;
   cancelled: number;
@@ -69,6 +71,8 @@ export const STORE_ORDER_TAB_STATUSES: Array<{
   { value: 'upcoming', label: 'Aguardando' },
   { value: 'production', label: 'Produção' },
   { value: 'preparing', label: 'Em preparo' },
+  { value: 'packed', label: 'Embalado' },
+  { value: 'awaiting_pickup', label: 'Aguardando coleta' },
   { value: 'shipped', label: 'Enviado' },
   { value: 'delivered', label: 'Entregue' },
   { value: 'cancelled', label: 'Cancelado' },
@@ -143,6 +147,8 @@ export function countAdminStoreOrdersByStatus(
     upcoming: 0,
     production: 0,
     preparing: 0,
+    packed: 0,
+    awaiting_pickup: 0,
     shipped: 0,
     delivered: 0,
     cancelled: 0,

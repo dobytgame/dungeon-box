@@ -67,7 +67,7 @@ function statusCopy(ctx: CycleStatusEmailContext): StatusCopy | null {
         ].filter(Boolean) as string[],
         callout: {
           title: 'Próximas etapas',
-          body: 'Produção → preparo da caixa → envio com código de rastreio.',
+          body: 'Produção → preparo → embalado → coleta → envio com rastreio.',
         },
       };
 
@@ -81,12 +81,49 @@ function statusCopy(ctx: CycleStatusEmailContext): StatusCopy | null {
         paragraphs: [
           `${name}, o <strong style="color:#fff;">${cycleLabel}</strong> saiu da produção e já está <strong style="color:#fff;">em preparo</strong> no nosso estoque.`,
           plan,
-          'Conferimos peças, separamos add-ons e embalamos tudo com cuidado para o envio.',
-          'Falta pouco: em seguida registramos o despacho e você recebe o rastreio por e-mail.',
+          'Conferimos peças, separamos add-ons e preparamos tudo para embalar.',
+          'O próximo aviso chega quando a caixa estiver fechada.',
+        ].filter(Boolean) as string[],
+        callout: {
+          title: 'Próximas etapas',
+          body: 'Preparo → embalado → fila de coleta → envio com rastreio.',
+        },
+      };
+
+    case 'packed':
+      return {
+        subject: 'Sua caixa foi embalada — DungeonBox',
+        preheader: `${cycleLabel} conferido e fechado`,
+        eyebrow: 'Embalado',
+        headline: 'Caixa fechada.',
+        headlineAccent: 'fechada',
+        paragraphs: [
+          `${name}, o <strong style="color:#fff;">${cycleLabel}</strong> foi conferido e <strong style="color:#fff;">embalado</strong>.`,
+          plan,
+          'Peças, add-ons e o plano certo estão dentro. A caixa já está selada.',
+          'Em seguida ela entra na fila de coleta da transportadora. O rastreio chega no despacho.',
         ].filter(Boolean) as string[],
         callout: {
           title: 'Fique de olho',
-          body: 'O próximo e-mail trará o código de rastreio assim que a transportadora receber o pacote.',
+          body: 'O próximo e-mail avisa quando sua caixa estiver aguardando a coleta.',
+        },
+      };
+
+    case 'awaiting_pickup':
+      return {
+        subject: 'Sua caixa aguarda a coleta — DungeonBox',
+        preheader: `${cycleLabel} na fila da Loggi`,
+        eyebrow: 'Aguardando coleta',
+        headline: 'Na fila da Loggi.',
+        headlineAccent: 'Loggi',
+        paragraphs: [
+          `${name}, o <strong style="color:#fff;">${cycleLabel}</strong> está <strong style="color:#fff;">aguardando a coleta</strong> da transportadora.`,
+          plan,
+          'A etiqueta já está pronta. Assim que a Loggi coletar o pacote, você recebe o código de rastreio.',
+        ].filter(Boolean) as string[],
+        callout: {
+          title: 'Rastreio',
+          body: 'O código sai no próximo e-mail, no momento do despacho — não antes.',
         },
       };
 
@@ -100,7 +137,7 @@ function statusCopy(ctx: CycleStatusEmailContext): StatusCopy | null {
         headlineAccent: 'forja',
         paragraphs: [
           `${name}, o kit do <strong style="color:#fff;">${cycleLabel}</strong> foi despachado.`,
-          `Transportadora: <strong style="color:#fff;">${ctx.carrier?.trim() || 'Correios'}</strong>.`,
+          `Transportadora: <strong style="color:#fff;">${ctx.carrier?.trim() || 'Loggi'}</strong>.`,
           `Código de rastreio: <strong style="color:#00d4ff;">${ctx.trackingCode.trim()}</strong>.`,
           ctx.estimatedDelivery
             ? `Previsão de entrega: <strong style="color:#fff;">${ctx.estimatedDelivery}</strong>.`

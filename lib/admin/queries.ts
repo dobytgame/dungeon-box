@@ -29,7 +29,10 @@ import {
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { loadSubscriptionPlanUpgradeInfoByIds } from '@/lib/admin/subscription-plan-upgrade';
 import { compareCyclesByKitPaymentDate } from '@/lib/subscriptions/cycle-production';
-import { formatProductionShippingAddress } from '@/lib/admin/production-list';
+import {
+  emptyProductionKanbanBoard,
+  formatProductionShippingAddress,
+} from '@/lib/admin/production-list';
 import {
   buildProductionSubscriptionMeta,
   filterProductionBoardRows,
@@ -574,12 +577,11 @@ export async function getAdminDashboardStats(
     admin
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['production', 'preparing']),
+      .in('status', ['production', 'preparing', 'packed', 'awaiting_pickup']),
     admin
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'preparing')
-      .is('tracking_code', null),
+      .eq('status', 'awaiting_pickup'),
     admin
       .from('subscriptions')
       .select('id', { count: 'exact', head: true })
@@ -640,7 +642,7 @@ export async function getAdminDashboardStats(
         )
       `
       )
-      .eq('status', 'preparing')
+      .eq('status', 'awaiting_pickup')
       .order('created_at', { ascending: true })
       .limit(10),
     getAdminUserPlanStats(admin),
@@ -1127,7 +1129,13 @@ export async function listAdminCycles(
 }
 
 export type ProductionKanbanBoard = Record<
-  'upcoming' | 'production' | 'preparing' | 'shipped' | 'delivered',
+  | 'upcoming'
+  | 'production'
+  | 'preparing'
+  | 'packed'
+  | 'awaiting_pickup'
+  | 'shipped'
+  | 'delivered',
   AdminCycleRow[]
 >;
 
@@ -1146,7 +1154,15 @@ async function loadAdminProductionCycleRows(
   const { data, error } = await admin
     .from('subscription_cycles')
     .select(ADMIN_CYCLE_LIST_SELECT)
-    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered'])
+    .in('status', [
+      'upcoming',
+      'production',
+      'preparing',
+      'packed',
+      'awaiting_pickup',
+      'shipped',
+      'delivered',
+    ])
     .order('scheduled_production_month', { ascending: true, nullsFirst: false })
     .order('paid_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });
@@ -1202,13 +1218,7 @@ export function buildProductionKanbanFromCycles(
     >;
   }
 ): ProductionKanbanBoard {
-  const empty: ProductionKanbanBoard = {
-    upcoming: [],
-    production: [],
-    preparing: [],
-    shipped: [],
-    delivered: [],
-  };
+  const empty = emptyProductionKanbanBoard();
 
   if (enriched.length === 0) {
     if (options?.cycleNumber && options?.standaloneOrders?.length) {
@@ -1259,13 +1269,7 @@ export function buildProductionOverviewBoard(
     >;
   }
 ): ProductionKanbanBoard {
-  const empty: ProductionKanbanBoard = {
-    upcoming: [],
-    production: [],
-    preparing: [],
-    shipped: [],
-    delivered: [],
-  };
+  const empty = emptyProductionKanbanBoard();
 
   if (enriched.length === 0) {
     if (options?.standaloneOrders?.length) {
@@ -1341,6 +1345,8 @@ export type CycleStatusCounts = Record<
   | 'upcoming'
   | 'production'
   | 'preparing'
+  | 'packed'
+  | 'awaiting_pickup'
   | 'shipped'
   | 'delivered'
   | 'cancelled'
@@ -1356,6 +1362,8 @@ export async function getAdminCycleStatusCounts(
     'upcoming',
     'production',
     'preparing',
+    'packed',
+    'awaiting_pickup',
     'shipped',
     'delivered',
     'cancelled',

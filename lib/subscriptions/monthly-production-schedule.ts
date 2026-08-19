@@ -15,12 +15,16 @@ const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
 ]);
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ]);

@@ -83,8 +83,16 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { escapeHtml } from '@/lib/email/layout';
 
 function cycleStatusEmailRole(status: CycleStatus): EmailSenderRole {
-  if (status === 'production' || status === 'preparing') return 'production';
-  if (status === 'shipped' || status === 'delivered') return 'shipping';
+  if (status === 'production' || status === 'preparing' || status === 'packed') {
+    return 'production';
+  }
+  if (
+    status === 'awaiting_pickup' ||
+    status === 'shipped' ||
+    status === 'delivered'
+  ) {
+    return 'shipping';
+  }
   return 'guild';
 }
 

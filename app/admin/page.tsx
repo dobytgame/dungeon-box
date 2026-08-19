@@ -299,7 +299,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
         </AdminSection>
       ) : null}
 
-      <AdminSection title="Em preparo" action={{ href: '/admin/ciclos', label: 'Abrir produção' }}>
+      <AdminSection title="Aguardando coleta" action={{ href: '/admin/ciclos', label: 'Abrir produção' }}>
         <AdminTable
           rows={stats.shipQueue}
           getRowHref={(row) => `/admin/ciclos/${row.id}`}

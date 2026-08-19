@@ -18,13 +18,17 @@ import { prepareBillingCyclePayments } from '@/lib/subscriptions/billing-cycle-p
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ]);
 
 const CYCLE_STATUS_RANK: Record<string, number> = {
-  delivered: 6,
-  shipped: 5,
+  delivered: 8,
+  shipped: 7,
+  awaiting_pickup: 6,
+  packed: 5,
   preparing: 4,
   production: 3,
   upcoming: 2,
@@ -88,7 +92,15 @@ export async function backfillMissingCyclePaymentLinks(
     .from('subscription_cycles')
     .select('id, subscription_id, cycle_number, payment_id, paid_at')
     .eq('cycle_number', 1)
-    .in('status', ['upcoming', 'production', 'preparing', 'shipped', 'delivered']);
+    .in('status', [
+      'upcoming',
+      'production',
+      'preparing',
+      'packed',
+      'awaiting_pickup',
+      'shipped',
+      'delivered',
+    ]);
 
   if (error || !cycles?.length) return 0;
 
@@ -215,7 +227,7 @@ export async function markCyclePreparing(
     .update(patch)
     .eq('subscription_id', subscriptionId)
     .eq('cycle_number', cycleNumber)
-    .in('status', ['upcoming', 'production', 'preparing', 'failed']);
+    .in('status', ['upcoming', 'production', 'preparing', 'packed', 'awaiting_pickup', 'failed']);
 
   if (error) {
     console.error('markCyclePreparing:', error);
@@ -396,7 +408,7 @@ export async function cleanupSubscriptionCyclesOnCancel(
     .from('subscription_cycles')
     .select('id, paid_at, created_at, scheduled_production_month, payment_id')
     .eq('subscription_id', subscriptionId)
-    .in('status', ['upcoming', 'production', 'preparing', 'shipped'])
+    .in('status', ['upcoming', 'production', 'preparing', 'packed', 'awaiting_pickup', 'shipped'])
     .not('payment_id', 'is', null);
 
   let pinnedMonths = 0;

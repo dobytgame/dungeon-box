@@ -21,7 +21,9 @@ import {
 import { notifyCycleStatusFromRecord } from '@/lib/email/cycle-status-notify';
 import { logAdminAction } from '@/lib/admin/audit';
 import { requireAdmin } from '@/lib/admin/auth';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 import type { MarketingAudience } from '@/lib/admin/types';
+import { reassignSubscriptionCycleNumber } from '@/lib/admin/cycle-renumber';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
 import { parseProductionMonthKey } from '@/lib/admin/production-month';
 import { relOne } from '@/lib/dashboard/format';
@@ -145,7 +147,7 @@ export async function shipSubscriptionCycleAction(
 
   const trackingCode = (formData.get('tracking_code') as string)?.trim();
   const carrier =
-    (formData.get('carrier') as string)?.trim() || 'Correios';
+    (formData.get('carrier') as string)?.trim() || DEFAULT_SHIPPING_CARRIER;
   const shippingCost = parseMoneyFieldAllowZero(
     formData.get('shipping_cost_reais'),
     'Custo de envio'
@@ -200,7 +202,7 @@ export async function shipSubscriptionCycleAction(
   const currentStatus = parseCycleStatus(cycle.status);
   if (!currentStatus || !canTransitionCycle(currentStatus, 'shipped')) {
     return {
-      error: 'Só é possível enviar ciclos em preparo.',
+      error: 'Só é possível enviar ciclos aguardando coleta.',
     };
   }
 
@@ -429,41 +431,18 @@ export async function updateCycleScheduleAction(
     (cycle as { scheduled_production_month?: string | null })
       .scheduled_production_month ?? null;
 
-  if (
-    cycle.cycle_number === cycleNumber &&
-    previousScheduledMonth === scheduledProductionMonth
-  ) {
-    return { error: 'Nenhuma alteração para salvar.' };
-  }
-
-  if (cycle.cycle_number !== cycleNumber) {
-    const { data: conflict } = await admin
-      .from('subscription_cycles')
-      .select('id')
-      .eq('subscription_id', subscriptionId)
-      .eq('cycle_number', cycleNumber)
-      .neq('id', cycleId)
-      .maybeSingle();
-
-    if (conflict) {
-      return {
-        error: `A assinatura já possui o ciclo #${cycleNumber}. Escolha outro número.`,
-      };
-    }
-  }
-
-  const now = new Date().toISOString();
-  const { error } = await admin
-    .from('subscription_cycles')
-    .update({
-      cycle_number: cycleNumber,
+  const reassigned = await reassignSubscriptionCycleNumber(admin, {
+    subscriptionId,
+    cycleId,
+    fromNumber: cycle.cycle_number,
+    toNumber: cycleNumber,
+    extraPatch: {
       scheduled_production_month: scheduledProductionMonth,
-      updated_at: now,
-    })
-    .eq('id', cycleId);
+    },
+  });
 
-  if (error) {
-    return { error: error.message };
+  if ('error' in reassigned) {
+    return { error: reassigned.error };
   }
 
   await logAdminAction(admin, {
@@ -474,6 +453,7 @@ export async function updateCycleScheduleAction(
     metadata: {
       previous_cycle_number: cycle.cycle_number,
       cycle_number: cycleNumber,
+      absorbed_cycle_id: reassigned.absorbedCycleId,
       previous_scheduled_production_month: previousScheduledMonth,
       scheduled_production_month: scheduledProductionMonth,
     },
@@ -481,7 +461,12 @@ export async function updateCycleScheduleAction(
   });
 
   revalidateCycleBoard();
-  return { success: true as const };
+  return {
+    success: true as const,
+    absorbed: Boolean(reassigned.absorbedCycleId),
+    previousCycleNumber: cycle.cycle_number,
+    cycleNumber,
+  };
 }
 
 /** Atualiza só o mês de produção no kanban, sem alterar o número do ciclo. */

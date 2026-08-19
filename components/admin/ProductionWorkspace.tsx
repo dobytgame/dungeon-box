@@ -18,6 +18,7 @@ import ProductionViewToggle, {
   type ProductionViewMode,
 } from '@/components/admin/ProductionViewToggle';
 import type { ProductionCycleNavItem } from '@/lib/admin/production-cycle-nav';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 
 interface Props {
   board: ProductionKanbanBoard;
@@ -77,7 +78,7 @@ export default function ProductionWorkspace({
     setShipTarget({
       cycleId: row.id,
       label: cycleLabel(row),
-      defaultCarrier: row.carrier ?? 'Correios',
+      defaultCarrier: row.carrier ?? DEFAULT_SHIPPING_CARRIER,
       defaultShippingCostCents: null,
     });
   }, []);
@@ -91,7 +92,7 @@ export default function ProductionWorkspace({
             cycle_number: detail.cycle_number,
             customerName: detail.customerName,
           }),
-      defaultCarrier: detail.carrier ?? 'Correios',
+      defaultCarrier: detail.carrier ?? DEFAULT_SHIPPING_CARRIER,
       defaultShippingCostCents: detail.shippingCostCents,
     });
   }, []);

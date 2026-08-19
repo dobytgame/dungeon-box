@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import CycleShipForm from '@/components/admin/CycleShipForm';
 import AdminModal from '@/components/admin/AdminModal';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 
 interface Props {
   open: boolean;
@@ -18,7 +19,7 @@ export default function CycleShipModal({
   open,
   cycleId,
   cycleLabel,
-  defaultCarrier = 'Correios',
+  defaultCarrier = DEFAULT_SHIPPING_CARRIER,
   defaultShippingCostCents = null,
   onClose,
   onSuccess,

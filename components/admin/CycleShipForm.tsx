@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { shipSubscriptionCycleAction } from '@/lib/admin/actions';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 
 interface Props {
   cycleId: string;
@@ -13,7 +14,7 @@ interface Props {
 
 export default function CycleShipForm({
   cycleId,
-  defaultCarrier = 'Correios',
+  defaultCarrier = DEFAULT_SHIPPING_CARRIER,
   defaultShippingCostCents = null,
   onSuccess,
 }: Props) {
@@ -111,7 +112,7 @@ export default function CycleShipForm({
           className="mt-2 w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-console/50"
         />
         <p className="mt-1 text-xs text-zinc-500">
-          Valor pago ao transportador (Correios, Melhor Envio, etc.). Use 0 se não houve custo.
+          Valor pago ao transportador (Loggi, Correios, Melhor Envio, etc.). Use 0 se não houve custo.
         </p>
       </div>
       <button

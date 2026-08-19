@@ -16,6 +16,8 @@ const OPEN_CYCLE_STATUSES: CycleStatus[] = [
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
 ];
 
@@ -192,7 +194,14 @@ export async function restorePendingSubscriptionsWithOpenCycles(
   const { data: cycles, error } = await supabase
     .from('subscription_cycles')
     .select('subscription_id')
-    .in('status', ['upcoming', 'production', 'preparing', 'shipped']);
+    .in('status', [
+      'upcoming',
+      'production',
+      'preparing',
+      'packed',
+      'awaiting_pickup',
+      'shipped',
+    ]);
 
   if (error || !cycles?.length) return 0;
 

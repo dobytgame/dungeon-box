@@ -33,7 +33,8 @@ export const DASHBOARD_NAV = [
     label: 'Entregas',
     icon: 'package',
     eyebrow: 'Na estrada',
-    description: 'Ciclos mensais, temas, rastreio e histórico de envios.',
+    description:
+      'Produção, embalagem, coleta da Loggi, rastreio e histórico das caixas.',
   },
   {
     href: '/dashboard/votacao',
@@ -47,7 +48,8 @@ export const DASHBOARD_NAV = [
     label: 'Pedidos',
     icon: 'package',
     eyebrow: 'Loja',
-    description: 'Histórico de compras na loja, status de pagamento, produção e envio.',
+    description:
+      'Compras da loja com produção, embalagem, coleta e envio.',
   },
   {
     href: '/dashboard/feedback',

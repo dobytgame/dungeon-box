@@ -4,7 +4,10 @@ import {
 } from '@/lib/admin/production-month';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
 import { storeOrderMetaToExtraItems } from '@/lib/admin/cycle-shipment-items';
-import { formatProductionShippingAddress } from '@/lib/admin/production-list';
+import {
+  cloneProductionKanbanBoard,
+  formatProductionShippingAddress,
+} from '@/lib/admin/production-list';
 import type { AdminCycleExtraItem, AdminCycleRow } from '@/lib/admin/types';
 import {
   enrichStoreOrderPurchaseViews,
@@ -312,13 +315,7 @@ export function integrateStandaloneStoreOrdersIntoBoard(
   orders: StandaloneStoreOrderRow[],
   monthKey: string
 ): ProductionKanbanBoard {
-  const next: ProductionKanbanBoard = {
-    upcoming: [...board.upcoming],
-    production: [...board.production],
-    preparing: [...board.preparing],
-    shipped: [...board.shipped],
-    delivered: [...board.delivered],
-  };
+  const next = cloneProductionKanbanBoard(board);
 
   for (const order of orders) {
     const orderMonth = standaloneOrderProductionMonthKey(order);
@@ -348,13 +345,7 @@ export function integrateStandaloneStoreOrdersIntoCycleBoard(
   orders: StandaloneStoreOrderRow[],
   cycleNumber: number
 ): ProductionKanbanBoard {
-  const next: ProductionKanbanBoard = {
-    upcoming: [...board.upcoming],
-    production: [...board.production],
-    preparing: [...board.preparing],
-    shipped: [...board.shipped],
-    delivered: [...board.delivered],
-  };
+  const next = cloneProductionKanbanBoard(board);
 
   for (const order of orders) {
     const mergeTarget = findMergeTargetForUser(next, order.userId);
@@ -383,13 +374,7 @@ export function integrateStandaloneStoreOrdersIntoOverviewBoard(
   board: ProductionKanbanBoard,
   orders: StandaloneStoreOrderRow[]
 ): ProductionKanbanBoard {
-  const next: ProductionKanbanBoard = {
-    upcoming: [...board.upcoming],
-    production: [...board.production],
-    preparing: [...board.preparing],
-    shipped: [...board.shipped],
-    delivered: [...board.delivered],
-  };
+  const next = cloneProductionKanbanBoard(board);
 
   for (const order of orders) {
     const mergeTarget = findMergeTargetForUser(next, order.userId);
@@ -763,7 +748,7 @@ export async function shipStandaloneStoreOrder(
 
   const currentStatus = parseStandaloneFulfillmentStatus(lead.meta);
   if (!canTransitionCycle(currentStatus, 'shipped')) {
-    return { error: 'Só é possível enviar pedidos em preparo.' };
+    return { error: 'Só é possível enviar pedidos aguardando coleta.' };
   }
 
   const paymentIds = await resolveStandalonePaymentIdsForCard(

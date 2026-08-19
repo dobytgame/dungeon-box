@@ -142,14 +142,22 @@ export default function CycleScheduleForm({
                 setError(result.error);
                 return;
               }
-              setMessage('Número do ciclo atualizado.');
+              if ('success' in result && result.absorbed) {
+                setMessage(
+                  `Este card passou a ser o ciclo #${result.cycleNumber}. O ciclo que ocupava esse número foi removido — não foi criado outro no lugar.`
+                );
+              } else {
+                setMessage('Número do ciclo atualizado.');
+              }
               onSuccess?.();
             });
           }}
         >
           <p className="text-xs text-amber-200/80">
-            Só altere se o número do ciclo estiver errado na assinatura. Não
-            confunda com Mês 1, 2 ou 3 do kanban.
+            O número que você gravar neste card prevalece. Se já existir outro
+            ciclo com esse número nesta assinatura, aquele registro sai — não
+            troca de lugar e não recria o ciclo antigo. Não confunda com o mês
+            do kanban.
           </p>
           <div>
             <label

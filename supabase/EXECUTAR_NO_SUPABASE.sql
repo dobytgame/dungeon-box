@@ -22,6 +22,10 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+ALTER TYPE cycle_status ADD VALUE IF NOT EXISTS 'production' AFTER 'upcoming';
+ALTER TYPE cycle_status ADD VALUE IF NOT EXISTS 'packed' AFTER 'preparing';
+ALTER TYPE cycle_status ADD VALUE IF NOT EXISTS 'awaiting_pickup' AFTER 'packed';
+
 DO $$ BEGIN
   CREATE TYPE payment_status AS ENUM (
     'pending', 'approved', 'authorized', 'in_process',

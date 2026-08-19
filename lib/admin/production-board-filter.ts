@@ -16,6 +16,8 @@ const OPEN_CYCLE_STATUSES: CycleStatus[] = [
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
 ];
 
@@ -23,6 +25,8 @@ const OPEN_CYCLE_STATUSES: CycleStatus[] = [
 const PHYSICAL_PIPELINE_STATUSES = new Set<CycleStatus>([
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
 ]);
 
@@ -36,6 +40,8 @@ const FULFILLMENT_CYCLE_STATUSES = new Set<CycleStatus>([
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ]);
@@ -450,13 +456,21 @@ export function filterProductionBoardRows(
 export function groupProductionBoardRows(
   rows: AdminCycleRow[]
 ): Record<
-  'upcoming' | 'production' | 'preparing' | 'shipped' | 'delivered',
+  | 'upcoming'
+  | 'production'
+  | 'preparing'
+  | 'packed'
+  | 'awaiting_pickup'
+  | 'shipped'
+  | 'delivered',
   AdminCycleRow[]
 > {
   const board = {
     upcoming: [] as AdminCycleRow[],
     production: [] as AdminCycleRow[],
     preparing: [] as AdminCycleRow[],
+    packed: [] as AdminCycleRow[],
+    awaiting_pickup: [] as AdminCycleRow[],
     shipped: [] as AdminCycleRow[],
     delivered: [] as AdminCycleRow[],
   };

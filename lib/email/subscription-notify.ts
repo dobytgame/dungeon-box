@@ -48,7 +48,7 @@ export async function notifySubscriptionCancelled(
     .from('subscription_cycles')
     .select('id')
     .eq('subscription_id', subscriptionId)
-    .in('status', ['preparing', 'shipped'])
+    .in('status', ['preparing', 'packed', 'awaiting_pickup', 'shipped'])
     .limit(1)
     .maybeSingle();
 

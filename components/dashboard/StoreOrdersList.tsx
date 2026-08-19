@@ -7,6 +7,8 @@ import {
 } from '@/lib/dashboard/store-orders';
 import { DASHBOARD_ROUTES } from '@/lib/dashboard/routes';
 import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
+import { formatDashboardTracking } from '@/lib/dashboard/cycle-status';
+import type { CycleStatus } from '@/lib/dashboard/types';
 
 interface Props {
   orders: DashboardStoreOrderListRow[];
@@ -43,10 +45,15 @@ export default function StoreOrdersList({ orders }: Props) {
                         ? ` · Ciclo #${order.cycleNumber}`
                         : ''}
                     </p>
-                    {order.trackingCode ? (
+                    {order.trackingCode ||
+                    order.fulfillmentStatus === 'packed' ||
+                    order.fulfillmentStatus === 'awaiting_pickup' ? (
                       <p className="mt-1 text-xs text-stone-500">
-                        Rastreio: {order.carrier ?? 'Transportadora'}{' '}
-                        {order.trackingCode}
+                        {formatDashboardTracking(
+                          order.fulfillmentStatus as CycleStatus,
+                          order.trackingCode,
+                          order.carrier
+                        )}
                       </p>
                     ) : null}
                   </div>

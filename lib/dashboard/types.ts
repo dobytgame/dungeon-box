@@ -10,6 +10,8 @@ export type CycleStatus =
   | 'upcoming'
   | 'production'
   | 'preparing'
+  | 'packed'
+  | 'awaiting_pickup'
   | 'shipped'
   | 'delivered'
   | 'cancelled'

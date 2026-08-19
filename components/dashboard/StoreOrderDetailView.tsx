@@ -1,19 +1,17 @@
 import Link from 'next/link';
+import CycleProgress from '@/components/dashboard/CycleProgress';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import DataRow from '@/components/dashboard/DataRow';
 import StoreOrderFulfillmentBadge from '@/components/dashboard/StoreOrderFulfillmentBadge';
 import StoreOrderItemsList from '@/components/dashboard/StoreOrderItemsList';
 import {
-  formatStoreOrderFulfillmentLabel,
   formatStoreOrderShippingLabel,
   type DashboardStoreOrderDetail,
 } from '@/lib/dashboard/store-orders';
 import { DASHBOARD_ROUTES } from '@/lib/dashboard/routes';
 import { STORE_ROUTES } from '@/lib/store/routes';
-import {
-  formatDateTime,
-  formatMoney,
-} from '@/lib/dashboard/format';
+import { formatDateTime, formatMoney } from '@/lib/dashboard/format';
+import { formatDashboardTracking } from '@/lib/dashboard/cycle-status';
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 import type { CycleStatus } from '@/lib/dashboard/types';
 
@@ -21,42 +19,13 @@ interface Props {
   order: DashboardStoreOrderDetail;
 }
 
-function OrderProgress({ status }: { status: CycleStatus }) {
-  const currentIndex = PRODUCTION_PIPELINE.indexOf(status);
-
-  if (currentIndex < 0) return null;
-
-  return (
-    <ol className="flex flex-wrap gap-2">
-      {PRODUCTION_PIPELINE.map((step, index) => {
-        const done = index <= currentIndex;
-        const active = index === currentIndex;
-
-        return (
-          <li
-            key={step}
-            className={`rounded-sm border px-2.5 py-1 font-display text-[0.6rem] uppercase tracking-[0.14em] ${
-              active
-                ? 'border-ember/40 bg-ember/10 text-ember'
-                : done
-                  ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
-                  : 'border-white/5 text-stone-600'
-            }`}
-          >
-            {formatStoreOrderFulfillmentLabel(step)}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 export default function StoreOrderDetailView({ order }: Props) {
   const isPendingPayment = order.fulfillmentStatus === 'pending_payment';
-  const showProgress =
-    !isPendingPayment &&
-    order.fulfillmentStatus !== 'cancelled' &&
-    PRODUCTION_PIPELINE.includes(order.fulfillmentStatus as CycleStatus);
+  const pipelineStatus = PRODUCTION_PIPELINE.includes(
+    order.fulfillmentStatus as CycleStatus
+  )
+    ? (order.fulfillmentStatus as CycleStatus)
+    : null;
 
   return (
     <div className="space-y-8 md:space-y-10">
@@ -77,12 +46,12 @@ export default function StoreOrderDetailView({ order }: Props) {
           />
         }
       >
-        {showProgress ? (
+        {pipelineStatus ? (
           <div className="mb-6">
             <p className="mb-3 font-display text-[0.65rem] uppercase tracking-[0.2em] text-stone-500">
               Andamento
             </p>
-            <OrderProgress status={order.fulfillmentStatus as CycleStatus} />
+            <CycleProgress status={pipelineStatus} showCopy />
           </div>
         ) : null}
 
@@ -105,10 +74,14 @@ export default function StoreOrderDetailView({ order }: Props) {
             <DataRow label="Ciclo" value={`#${order.cycleNumber}`} />
           ) : null}
           <DataRow label="Endereço" value={order.addressLine ?? '—'} />
-          {order.trackingCode ? (
+          {pipelineStatus || order.trackingCode ? (
             <DataRow
               label="Rastreio"
-              value={`${order.carrier ?? 'Transportadora'}: ${order.trackingCode}`}
+              value={formatDashboardTracking(
+                pipelineStatus ?? 'upcoming',
+                order.trackingCode,
+                order.carrier
+              )}
             />
           ) : null}
           {order.shippedAt ? (

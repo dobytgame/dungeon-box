@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { checkoutHref } from '@/lib/checkout/plans';
 import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
+import CycleProgress from '@/components/dashboard/CycleProgress';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
 import ThemeVoteBanner from '@/components/dashboard/ThemeVoteBanner';
+import { formatDashboardTracking, pickCurrentDashboardCycle } from '@/lib/dashboard/cycle-status';
 import {
   formatDate,
   formatMoney,
@@ -41,12 +43,7 @@ export default async function DashboardPage() {
 
   const cycles = subscription?.subscription_cycles;
   const nextCycle = Array.isArray(cycles)
-    ? cycles.find(
-        (c) =>
-          c.status === 'upcoming' ||
-          c.status === 'production' ||
-          c.status === 'preparing'
-      )
+    ? pickCurrentDashboardCycle(cycles)
     : null;
 
   const isAdmin = profile?.is_admin === true;
@@ -143,17 +140,28 @@ export default async function DashboardPage() {
 
           <DashboardCard title="Próxima entrega" accent="frost">
             {nextCycle ? (
-              <dl>
-                <DataRow label="Ciclo" value={`#${nextCycle.cycle_number}`} />
-                <DataRow
-                  label="Status"
-                  value={<StatusBadge kind="cycle" status={nextCycle.status} />}
-                />
-                <DataRow
-                  label="Previsão"
-                  value={formatDate(nextCycle.estimated_delivery)}
-                />
-              </dl>
+              <div className="space-y-5">
+                <dl>
+                  <DataRow label="Ciclo" value={`#${nextCycle.cycle_number}`} />
+                  <DataRow
+                    label="Status"
+                    value={<StatusBadge kind="cycle" status={nextCycle.status} />}
+                  />
+                  <DataRow
+                    label="Rastreio"
+                    value={formatDashboardTracking(
+                      nextCycle.status,
+                      nextCycle.tracking_code,
+                      nextCycle.carrier
+                    )}
+                  />
+                  <DataRow
+                    label="Previsão"
+                    value={formatDate(nextCycle.estimated_delivery)}
+                  />
+                </dl>
+                <CycleProgress status={nextCycle.status} showCopy />
+              </div>
             ) : (
               <p className="text-sm text-stone-500">
                 Nenhum ciclo em andamento. Quando a assinatura for ativada, as entregas

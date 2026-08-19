@@ -5,6 +5,8 @@ export const PRODUCTION_PIPELINE: CycleStatus[] = [
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ];
@@ -16,6 +18,8 @@ export const PRODUCTION_TAB_STATUSES: Array<{
   { value: 'upcoming', label: 'Aguardando' },
   { value: 'production', label: 'Produção' },
   { value: 'preparing', label: 'Em preparo' },
+  { value: 'packed', label: 'Embalado' },
+  { value: 'awaiting_pickup', label: 'Aguardando coleta' },
   { value: 'shipped', label: 'Enviado' },
   { value: 'delivered', label: 'Entregue' },
   { value: 'cancelled', label: 'Cancelado' },
@@ -26,7 +30,9 @@ export const PRODUCTION_TAB_STATUSES: Array<{
 const TRANSITIONS: Record<CycleStatus, CycleStatus[]> = {
   upcoming: ['production', 'cancelled'],
   production: ['preparing', 'cancelled'],
-  preparing: ['shipped', 'cancelled'],
+  preparing: ['packed', 'cancelled'],
+  packed: ['awaiting_pickup', 'cancelled'],
+  awaiting_pickup: ['shipped', 'cancelled'],
   shipped: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],
@@ -56,6 +62,8 @@ const CYCLE_STATUS_LABEL: Record<CycleStatus, string> = {
   upcoming: 'Aguardando',
   production: 'Produção',
   preparing: 'Em preparo',
+  packed: 'Embalado',
+  awaiting_pickup: 'Aguardando coleta',
   shipped: 'Enviado',
   delivered: 'Entregue',
   cancelled: 'Cancelado',
@@ -70,6 +78,8 @@ const CYCLE_STATUS_SET = new Set<CycleStatus>([
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
   'cancelled',
@@ -141,6 +151,8 @@ const ROLLBACK_TARGET_LABEL: Partial<Record<CycleStatus, string>> = {
   upcoming: 'Aguardando',
   production: 'Produção',
   preparing: 'Em preparo',
+  packed: 'Embalado',
+  awaiting_pickup: 'Aguardando coleta',
   shipped: 'Enviado',
 };
 
@@ -162,6 +174,8 @@ export function productionActionLabel(
 
   if (from === 'upcoming' && to === 'production') return 'Iniciar produção';
   if (from === 'production' && to === 'preparing') return 'Iniciar preparo';
+  if (from === 'preparing' && to === 'packed') return 'Marcar embalado';
+  if (from === 'packed' && to === 'awaiting_pickup') return 'Enviar para coleta';
   if (to === 'delivered') return 'Marcar entregue';
   if (to === 'cancelled') return 'Cancelar pedido';
   if (to === 'preparing' && from === 'failed') return 'Retomar preparo';

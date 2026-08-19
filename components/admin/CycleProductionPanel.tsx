@@ -13,6 +13,7 @@ import {
 } from '@/lib/subscriptions/cycle-production';
 import CycleShipForm from './CycleShipForm';
 import SendFeedbackEmailButton from './SendFeedbackEmailButton';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 
 interface Props {
   cycleId: string;
@@ -29,7 +30,7 @@ interface Props {
 export default function CycleProductionPanel({
   cycleId,
   status,
-  defaultCarrier = 'Correios',
+  defaultCarrier = DEFAULT_SHIPPING_CARRIER,
   cancelReason,
   productionNotes,
   feedbackRequestSentAt,
@@ -170,7 +171,7 @@ export default function CycleProductionPanel({
         </div>
       ) : null}
 
-      {status === 'preparing' ? (
+      {status === 'awaiting_pickup' ? (
         <div className="admin-panel rounded border-console/20 p-5 md:p-6">
           <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-console">
             Registrar envio

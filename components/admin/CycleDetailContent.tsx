@@ -6,6 +6,7 @@ import CopyableDataRow from '@/components/admin/CopyableDataRow';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 import CycleProductionMonthQuickSet from '@/components/admin/CycleProductionMonthQuickSet';
 import CycleProductionNotesForm from '@/components/admin/CycleProductionNotesForm';
 import CycleScheduleForm from '@/components/admin/CycleScheduleForm';
@@ -571,7 +572,7 @@ export default function CycleDetailContent({
       <CycleProductionPanel
         cycleId={detail.id}
         status={detail.status}
-        defaultCarrier={detail.carrier ?? 'Correios'}
+        defaultCarrier={detail.carrier ?? DEFAULT_SHIPPING_CARRIER}
         cancelReason={detail.cancel_reason}
         productionNotes={detail.production_notes}
         feedbackRequestSentAt={detail.feedbackRequestSentAt}

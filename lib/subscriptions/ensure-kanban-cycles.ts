@@ -9,6 +9,8 @@ const PAID_OPEN_STATUSES = [
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ] as const;

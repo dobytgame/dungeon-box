@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, Printer } from 'lucide-react';
+import { Box, Package, Printer } from 'lucide-react';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
+import { cloneProductionKanbanBoard } from '@/lib/admin/production-list';
 import {
   ProductionKanbanCard,
   type ProductionPendingAction,
@@ -14,7 +15,7 @@ import { getProductionCycleVisual } from '@/lib/admin/production-cycle-theme';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import { compareCyclesByKitPaymentDate } from '@/lib/subscriptions/cycle-production';
 
-const FLOOR_COLUMNS = ['production', 'preparing'] as const;
+const FLOOR_COLUMNS = ['production', 'preparing', 'packed'] as const;
 
 interface Props {
   board: ProductionKanbanBoard;
@@ -23,13 +24,7 @@ interface Props {
 }
 
 function cloneBoard(board: ProductionKanbanBoard): ProductionKanbanBoard {
-  return {
-    upcoming: [...board.upcoming],
-    production: [...board.production],
-    preparing: [...board.preparing],
-    shipped: [...board.shipped],
-    delivered: [...board.delivered],
-  };
+  return cloneProductionKanbanBoard(board);
 }
 
 function moveFloorCard(
@@ -52,7 +47,7 @@ function moveFloorCard(
   if (!row) return null;
 
   const updated: AdminCycleRow = { ...row, status: target };
-  if (target === 'production' || target === 'preparing') {
+  if (target === 'production' || target === 'preparing' || target === 'packed') {
     next[target].push(updated);
     next[target].sort(compareCyclesByKitPaymentDate);
   }
@@ -93,9 +88,11 @@ export default function ProductionFloorView({
   const displayBoard = optimisticBoard ?? board;
   const productionRows = displayBoard.production;
   const preparingRows = displayBoard.preparing;
+  const packedRows = displayBoard.packed;
   const legendCycles = useMemo(
-    () => uniqueCycleNumbers([...productionRows, ...preparingRows]),
-    [productionRows, preparingRows]
+    () =>
+      uniqueCycleNumbers([...productionRows, ...preparingRows, ...packedRows]),
+    [productionRows, preparingRows, packedRows]
   );
 
   useEffect(() => {
@@ -125,10 +122,14 @@ export default function ProductionFloorView({
     });
   }
 
-  if (productionRows.length === 0 && preparingRows.length === 0) {
+  if (
+    productionRows.length === 0 &&
+    preparingRows.length === 0 &&
+    packedRows.length === 0
+  ) {
     return (
       <p className="admin-panel rounded px-4 py-16 text-center font-mono text-xs text-zinc-600">
-        Nenhum pedido em produção ou preparo.
+        Nenhum pedido em produção, preparo ou embalagem.
       </p>
     );
   }
@@ -167,7 +168,7 @@ export default function ProductionFloorView({
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-3">
         <StageBoard
           title="Quadro de produção"
           hint="Peças sendo impressas — todos os ciclos"
@@ -186,6 +187,18 @@ export default function ProductionFloorView({
           icon={Package}
           rows={preparingRows}
           emptyLabel="Nada em preparo"
+          pendingAction={pendingAction}
+          onAdvance={handleAdvance}
+          onOpenDetail={onOpenDetail}
+          onOpenShip={onOpenShip}
+          onFeedbackSent={() => router.refresh()}
+        />
+        <StageBoard
+          title="Quadro embalado"
+          hint="Caixas fechadas, prontas para a fila de coleta"
+          icon={Box}
+          rows={packedRows}
+          emptyLabel="Nada embalado"
           pendingAction={pendingAction}
           onAdvance={handleAdvance}
           onOpenDetail={onOpenDetail}

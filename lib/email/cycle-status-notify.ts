@@ -7,6 +7,8 @@ import { getUserEmailProfile } from '@/lib/email/user-context';
 const NOTIFY_STATUSES = new Set<CycleStatus>([
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
   'cancelled',

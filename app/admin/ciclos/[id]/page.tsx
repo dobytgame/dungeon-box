@@ -6,6 +6,7 @@ import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
+import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 import {
   formatDate,
   formatDateTime,
@@ -123,7 +124,7 @@ export default async function AdminCycleDetailPage({ params }: Props) {
       <CycleProductionPanel
         cycleId={cycle.id}
         status={cycle.status}
-        defaultCarrier={cycle.carrier ?? 'Correios'}
+        defaultCarrier={cycle.carrier ?? DEFAULT_SHIPPING_CARRIER}
         cancelReason={cycle.cancel_reason}
         productionNotes={cycle.production_notes}
         feedbackRequestSentAt={cycle.feedback_request_sent_at ?? null}

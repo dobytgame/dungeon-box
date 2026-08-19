@@ -18,6 +18,8 @@ const cycleLabels: Record<CycleStatus, string> = {
   upcoming: 'Aguardando',
   production: 'Produção',
   preparing: 'Em preparo',
+  packed: 'Embalado',
+  awaiting_pickup: 'Aguardando coleta',
   shipped: 'Enviado',
   delivered: 'Entregue',
   cancelled: 'Cancelado',

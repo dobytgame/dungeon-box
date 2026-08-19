@@ -4,10 +4,38 @@ import { formatZip } from '@/lib/dashboard/format';
 
 export type ProductionBoardColumn = keyof ProductionKanbanBoard;
 
+export function emptyProductionKanbanBoard(): ProductionKanbanBoard {
+  return {
+    upcoming: [],
+    production: [],
+    preparing: [],
+    packed: [],
+    awaiting_pickup: [],
+    shipped: [],
+    delivered: [],
+  };
+}
+
+export function cloneProductionKanbanBoard(
+  board: ProductionKanbanBoard
+): ProductionKanbanBoard {
+  return {
+    upcoming: [...board.upcoming],
+    production: [...board.production],
+    preparing: [...board.preparing],
+    packed: [...board.packed],
+    awaiting_pickup: [...board.awaiting_pickup],
+    shipped: [...board.shipped],
+    delivered: [...board.delivered],
+  };
+}
+
 export const PRODUCTION_BOARD_COLUMNS: ProductionBoardColumn[] = [
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ];
@@ -27,6 +55,14 @@ export const PRODUCTION_SECTION_META: Record<
   preparing: {
     label: 'Em preparo',
     hint: 'Caixa sendo montada no estoque',
+  },
+  packed: {
+    label: 'Embalado',
+    hint: 'Caixa conferida e fechada',
+  },
+  awaiting_pickup: {
+    label: 'Aguardando coleta',
+    hint: 'Na fila da Loggi — ainda sem rastreio',
   },
   shipped: {
     label: 'Enviado',

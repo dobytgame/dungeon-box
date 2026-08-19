@@ -15,6 +15,8 @@ const styles: Record<string, string> = {
   upcoming: 'text-sky-300',
   production: 'text-amber-300',
   preparing: 'text-console',
+  packed: 'text-teal-300',
+  awaiting_pickup: 'text-sky-300',
   shipped: 'text-violet-300',
   paused: 'text-stone-400',
   past_due: 'text-red-300',

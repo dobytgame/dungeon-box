@@ -78,12 +78,16 @@ const OPEN_CYCLE_STATUSES = new Set<CycleStatus>([
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
 ]);
 
 const FULFILLMENT_CYCLE_STATUSES = new Set<CycleStatus>([
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
   'delivered',
 ]);

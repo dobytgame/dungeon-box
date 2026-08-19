@@ -10,6 +10,8 @@ const OPEN_PIPELINE_STATUSES = new Set<CycleStatus>([
   'upcoming',
   'production',
   'preparing',
+  'packed',
+  'awaiting_pickup',
   'shipped',
 ]);
 
