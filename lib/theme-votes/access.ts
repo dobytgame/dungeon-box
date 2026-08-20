@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * Votação pública para assinantes ativos.
  * Enquanto false, só admins acessam `/dashboard/votacao` para testes.
  */
-export const THEME_VOTE_PUBLIC = false;
+export const THEME_VOTE_PUBLIC = true;
 
 export function userCanSeeThemeVote(isAdmin: boolean): boolean {
   return THEME_VOTE_PUBLIC || isAdmin;

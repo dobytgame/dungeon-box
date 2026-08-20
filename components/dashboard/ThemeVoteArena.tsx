@@ -196,6 +196,11 @@ export default function ThemeVoteArena({ poll }: Props) {
           {title}
         </h2>
         <p className="mt-4 max-w-lg text-base leading-relaxed text-stone-400">{detail}</p>
+        <p className="mt-5 max-w-xl border-l-2 border-white/15 pl-4 text-sm leading-relaxed text-stone-500">
+          A quantidade de peças de cada plano e o tempo de produção serão
+          analisados depois da escolha do novo kit. O voto define o tema; o
+          set de cada plano vem na sequência.
+        </p>
       </header>
 
       <div className="relative mt-8 md:mt-10">
