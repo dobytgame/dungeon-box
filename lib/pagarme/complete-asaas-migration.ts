@@ -168,7 +168,7 @@ export async function completeAsaasToPagarmeMigration(input: {
       await cancelAsaasSubscriptionBestEffort(subscription.asaas_subscription_id);
     }
 
-    await input.admin
+    const { error: clearAsaasError } = await input.admin
       .from('subscriptions')
       .update({
         asaas_subscription_id: null,
@@ -176,6 +176,14 @@ export async function completeAsaasToPagarmeMigration(input: {
         updated_at: now.toISOString(),
       })
       .eq('id', subscription.id);
+
+    if (clearAsaasError) {
+      console.error(
+        '[migrate-asaas-pagarme] failed to clear Asaas ids',
+        subscription.id,
+        clearAsaasError.message
+      );
+    }
 
     if (input.migrationLogId) {
       await input.admin

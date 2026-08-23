@@ -6,7 +6,9 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { calculateLoyaltyLevel } from '@/lib/subscriptions/loyalty';
 import { resolveCycleScheduledMonthKey } from '@/lib/subscriptions/combo-production-schedule';
 import {
+  isExtraStoreKitPayment,
   prepareBillingCyclePayments,
+  sortBillingPayments,
   type BillingPaymentRow,
 } from '@/lib/subscriptions/billing-cycle-payments';
 import { restoreCorruptedPaymentPaidAt } from '@/lib/subscriptions/payment-cycle-link';
@@ -286,7 +288,7 @@ export async function loadApprovedBillingPayments(
 ): Promise<BillingPaymentRow[]> {
   const { data, error } = await supabase
     .from('payments')
-    .select('id, amount_cents, paid_at, created_at')
+    .select('id, amount_cents, paid_at, created_at, status_detail')
     .eq('subscription_id', subscriptionId)
     .eq('status', 'approved')
     .order('paid_at', { ascending: true, nullsFirst: false })
@@ -324,6 +326,83 @@ export async function isMonthlySubscription(
 
   const billingTerm = (data?.billing_term as BillingTerm | null) ?? 'monthly';
   return !isComboTerm(billingTerm);
+}
+
+export async function unlinkStoreOrderPaymentsFromUpcomingCycles(
+  supabase: SupabaseClient,
+  subscriptionId: string
+): Promise<number> {
+  const { data: rows, error } = await supabase
+    .from('subscription_cycles')
+    .select('id, status, payment_id')
+    .eq('subscription_id', subscriptionId)
+    .not('payment_id', 'is', null);
+
+  if (error || !rows?.length) return 0;
+
+  const paymentIds = [
+    ...new Set(
+      rows
+        .map((row) => row.payment_id as string | null)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  if (paymentIds.length === 0) return 0;
+
+  const { data: approvedForEarliest } = await supabase
+    .from('payments')
+    .select('id, amount_cents, paid_at, created_at, status_detail')
+    .eq('subscription_id', subscriptionId)
+    .eq('status', 'approved');
+
+  const earliestId =
+    sortBillingPayments((approvedForEarliest ?? []) as BillingPaymentRow[])[0]
+      ?.id ?? null;
+
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('id, amount_cents, paid_at, created_at, status_detail')
+    .in('id', paymentIds);
+
+  const extraPaymentIds = new Set(
+    (payments ?? [])
+      .filter((payment) =>
+        isExtraStoreKitPayment(
+          {
+            id: payment.id as string,
+            amount_cents: payment.amount_cents as number | null,
+            paid_at: payment.paid_at as string | null,
+            created_at: payment.created_at as string | null,
+            status_detail: payment.status_detail as string | null,
+          },
+          earliestId
+        )
+      )
+      .map((payment) => payment.id as string)
+  );
+
+  let cleared = 0;
+  const now = new Date().toISOString();
+
+  for (const row of rows) {
+    if (PROTECTED_CYCLE_STATUSES.has(row.status as string)) continue;
+    if (!extraPaymentIds.has(row.payment_id as string)) continue;
+
+    const { error: clearError } = await supabase
+      .from('subscription_cycles')
+      .update({
+        payment_id: null,
+        paid_at: null,
+        amount_cents: null,
+        scheduled_production_month: null,
+        updated_at: now,
+      })
+      .eq('id', row.id as string);
+
+    if (!clearError) cleared += 1;
+  }
+
+  return cleared;
 }
 
 /** Corrige meses de produção e fidelidade de uma assinatura mensal. */
@@ -382,10 +461,15 @@ export async function repairMonthlyProductionForSubscription(
     );
   }
 
+  const storeLinksCleared = await unlinkStoreOrderPaymentsFromUpcomingCycles(
+    supabase,
+    subscriptionId
+  );
+
   let monthsFixed = 0;
   let loyaltyFixed = 0;
   let renewalCyclesAttached = 0;
-  let spuriousCyclesCleared = 0;
+  let spuriousCyclesCleared = storeLinksCleared;
   const now = new Date().toISOString();
 
   let cycles = await loadSubscriptionCycleMonthRows(supabase, subscriptionId);
@@ -522,24 +606,66 @@ export async function repairMonthlyProductionForSubscription(
   }
 
   const billingPaymentCount = approvedPayments.length;
-  const expectedCurrentCycle = billingPaymentCount + 1;
+  const billingPaymentIds = new Set(approvedPayments.map((payment) => payment.id));
 
-  const { data: strayCycles } = await supabase
+  const { data: cycleRowsAfterAssign } = await supabase
     .from('subscription_cycles')
     .select('id, cycle_number, payment_id, scheduled_production_month, status')
     .eq('subscription_id', subscriptionId)
-    .gt('cycle_number', billingPaymentCount);
+    .order('cycle_number', { ascending: true });
 
-  for (const stray of strayCycles ?? []) {
+  const cyclesByPayment = new Map<string, typeof cycleRowsAfterAssign>();
+  for (const row of cycleRowsAfterAssign ?? []) {
+    const paymentId = row.payment_id as string | null;
+    if (!paymentId || !billingPaymentIds.has(paymentId)) continue;
+    const list = cyclesByPayment.get(paymentId) ?? [];
+    list.push(row);
+    cyclesByPayment.set(paymentId, list);
+  }
+
+  for (const duplicates of cyclesByPayment.values()) {
+    if (!duplicates || duplicates.length < 2) continue;
+    const [, ...extras] = duplicates;
+    for (const extra of extras) {
+      if (PROTECTED_CYCLE_STATUSES.has(extra.status as string)) continue;
+      if (extra.status === 'upcoming') {
+        const { error: deleteError } = await supabase
+          .from('subscription_cycles')
+          .delete()
+          .eq('id', extra.id as string);
+        if (!deleteError) spuriousCyclesCleared += 1;
+      }
+    }
+  }
+
+  const { data: cycleRows } = await supabase
+    .from('subscription_cycles')
+    .select('id, cycle_number, payment_id, scheduled_production_month, status')
+    .eq('subscription_id', subscriptionId);
+
+  const maxBillingCycle = (cycleRows ?? []).reduce((max, row) => {
+    if (!row.payment_id || !billingPaymentIds.has(row.payment_id as string)) {
+      return max;
+    }
+    return Math.max(max, row.cycle_number as number);
+  }, 0);
+  const expectedCurrentCycle = Math.max(1, billingPaymentCount, maxBillingCycle);
+
+  const strayCycles = (cycleRows ?? []).filter(
+    (row) => (row.cycle_number as number) > expectedCurrentCycle
+  );
+
+  for (const stray of strayCycles) {
     const cycleNumber = stray.cycle_number as number;
     if (PROTECTED_CYCLE_STATUSES.has(stray.status as string)) continue;
+    if (
+      stray.payment_id &&
+      billingPaymentIds.has(stray.payment_id as string)
+    ) {
+      continue;
+    }
 
-    const isEmptyUpcoming =
-      stray.status === 'upcoming' &&
-      !stray.payment_id &&
-      !stray.scheduled_production_month;
-
-    if (isEmptyUpcoming && cycleNumber > expectedCurrentCycle) {
+    if (stray.status === 'upcoming') {
       const { error: deleteError } = await supabase
         .from('subscription_cycles')
         .delete()
@@ -567,22 +693,6 @@ export async function repairMonthlyProductionForSubscription(
     if (!clearError) spuriousCyclesCleared += 1;
   }
 
-  const { data: upcomingCycle } = await supabase
-    .from('subscription_cycles')
-    .select('id')
-    .eq('subscription_id', subscriptionId)
-    .eq('cycle_number', expectedCurrentCycle)
-    .maybeSingle();
-
-  if (!upcomingCycle) {
-    await supabase.from('subscription_cycles').insert({
-      subscription_id: subscriptionId,
-      cycle_number: expectedCurrentCycle,
-      status: 'upcoming',
-      updated_at: now,
-    });
-  }
-
   const approvedPaymentCount = approvedPayments.length;
   const expectedLoyalty = loyaltyLevelFromApprovedPayments(approvedPaymentCount);
 
@@ -596,7 +706,9 @@ export async function repairMonthlyProductionForSubscription(
 
   const { data: currentSub } = await supabase
     .from('subscriptions')
-    .select('loyalty_level, current_cycle, next_billing_date')
+    .select(
+      'loyalty_level, current_cycle, next_billing_date, pagarme_subscription_id, asaas_subscription_id'
+    )
     .eq('id', subscriptionId)
     .maybeSingle();
 
@@ -613,7 +725,14 @@ export async function repairMonthlyProductionForSubscription(
     subscriptionPatch.current_cycle = expectedCurrentCycle;
     shouldUpdateSubscription = true;
   }
-  if (currentSub?.next_billing_date !== nextBillingDate.toISOString()) {
+
+  const hasGatewaySubscription = Boolean(
+    currentSub?.pagarme_subscription_id || currentSub?.asaas_subscription_id
+  );
+  if (
+    !hasGatewaySubscription &&
+    currentSub?.next_billing_date !== nextBillingDate.toISOString()
+  ) {
     subscriptionPatch.next_billing_date = nextBillingDate.toISOString();
     subscriptionPatch.current_period_end = nextBillingDate.toISOString();
     shouldUpdateSubscription = true;

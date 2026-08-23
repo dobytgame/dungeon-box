@@ -25,6 +25,7 @@ import { resolveConfirmedInstallmentPayment } from '@/lib/asaas/installment-paym
 import {
   handleStoreOrderPaymentConfirmed,
   parseStoreOrderExternalReference,
+  parseStoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
 import { isComboInstallmentSlicePayment } from '@/lib/payments/effective-amount';
 import { findCanonicalComboPrepaidPayment } from '@/lib/payments/combo-payment-queries';
@@ -207,9 +208,13 @@ export async function handleAsaasPaymentConfirmed(
 
   const { data: existingPayment } = await supabase
     .from('payments')
-    .select('id, paid_at, status')
+    .select('id, paid_at, status, status_detail')
     .eq('asaas_payment_id', payment.id)
     .maybeSingle();
+
+  if (parseStoreOrderMeta(existingPayment?.status_detail)) {
+    return handleStoreOrderPaymentConfirmed(supabase, payment);
+  }
 
   if (
     existingPayment &&
@@ -252,6 +257,7 @@ export async function handleAsaasPaymentConfirmed(
     isNonBillingAsaasPayment({
       externalReference: payment.externalReference,
       amountCents,
+      statusDetail: existingPayment?.status_detail as string | null | undefined,
     })
   ) {
     return 'processed';

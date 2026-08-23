@@ -10,6 +10,7 @@ import {
 import {
   handleStoreOrderPagarmeChargePaid,
   handleStoreOrderPagarmePaymentFailed,
+  parseStoreOrderExternalReference,
 } from '@/lib/asaas/store-order-payment';
 import { handlePagarmeComboPaymentConfirmed } from '@/lib/pagarme/combo-payment';
 import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
@@ -121,6 +122,13 @@ export async function handlePagarmeChargePaid(
       paymentMethod: resolvePagarmePaymentMethod(charge),
     });
     if (comboResult === 'processed') return 'processed';
+  }
+
+  const isStoreCharge =
+    Boolean(charge.metadata?.store_order_id?.trim()) ||
+    Boolean(parseStoreOrderExternalReference(charge.metadata?.external_reference));
+  if (isStoreCharge) {
+    return handleStoreOrderPagarmeChargePaid(supabase, charge);
   }
 
   const subscriptionFromCharge = await resolveLocalSubscriptionFromPagarmeCharge(

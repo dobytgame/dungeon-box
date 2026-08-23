@@ -13,7 +13,10 @@ import {
   findSubscriptionCycleForPayment,
   isPaymentAlreadyLinkedToSubscriptionCycle,
 } from '@/lib/subscriptions/payment-cycle-link';
-import { prepareBillingCyclePayments } from '@/lib/subscriptions/billing-cycle-payments';
+import {
+  isStoreOrderBillingPayment,
+  prepareBillingCyclePayments,
+} from '@/lib/subscriptions/billing-cycle-payments';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
@@ -118,7 +121,7 @@ export async function backfillMissingCyclePaymentLinks(
         .maybeSingle(),
       supabase
         .from('payments')
-        .select('id, amount_cents, paid_at, created_at')
+        .select('id, amount_cents, paid_at, created_at, status_detail')
         .eq('subscription_id', subscriptionId)
         .eq('status', 'approved')
         .order('paid_at', { ascending: true, nullsFirst: false })
@@ -258,6 +261,21 @@ export async function processActiveSubscriptionPayment(
   payment: CyclePaymentLink,
   periodEndIso: string
 ): Promise<'initial' | 'renewal'> {
+  const { data: paymentMeta } = await supabase
+    .from('payments')
+    .select('status_detail')
+    .eq('id', payment.id)
+    .maybeSingle();
+
+  if (isStoreOrderBillingPayment({ status_detail: paymentMeta?.status_detail })) {
+    console.warn(
+      '[cycles] ignoring store order as subscription billing payment',
+      subscriptionId,
+      payment.id
+    );
+    return 'renewal';
+  }
+
   const alreadyLinked = await isPaymentAlreadyLinkedToSubscriptionCycle(
     supabase,
     subscriptionId,
@@ -368,12 +386,11 @@ export async function processActiveSubscriptionPayment(
     supabase,
     subscriptionId
   );
-  const nextCycle = paidCycleNumber + 1;
   await supabase
     .from('subscriptions')
     .update({
       status: 'active',
-      current_cycle: nextCycle,
+      current_cycle: paidCycleNumber,
       loyalty_level: loyaltyLevelFromApprovedPayments(approvedPayments),
       current_period_start: now,
       current_period_end: periodEndIso,
@@ -382,7 +399,6 @@ export async function processActiveSubscriptionPayment(
     })
     .eq('id', subscriptionId);
 
-  await ensureSubscriptionCycle(supabase, subscriptionId, nextCycle);
   return 'renewal';
 }
 

@@ -58,7 +58,11 @@ export default function ChargePagarmeNowButton({
                 ? formatMoney(result.amountCents)
                 : formatMoney(result.expectedCents);
             const modeLabel =
-              result.mode === 'retry' ? 'reprocessamento' : 'renovação de ciclo';
+              result.mode === 'retry'
+                ? 'reprocessamento'
+                : result.mode === 'catchup'
+                  ? 'regularização (assinatura futura)'
+                  : 'renovação de ciclo';
 
             if (result.status === 'charged') {
               setMessage(
