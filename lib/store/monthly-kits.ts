@@ -14,6 +14,12 @@ import {
   loadStoreCategoryVisibilityContext,
 } from '@/lib/store/category-visibility';
 import type { StoreProduct } from '@/lib/store/catalog';
+import {
+  formatMonthlyKitLineName,
+  formatStoreKitThemeLabel,
+  loadActiveStoreKitThemes,
+  type StoreKitTheme,
+} from '@/lib/store/kit-themes';
 import { applySubscriberDiscountToStoreProduct } from '@/lib/store/subscriber-discount';
 import { resolveBestSubscriptionPromoForStorePlan } from '@/lib/store/subscription-promo';
 import {
@@ -201,31 +207,32 @@ export async function getCurrentMonthlyTheme(
 
 function buildMonthlyKitIncludes(
   storeRow: MonthlyKitStoreProductConfig,
-  theme: Theme,
-  bundledWithSubscription: boolean
+  bundledWithSubscription: boolean,
+  kitThemes: StoreKitTheme[]
 ): string[] {
-  const themeLine = bundledWithSubscription
-    ? `Tema: ${theme.name}`
-    : `Tema do mês: ${theme.name}`;
   const shippingLine = bundledWithSubscription
     ? 'Enviado junto com sua próxima caixa — sem frete'
     : 'Compra avulsa — frete calculado no checkout';
+  const themeLine =
+    kitThemes.length > 0
+      ? 'Escolha o tema do kit na compra'
+      : null;
+
+  const extra = [themeLine, shippingLine].filter(
+    (line): line is string => Boolean(line)
+  );
 
   if (storeRow.includes.length > 0) {
-    return [...storeRow.includes, themeLine, shippingLine];
+    return [...storeRow.includes, ...extra];
   }
 
-  return [
-    `Conteúdo do kit ${storeRow.name}`,
-    themeLine,
-    shippingLine,
-  ];
+  return [`Conteúdo do kit ${storeRow.name}`, ...extra];
 }
 
 function buildMonthlyKitProduct(
   storeRow: MonthlyKitStoreProductConfig,
-  theme: Theme,
   planName: string,
+  kitThemes: StoreKitTheme[],
   options?: { bundledWithSubscription?: boolean }
 ): StoreProduct | null {
   const bundledWithSubscription = options?.bundledWithSubscription ?? true;
@@ -243,10 +250,14 @@ function buildMonthlyKitProduct(
     id: monthlyKitProductId(planSlug),
     slug: storeRow.slug,
     name: storeRow.name,
-    tagline: storeRow.tagline?.trim() || `Kit do tema ${theme.name}`,
+    tagline: storeRow.tagline?.trim() || `Kit avulso do plano ${planName}`,
     priceCents: storeRow.price_cents,
     priceLabel: formatPriceLabel(storeRow.price_cents),
-    includes: buildMonthlyKitIncludes(storeRow, theme, bundledWithSubscription),
+    includes: buildMonthlyKitIncludes(
+      storeRow,
+      bundledWithSubscription,
+      kitThemes
+    ),
     category: 'monthly-kit',
     storeCategorySlug: storeRow.store_category_slug ?? 'kits-mes',
     storeCategoryName: storeRow.store_category_name ?? 'Kits do mês',
@@ -256,11 +267,9 @@ function buildMonthlyKitProduct(
     pageContentHtml: storeRow.page_content_html ?? undefined,
     subscriberOnly: bundledWithSubscription,
     requiresSubscriptionBundle: bundledWithSubscription,
-    themeId: theme.id,
-    themeName: theme.name,
-    themeEmoji: theme.emoji,
     planName,
     planSlug,
+    kitThemes,
     featured: storeRow.featured,
     maxQuantity: storeRow.max_quantity,
     // Kits do mês: assinantes pagam o valor do plano, não o % padrão da loja.
@@ -274,7 +283,7 @@ function buildMonthlyKitProduct(
 
 async function buildMonthlyKitProductsFromStore(
   admin: SupabaseClient,
-  theme: Theme,
+  kitThemes: StoreKitTheme[],
   options?: { bundledWithSubscription?: boolean }
 ): Promise<StoreProduct[]> {
   const storeRows = await loadActiveMonthlyKitStoreRows(admin);
@@ -287,7 +296,12 @@ async function buildMonthlyKitProductsFromStore(
 
   return storeRows.flatMap((storeRow) => {
     const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
-    const product = buildMonthlyKitProduct(storeRow, theme, planName, options);
+    const product = buildMonthlyKitProduct(
+      storeRow,
+      planName,
+      kitThemes,
+      options
+    );
     return product ? [product] : [];
   });
 }
@@ -354,17 +368,9 @@ export async function getMonthlyKitStoreAvailability(
     };
   }
 
-  const theme = await getCurrentMonthlyTheme(admin, subscriptions);
-  if (!theme) {
-    return {
-      products: [],
-      hasEligibleSubscription: true,
-      hasTheme: false,
-      issue: 'no_theme',
-    };
-  }
+  const kitThemes = await loadActiveStoreKitThemes(admin);
 
-  const baseProducts = await buildMonthlyKitProductsFromStore(admin, theme, {
+  const baseProducts = await buildMonthlyKitProductsFromStore(admin, kitThemes, {
     bundledWithSubscription: true,
   });
   const subscriberPriced = baseProducts.map(applySubscriberDiscountToStoreProduct);
@@ -395,10 +401,8 @@ export async function getMonthlyKitStoreAvailability(
 export async function getPublicMonthlyKitProducts(
   admin: SupabaseClient
 ): Promise<StoreProduct[]> {
-  const theme = await getCurrentMonthlyTheme(admin, []);
-  if (!theme) return [];
-
-  const products = await buildMonthlyKitProductsFromStore(admin, theme, {
+  const kitThemes = await loadActiveStoreKitThemes(admin);
+  const products = await buildMonthlyKitProductsFromStore(admin, kitThemes, {
     bundledWithSubscription: false,
   });
   const context = await loadStoreCategoryVisibilityContext(admin);
@@ -416,7 +420,7 @@ export async function resolveStoreMonthlyKitBySlug(
   );
   if (!storeRow) return null;
 
-  const [{ data: detailRow }, theme] = await Promise.all([
+  const [{ data: detailRow }, kitThemes] = await Promise.all([
     admin
       .from('store_products')
       .select('page_content_html')
@@ -424,9 +428,8 @@ export async function resolveStoreMonthlyKitBySlug(
       .eq('category', 'monthly-kit')
       .eq('is_active', true)
       .maybeSingle(),
-    getCurrentMonthlyTheme(admin, []),
+    loadActiveStoreKitThemes(admin),
   ]);
-  if (!theme) return null;
 
   const planNames = await fetchPlanNamesBySlug(admin, [storeRow.plan_slug]);
   const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
@@ -437,8 +440,8 @@ export async function resolveStoreMonthlyKitBySlug(
       page_content_html:
         (detailRow?.page_content_html as string | null | undefined) ?? null,
     },
-    theme,
     planName,
+    kitThemes,
     {
       bundledWithSubscription: options?.bundledWithSubscription ?? false,
     }
@@ -498,6 +501,8 @@ export type MonthlyKitOrderItem = {
   bundleSubscriptionId: string | null;
   themeId: string;
   themeName: string;
+  kitNumber: number;
+  lineName: string;
   planName: string;
   priceCents: number;
   originalPriceCents: number;
@@ -546,6 +551,7 @@ export async function resolveMonthlyKitOrderItem(
   productId: string,
   quantity: number,
   bundleSubscriptionId: string | null,
+  themeId: string | null | undefined,
   userSupabase?: SupabaseClient
 ): Promise<MonthlyKitOrderItem | { error: string }> {
   const planSlug = parseMonthlyKitPlanSlug(productId);
@@ -561,12 +567,24 @@ export async function resolveMonthlyKitOrderItem(
     return { error: 'Kit do mês indisponível na loja.' };
   }
 
-  const theme = await getCurrentMonthlyTheme(
-    admin,
-    await fetchEligibleSubscriptions(admin, userId, userSupabase ?? supabase)
-  );
-  if (!theme) {
-    return { error: 'Nenhum tema do mês disponível para compra no momento.' };
+  const kitThemes = await loadActiveStoreKitThemes(admin);
+  const selectedTheme = themeId
+    ? kitThemes.find((theme) => theme.id === themeId) ?? null
+    : null;
+
+  if (kitThemes.length > 0 && !selectedTheme) {
+    return { error: 'Selecione o tema do kit (Ruínas, Caverna ou Tumba).' };
+  }
+
+  let fallbackEditorialTheme: Theme | null = null;
+  if (!selectedTheme) {
+    fallbackEditorialTheme = await getCurrentMonthlyTheme(
+      admin,
+      await fetchEligibleSubscriptions(admin, userId, userSupabase ?? supabase)
+    );
+    if (!fallbackEditorialTheme) {
+      return { error: 'Nenhum tema cadastrado para kits do mês.' };
+    }
   }
 
   const subscriptions = await fetchEligibleSubscriptions(
@@ -603,7 +621,7 @@ export async function resolveMonthlyKitOrderItem(
   const planNames = await fetchPlanNamesBySlug(admin, [storeRow.plan_slug]);
   const planName = planNames.get(storeRow.plan_slug) ?? storeRow.plan_slug;
 
-  const product = buildMonthlyKitProduct(storeRow, theme, planName, {
+  const product = buildMonthlyKitProduct(storeRow, planName, kitThemes, {
     bundledWithSubscription: Boolean(bundleResult),
   });
   if (!product) {
@@ -623,15 +641,26 @@ export async function resolveMonthlyKitOrderItem(
         )
       : subscriberPriced;
   const unitPrice = pricedProduct.priceCents;
+  const resolvedPlanName = pricedProduct.planName ?? planName;
+  const themeForLine = selectedTheme
+    ? selectedTheme
+    : {
+        kitNumber: 0,
+        name: fallbackEditorialTheme!.name,
+      };
 
   return {
     productId,
     quantity: qty,
     planSlug,
     bundleSubscriptionId: bundleResult,
-    themeId: theme.id,
-    themeName: theme.name,
-    planName: pricedProduct.planName ?? planName,
+    themeId: selectedTheme?.id ?? fallbackEditorialTheme!.id,
+    themeName: selectedTheme
+      ? formatStoreKitThemeLabel(selectedTheme)
+      : fallbackEditorialTheme!.name,
+    kitNumber: selectedTheme?.kitNumber ?? 0,
+    lineName: formatMonthlyKitLineName(resolvedPlanName, themeForLine),
+    planName: resolvedPlanName,
     priceCents: unitPrice,
     originalPriceCents: pricedProduct.originalPriceCents ?? unitPrice,
     lineTotalCents: unitPrice * qty,

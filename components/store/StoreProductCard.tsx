@@ -8,6 +8,7 @@ import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreProduct } from '@/lib/store/catalog';
+import { productRequiresKitTheme } from '@/lib/store/catalog';
 import {
   formatSubscriberDiscountBadge,
   formatSubscriberDiscountSummary,
@@ -172,16 +173,25 @@ export default function StoreProductCard({ product }: Props) {
         ))}
       </ul>
 
-      <StoreProductPurchaseActions
-        className="mt-6"
-        quantity={quantity}
-        maxQty={maxQty}
-        onQuantityChange={updateQuantity}
-        onAdd={handleAdd}
-        added={added}
-        addLabel={isMonthlyKit ? 'Adicionar' : 'Adicionar ao carrinho'}
-        variant="card"
-      />
+      {productRequiresKitTheme(product) ? (
+        <Link
+          href={STORE_ROUTES.product(product.slug)}
+          className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+        >
+          Escolher tema
+        </Link>
+      ) : (
+        <StoreProductPurchaseActions
+          className="mt-6"
+          quantity={quantity}
+          maxQty={maxQty}
+          onQuantityChange={updateQuantity}
+          onAdd={handleAdd}
+          added={added}
+          addLabel={isMonthlyKit ? 'Adicionar' : 'Adicionar ao carrinho'}
+          variant="card"
+        />
+      )}
 
       <p className="mt-3 text-center text-xs text-stone-600">
         {isMonthlyKit ? (

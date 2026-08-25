@@ -166,7 +166,11 @@ function itemsFromStoreOrderMeta(
       const detail = [planName, themeName].filter(Boolean).join(' · ') || null;
       const name =
         line.name ||
-        (planName ? `Kit do mês — ${planName}` : 'Kit do mês adicional');
+        (planName
+          ? themeName
+            ? `Kit do mês — ${planName} · ${themeName}`
+            : `Kit do mês — ${planName}`
+          : 'Kit do mês adicional');
 
       const planSlug =
         (typeof line.planSlug === 'string' ? line.planSlug : null) ??
@@ -177,7 +181,7 @@ function itemsFromStoreOrderMeta(
         inferPlanSlugFromText(line.name);
 
       items.push({
-        id: `monthly-kit:${line.productId}:${line.quantity}`,
+        id: `monthly-kit:${line.productId}:${String(line.themeId ?? '')}:${line.quantity}`,
         kind: 'monthly-kit',
         name,
         tag: itemTag('monthly-kit', line.quantity),

@@ -1,12 +1,13 @@
 export const ADMIN_STORE_NAV = [
   { href: '/admin/loja', label: 'Produtos' },
   { href: '/admin/loja/pedidos', label: 'Pedidos' },
+  { href: '/admin/loja/temas', label: 'Temas dos kits' },
   { href: '/admin/loja/categorias', label: 'Categorias' },
   { href: '/admin/loja/banners', label: 'Banners' },
 ] as const;
 
 export function isAdminStoreNavActive(pathname: string, href: string): boolean {
-  if (href === '/admin/loja/pedidos') {
+  if (href === '/admin/loja/pedidos' || href === '/admin/loja/temas') {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 

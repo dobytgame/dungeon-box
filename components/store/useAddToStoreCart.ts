@@ -15,7 +15,8 @@ export function useAddToStoreCart(product: StoreProduct) {
 
   return function addToCart(
     quantity = 1,
-    selectedOptions?: Record<string, string>
+    selectedOptions?: Record<string, string>,
+    themeId?: string
   ) {
     const validation = validateSelectedProductOptions(product, selectedOptions);
     if (!validation.ok) {
@@ -37,7 +38,9 @@ export function useAddToStoreCart(product: StoreProduct) {
         priceCents: product.priceCents,
         quantity: qty,
       },
-      options
+      options,
+      undefined,
+      themeId
     );
     trackStoreAddToCart(product, qty);
   };

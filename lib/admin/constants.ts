@@ -92,6 +92,7 @@ export const ADMIN_NAV = [
     children: [
       { href: '/admin/loja', label: 'Produtos' },
       { href: '/admin/loja/pedidos', label: 'Pedidos' },
+      { href: '/admin/loja/temas', label: 'Temas dos kits' },
       { href: '/admin/loja/categorias', label: 'Categorias' },
       { href: '/admin/loja/banners', label: 'Banners' },
     ],

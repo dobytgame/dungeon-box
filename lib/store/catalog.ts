@@ -1,5 +1,6 @@
 import { PAINT_KIT_BUMPS } from '@/lib/checkout/order-bumps';
 import type { StoreProductVariation } from '@/lib/store/product-variations';
+import type { StoreKitTheme } from '@/lib/store/kit-themes';
 
 export type StoreCatalogProductId = 'paint-kit-amador' | 'paint-kit-profissional';
 
@@ -19,6 +20,13 @@ export function isPaintKitCategory(category: StoreProductCategory): boolean {
 
 export function isMonthlyKitCategory(category: StoreProductCategory): boolean {
   return category === 'monthly-kit';
+}
+
+export function productRequiresKitTheme(product: {
+  category: StoreProductCategory;
+  kitThemes?: StoreKitTheme[];
+}): boolean {
+  return product.category === 'monthly-kit' && (product.kitThemes?.length ?? 0) > 0;
 }
 
 export function isStoreItemCategory(category: StoreProductCategory): boolean {
@@ -52,6 +60,7 @@ export type StoreProduct = {
   themeEmoji?: string | null;
   planName?: string;
   planSlug?: string;
+  kitThemes?: StoreKitTheme[];
   maxQuantity?: number;
   minQuantity?: number;
   /** Exige 1 imagem de referência por unidade no carrinho. */

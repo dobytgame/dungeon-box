@@ -183,23 +183,20 @@ export function cartLineId(line: {
   productId: string;
   selectedOptions?: Record<string, string>;
   itemUploads?: string[];
+  themeId?: string;
 }): string {
   const optionsKey = stableSelectedOptionsKey(line.selectedOptions);
   const uploadsKey =
     line.itemUploads && line.itemUploads.length > 0
       ? line.itemUploads.join('|')
       : '';
+  const themeKey = line.themeId?.trim() ?? '';
 
-  if (optionsKey && uploadsKey) {
-    return `${line.productId}::${optionsKey}::u::${uploadsKey}`;
-  }
-  if (uploadsKey) {
-    return `${line.productId}::u::${uploadsKey}`;
-  }
-  if (optionsKey) {
-    return `${line.productId}::${optionsKey}`;
-  }
-  return line.productId;
+  const extras = [optionsKey, uploadsKey ? `u::${uploadsKey}` : '', themeKey ? `t::${themeKey}` : '']
+    .filter(Boolean)
+    .join('::');
+
+  return extras ? `${line.productId}::${extras}` : line.productId;
 }
 
 export function formatVariationSummary(

@@ -1,6 +1,14 @@
 import { isPlanSlug } from '@/lib/checkout/plans';
 import type { StoreProduct } from '@/lib/store/catalog';
-import { getStoreProduct, getStoreProductBySlug } from '@/lib/store/catalog';
+import {
+  getStoreProduct,
+  getStoreProductBySlug,
+  productRequiresKitTheme,
+} from '@/lib/store/catalog';
+import {
+  findStoreKitTheme,
+  formatStoreKitThemeLabel,
+} from '@/lib/store/kit-themes';
 import {
   isMonthlyKitProductId,
   monthlyKitProductId,
@@ -30,6 +38,8 @@ export type CartLine = {
   productId: string;
   quantity: number;
   selectedOptions?: Record<string, string>;
+  /** Tema escolhido nos kits mensais da loja. */
+  themeId?: string;
   /** Caminhos no storage — 1 por unidade em produtos personalizados. */
   itemUploads?: string[];
 };
@@ -142,8 +152,16 @@ export function normalizeCartLines(
       : line.selectedOptions && Object.keys(line.selectedOptions).length > 0
         ? line.selectedOptions
         : undefined;
+    const themeId =
+      product && productRequiresKitTheme(product)
+        ? findStoreKitTheme(product.kitThemes ?? [], line.themeId)?.id
+        : undefined;
 
     if (product && productHasVariations(product) && !selectedOptions) {
+      continue;
+    }
+
+    if (product && productRequiresKitTheme(product) && !themeId) {
       continue;
     }
 
@@ -196,6 +214,7 @@ export function normalizeCartLines(
       productId: canonicalId,
       quantity: qty,
       ...(selectedOptions ? { selectedOptions } : {}),
+      ...(themeId ? { themeId } : {}),
       ...(itemUploads ? { itemUploads: itemUploads.slice(0, qty) } : {}),
     };
     const key = cartLineId(normalizedLine);
@@ -249,6 +268,7 @@ export function resolveCartLines(
         slug: product.slug,
         imageUrl:
           resolveSelectedVariationImage(product, line.selectedOptions) ??
+          findStoreKitTheme(product.kitThemes ?? [], line.themeId)?.imageUrl ??
           product.imageUrl ??
           product.galleryUrls?.[0],
         priceCents: product.priceCents,
@@ -257,7 +277,12 @@ export function resolveCartLines(
         minQuantity: minQuantityForCartProduct(product),
         category: product.category,
         subscriptionId: product.subscriptionId,
-        themeName: product.themeName,
+        themeName: (() => {
+          const selected = findStoreKitTheme(product.kitThemes ?? [], line.themeId);
+          return selected
+            ? formatStoreKitThemeLabel(selected)
+            : product.themeName;
+        })(),
         originalPriceCents: product.originalPriceCents,
         promoCode: product.promoCode,
         promoSummary: product.promoSummary,

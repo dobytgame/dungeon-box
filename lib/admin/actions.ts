@@ -3190,3 +3190,124 @@ export async function createGatewayMigrationLinkAction(input: {
     reused: result.reused,
   };
 }
+
+function storeKitThemeConstraintError(message: string): string | null {
+  if (message.includes('store_kit_themes_slug_key')) {
+    return 'Já existe um tema com este slug.';
+  }
+  if (message.includes('store_kit_themes_kit_number_key')) {
+    return 'Já existe um tema com este número de kit.';
+  }
+  return null;
+}
+
+export async function saveStoreKitThemeAction(
+  themeId: string | null,
+  formData: FormData
+) {
+  const { user, admin } = await requireAdmin();
+
+  const name = (formData.get('name') as string)?.trim();
+  if (!name) return { error: 'Informe o nome do tema.' };
+
+  const rawSlug = (formData.get('slug') as string)?.trim();
+  let slug = rawSlug ? normalizeSeoSlug(rawSlug) : generateSeoSlug(name);
+  if (!isValidSeoSlug(slug)) {
+    return {
+      error: 'Slug inválido. Use apenas letras minúsculas, números e hífens.',
+    };
+  }
+
+  if (!themeId) {
+    const { data: existing } = await admin.from('store_kit_themes').select('slug');
+    slug = ensureUniqueSeoSlug(
+      slug,
+      (existing ?? []).map((row) => row.slug as string)
+    );
+  }
+
+  const kitNumber = parseIntField(formData.get('kit_number'), 'Número do kit');
+  if ('error' in kitNumber) return kitNumber;
+  if (kitNumber.value < 1) return { error: 'Número do kit deve ser no mínimo 1.' };
+
+  const sortOrder = parseIntField(formData.get('sort_order'), 'Ordem');
+  if ('error' in sortOrder) return sortOrder;
+
+  const payload = {
+    slug,
+    name,
+    kit_number: kitNumber.value,
+    description: (formData.get('description') as string)?.trim() || null,
+    image_url: (formData.get('image_url') as string)?.trim() || null,
+    is_active: formData.get('is_active') === 'on',
+    sort_order: sortOrder.value,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (themeId) {
+    const { error } = await admin
+      .from('store_kit_themes')
+      .update(payload)
+      .eq('id', themeId);
+
+    if (error) {
+      return { error: storeKitThemeConstraintError(error.message) ?? error.message };
+    }
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'store_kit_theme.update',
+      entityType: 'store_kit_theme',
+      entityId: themeId,
+      metadata: { slug, kitNumber: kitNumber.value },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    revalidateStorefrontCatalog();
+    return { success: true as const, id: themeId };
+  }
+
+  const { data, error } = await admin
+    .from('store_kit_themes')
+    .insert({ ...payload, created_at: new Date().toISOString() })
+    .select('id')
+    .single();
+
+  if (error) {
+    return { error: storeKitThemeConstraintError(error.message) ?? error.message };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_kit_theme.create',
+    entityType: 'store_kit_theme',
+    entityId: data.id,
+    metadata: { slug, kitNumber: kitNumber.value },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidateStorefrontCatalog();
+  return { success: true as const, id: data.id as string };
+}
+
+export async function deleteStoreKitThemeAction(themeId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { error } = await admin.from('store_kit_themes').delete().eq('id', themeId);
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_kit_theme.delete',
+    entityType: 'store_kit_theme',
+    entityId: themeId,
+    metadata: {},
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidateStorefrontCatalog();
+  return { success: true as const };
+}

@@ -33,6 +33,12 @@ export default async function AdminStorePage() {
             Banners
           </Link>
           <Link
+            href="/admin/loja/temas"
+            className="inline-flex rounded-sm border border-white/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300"
+          >
+            Temas dos kits
+          </Link>
+          <Link
             href="/admin/loja/categorias"
             className="inline-flex rounded-sm border border-white/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300"
           >

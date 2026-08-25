@@ -112,6 +112,7 @@ type ResolvedStoreLine =
       planSlug: string;
       themeId: string;
       themeName: string;
+      kitNumber: number;
       planName: string;
       priceCents: number;
       originalPriceCents: number;
@@ -224,6 +225,7 @@ async function resolveStoreLines(
       productId,
       quantity: qty,
       ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
+      ...(line.themeId ? { themeId: line.themeId } : {}),
       ...(line.itemUploads ? { itemUploads: line.itemUploads } : {}),
     });
 
@@ -273,6 +275,7 @@ async function resolveStoreLinesWithItems(
         line.productId,
         line.quantity,
         bundleSubscriptionId,
+        line.themeId,
         supabase
       );
       if ('error' in monthly) return monthly;
@@ -281,11 +284,12 @@ async function resolveStoreLinesWithItems(
         kind: 'monthly-kit',
         productId: monthly.productId,
         quantity: monthly.quantity,
-        name: `Kit do mês — ${monthly.planName}`,
+        name: monthly.lineName,
         lineTotalCents: monthly.lineTotalCents,
         planSlug: monthly.planSlug,
         themeId: monthly.themeId,
         themeName: monthly.themeName,
+        kitNumber: monthly.kitNumber,
         planName: monthly.planName,
         priceCents: monthly.priceCents,
         originalPriceCents: monthly.originalPriceCents,
@@ -561,6 +565,7 @@ export async function purchaseStoreOrder(
             planSlug: line.planSlug,
             themeId: line.themeId,
             themeName: line.themeName,
+            kitNumber: line.kitNumber,
             planName: line.planName,
             priceCents: line.priceCents,
             originalPriceCents: line.originalPriceCents,

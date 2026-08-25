@@ -1,5 +1,5 @@
 import type { StoreProduct } from '@/lib/store/catalog';
-import { getStoreProduct, getStoreProductBySlug } from '@/lib/store/catalog';
+import { getStoreProduct, getStoreProductBySlug, productRequiresKitTheme } from '@/lib/store/catalog';
 import type { CartLine } from '@/lib/store/cart';
 import { canonicalizeCartProductId, normalizeCartLines } from '@/lib/store/cart';
 import {
@@ -80,6 +80,17 @@ export function getCartValidationIssues(
       } else {
         poolTotals.set(product.id, { product, total: line.quantity });
       }
+      continue;
+    }
+
+    if (productRequiresKitTheme(product) && !line.themeId) {
+      issues.push({
+        productId: product.id,
+        productName: product.name,
+        error: `${product.name}: selecione o tema do kit antes de finalizar a compra.`,
+        actionHref: product.slug ? STORE_ROUTES.product(product.slug) : undefined,
+        actionLabel: 'Escolher tema',
+      });
       continue;
     }
 

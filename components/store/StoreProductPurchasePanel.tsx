@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import StoreProductPurchaseActions from '@/components/store/StoreProductPurchaseActions';
 import VarietyProductPurchasePanel from '@/components/store/VarietyProductPurchasePanel';
+import MonthlyKitThemePicker from '@/components/store/MonthlyKitThemePicker';
 import { useStoreCart } from '@/components/store/StoreCartProvider';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import StoreMediaImage from '@/components/store/StoreMediaImage';
 import type { StoreProduct } from '@/lib/store/catalog';
+import { productRequiresKitTheme } from '@/lib/store/catalog';
 import {
   cartLineId,
   getVariationOptionLabel,
@@ -43,15 +45,24 @@ function MultiVariationPurchasePanel({ product }: Props) {
     }
     return initial;
   });
+  const [selectedThemeId, setSelectedThemeId] = useState('');
   const [selectionError, setSelectionError] = useState('');
 
   const isMonthlyKit = product.category === 'monthly-kit';
+  const requiresKitTheme = productRequiresKitTheme(product);
   const isStandaloneMonthlyKit =
     isMonthlyKit && !product.requiresSubscriptionBundle;
   const hasVariations = productHasVariations(product);
   const maxQty = product.maxQuantity ?? 9;
 
   const currentLine = useMemo(() => {
+    if (requiresKitTheme) {
+      return lines.find(
+        (line) =>
+          line.productId === product.id && line.themeId === selectedThemeId
+      );
+    }
+
     if (!hasVariations) {
       return lines.find((line) => line.productId === product.id);
     }
@@ -62,7 +73,7 @@ function MultiVariationPurchasePanel({ product }: Props) {
     };
     const lineId = cartLineId(candidate);
     return lines.find((line) => cartLineId(line) === lineId);
-  }, [hasVariations, lines, product.id, selectedOptions]);
+  }, [hasVariations, lines, product.id, selectedOptions, requiresKitTheme, selectedThemeId]);
 
   const quantity = currentLine?.quantity ?? localQuantity;
 
@@ -81,9 +92,17 @@ function MultiVariationPurchasePanel({ product }: Props) {
       setSelectionError(validation.error);
       return;
     }
+    if (requiresKitTheme && !selectedThemeId) {
+      setSelectionError('Selecione o tema do kit.');
+      return;
+    }
 
     setSelectionError('');
-    addToCart(quantity, hasVariations ? selectedOptions : undefined);
+    addToCart(
+      quantity,
+      hasVariations ? selectedOptions : undefined,
+      requiresKitTheme ? selectedThemeId : undefined
+    );
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1800);
   }
@@ -98,6 +117,17 @@ function MultiVariationPurchasePanel({ product }: Props) {
           </li>
         ))}
       </ul>
+
+      {requiresKitTheme ? (
+        <MonthlyKitThemePicker
+          themes={product.kitThemes ?? []}
+          selectedThemeId={selectedThemeId}
+          onChange={(themeId) => {
+            setSelectedThemeId(themeId);
+            setSelectionError('');
+          }}
+        />
+      ) : null}
 
       {hasVariations ? (
         <div className="space-y-4 border-t border-white/[0.06] pt-4">
@@ -167,6 +197,7 @@ function MultiVariationPurchasePanel({ product }: Props) {
         onAdd={handleAdd}
         added={added}
         addLabel={isMonthlyKit ? 'Adicionar' : 'Adicionar ao carrinho'}
+        addDisabled={requiresKitTheme && !selectedThemeId}
         variant="panel"
       />
 

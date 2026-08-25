@@ -23,6 +23,7 @@ const cartItemsSchema = z
       productId: z.string().min(1),
       quantity: z.number().int().min(1).max(99),
       selectedOptions: z.record(z.string(), z.string()).optional(),
+      themeId: z.string().uuid().optional(),
       itemUploads: z.array(z.string().min(1)).optional(),
     })
   )
