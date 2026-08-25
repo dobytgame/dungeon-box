@@ -56,7 +56,10 @@ type SubRow = {
 };
 
 async function fetchAll<T>(
-  loader: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>
+  loader: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
 ): Promise<T[]> {
   const pageSize = 1000;
   const rows: T[] = [];
@@ -96,7 +99,7 @@ async function main() {
     )
   ).filter((row) => (row.billing_term ?? 'monthly') === 'monthly');
 
-  const userIds = [...new Set(subs.map((row) => row.user_id))];
+  const userIds = Array.from(new Set(subs.map((row) => row.user_id)));
   const profiles: Array<{
     id: string;
     email: string | null;

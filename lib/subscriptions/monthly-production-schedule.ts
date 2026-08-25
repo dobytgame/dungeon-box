@@ -340,13 +340,13 @@ export async function unlinkStoreOrderPaymentsFromUpcomingCycles(
 
   if (error || !rows?.length) return 0;
 
-  const paymentIds = [
-    ...new Set(
+  const paymentIds = Array.from(
+    new Set(
       rows
         .map((row) => row.payment_id as string | null)
         .filter((id): id is string => Boolean(id))
-    ),
-  ];
+    )
+  );
   if (paymentIds.length === 0) return 0;
 
   const { data: approvedForEarliest } = await supabase
@@ -623,7 +623,7 @@ export async function repairMonthlyProductionForSubscription(
     cyclesByPayment.set(paymentId, list);
   }
 
-  for (const duplicates of cyclesByPayment.values()) {
+  for (const duplicates of Array.from(cyclesByPayment.values())) {
     if (!duplicates || duplicates.length < 2) continue;
     const [, ...extras] = duplicates;
     for (const extra of extras) {

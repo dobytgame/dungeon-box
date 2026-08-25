@@ -167,7 +167,7 @@ export type ChangePagarmeBillingDayResult =
       previousBillingDate: string | null;
       nextBillingDate: string;
       chargedOverdue: boolean;
-      chargeMode: 'retry' | 'renew' | null;
+      chargeMode: 'retry' | 'renew' | 'catchup' | null;
       chargeAmountCents: number | null;
       chargeStatus: string | null;
       pagarmeBillingDateSynced: boolean;
@@ -280,7 +280,7 @@ export async function changePagarmeSubscriptionBillingDay(
     input.chargeOverdue === undefined ? overdue : Boolean(input.chargeOverdue);
 
   let chargedOverdue = false;
-  let chargeMode: 'retry' | 'renew' | null = null;
+  let chargeMode: 'retry' | 'renew' | 'catchup' | null = null;
   let chargeAmountCents: number | null = null;
   let chargeStatus: string | null = null;
   let pagarmeBillingDateSynced = false;
