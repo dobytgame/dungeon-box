@@ -1,3 +1,4 @@
+import CycleExtrasList from '@/components/dashboard/CycleExtrasList';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import CycleProgress from '@/components/dashboard/CycleProgress';
 import EmptyState from '@/components/dashboard/EmptyState';
@@ -13,11 +14,17 @@ import {
   formatDashboardTracking,
 } from '@/lib/dashboard/cycle-status';
 import { getCycles, requireDashboardUser } from '@/lib/dashboard/queries';
+import { loadDashboardCycleExtras } from '@/lib/dashboard/cycle-extras';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 
 export default async function DeliveriesPage() {
   const { user } = await requireDashboardUser();
   const cycles = await getCycles(user.id);
+  const extrasByCycle =
+    cycles.length > 0
+      ? await loadDashboardCycleExtras(createAdminClient(), cycles)
+      : new Map();
 
   return (
     <div className="space-y-8 md:space-y-10">
@@ -129,6 +136,13 @@ export default async function DeliveriesPage() {
                     </div>
                   </div>
                 </dl>
+                {(extrasByCycle.get(cycle.id) ?? []).length > 0 ? (
+                  <div className="mt-6">
+                    <CycleExtrasList
+                      items={extrasByCycle.get(cycle.id) ?? []}
+                    />
+                  </div>
+                ) : null}
               </DashboardCard>
             );
           })}

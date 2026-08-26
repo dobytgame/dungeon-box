@@ -8,6 +8,10 @@ import {
   countDashboardStoreOrdersByStatus,
   listDashboardStoreOrders,
 } from '@/lib/dashboard/store-orders';
+import {
+  listDashboardPaintKitAddonOrders,
+  mergeDashboardStoreOrders,
+} from '@/lib/dashboard/paint-kit-addon-order';
 import { syncPendingPagarmeStoreOrders } from '@/lib/asaas/store-order-payment';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -26,12 +30,30 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
   const admin = createAdminClient();
   await syncPendingPagarmeStoreOrders(admin, { userId: user.id });
 
-  const allOrders = await listDashboardStoreOrders(supabase, user.id, {
-    q,
-    shipping:
-      shipping === 'standalone' || shipping === 'bundled' ? shipping : '',
+  const storeOrders = await listDashboardStoreOrders(supabase, user.id, {
     limit: 200,
   });
+  const addonOrders = await listDashboardPaintKitAddonOrders(
+    admin,
+    user.id,
+    storeOrders
+  );
+  let allOrders = mergeDashboardStoreOrders(storeOrders, addonOrders);
+
+  if (shipping === 'standalone' || shipping === 'bundled') {
+    const mode = shipping === 'standalone' ? 'standalone' : 'with_subscription';
+    allOrders = allOrders.filter((order) => order.shippingMode === mode);
+  }
+
+  if (q?.trim()) {
+    const needle = q.trim().toLowerCase();
+    allOrders = allOrders.filter(
+      (order) =>
+        order.orderId.toLowerCase().includes(needle) ||
+        order.itemsSummary.toLowerCase().includes(needle) ||
+        (order.trackingCode?.toLowerCase().includes(needle) ?? false)
+    );
+  }
 
   const counts = countDashboardStoreOrdersByStatus(allOrders);
 
@@ -45,7 +67,7 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
       {allOrders.length === 0 && !q && !shipping ? (
         <EmptyState
           title="Nenhum pedido ainda"
-          description="Compras na loja aparecem aqui com status de pagamento, produção e envio."
+          description="Compras da loja e o kit extra de pintura aparecem aqui com status de pagamento, produção e envio."
           ctaLabel="Ir à loja"
           ctaHref="/loja"
         />

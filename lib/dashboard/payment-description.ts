@@ -1,6 +1,7 @@
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
+import { PAINT_KIT_BUMPS } from '@/lib/checkout/order-bumps';
 import { DASHBOARD_ROUTES } from '@/lib/dashboard/routes';
 import type { Payment } from '@/lib/dashboard/types';
 import {
@@ -8,6 +9,7 @@ import {
   parseComboPaymentDetail,
 } from '@/lib/payments/effective-amount';
 import { STORE_ROUTES } from '@/lib/store/routes';
+import { isPaintKitAddonAmount } from '@/lib/subscriptions/billing-cycle-payments';
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   credit_card: 'Cartão',
@@ -78,6 +80,15 @@ export function formatPaymentDescription(payment: Payment): string | null {
       term && isComboTerm(term) ? getComboTermLabel(term) : 'Combo';
     const prefix = isComboUpgradePayment(payment.status_detail) ? 'Upgrade ' : '';
     return `${prefix}${comboLabel}`;
+  }
+
+  if (isPaintKitAddonAmount(payment.amount_cents)) {
+    const bump = PAINT_KIT_BUMPS.find(
+      (entry) => entry.priceCents === payment.amount_cents
+    );
+    if (bump) {
+      return `${bump.name} · extra da caixa`;
+    }
   }
 
   if (payment.status_detail) {

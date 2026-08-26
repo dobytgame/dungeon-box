@@ -12,7 +12,7 @@ import {
   buildStoreOrderPurchaseAnalytics,
   type StoreOrderPurchaseAnalytics,
 } from '@/lib/analytics/store-purchase';
-import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
+import { resolvePaintKitBumpFromStoreLine } from '@/lib/store/paint-kit-detect';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
 import { sendStoreOrderConfirmedEmail } from '@/lib/email/send-transactional';
 import { recordStorePromoRedemption } from '@/lib/store/promo-codes';
@@ -318,15 +318,14 @@ function findPaintKitBumpInOrderMeta(
   meta: StoreOrderMeta
 ): { bumpId: 'amador' | 'profissional'; bundleSubscriptionId: string } | null {
   for (const item of meta.items) {
-    if (item.kind !== 'catalog' || !item.bundleSubscriptionId) continue;
+    const bumpId = resolvePaintKitBumpFromStoreLine(item);
+    if (!bumpId) continue;
 
-    const product = getStoreProduct(item.productId as StoreCatalogProductId);
-    if (!product?.paintKitBumpId || item.quantity !== 1) continue;
+    const bundleSubscriptionId =
+      item.bundleSubscriptionId ?? meta.bundleSubscriptionId;
+    if (!bundleSubscriptionId) continue;
 
-    return {
-      bumpId: product.paintKitBumpId,
-      bundleSubscriptionId: item.bundleSubscriptionId,
-    };
+    return { bumpId, bundleSubscriptionId };
   }
 
   return null;

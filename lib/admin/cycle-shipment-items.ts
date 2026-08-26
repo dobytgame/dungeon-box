@@ -10,7 +10,7 @@ import {
   syncStoreOrdersFromAsaasForSubscriptions,
   type StoreOrderMeta,
 } from '@/lib/asaas/store-order-payment';
-import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
+import { resolvePaintKitBumpFromStoreLine } from '@/lib/store/paint-kit-detect';
 import { isMonthlyKitProductId, parseMonthlyKitPlanSlug } from '@/lib/store/monthly-kits';
 import { formatVariationSummary } from '@/lib/store/product-variations';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
@@ -194,8 +194,8 @@ function itemsFromStoreOrderMeta(
       continue;
     }
 
-    const product = getStoreProduct(line.productId as StoreCatalogProductId);
-    const kind: CycleShipmentItemKind = product?.paintKitBumpId
+    const paintKitBumpId = resolvePaintKitBumpFromStoreLine(line);
+    const kind: CycleShipmentItemKind = paintKitBumpId
       ? 'paint-kit'
       : isMonthlyKitProductId(line.productId)
         ? 'monthly-kit'

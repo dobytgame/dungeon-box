@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import EmptyState from '@/components/dashboard/EmptyState';
 import ThemeVoteArena from '@/components/dashboard/ThemeVoteArena';
+import ThemeVoteResult from '@/components/dashboard/ThemeVoteResult';
 import { checkoutHref } from '@/lib/checkout/plans';
 import { getProfile, requireDashboardUser } from '@/lib/dashboard/queries';
 import { privatePageMetadata } from '@/lib/seo/metadata';
@@ -15,28 +16,9 @@ import {
   pickFeaturedThemePoll,
   userHasActiveSubscription,
 } from '@/lib/theme-votes/queries';
-import type { SubscriberThemePollView, ThemePollWithTallies } from '@/lib/theme-votes/types';
+import { toSubscriberThemePollView } from '@/lib/theme-votes/view';
 
 export const metadata = privatePageMetadata('Votação de tema');
-
-function toSubscriberView(
-  poll: ThemePollWithTallies,
-  userVoteOptionId: string | null,
-  canVote: boolean
-): SubscriberThemePollView {
-  const hideTallies = poll.status !== 'ended';
-  return {
-    ...poll,
-    totalVotes: hideTallies ? 0 : poll.totalVotes,
-    winnerOptionId: hideTallies ? null : poll.winnerOptionId,
-    isTie: hideTallies ? false : poll.isTie,
-    options: poll.options.map((option) =>
-      hideTallies ? { ...option, voteCount: 0, percent: 0 } : option
-    ),
-    userVoteOptionId,
-    canVote: canVote && poll.status === 'open' && !userVoteOptionId,
-  };
-}
 
 export default async function ThemeVotePage() {
   const { user } = await requireDashboardUser();
@@ -61,19 +43,8 @@ export default async function ThemeVotePage() {
     : null;
 
   const view = featured
-    ? toSubscriberView(featured, userVoteOptionId, canVote)
+    ? toSubscriberThemePollView(featured, userVoteOptionId, canVote)
     : null;
-
-  if (!canVote && !isAdmin) {
-    return (
-      <EmptyState
-        title="Votação para assinantes"
-        description="A escolha do tema do ciclo é exclusiva para quem tem assinatura ativa."
-        ctaLabel="Assinar agora"
-        ctaHref={checkoutHref('heroi')}
-      />
-    );
-  }
 
   if (!view) {
     return (
@@ -82,6 +53,21 @@ export default async function ThemeVotePage() {
         description="Quando o próximo ciclo abrir votação, os dois temas aparecem aqui para você escolher."
         ctaLabel="Ver entregas"
         ctaHref="/dashboard/deliveries"
+      />
+    );
+  }
+
+  if (view.status === 'ended') {
+    return <ThemeVoteResult poll={view} variant="full" />;
+  }
+
+  if (!canVote && !isAdmin) {
+    return (
+      <EmptyState
+        title="Votação para assinantes"
+        description="A escolha do tema do ciclo é exclusiva para quem tem assinatura ativa."
+        ctaLabel="Assinar agora"
+        ctaHref={checkoutHref('heroi')}
       />
     );
   }

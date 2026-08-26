@@ -12,8 +12,13 @@ import SubscriptionGatewayMigration from '@/components/dashboard/SubscriptionGat
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
+import { getPaintKitBump } from '@/lib/checkout/order-bumps';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
-import { parseCustomerNotes } from '@/lib/checkout/special-notes';
+import {
+  parseCustomerNotes,
+  parsePaintKitBump,
+  parsePaintKitBumpRecurring,
+} from '@/lib/checkout/special-notes';
 import type { CustomerSubscriptionPaymentLink } from '@/lib/dashboard/pending-payment';
 import {
   formatDate,
@@ -97,6 +102,8 @@ async function SubscriptionDetailCard({
     : 'Combo';
   const address = relOne(subscription.addresses);
   const customerNotes = parseCustomerNotes(subscription.special_notes);
+  const paintKitBump = getPaintKitBump(parsePaintKitBump(subscription.special_notes));
+  const paintKitRecurring = parsePaintKitBumpRecurring(subscription.special_notes);
   const isPending = subscription.status === 'pending';
   const isPastDue = subscription.status === 'past_due';
   const needsPayment = isPending || isPastDue;
@@ -203,6 +210,16 @@ async function SubscriptionDetailCard({
             label="Próxima cobrança"
             value={formatDate(subscription.next_billing_date)}
           />
+          {paintKitBump ? (
+            <DataRow
+              label="Kit de pintura"
+              value={
+                paintKitRecurring
+                  ? `${paintKitBump.name} · todo mês`
+                  : `${paintKitBump.name} · extra na caixa`
+              }
+            />
+          ) : null}
           <DataRow label="Membro desde" value={formatDate(subscription.started_at)} />
         </dl>
       </DashboardCard>

@@ -5,13 +5,13 @@ import { motion, useInView, useReducedMotion } from 'framer-motion';
 import {
   Anchor,
   Castle,
+  BrickWall,
   FlaskConical,
   Flame,
   Home,
   Lock,
   LucideIcon,
   Mountain,
-  Rocket,
   Skull,
   Store,
   Tent,
@@ -28,7 +28,7 @@ import AnimatedSection from '@/components/ui/AnimatedSection';
 const themeIcons: Record<CampaignMonthIcon, LucideIcon> = {
   ruins: Home,
   cave: Mountain,
-  scifi: Rocket,
+  tomb: BrickWall,
   shrine: Flame,
   camp: Tent,
   market: Store,

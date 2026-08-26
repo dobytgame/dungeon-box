@@ -10,6 +10,7 @@ import { mergeMonthlyKitProductionCosts } from '@/lib/admin/store-products';
 import { buildPlanProductionCostMap } from '@/lib/admin/cycle-shipment-finance';
 import { isComboPrepaidPayment } from '@/lib/payments/effective-amount';
 import { inferPlanSlugFromText } from '@/lib/store/plan-slug-infer';
+import { resolvePaintKitBumpFromStoreLine } from '@/lib/store/paint-kit-detect';
 import {
   isMonthlyKitProductId,
   parseMonthlyKitPlanSlug,
@@ -109,13 +110,7 @@ function resolveStoreOrderItemCost(
 ): number {
   const quantity = line.quantity > 0 ? line.quantity : 1;
 
-  const bumpId =
-    line.paintKitBumpId ??
-    (line.productId === 'paint-kit-amador'
-      ? 'amador'
-      : line.productId === 'paint-kit-profissional'
-        ? 'profissional'
-        : null);
+  const bumpId = resolvePaintKitBumpFromStoreLine(line);
   if (bumpId) {
     return paintKitCostForBump(catalog, bumpId) * quantity;
   }

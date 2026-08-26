@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatProductionShippingAddress } from '@/lib/admin/production-list';
+import { createAdminClient } from '@/lib/supabase/admin';
 import {
   enrichStoreOrderPurchaseViews,
   storeOrderPurchaseFromMeta,
@@ -81,7 +82,7 @@ function toDashboardListRow(row: AdminStoreOrderListRow): DashboardStoreOrderLis
 }
 
 export async function listDashboardStoreOrders(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   userId: string,
   options?: {
     q?: string;
@@ -90,7 +91,8 @@ export async function listDashboardStoreOrders(
     limit?: number;
   }
 ): Promise<DashboardStoreOrderListRow[]> {
-  const rows = await listAdminStoreOrders(supabase, {
+  const admin = createAdminClient();
+  const rows = await listAdminStoreOrders(admin, {
     ...options,
     userId,
   });
@@ -102,7 +104,8 @@ export async function getDashboardStoreOrderDetail(
   userId: string,
   orderId: string
 ): Promise<DashboardStoreOrderDetail | null> {
-  const paymentRow = await findStoreOrderPaymentRow(supabase, userId, orderId);
+  const admin = createAdminClient();
+  const paymentRow = await findStoreOrderPaymentRow(admin, userId, orderId);
   if (!paymentRow) return null;
 
   const meta = parseStoreOrderMeta(paymentRow.status_detail);

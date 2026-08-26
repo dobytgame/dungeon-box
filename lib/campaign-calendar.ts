@@ -5,7 +5,7 @@
 export type CampaignMonthIcon =
   | 'ruins'
   | 'cave'
-  | 'scifi'
+  | 'tomb'
   | 'shrine'
   | 'camp'
   | 'market'
@@ -31,7 +31,7 @@ export const campaignCalendarCopy = {
   titleLine1: '12 meses ·',
   titleLine2: '12 aventuras',
   subtitle:
-    'Cada mês um cenário novo para sua mesa. Passe o mouse ou toque em um mês para ver a lore — os dois primeiros já estão revelados.',
+    'Cada mês um cenário novo para sua mesa. Passe o mouse ou toque em um mês para ver a lore — os três primeiros já estão revelados.',
   lockedLore: 'Tema surpresa. Revelado mês a mês para quem assina.',
   lockedLabel: 'Em breve',
   footerNote: 'Kit temático exclusivo · Peças modulares · Compatível com meses anteriores',
@@ -54,10 +54,10 @@ export const campaignMonths: CampaignMonth[] = [
   },
   {
     month: '03',
-    icon: 'scifi',
-    name: 'Sci-Fi',
-    lore: campaignCalendarCopy.lockedLore,
-    revealed: false,
+    icon: 'tomb',
+    name: 'Tumba',
+    lore: 'Câmaras funerárias, sarcófagos e corredores selados. Nichos na pedra, lápides e o silêncio de algo que ainda guarda o que enterrou.',
+    revealed: true,
   },
   {
     month: '04',

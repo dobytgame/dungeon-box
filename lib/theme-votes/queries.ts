@@ -235,12 +235,36 @@ export function pickFeaturedThemePoll<T extends { status: string; cycle_number: 
   const byCycle = (a: T, b: T) => a.cycle_number - b.cycle_number;
   const open = polls.filter((poll) => poll.status === 'open').sort(byCycle);
   if (open[0]) return open[0];
-  const upcoming = polls.filter((poll) => poll.status === 'upcoming').sort(byCycle);
-  if (upcoming[0]) return upcoming[0];
   const ended = polls
     .filter((poll) => poll.status === 'ended')
     .sort((a, b) => b.cycle_number - a.cycle_number);
-  return ended[0] ?? null;
+  if (ended[0]) return ended[0];
+  const upcoming = polls.filter((poll) => poll.status === 'upcoming').sort(byCycle);
+  return upcoming[0] ?? null;
+}
+
+export async function getLatestEndedThemePollWithTallies(
+  client: SupabaseClient
+): Promise<ThemePollWithTallies | null> {
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from('theme_polls')
+    .select(POLL_SELECT)
+    .lt('ends_at', now)
+    .order('cycle_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[theme-votes] getLatestEndedThemePoll:', error.message);
+    return null;
+  }
+
+  if (!data) return null;
+
+  const poll = mapPoll(data as PollRow);
+  const counts = await loadVoteCounts(client, [poll.id]);
+  return withTallies(poll, counts);
 }
 
 export async function getOpenThemePoll(

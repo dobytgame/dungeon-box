@@ -41,7 +41,8 @@ export const DASHBOARD_NAV = [
     label: 'Votação',
     icon: 'star',
     eyebrow: 'Próxima caixa',
-    description: 'Dois temas na mesa. Um voto decide a próxima caixa.',
+    description:
+      'Dois temas na mesa. Aberto, o seu voto. Encerrado, o vencedor e a porcentagem dos votos válidos.',
   },
   {
     href: '/dashboard/pedidos',
@@ -49,7 +50,7 @@ export const DASHBOARD_NAV = [
     icon: 'package',
     eyebrow: 'Loja',
     description:
-      'Compras da loja com produção, embalagem, coleta e envio.',
+      'Compras da loja e kits extras de pintura, com produção, embalagem, coleta e envio.',
   },
   {
     href: '/dashboard/feedback',

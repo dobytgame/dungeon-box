@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { checkoutHref } from '@/lib/checkout/plans';
+import CycleExtrasList from '@/components/dashboard/CycleExtrasList';
 import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
 import CycleProgress from '@/components/dashboard/CycleProgress';
 import DashboardCard from '@/components/dashboard/DashboardCard';
@@ -8,6 +9,7 @@ import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
 import ThemeVoteBanner from '@/components/dashboard/ThemeVoteBanner';
+import ThemeVoteResult from '@/components/dashboard/ThemeVoteResult';
 import { formatDashboardTracking, pickCurrentDashboardCycle } from '@/lib/dashboard/cycle-status';
 import {
   formatDate,
@@ -23,7 +25,9 @@ import {
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { loadDashboardCycleExtras } from '@/lib/dashboard/cycle-extras';
 import {
+  getLatestEndedThemePollWithTallies,
   getOpenThemePoll,
   getUserVoteOptionId,
   userHasActiveSubscription,
@@ -49,24 +53,48 @@ export default async function DashboardPage() {
   const isAdmin = profile?.is_admin === true;
   const showThemeVote = userCanSeeThemeVote(isAdmin);
   const admin = createAdminClient();
+  const nextCycleExtras =
+    nextCycle && Array.isArray(cycles)
+      ? (await loadDashboardCycleExtras(admin, cycles)).get(nextCycle.id) ?? []
+      : [];
   const isActiveSubscriber = showThemeVote
     ? await userHasActiveSubscription(admin, user.id)
     : false;
   const canVote = userCanCastThemeVote(isAdmin, isActiveSubscriber);
   const openPoll = showThemeVote ? await getOpenThemePoll(admin) : null;
-  const openPollVoteId = openPoll
-    ? await getUserVoteOptionId(admin, user.id, openPoll.id)
+  const endedPoll =
+    showThemeVote && !openPoll
+      ? await getLatestEndedThemePollWithTallies(admin)
+      : null;
+  const featuredPollId = openPoll?.id ?? endedPoll?.id ?? null;
+  const featuredVoteId = featuredPollId
+    ? await getUserVoteOptionId(admin, user.id, featuredPollId)
     : null;
   const voteBanner =
     openPoll &&
     openPoll.options.length >= 2 &&
     getThemePollStatus(openPoll.starts_at, openPoll.ends_at) === 'open' &&
-    (canVote || openPollVoteId)
+    (canVote || featuredVoteId)
       ? {
           cycleNumber: openPoll.cycle_number,
           endsAt: openPoll.ends_at,
           options: openPoll.options,
-          votedOptionId: openPollVoteId,
+          votedOptionId: featuredVoteId,
+        }
+      : null;
+  const voteResult =
+    !voteBanner &&
+    endedPoll &&
+    endedPoll.status === 'ended' &&
+    endedPoll.options.length >= 2
+      ? {
+          cycle_number: endedPoll.cycle_number,
+          ends_at: endedPoll.ends_at,
+          totalVotes: endedPoll.totalVotes,
+          isTie: endedPoll.isTie,
+          winnerOptionId: endedPoll.winnerOptionId,
+          options: endedPoll.options,
+          userVoteOptionId: featuredVoteId,
         }
       : null;
 
@@ -91,6 +119,7 @@ export default async function DashboardPage() {
         />
       ) : null}
       {voteBanner ? <ThemeVoteBanner poll={voteBanner} /> : null}
+      {voteResult ? <ThemeVoteResult poll={voteResult} variant="home" /> : null}
       {manageable.length === 0 ? (
         <EmptyState
           title="Sem assinatura ativa"
@@ -161,6 +190,9 @@ export default async function DashboardPage() {
                   />
                 </dl>
                 <CycleProgress status={nextCycle.status} showCopy />
+                {nextCycleExtras.length > 0 ? (
+                  <CycleExtrasList items={nextCycleExtras} />
+                ) : null}
               </div>
             ) : (
               <p className="text-sm text-stone-500">
@@ -213,9 +245,10 @@ export default async function DashboardPage() {
             { href: '/dashboard/profile', label: 'Editar perfil', desc: 'CPF, telefone e dados' },
             { href: '/dashboard/addresses', label: 'Endereços', desc: 'Entrega e padrão' },
             { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e troca de cartão' },
+            { href: '/dashboard/pedidos', label: 'Pedidos', desc: 'Loja, kits extras e envio' },
             { href: '/dashboard/loyalty', label: 'Fidelidade', desc: 'Níveis e votos' },
             ...(showThemeVote
-              ? [{ href: '/dashboard/votacao', label: 'Votação', desc: 'Tema do próximo ciclo' }]
+              ? [{ href: '/dashboard/votacao', label: 'Votação', desc: 'Resultado ou próximo tema' }]
               : []),
           ].map((item) => (
             <Link

@@ -43,6 +43,7 @@ import { subscriptionEligibleForPaintKitAddon } from '@/lib/subscriptions/paint-
 import type { CartLine } from '@/lib/store/cart';
 import { canonicalizeCartProductId, normalizeCartLines } from '@/lib/store/cart';
 import { getStoreProduct, type StoreCatalogProductId } from '@/lib/store/catalog';
+import { resolvePaintKitBumpFromStoreLine } from '@/lib/store/paint-kit-detect';
 import {
   isMonthlyKitProductId,
   resolveMonthlyKitOrderItem,
@@ -99,6 +100,7 @@ type ResolvedStoreLine =
       originalPriceCents: number;
       promoCode?: string;
       promoSummary?: string;
+      paintKitBumpId?: 'amador' | 'profissional' | null;
       bundleSubscriptionId: string | null;
       selectedOptions?: Record<string, string>;
       itemUploads?: string[];
@@ -176,8 +178,12 @@ function findPaintKitForBundle(
   const paintKits = normalized
     .map((line) => {
       const product = getStoreProduct(line.productId);
-      if (!product?.paintKitBumpId || line.quantity !== 1) return null;
-      return { productId: line.productId as StoreCatalogProductId, bumpId: product.paintKitBumpId };
+      const bumpId = resolvePaintKitBumpFromStoreLine({
+        productId: line.productId,
+        paintKitBumpId: product?.paintKitBumpId,
+      });
+      if (!bumpId || line.quantity !== 1) return null;
+      return { productId: line.productId as StoreCatalogProductId, bumpId };
     })
     .filter(Boolean) as Array<{
     productId: StoreCatalogProductId;
@@ -348,6 +354,7 @@ async function resolveStoreLinesWithItems(
       originalPriceCents: product.originalPriceCents ?? product.priceCents,
       promoCode: product.subscriberDiscount ? 'ASSINANTE' : product.promoCode,
       promoSummary: product.promoSummary,
+      paintKitBumpId: product.paintKitBumpId ?? null,
       bundleSubscriptionId:
         product.paintKitBumpId && bundleSubscriptionId ? bundleSubscriptionId : null,
       ...(line.selectedOptions ? { selectedOptions: line.selectedOptions } : {}),
@@ -580,6 +587,7 @@ export async function purchaseStoreOrder(
             name: line.name,
             lineTotalCents: line.lineTotalCents,
             bundleSubscriptionId: line.bundleSubscriptionId,
+            paintKitBumpId: line.paintKitBumpId ?? null,
             ...(line.selectedOptions
               ? {
                   selectedOptions: line.selectedOptions,
