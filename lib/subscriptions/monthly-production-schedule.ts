@@ -507,25 +507,47 @@ export async function repairMonthlyProductionForSubscription(
       .maybeSingle();
 
     if (existing && PROTECTED_CYCLE_STATUSES.has(existing.status as string)) {
+      const protectedPatch: Record<string, unknown> = {};
       if (!existing.scheduled_production_month) {
+        protectedPatch.scheduled_production_month = scheduledProductionMonth;
+      }
+      if (!existing.payment_id) {
+        protectedPatch.payment_id = payment.id;
+        protectedPatch.paid_at = paidAt;
+        protectedPatch.amount_cents = payment.amount_cents;
+        if (!existing.scheduled_production_month) {
+          protectedPatch.scheduled_production_month = scheduledProductionMonth;
+        }
+      }
+
+      if (Object.keys(protectedPatch).length > 0) {
+        protectedPatch.updated_at = now;
         const { error: pinError } = await supabase
           .from('subscription_cycles')
-          .update({
-            scheduled_production_month: scheduledProductionMonth,
-            updated_at: now,
-          })
+          .update(protectedPatch)
           .eq('subscription_id', subscriptionId)
           .eq('cycle_number', cycleNumber);
 
         if (!pinError) {
           monthsFixed += 1;
+          if (!existing.payment_id && cycleNumber > 1) {
+            renewalCyclesAttached += 1;
+          }
           const localIndex = cycles.findIndex(
             (cycle) => cycle.cycle_number === cycleNumber
           );
           if (localIndex >= 0) {
             cycles[localIndex] = {
               ...cycles[localIndex]!,
-              scheduled_production_month: scheduledProductionMonth,
+              scheduled_production_month:
+                (protectedPatch.scheduled_production_month as string | undefined) ??
+                cycles[localIndex]!.scheduled_production_month,
+              payment_id:
+                (protectedPatch.payment_id as string | undefined) ??
+                cycles[localIndex]!.payment_id,
+              paid_at:
+                (protectedPatch.paid_at as string | undefined) ??
+                cycles[localIndex]!.paid_at,
             };
           }
         }

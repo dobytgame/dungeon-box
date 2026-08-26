@@ -97,6 +97,7 @@ function isPrematureUpcoming(
 }
 
 function isUnpaidMonthlyRenewalPlaceholder(row: AdminCycleRow): boolean {
+  if (PHYSICAL_PIPELINE_STATUSES.has(row.status)) return false;
   if (row.subscriptionBillingTerm !== 'monthly') return false;
   if (row.cycle_number <= 1) return false;
   return !row.payment_id && !row.paid_at;
@@ -303,6 +304,7 @@ export function filterProductionBoardRowsForMonth(
 
 function cycleHasKitPayment(row: AdminCycleRow): boolean {
   if (row.isStandaloneStoreOrder) return true;
+  if (PHYSICAL_PIPELINE_STATUSES.has(row.status)) return true;
   return cycleHasFulfillmentSignal(row);
 }
 

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
 import type { AdminCycleRow } from '@/lib/admin/types';
 import { advanceCycleProductionAction } from '@/lib/admin/actions';
 import type { ProductionKanbanBoard } from '@/lib/admin/queries';
@@ -130,6 +130,47 @@ interface Props {
   groupByCycle?: boolean;
 }
 
+function productionKitLabel(row: AdminCycleRow): string {
+  if (row.isStandaloneStoreOrder) {
+    return row.planName ?? 'Pedido da loja';
+  }
+  const cycle =
+    row.cycle_number >= 1 ? `Ciclo ${row.cycle_number}` : 'Ciclo';
+  if (row.themeName) return `${cycle} · ${row.themeName}`;
+  if (row.planName) return `${cycle} · ${row.planName}`;
+  return cycle;
+}
+
+const COLLAPSIBLE_COLUMNS = new Set<ProductionBoardColumn>([
+  'shipped',
+  'delivered',
+]);
+
+const COLLAPSED_STORAGE_KEY = 'dungeonbox.admin.kanban-collapsed';
+
+type CollapsedColumns = Partial<Record<ProductionBoardColumn, boolean>>;
+
+function readCollapsedColumns(): CollapsedColumns {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as CollapsedColumns;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const next: CollapsedColumns = {};
+    for (const key of Array.from(COLLAPSIBLE_COLUMNS)) {
+      if (parsed[key] === true) next[key] = true;
+    }
+    return next;
+  } catch {
+    return {};
+  }
+}
+
+function isPostShipStatus(status: CycleStatus): boolean {
+  return status === 'shipped' || status === 'delivered';
+}
+
 function nextQuickAction(
   status: CycleStatus
 ): { target: CycleStatus; label: string } | null {
@@ -191,6 +232,7 @@ export function ProductionKanbanCard({
     ? getProductionCycleVisual(row.cycle_number)
     : null;
   const cyclePaidAt = kanbanCyclePaidAt(row);
+  const postShip = isPostShipStatus(row.status);
 
   function isButtonBusy(target: CycleStatus) {
     return (
@@ -206,6 +248,71 @@ export function ProductionKanbanCard({
     : row.paymentPendingHighlight
       ? 'border-amber-500/50 bg-amber-500/5 hover:border-amber-500/70'
       : adminPlanCardClasses(row.planSlug, row.planName);
+
+  if (postShip) {
+    return (
+      <article
+        className={`relative overflow-hidden rounded border p-3 ${
+          colorByCycle ? '' : 'admin-panel'
+        } ${cardTone}`}
+      >
+        {isCardBusy ? (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded bg-zinc-950/75 backdrop-blur-[1px]"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <Loader2 className="h-5 w-5 animate-spin text-console" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-400">
+              Salvando…
+            </span>
+          </div>
+        ) : null}
+
+        <div className="min-w-0 space-y-1">
+          <p className="truncate text-sm font-medium text-zinc-200">
+            {row.customerName ?? 'Cliente sem nome'}
+          </p>
+          {row.customerEmail ? (
+            <p className="truncate font-mono text-[10px] text-zinc-500">
+              {row.customerEmail}
+            </p>
+          ) : null}
+          <p className="truncate text-[11px] text-zinc-400">
+            {productionKitLabel(row)}
+          </p>
+          <p
+            className={`truncate font-mono text-[11px] ${
+              row.tracking_code ? 'text-console' : 'text-zinc-600'
+            }`}
+          >
+            {row.tracking_code ?? 'Sem rastreio'}
+          </p>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-1.5">
+          {!row.isStandaloneStoreOrder ? (
+            <SendFeedbackEmailButton
+              cycleId={row.id}
+              feedbackRequestSentAt={row.feedbackRequestSentAt}
+              compact
+              minimal
+              onSent={onFeedbackSent}
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onOpenDetail(row)}
+            className={`inline-flex cursor-pointer items-center justify-center rounded border border-zinc-800 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-zinc-500 transition duration-200 hover:border-zinc-700 hover:text-zinc-300 ${
+              colorByCycle ? 'min-h-11' : 'min-h-[32px]'
+            }`}
+          >
+            Detalhes
+          </button>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article
@@ -508,14 +615,25 @@ export default function ProductionKanban({
     useState<ProductionKanbanBoard | null>(null);
   const [pendingAction, setPendingAction] = useState<ProductionPendingAction | null>(null);
   const [error, setError] = useState('');
+  const [collapsedColumns, setCollapsedColumns] = useState<CollapsedColumns>(
+    {}
+  );
+  const [collapsedReady, setCollapsedReady] = useState(false);
 
   const displayBoard = optimisticBoard ?? board;
-  const wideBoard = columns.length >= 7;
-  const gridClass = columns.length <= 2
-    ? 'grid gap-4 xl:grid-cols-2'
-    : wideBoard
-      ? 'grid min-w-[92rem] grid-cols-7 gap-4'
-      : 'grid gap-4 xl:grid-cols-5';
+
+  useEffect(() => {
+    setCollapsedColumns(readCollapsedColumns());
+    setCollapsedReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!collapsedReady) return;
+    window.localStorage.setItem(
+      COLLAPSED_STORAGE_KEY,
+      JSON.stringify(collapsedColumns)
+    );
+  }, [collapsedColumns, collapsedReady]);
 
   useEffect(() => {
     setOptimisticBoard(null);
@@ -544,6 +662,13 @@ export default function ProductionKanban({
     });
   }
 
+  function toggleCollapsed(status: ProductionBoardColumn) {
+    setCollapsedColumns((current) => ({
+      ...current,
+      [status]: !current[status],
+    }));
+  }
+
   return (
     <div className="space-y-4">
       {error ? (
@@ -552,26 +677,62 @@ export default function ProductionKanban({
         </p>
       ) : null}
 
-      <div className={wideBoard ? 'overflow-x-auto pb-2' : undefined}>
-        <div className={gridClass}>
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-h-[420px] gap-3">
           {columns.map((status) => {
           const meta = COLUMN_META[status];
           const cards = displayBoard[status];
           const cycleGroups = groupByCycle ? groupRowsByCycle(cards) : null;
+          const canCollapse = COLLAPSIBLE_COLUMNS.has(status);
+          const collapsed = Boolean(collapsedColumns[status]);
+
+          if (canCollapse && collapsed) {
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => toggleCollapsed(status)}
+                aria-expanded="false"
+                aria-label={`Abrir coluna ${meta.label}`}
+                className="flex w-11 shrink-0 cursor-pointer flex-col items-center gap-3 rounded border border-zinc-800/80 bg-zinc-950/40 py-3 text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300"
+              >
+                <ChevronsLeft className="h-3.5 w-3.5 shrink-0" />
+                <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">
+                  {cards.length}
+                </span>
+                <span className="flex-1 font-mono text-[11px] font-medium uppercase tracking-[0.16em] [writing-mode:vertical-rl]">
+                  {meta.label}
+                </span>
+              </button>
+            );
+          }
 
           return (
             <section
               key={status}
-              className="flex min-h-[420px] flex-col rounded border border-zinc-800/80 bg-zinc-950/40"
+              className="flex min-h-[420px] min-w-[15.5rem] flex-1 flex-col rounded border border-zinc-800/80 bg-zinc-950/40"
             >
               <header className="border-b border-zinc-800/80 px-3 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-300">
                     {meta.label}
                   </h3>
-                  <span className="rounded bg-zinc-900 px-2 py-0.5 font-mono text-[10px] tabular-nums text-zinc-500">
-                    {cards.length}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="rounded bg-zinc-900 px-2 py-0.5 font-mono text-[10px] tabular-nums text-zinc-500">
+                      {cards.length}
+                    </span>
+                    {canCollapse ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapsed(status)}
+                        aria-expanded="true"
+                        aria-label={`Minimizar coluna ${meta.label}`}
+                        className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded text-zinc-600 transition hover:bg-zinc-900 hover:text-zinc-300"
+                      >
+                        <ChevronsRight className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <p className="mt-1 text-[11px] text-zinc-600">{meta.hint}</p>
               </header>

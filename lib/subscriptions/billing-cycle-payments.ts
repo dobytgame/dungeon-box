@@ -107,32 +107,39 @@ export function sortBillingPayments<T extends BillingPaymentRow>(
   });
 }
 
-/** Deduplica cobranças no mesmo mês calendário de pagamento (ex.: kit + assinatura no checkout). */
+/**
+ * No mesmo mês, descarta só cobranças menores (resíduo / extra).
+ * Dois pagamentos do mesmo valor (renovação antecipada, 2 kits) continuam
+ * como ciclos distintos — não colapsar no primeiro.
+ */
 export function dedupeBillingPaymentsByBillingMonth<T extends BillingPaymentRow>(
   payments: T[]
 ): T[] {
   const sorted = sortBillingPayments(payments);
-  const byMonth = new Map<string, T>();
+  const byMonth = new Map<string, T[]>();
 
   for (const payment of sorted) {
     const paidAt = payment.paid_at ?? payment.created_at;
     if (!paidAt) continue;
 
     const monthKey = monthKeyFromDate(new Date(paidAt));
-    const existing = byMonth.get(monthKey);
-    if (!existing) {
-      byMonth.set(monthKey, payment);
-      continue;
-    }
-
-    const existingAmount = existing.amount_cents ?? 0;
-    const currentAmount = payment.amount_cents ?? 0;
-    if (currentAmount > existingAmount) {
-      byMonth.set(monthKey, payment);
-    }
+    const list = byMonth.get(monthKey) ?? [];
+    list.push(payment);
+    byMonth.set(monthKey, list);
   }
 
-  return sortBillingPayments(Array.from(byMonth.values()));
+  const kept: T[] = [];
+  for (const list of Array.from(byMonth.values())) {
+    const maxAmount = list.reduce(
+      (max, payment) => Math.max(max, payment.amount_cents ?? 0),
+      0
+    );
+    kept.push(
+      ...list.filter((payment) => (payment.amount_cents ?? 0) >= maxAmount)
+    );
+  }
+
+  return sortBillingPayments(kept);
 }
 
 /** @deprecated Use dedupeBillingPaymentsByBillingMonth */

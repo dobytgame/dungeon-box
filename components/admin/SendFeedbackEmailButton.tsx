@@ -9,6 +9,8 @@ interface Props {
   cycleId: string;
   feedbackRequestSentAt?: string | null;
   compact?: boolean;
+  /** Kanban pós-envio: rótulo curto, sem linha extra de “e-mail enviado”. */
+  minimal?: boolean;
   onSent?: () => void;
 }
 
@@ -16,6 +18,7 @@ export default function SendFeedbackEmailButton({
   cycleId,
   feedbackRequestSentAt,
   compact = false,
+  minimal = false,
   onSent,
 }: Props) {
   const [pending, setPending] = useState(false);
@@ -42,11 +45,17 @@ export default function SendFeedbackEmailButton({
     onSent?.();
   }
 
-  const label = sentAt ? 'Reenviar e-mail de avaliação' : 'Enviar e-mail de avaliação';
+  const label = sentAt
+    ? minimal
+      ? 'Reenviar avaliação'
+      : 'Reenviar e-mail de avaliação'
+    : minimal
+      ? 'Enviar avaliação'
+      : 'Enviar e-mail de avaliação';
 
   return (
     <div className={compact ? 'w-full' : ''}>
-      {sentAt ? (
+      {sentAt && !minimal ? (
         <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.12em] text-emerald-400/90">
           E-mail enviado · {formatDateTime(sentAt)}
         </p>
@@ -56,6 +65,9 @@ export default function SendFeedbackEmailButton({
         type="button"
         disabled={pending}
         onClick={() => void handleSend()}
+        title={
+          sentAt ? `E-mail de avaliação enviado em ${formatDateTime(sentAt)}` : undefined
+        }
         className={`inline-flex cursor-pointer items-center justify-center gap-1.5 rounded border border-violet-500/30 bg-violet-500/10 font-mono uppercase tracking-[0.12em] text-violet-200 transition hover:border-violet-500/45 hover:bg-violet-500/15 disabled:opacity-50 ${
           compact
             ? 'min-h-[32px] w-full px-2 text-[10px]'
@@ -75,7 +87,7 @@ export default function SendFeedbackEmailButton({
           {error}
         </p>
       ) : null}
-      {message ? (
+      {message && !minimal ? (
         <p
           className={`text-emerald-300 ${compact ? 'mt-2 text-[10px]' : 'mt-3 text-sm'}`}
           role="status"
