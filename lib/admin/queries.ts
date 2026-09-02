@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
+import { getRecurringMrrSummary } from '@/lib/admin/recurring-mrr';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { relOne } from '@/lib/dashboard/format';
 import {
@@ -559,6 +560,7 @@ export async function getAdminDashboardStats(
     profit30d,
     profitByMonth,
     totalRevenue,
+    recurringMrr,
   ] = await Promise.all([
     admin.from('mrr').select('*'),
     admin
@@ -651,6 +653,7 @@ export async function getAdminDashboardStats(
     getProfitSummary(admin, '30d'),
     getProfitByMonth(admin),
     getTotalApprovedRevenue(admin),
+    getRecurringMrrSummary(admin),
   ]);
 
   const mrrRows = mrrRes.data ?? [];
@@ -666,6 +669,9 @@ export async function getAdminDashboardStats(
 
   return {
     mrrCents,
+    recurringMrrCents: recurringMrr.recurringMrrCents,
+    recurringSubscribers: recurringMrr.recurringSubscribers,
+    comboActiveCount: recurringMrr.comboActiveCount,
     activeSubscribers: activeCountRes.count ?? 0,
     newSubscribers30d: newSubsRes.count ?? 0,
     cancelled30d: cancelledRes.count ?? 0,

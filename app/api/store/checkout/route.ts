@@ -180,6 +180,7 @@ export async function POST(request: Request) {
       productId: item.productId,
       quantity: item.quantity,
       ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {}),
+      ...(item.themeId ? { themeId: item.themeId } : {}),
       ...(item.itemUploads ? { itemUploads: item.itemUploads } : {}),
     })),
     addressId: body.addressId,

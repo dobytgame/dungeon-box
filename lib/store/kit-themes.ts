@@ -95,5 +95,11 @@ export function findStoreKitTheme(
   themeId?: string | null
 ): StoreKitTheme | null {
   if (!themeId) return null;
-  return themes.find((theme) => theme.id === themeId) ?? null;
+  const needle = themeId.trim();
+  if (!needle) return null;
+  return (
+    themes.find((theme) => theme.id === needle) ??
+    themes.find((theme) => theme.slug === needle) ??
+    null
+  );
 }

@@ -30,7 +30,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <KpiCard
           label="Faturamento total"
           value={formatMoney(stats.totalRevenueCents)}
@@ -62,8 +62,18 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
         <KpiCard
           label="MRR"
           value={formatMoney(stats.mrrCents)}
-          hint={`${stats.activeSubscribers} assinantes ativos`}
+          hint={`${stats.activeSubscribers} assinantes ativos · inclui combos`}
           accent="console"
+        />
+        <KpiCard
+          label="MRR recorrente"
+          value={formatMoney(stats.recurringMrrCents)}
+          hint={
+            stats.comboActiveCount > 0
+              ? `${stats.recurringSubscribers} mensais · ${stats.comboActiveCount} combo${stats.comboActiveCount === 1 ? '' : 's'} descontado${stats.comboActiveCount === 1 ? '' : 's'}`
+              : `${stats.recurringSubscribers} assinantes mensais`
+          }
+          accent="gold"
         />
       </section>
 

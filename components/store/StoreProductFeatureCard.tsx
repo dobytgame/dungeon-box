@@ -7,6 +7,7 @@ import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import StoreMediaImage from '@/components/store/StoreMediaImage';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { StoreProduct } from '@/lib/store/catalog';
+import { productRequiresKitTheme } from '@/lib/store/catalog';
 import { STORE_ROUTES } from '@/lib/store/routes';
 import { formatSubscriberDiscountBadge } from '@/lib/store/subscriber-discount';
 
@@ -94,14 +95,23 @@ export default function StoreProductFeatureCard({ product }: Props) {
           </p>
         ) : null}
 
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="mt-3 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-sm bg-ember px-2 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-        >
-          <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {added ? 'Adicionado' : 'Adicionar'}
-        </button>
+        {productRequiresKitTheme(product) ? (
+          <Link
+            href={STORE_ROUTES.product(product.slug)}
+            className="mt-3 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-sm bg-ember px-2 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+          >
+            Escolher tema
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="mt-3 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-sm bg-ember px-2 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+          >
+            <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {added ? 'Adicionado' : 'Adicionar'}
+          </button>
+        )}
       </div>
     </article>
   );

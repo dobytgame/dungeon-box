@@ -5,8 +5,11 @@ import {
   resolveDailySalesBounds,
   type DailySalesFilters,
 } from '@/lib/admin/daily-sales';
-import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
-import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
+import {
+  isRecurringMrrSubscription,
+  recurringMrrCentsForSubscription,
+  summarizeRecurringMrr,
+} from '@/lib/admin/recurring-mrr';
 import {
   brazilDateToEndIso,
   brazilDateToStartIso,
@@ -17,7 +20,6 @@ import {
 } from '@/lib/datetime/brazil';
 import {
   buildRevenueCountIndexes,
-  isComboSubscription,
   loadRevenueCountIndexes,
   resolvePaymentRevenueCents,
   shouldCountInAdminSales,
@@ -83,34 +85,6 @@ function listYears(now = new Date()): number[] {
 
 function dayKey(raw: string | null | undefined): string | null {
   return raw ? toBrazilDateKey(raw) : null;
-}
-
-function isRecurringMrrSubscription(row: SubscriptionSnapshotRow): boolean {
-  if (isComboSubscription(row)) {
-    return false;
-  }
-
-  if (row.billing_term && isComboTerm(row.billing_term as BillingTerm)) {
-    return false;
-  }
-
-  if (row.prepaid_until) {
-    const prepaidUntil = new Date(row.prepaid_until);
-    if (!Number.isNaN(prepaidUntil.getTime()) && prepaidUntil > new Date()) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function resolvePlanPriceCents(row: SubscriptionSnapshotRow): number {
-  const plan = Array.isArray(row.plans) ? row.plans[0] : row.plans;
-  return resolveSubscriptionMonthlyRevenueCents({
-    planPriceCents: plan?.price_cents ?? null,
-    shippingCents: row.shipping_cents,
-    specialNotes: row.special_notes,
-  }) ?? 0;
 }
 
 function isActiveOnDay(
@@ -204,7 +178,7 @@ export async function getSubscriptionMetricsChartData(
   const filters = parseDailySalesFilters(searchParams);
   const { from, to, periodLabel } = resolveDailySalesBounds(filters);
 
-  const [subscriptionsRes, paymentsRes, activeCountRes, mrrRes, revenueIndexes] =
+  const [subscriptionsRes, paymentsRes, activeCountRes, revenueIndexes] =
     await Promise.all([
     admin
       .from('subscriptions')
@@ -251,7 +225,6 @@ export async function getSubscriptionMetricsChartData(
       .from('subscriptions')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active'),
-    admin.from('mrr').select('*'),
     loadRevenueCountIndexes(admin, to, { subscriptionOnly: true }),
   ]);
 
@@ -292,7 +265,7 @@ export async function getSubscriptionMetricsChartData(
     const activeCount = activeRows.length;
     const mrrCents = activeRows
       .filter(isRecurringMrrSubscription)
-      .reduce((sum, row) => sum + resolvePlanPriceCents(row), 0);
+      .reduce((sum, row) => sum + recurringMrrCentsForSubscription(row), 0);
 
     return {
       date,
@@ -339,11 +312,9 @@ export async function getSubscriptionMetricsChartData(
       ? Math.round((totals.renewalCount / renewalDenominator) * 1000) / 10
       : null;
 
-  const mrrRows = mrrRes.data ?? [];
-  const mrrCents = mrrRows.reduce(
-    (sum, row) => sum + Math.round(Number(row.mrr_brl ?? 0) * 100),
-    0
-  );
+  const todayKey = todayBrazilDateKey();
+  const activeToday = subscriptions.filter((row) => isActiveOnDay(row, todayKey));
+  const { recurringMrrCents: mrrCents } = summarizeRecurringMrr(activeToday);
 
   return {
     filters,

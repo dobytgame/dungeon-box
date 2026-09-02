@@ -167,6 +167,9 @@ export default function StoreCheckoutLineItems({
                     ) : null}
                     {line.name}
                   </p>
+                  {line.themeName ? (
+                    <p className="mt-1 text-xs text-gold">Tema: {line.themeName}</p>
+                  ) : null}
                   {line.variationSummary ? (
                     <p className="mt-1 text-xs text-stone-500">{line.variationSummary}</p>
                   ) : null}

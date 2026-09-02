@@ -370,7 +370,7 @@ export default function AdminSubscriptionMetricsChart({ data }: Props) {
           ) : null}
         </span>
         <span>
-          MRR atual:{' '}
+          MRR recorrente:{' '}
           <strong className="text-gold">{formatMoney(data.summary.mrrCents)}</strong>
         </span>
         <span>

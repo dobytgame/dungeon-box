@@ -15,6 +15,7 @@ import {
 } from '@/lib/store/category-visibility';
 import type { StoreProduct } from '@/lib/store/catalog';
 import {
+  findStoreKitTheme,
   formatMonthlyKitLineName,
   formatStoreKitThemeLabel,
   loadActiveStoreKitThemes,
@@ -568,9 +569,7 @@ export async function resolveMonthlyKitOrderItem(
   }
 
   const kitThemes = await loadActiveStoreKitThemes(admin);
-  const selectedTheme = themeId
-    ? kitThemes.find((theme) => theme.id === themeId) ?? null
-    : null;
+  const selectedTheme = findStoreKitTheme(kitThemes, themeId);
 
   if (kitThemes.length > 0 && !selectedTheme) {
     return { error: 'Selecione o tema do kit (Ruínas, Caverna ou Tumba).' };

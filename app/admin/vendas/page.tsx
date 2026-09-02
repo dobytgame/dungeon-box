@@ -125,9 +125,9 @@ export default async function AdminSalesPage({ searchParams }: Props) {
           accent="gold"
         />
         <KpiCard
-          label="MRR"
+          label="MRR recorrente"
           value={formatMoney(subscriptionMetrics.summary.mrrCents)}
-          hint={`${subscriptionMetrics.summary.activeSubscribers} assinantes ativos`}
+          hint={`${subscriptionMetrics.summary.activeSubscribers} ativos · combos descontados`}
         />
         <KpiCard
           label="Crescimento líquido"

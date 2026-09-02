@@ -66,6 +66,9 @@ export interface AdminProfitMonthRow {
 
 export interface AdminDashboardStats {
   mrrCents: number;
+  recurringMrrCents: number;
+  recurringSubscribers: number;
+  comboActiveCount: number;
   activeSubscribers: number;
   newSubscribers30d: number;
   cancelled30d: number;
