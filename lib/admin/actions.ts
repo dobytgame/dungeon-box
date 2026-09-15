@@ -1217,6 +1217,37 @@ export async function adminManualDeactivateSubscriptionAction(
   return { success: true as const };
 }
 
+export async function exportActiveSubscribersCsvAction() {
+  const { user, admin } = await requireAdmin();
+
+  try {
+    const { buildActiveSubscribersCsv, activeSubscribersCsvFilename, listActiveSubscriberContacts } =
+      await import('@/lib/admin/export-active-subscribers');
+    const contacts = await listActiveSubscriberContacts(admin);
+    const csv = buildActiveSubscribersCsv(contacts);
+    const filename = activeSubscribersCsvFilename();
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.export_active_csv',
+      entityType: 'subscription',
+      metadata: { count: contacts.length, filename },
+      ipAddress: await clientIp(),
+    });
+
+    return {
+      success: true as const,
+      csv,
+      filename,
+      count: contacts.length,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Não foi possível gerar o CSV.';
+    return { error: message };
+  }
+}
+
 export async function setSubscriptionPartnerAction(
   subscriptionId: string,
   isPartner: boolean

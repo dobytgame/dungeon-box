@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import type { DashboardNavItem } from '@/lib/dashboard/constants';
+import CorreiosStrikeModal from './CorreiosStrikeModal';
 import DashboardHeader from './DashboardHeader';
 import DashboardNav from './DashboardNav';
 import DashboardPageIntro from './DashboardPageIntro';
@@ -12,6 +13,7 @@ interface Props {
   email: string;
   avatarUrl?: string | null;
   navItems: DashboardNavItem[];
+  showCorreiosStrikeNotice?: boolean;
   children: React.ReactNode;
 }
 
@@ -20,6 +22,7 @@ export default function DashboardShell({
   email,
   avatarUrl,
   navItems,
+  showCorreiosStrikeNotice = false,
   children,
 }: Props) {
   const pathname = usePathname();
@@ -70,6 +73,7 @@ export default function DashboardShell({
 
           <main className="mt-10 md:mt-12">{children}</main>
         </div>
+        <CorreiosStrikeModal enabled={showCorreiosStrikeNotice} />
       </div>
     </ShellNavigationFrame>
   );

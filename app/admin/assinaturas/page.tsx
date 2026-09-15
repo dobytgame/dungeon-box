@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AdminListPagination from '@/components/admin/AdminListPagination';
 import AdminSubscriptionsFiltersForm from '@/components/admin/AdminSubscriptionsFiltersForm';
+import ExportActiveSubscribersCsvButton from '@/components/admin/ExportActiveSubscribersCsvButton';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import PlanUpgradeBadge from '@/components/admin/PlanUpgradeBadge';
@@ -99,6 +100,8 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
           pageSize: filters.pageSize,
         }}
       />
+
+      <ExportActiveSubscribersCsvButton />
 
       <RepairPlanUpgradeAsaasButton />
 

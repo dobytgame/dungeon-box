@@ -4,6 +4,7 @@ import { privatePageMetadata } from '@/lib/seo/metadata';
 import { buildDashboardNav } from '@/lib/dashboard/constants';
 import { userHasActiveReferralAccess } from '@/lib/referral/access';
 import { isStoreLinkVisible } from '@/lib/store/access';
+import { userHasActiveSubscriptionAccess } from '@/lib/subscriptions/active-access';
 import { userCanSeeThemeVote } from '@/lib/theme-votes/access';
 
 export const metadata: Metadata = privatePageMetadata('Minha conta');
@@ -24,6 +25,10 @@ export default async function DashboardLayout({
   const showReferral = await userHasActiveReferralAccess(supabase, user.id);
   const showStore = isStoreLinkVisible();
   const showThemeVote = userCanSeeThemeVote(profile?.is_admin === true);
+  const showCorreiosStrikeNotice = await userHasActiveSubscriptionAccess(
+    supabase,
+    user.id
+  );
   const navItems = buildDashboardNav(showReferral, showStore, showThemeVote);
 
   return (
@@ -32,6 +37,7 @@ export default async function DashboardLayout({
       email={profile?.email ?? user.email ?? ''}
       avatarUrl={profile?.avatar_url}
       navItems={navItems}
+      showCorreiosStrikeNotice={showCorreiosStrikeNotice}
     >
       {children}
     </DashboardShell>
