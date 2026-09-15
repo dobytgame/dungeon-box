@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import Image from 'next/image';
 import { X } from 'lucide-react';
 import {
   CORREIOS_STRIKE_IMAGE,
@@ -92,13 +91,11 @@ export default function CorreiosStrikeModal({ enabled }: Props) {
         className="relative z-10 flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-sm border border-white/10 bg-stone-950 shadow-2xl sm:rounded-sm"
       >
         <div className="relative aspect-[16/10] shrink-0 overflow-hidden border-b border-white/[0.06] bg-stone-900">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={CORREIOS_STRIKE_IMAGE}
             alt="Correios em greve"
-            fill
-            priority
-            sizes="(max-width: 640px) 100vw, 576px"
-            className="object-cover"
+            className="h-full w-full object-cover"
           />
           <button
             type="button"
