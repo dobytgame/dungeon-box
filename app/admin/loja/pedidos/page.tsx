@@ -36,13 +36,22 @@ export default async function AdminStoreOrdersPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="admin-panel rounded p-4 text-sm text-zinc-400">
-        Pedidos pagos na loja pública. Pedidos avulsos são controlados aqui; pedidos
-        vinculados à assinatura seguem o ciclo em{' '}
-        <Link href="/admin/ciclos" className="text-console hover:underline">
-          Produção
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="admin-panel rounded p-4 text-sm text-zinc-400">
+          Pedidos pagos na loja pública e pedidos personalizados criados aqui.
+          Pedidos avulsos são controlados nesta lista; pedidos vinculados à
+          assinatura seguem o ciclo em{' '}
+          <Link href="/admin/ciclos" className="text-console hover:underline">
+            Produção
+          </Link>
+          .
+        </div>
+        <Link
+          href="/admin/loja/pedidos/novo"
+          className="inline-flex min-h-[40px] shrink-0 items-center rounded-sm border border-console/30 px-4 font-display text-xs uppercase tracking-widest text-console transition hover:bg-console/10"
+        >
+          Pedido personalizado
         </Link>
-        .
       </div>
 
       <Suspense fallback={<div className="text-sm text-zinc-500">Carregando pedidos…</div>}>

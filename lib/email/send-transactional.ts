@@ -64,6 +64,12 @@ import {
   pendingPaymentText,
 } from '@/lib/email/templates/pending-payment';
 import {
+  CUSTOM_STORE_ORDER_SUBJECT,
+  customStoreOrderHtml,
+  customStoreOrderText,
+  type CustomStoreOrderEmailData,
+} from '@/lib/email/templates/custom-store-order';
+import {
   subscriptionPixPaymentHtml,
   subscriptionPixPaymentSubject,
   subscriptionPixPaymentText,
@@ -161,6 +167,20 @@ export async function sendPurchaseCompletedEmail(input: {
     text: purchaseCompletedText(input),
     replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
     tags: [{ name: 'category', value: 'purchase_completed' }],
+  });
+}
+
+export async function sendCustomStoreOrderPaymentEmail(
+  input: CustomStoreOrderEmailData & { to: string }
+): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'billing',
+    to: input.to,
+    subject: CUSTOM_STORE_ORDER_SUBJECT,
+    html: customStoreOrderHtml(input),
+    text: customStoreOrderText(input),
+    replyTo: getRoleEmailAddress('billing') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'custom_store_order_payment' }],
   });
 }
 

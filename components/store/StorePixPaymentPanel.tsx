@@ -16,6 +16,7 @@ interface Props {
   amountCents: number;
   pix: StorePixDetails;
   onConfirmed: () => void;
+  statusUrl?: string;
 }
 
 const POLL_MS = 2500;
@@ -26,6 +27,7 @@ export default function StorePixPaymentPanel({
   amountCents,
   pix,
   onConfirmed,
+  statusUrl,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -51,7 +53,8 @@ export default function StorePixPaymentPanel({
         attempts += 1;
         try {
           const res = await fetch(
-            `/api/store/checkout/status?orderId=${encodeURIComponent(orderId)}`,
+            statusUrl ??
+              `/api/store/checkout/status?orderId=${encodeURIComponent(orderId)}`,
             { cache: 'no-store' }
           );
           const payload = await res.json().catch(() => ({}));
@@ -86,7 +89,7 @@ export default function StorePixPaymentPanel({
     return () => {
       cancelled = true;
     };
-  }, [orderId, onConfirmed]);
+  }, [orderId, onConfirmed, statusUrl]);
 
   const expirationLabel = pix.expirationDate
     ? formatDateTime(pix.expirationDate)

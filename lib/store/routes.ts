@@ -5,6 +5,7 @@ export const STORE_ROUTES = {
   cart: '/loja/carrinho',
   checkout: '/loja/checkout',
   orderPayment: (orderId: string) => `/loja/pedido/${orderId}`,
+  customPay: (token: string) => `/loja/pagar/${encodeURIComponent(token)}`,
   success: (orderId?: string) =>
     orderId ? `/loja/sucesso?order=${orderId}` : '/loja/sucesso',
 } as const;

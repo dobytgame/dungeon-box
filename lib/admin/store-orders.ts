@@ -388,6 +388,9 @@ export type AdminStoreOrderDetail =
       paymentId: string;
       cardId: string;
       detail: AdminCycleDetailView;
+      paymentStatus: PaymentStatus;
+      orderId: string;
+      isCustom: boolean;
     }
   | {
       kind: 'bundled';
@@ -453,6 +456,9 @@ export async function getAdminStoreOrderDetail(
       paymentId,
       cardId: standaloneStoreCardId(paymentId),
       detail,
+      paymentStatus: payment.status as PaymentStatus,
+      orderId: meta.orderId,
+      isCustom: meta.source === 'admin_custom',
     };
   }
 

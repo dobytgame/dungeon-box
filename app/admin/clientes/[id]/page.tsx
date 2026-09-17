@@ -162,6 +162,22 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
         addresses={addressOptions}
       />
 
+      <section className="rounded-sm border border-white/[0.06] p-5 md:p-6">
+        <h3 className="font-display text-sm uppercase tracking-widest text-stone-400">
+          Pedido personalizado
+        </h3>
+        <p className="mt-2 max-w-xl text-sm text-stone-500">
+          Crie um pedido avulso com itens e valor livres e envie um link de
+          pagamento (PIX ou cartão). Depois de pago, entra na fila da loja.
+        </p>
+        <Link
+          href={`/admin/loja/pedidos/novo?userId=${profile.id}`}
+          className="mt-4 inline-flex min-h-[40px] items-center rounded-sm border border-console/30 px-4 font-display text-xs uppercase tracking-widest text-console hover:bg-console/10"
+        >
+          Criar pedido personalizado
+        </Link>
+      </section>
+
       {addresses.length > 0 ? (
         <section>
           <h3 className="font-display text-sm uppercase tracking-widest text-stone-400">

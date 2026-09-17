@@ -62,6 +62,8 @@ function shouldSilenceStoreOrderApproval(
 export type StoreOrderMeta = {
   type: 'store_order';
   orderId: string;
+  /** Pedido criado no admin com itens e valor livres. */
+  source?: 'admin_custom';
   gateway?: 'asaas' | 'pagarme';
   pagarmeOrderId?: string | null;
   paymentMethod: 'credit_card' | 'pix';
