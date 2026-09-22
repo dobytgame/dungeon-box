@@ -1,0 +1,43 @@
+.home-v2 {
+  --ink: #0a0b0d;
+  --stone: #17191c;
+  --parchment: #f3efe7;
+  --ember: #ff642d;
+  --jade: #9de3d6;
+  --ash: #b8b8b2;
+  background: var(--ink);
+  color: var(--parchment);
+  font-family: var(--font-home-body), sans-serif;
+}
+
+.home-v2 ::selection {
+  background: color-mix(in srgb, var(--ember) 70%, transparent);
+  color: var(--ink);
+}
+
+.home-v2 :focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 3px;
+}
+
+.home-v2-display {
+  font-family: var(--font-home-display), sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.home-v2-snap {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home-v2-snap > * {
+  scroll-snap-align: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-v2-media-zoom {
+    transform: none !important;
+  }
+}

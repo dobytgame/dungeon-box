@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Bell,
   Handshake,
+  Home,
   Landmark,
   Layers,
   LayoutDashboard,
@@ -34,6 +35,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   'layout-dashboard': LayoutDashboard,
   mail: Mail,
   handshake: Handshake,
+  home: Home,
   users: Users,
   repeat: Repeat,
   package: Package,

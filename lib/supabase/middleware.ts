@@ -15,6 +15,37 @@ import {
   profileIsStoreAdmin,
 } from '@/lib/store/access';
 
+function returnPath(pathname: string, search: string) {
+  const params = new URLSearchParams(search);
+  params.delete('_rsc');
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function assignInternalDestination(url: URL, next: string | null | undefined) {
+  const fallback = '/dashboard';
+  const candidate =
+    next && next.startsWith('/') && !next.startsWith('//') ? next : fallback;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate, url.origin);
+  } catch {
+    url.pathname = fallback;
+    url.search = '';
+    return;
+  }
+
+  if (parsed.origin !== url.origin || !parsed.pathname.startsWith('/')) {
+    url.pathname = fallback;
+    url.search = '';
+    return;
+  }
+
+  url.pathname = parsed.pathname;
+  url.search = parsed.search;
+}
+
 function shouldTrackReferralVisit(pathname: string): boolean {
   if (pathname.startsWith('/api/')) return false;
   if (pathname.startsWith('/_next/')) return false;
@@ -122,8 +153,10 @@ export async function updateSession(request: NextRequest) {
 
   if (isProtected && !user) {
     const redirectUrl = request.nextUrl.clone();
+    const next = returnPath(pathname, request.nextUrl.search);
     redirectUrl.pathname = '/auth';
-    redirectUrl.searchParams.set('next', pathname + request.nextUrl.search);
+    redirectUrl.search = '';
+    redirectUrl.searchParams.set('next', next);
     return finalizeReferralResponse(
       request,
       NextResponse.redirect(redirectUrl),
@@ -176,10 +209,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (pathname === '/auth' && user) {
-    const next = request.nextUrl.searchParams.get('next') ?? '/dashboard';
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = next.startsWith('/') ? next : '/dashboard';
-    redirectUrl.search = '';
+    assignInternalDestination(redirectUrl, request.nextUrl.searchParams.get('next'));
     return finalizeReferralResponse(
       request,
       NextResponse.redirect(redirectUrl),

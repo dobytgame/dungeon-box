@@ -2,14 +2,15 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-export async function requireAdmin() {
+export async function requireAdmin(options?: { next?: string }) {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/auth?next=/admin');
+    const next = options?.next ?? '/admin';
+    redirect(`/auth?next=${encodeURIComponent(next)}`);
   }
 
   const { data: profile } = await supabase

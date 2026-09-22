@@ -116,6 +116,16 @@ export function privatePageMetadata(title: string): Metadata {
   };
 }
 
+export const homeV2PreviewMetadata: Metadata = {
+  title: 'Prévia Home V2',
+  description:
+    'Prévia interna da nova home DungeonBox. Disponível apenas para administradores.',
+  robots: buildRobots(false),
+  alternates: {
+    canonical: absoluteUrl('/'),
+  },
+};
+
 export const guildCampaignPageMetadata: Metadata = {
   title: 'Entre para a Guilda | DungeonBox — Grupo exclusivo no WhatsApp',
   description:

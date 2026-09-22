@@ -39,12 +39,22 @@ module.exports = {
           muted: '#14b8a6',
           dim: '#0f766e',
         },
+        mesa: {
+          ink: '#0A0B0D',
+          stone: '#17191C',
+          parchment: '#F3EFE7',
+          ember: '#FF642D',
+          jade: '#9DE3D6',
+          ash: '#B8B8B2',
+        },
       },
       fontFamily: {
         display: ['var(--font-display)', 'sans-serif'],
         body: ['var(--font-body)', 'sans-serif'],
         cinzel: ['var(--font-guild-display)', 'serif'],
         sora: ['var(--font-guild-body)', 'sans-serif'],
+        homeDisplay: ['var(--font-home-display)', 'sans-serif'],
+        homeBody: ['var(--font-home-body)', 'sans-serif'],
       },
       animation: {
         marquee: 'marquee 30s linear infinite',

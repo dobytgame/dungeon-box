@@ -131,6 +131,14 @@ export const ADMIN_NAV = [
     ],
   },
   {
+    href: '/home-v2',
+    label: 'Home V2',
+    eyebrow: 'Prévia',
+    description: 'Nova home em revisão. Visível apenas para admin.',
+    icon: 'home',
+    group: 'comunicacao',
+  },
+  {
     href: '/admin/feedbacks',
     label: 'Feedbacks',
     eyebrow: 'Clientes',
