@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { checkoutHref } from '@/lib/checkout/plans';
 import { createClient } from '@/lib/supabase/client';
@@ -43,7 +42,6 @@ function postRegisterRedirect(redirectTo: string) {
 }
 
 export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
-  const router = useRouter();
   const supabase = createClient();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -55,8 +53,11 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
   const callbackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback?next=${encodeURIComponent(redirectTo)}`;
 
   function redirectAfterAuth(destination: string) {
-    router.refresh();
-    router.push(destination);
+    const target =
+      destination.startsWith('/') && !destination.startsWith('//')
+        ? destination
+        : '/dashboard';
+    window.location.assign(target);
   }
 
   async function handleOAuth(provider: 'google') {
