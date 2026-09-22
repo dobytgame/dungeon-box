@@ -110,7 +110,7 @@ export default function Navbar({ isLoggedIn = false, userName }: NavbarProps) {
             <CTAButton
               label={isLoggedIn ? 'Conta' : 'Assinar'}
               size="sm"
-              href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+              href={isLoggedIn ? '/dashboard' : '/#planos'}
               trackingLocation="navbar"
               className="hidden sm:inline-flex"
             />

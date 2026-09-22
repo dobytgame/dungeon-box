@@ -57,7 +57,7 @@ export default function Footer({
               <CTAButton
                 label={isLoggedIn ? 'Minha conta' : 'Assinar agora'}
                 size="sm"
-                href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+                href={isLoggedIn ? '/dashboard' : '/#planos'}
                 trackingLocation="footer"
                 className="w-full sm:w-auto"
               />
@@ -128,7 +128,7 @@ export default function Footer({
             <CTAButton
               label={isLoggedIn ? 'Minha conta' : 'Assinar'}
               size="sm"
-              href={isLoggedIn ? '/dashboard' : '/checkout?plan=heroi'}
+              href={isLoggedIn ? '/dashboard' : '/#planos'}
               trackingLocation="footer_cta"
               className="w-full sm:w-auto lg:min-w-[9rem]"
             />

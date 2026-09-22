@@ -61,7 +61,7 @@ export default function MobileNavPanel({
   const primaryCtaLabel =
     ctaLabel ?? (isLoggedIn ? 'Ir para o dashboard' : 'Assinar agora');
   const primaryCtaHref =
-    ctaHref ?? (isLoggedIn ? '/dashboard' : '/checkout?plan=heroi');
+    ctaHref ?? (isLoggedIn ? '/dashboard' : '/#planos');
 
   useEffect(() => {
     if (!open) return;

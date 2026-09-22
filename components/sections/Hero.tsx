@@ -228,7 +228,7 @@ export default function Hero({ isLoggedIn = false, userName }: HeroProps) {
                 <CTAButton
                   label="Assinar agora"
                   size="lg"
-                  href="/checkout?plan=heroi"
+                  href="/#planos"
                   trackingLocation="hero"
                   className="w-full sm:w-auto"
                 />
