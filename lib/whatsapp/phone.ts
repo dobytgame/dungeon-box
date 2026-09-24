@@ -1,17 +1,8 @@
-import { digitsOnly } from '@/lib/masks';
+import { normalizeBrazilPhoneLocal } from '@/lib/phone/brazil';
 
-/** Normaliza celular BR para E.164 (ex.: 5511965671180). */
+/** Normaliza celular BR para E.164 (ex.: 5511999999999). */
 export function normalizeBrazilPhoneE164(phone: string): string | null {
-  const digits = digitsOnly(phone);
-  if (digits.length < 10 || digits.length > 11) return null;
-
-  const local =
-    digits.length === 11
-      ? digits
-      : digits.length === 10
-        ? `${digits.slice(0, 2)}9${digits.slice(2)}`
-        : null;
-
-  if (!local || local.length !== 11) return null;
+  const local = normalizeBrazilPhoneLocal(phone);
+  if (!local) return null;
   return `55${local}`;
 }

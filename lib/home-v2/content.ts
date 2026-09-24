@@ -1,7 +1,5 @@
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { faqItems, plans, planSupportCopy } from '@/lib/data';
-import { SUBSCRIPTION_DELIVERY_FAQ_ANSWER } from '@/lib/production/lead-time';
-
 export const HOME_V2_VARIANT = 'home-v2';
 
 export type HomeV2Plan = {
@@ -11,7 +9,7 @@ export type HomeV2Plan = {
   monthlyPriceCents: number;
   badge?: string;
   metrics: Array<{ label: string; value: string }>;
-  heroImage: { src: string; alt: string };
+  gallery: Array<{ src: string; alt: string }>;
   checkoutUrl: string;
   details: {
     quantities: string;
@@ -47,18 +45,23 @@ export type HomeV2Testimonial = {
   quote: string;
   name: string;
   context?: string;
-  imageUrl?: string;
+  rating: number;
+  imageUrls: string[];
 };
+
+const STARTING_PRICE_LABEL = `R$${Math.min(...plans.map((plan) => plan.price))}`;
 
 export const HOME_V2_COPY = {
   headerCta: 'Começar assinatura',
+  startingPrice: `A partir de ${STARTING_PRICE_LABEL}/mês`,
   hero: {
     eyebrow: 'Assinatura mensal · Cenários 3D modulares',
     title: 'Sua próxima sessão começa aqui.',
     support:
       'Receba novos cenários 3D todos os meses e transforme cada campanha em uma mesa que seus jogadores vão lembrar.',
     cta: 'Escolher meu plano',
-    trust: 'A partir de R$89/mês · Cancele quando quiser',
+    secondaryCta: 'Ver como funciona',
+    guarantees: ['Cancele quando quiser', 'Sem carência', 'Peças que se conectam'],
   },
   evidenceSection: {
     eyebrow: 'O sistema por trás da aventura',
@@ -88,6 +91,7 @@ export const HOME_V2_COPY = {
     eyebrow: 'A jornada da assinatura',
     title: 'Uma caixa começa a aventura. Todas as outras expandem o mundo.',
     caption: 'Todas as peças se conectam. Nada fica para trás.',
+    cta: 'Começar pelo Mês 1',
     panels: [
       {
         month: 'Mês 1',
@@ -118,8 +122,12 @@ export const HOME_V2_COPY = {
   plans: {
     eyebrow: 'Encontre o seu começo',
     title: 'Escolha o tamanho da sua aventura.',
-    footer:
-      'Não sabe qual escolher? Comece pelo Aventureiro. Você pode fazer upgrade depois.',
+    support: 'Todos os planos usam o mesmo encaixe. Comece pequeno e expanda quando quiser.',
+    footerLead: 'Não sabe qual escolher?',
+    switcherLabel: 'Escolha um plano para ver os detalhes',
+    footer: 'Comece pelo Aventureiro. Você pode fazer upgrade depois.',
+    billing: 'Cobrança mensal · Cancele quando quiser',
+    reassurance: ['Checkout seguro', 'Sem carência e sem multa', 'Upgrade a qualquer momento'],
   },
   monthly: {
     eyebrow: 'Chegando à sua mesa',
@@ -150,11 +158,32 @@ export const HOME_V2_COPY = {
   social: {
     eyebrow: 'Mesas reais. Histórias reais.',
     title: 'A campanha já começou por aqui.',
+    ratingLabel: 'avaliações de assinantes',
+    readMore: 'Ler avaliação completa',
+    viewAll: 'Ver todas as avaliações',
   },
   faq: {
+    eyebrow: 'Antes de rolar os dados',
     title: 'Dúvidas antes de começar?',
+    support:
+      'Tudo o que você precisa saber antes de assinar — encaixe, entrega, cancelamento e compatibilidade.',
+    contactLead: 'Não encontrou sua resposta?',
+    contactCta: 'Falar no WhatsApp',
+    cancelNote: 'Pode cancelar quando quiser — sem carência, sem multa.',
+  },
+  finalCta: {
+    eyebrow: 'Sua mesa está esperando',
+    title: 'Sua dungeon cresce com a sua campanha.',
     cta: 'Começar minha assinatura',
-    support: 'A partir de R$89/mês · Sem carência · Sem multa',
+    support: `${STARTING_PRICE_LABEL}/mês no Aventureiro · Sem carência · Sem multa`,
+  },
+  footer: {
+    tagline:
+      'Cenários 3D modulares para RPG. Uma dungeon nova na sua porta, todo mês — impressão premium, escala 28mm, sistema de encaixe universal.',
+    cta: 'Assinar agora',
+    priceNote: `Kits mensais a partir de ${STARTING_PRICE_LABEL}`,
+    specs: ['Escala 28mm', 'Encaixe OpenLOCK', 'Cancele quando quiser'],
+    closing: 'Feito para mesas de RPG em todo o Brasil.',
   },
 } as const;
 
@@ -199,12 +228,12 @@ export function getHomeV2Plans(): HomeV2Plan[] {
       name: plan.name,
       tagline: PLAN_TAGLINES[slug],
       monthlyPriceCents: plan.price * 100,
-      badge: slug === 'heroi' ? 'Mais escolhido' : undefined,
+      badge: slug === 'lendario' ? 'Mais comprado' : undefined,
       metrics: PLAN_METRICS[slug],
-      heroImage: {
-        src: plan.image,
-        alt: `Plano ${plan.name}: ${plan.tagline}`,
-      },
+      gallery: plan.images.map((src, index) => ({
+        src,
+        alt: `Kit ${plan.name} montado na mesa — foto ${index + 1} de ${plan.images.length}`,
+      })),
       checkoutUrl: checkoutHref(slug),
       details: {
         quantities: plan.pieces,
@@ -225,41 +254,7 @@ export function getHomeV2PlanCta(slug: PlanSlug): string {
   return PLAN_CTAS[slug];
 }
 
-function faqAnswer(question: string, fallback: string): string {
-  return faqItems.find((item) => item.q === question)?.a ?? fallback;
-}
-
-export const HOME_V2_FAQ = [
-  {
-    q: 'As peças de meses diferentes encaixam?',
-    a: faqAnswer(
-      'As peças de meses diferentes encaixam?',
-      'Sim. Todo kit usa o padrão OpenLOCK — peças do Mês 1 encaixam no Mês 12.'
-    ),
-  },
-  {
-    q: 'Quando recebo a primeira caixa?',
-    a: SUBSCRIPTION_DELIVERY_FAQ_ANSWER,
-  },
-  {
-    q: 'Posso cancelar ou mudar de plano?',
-    a: 'Sim. Sem carência e sem multa. Cancele pelo painel e pare de ser cobrado no próximo ciclo. Também dá para fazer upgrade a qualquer momento — o plano maior vale no próximo ciclo.',
-  },
-  {
-    q: 'Como funciona o frete?',
-    a: faqAnswer(
-      'Como funciona o frete?',
-      'Calculado pelo CEP no checkout em todos os planos.'
-    ),
-  },
-  {
-    q: 'As peças vêm pintadas?',
-    a: faqAnswer(
-      'As peças vêm pintadas?',
-      'Não — enviamos em cinza pedra, prontas para pintar ou usar na mesa.'
-    ),
-  },
-] as const;
+export const HOME_V2_FAQ = faqItems;
 
 export function formatHomeV2Price(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {

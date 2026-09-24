@@ -13,6 +13,7 @@ import { CreditCard, Lock, Loader2, ShieldCheck, Tag } from 'lucide-react';
 import type { CheckoutData } from '@/lib/checkout/types';
 import { sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import type { Profile } from '@/lib/dashboard/types';
+import { isValidBrazilMobilePhone } from '@/lib/phone/brazil';
 import {
   STRIPE_CHECKOUT_ACTIVE,
 } from '@/lib/payments/public';
@@ -61,9 +62,8 @@ export default function StepPayment({
   const router = useRouter();
   const primaryPlanSlug = data.planSlugs[0] ?? 'heroi';
   const cpfDigits = profile?.cpf?.replace(/\D/g, '') ?? '';
-  const phoneDigits = profile?.phone?.replace(/\D/g, '') ?? '';
   const cpfReady = cpfDigits.length === 11;
-  const phoneReady = phoneDigits.length >= 10;
+  const phoneReady = isValidBrazilMobilePhone(profile?.phone ?? '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [clientSecret, setClientSecret] = useState<string | null>(null);

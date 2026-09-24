@@ -4,6 +4,11 @@ import { useState, useTransition } from 'react';
 import { Loader2, UserRound } from 'lucide-react';
 import { updateProfile } from '@/app/dashboard/actions';
 import { maskCpf, maskPhone } from '@/lib/masks';
+import {
+  isValidBrazilMobilePhone,
+  normalizeBrazilPhoneLocal,
+  parseBrazilPhoneForStorage,
+} from '@/lib/phone/brazil';
 import type { Profile } from '@/lib/dashboard/types';
 
 const inputClass =
@@ -35,9 +40,9 @@ export default function CheckoutProfileForm({
 
   const needsFullName = !profile.full_name?.trim();
   const cpfDigits = (profile.cpf ?? '').replace(/\D/g, '');
-  const phoneDigits = (profile.phone ?? '').replace(/\D/g, '');
+  const phoneValid = isValidBrazilMobilePhone(profile.phone ?? '');
   const needsCpf = cpfDigits.length !== 11;
-  const needsPhone = requirePhone && phoneDigits.length < 10;
+  const needsPhone = requirePhone && !phoneValid;
 
   if (!needsFullName && !needsCpf && !needsPhone) {
     return null;
@@ -49,7 +54,7 @@ export default function CheckoutProfileForm({
 
     const formData = new FormData(event.currentTarget);
     const nextCpf = (formData.get('cpf') as string)?.replace(/\D/g, '') ?? '';
-    const nextPhone = (formData.get('phone') as string)?.replace(/\D/g, '') ?? '';
+    const nextPhoneRaw = (formData.get('phone') as string)?.trim() ?? '';
     const nextFullName =
       (formData.get('full_name') as string)?.trim() ||
       profile.full_name?.trim() ||
@@ -60,9 +65,12 @@ export default function CheckoutProfileForm({
       return;
     }
 
-    if (needsPhone && nextPhone.length < 10) {
-      setError('Informe um telefone com DDD.');
-      return;
+    if (needsPhone) {
+      const parsedPhone = parseBrazilPhoneForStorage(nextPhoneRaw);
+      if (!parsedPhone.ok) {
+        setError(parsedPhone.error);
+        return;
+      }
     }
 
     if (needsFullName && !nextFullName) {
@@ -77,9 +85,14 @@ export default function CheckoutProfileForm({
         return;
       }
 
+      const savedPhone =
+        normalizeBrazilPhoneLocal(nextPhoneRaw) ??
+        normalizeBrazilPhoneLocal(profile.phone ?? '') ??
+        profile.phone;
+
       onSaved({
         full_name: nextFullName,
-        phone: nextPhone || profile.phone,
+        phone: savedPhone,
         cpf: nextCpf || profile.cpf,
       });
     });
@@ -150,7 +163,7 @@ export default function CheckoutProfileForm({
                 inputMode="tel"
                 autoComplete="tel"
                 placeholder="(11) 99999-9999"
-                maxLength={15}
+                maxLength={18}
                 required
                 className={inputClass}
               />

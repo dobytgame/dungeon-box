@@ -37,6 +37,14 @@ export function trackHomeV2StoreProductClicked(sku: string, position: number) {
   track('store_product_clicked', { sku, posicao: position });
 }
 
+export function trackHomeV2TestimonialOpened(id: string, origin: 'card' | 'ver-todas') {
+  track('testimonial_opened', { depoimento: id, origem: origin });
+}
+
+export function trackHomeV2PlanGalleryOpened(plan: string, photo: number) {
+  track('plan_gallery_opened', { plano: plan, foto: photo });
+}
+
 export function trackHomeV2FaqOpened(question: string) {
   track('faq_opened', { pergunta: question });
 }

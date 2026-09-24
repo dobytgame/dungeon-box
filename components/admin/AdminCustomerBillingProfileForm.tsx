@@ -4,13 +4,14 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminUpdateCustomerBillingProfileAction } from '@/lib/admin/actions';
 import { maskCpf, maskPhone } from '@/lib/masks';
+import { isValidBrazilMobilePhone } from '@/lib/phone/brazil';
 
 function hasValidCpf(value: string | null | undefined): boolean {
   return (value?.replace(/\D/g, '') ?? '').length === 11;
 }
 
 function hasValidPhone(value: string | null | undefined): boolean {
-  return (value?.replace(/\D/g, '') ?? '').length >= 10;
+  return isValidBrazilMobilePhone(value ?? '');
 }
 
 interface Props {

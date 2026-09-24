@@ -27,6 +27,7 @@ import { reassignSubscriptionCycleNumber } from '@/lib/admin/cycle-renumber';
 import { getAdminCycleDetail } from '@/lib/admin/queries';
 import { parseProductionMonthKey } from '@/lib/admin/production-month';
 import { relOne } from '@/lib/dashboard/format';
+import { parseBrazilPhoneForStorage } from '@/lib/phone/brazil';
 import type { CycleStatus } from '@/lib/dashboard/types';
 import {
   applySubscriptionStatusChange,
@@ -1370,15 +1371,17 @@ export async function adminUpdateCustomerBillingProfileAction(
   const { user, admin } = await requireAdmin();
 
   const cpf = (formData.get('cpf') as string)?.replace(/\D/g, '') ?? '';
-  const phone = (formData.get('phone') as string)?.replace(/\D/g, '') ?? '';
+  const rawPhone = (formData.get('phone') as string)?.trim() ?? '';
 
   if (cpf.length !== 11) {
     return { error: 'Informe um CPF válido com 11 dígitos.' };
   }
 
-  if (phone.length < 10) {
-    return { error: 'Informe um telefone válido com DDD.' };
+  const parsedPhone = parseBrazilPhoneForStorage(rawPhone);
+  if (!parsedPhone.ok) {
+    return { error: parsedPhone.error };
   }
+  const phone = parsedPhone.phone;
 
   const { error } = await admin
     .from('profiles')

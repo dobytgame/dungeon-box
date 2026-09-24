@@ -5,9 +5,18 @@
   --ember: #ff642d;
   --jade: #9de3d6;
   --ash: #b8b8b2;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --tile: 28px;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background: var(--ink);
   color: var(--parchment);
   font-family: var(--font-home-body), sans-serif;
+  scroll-behavior: smooth;
+}
+
+html:has(.home-v2) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
 }
 
 .home-v2 ::selection {
@@ -36,7 +45,306 @@
   scroll-snap-align: start;
 }
 
+/* 28 mm battle-map grid: the brand's recurring texture. */
+.home-v2-grid {
+  background-image:
+    linear-gradient(to right, rgb(243 239 231 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(243 239 231 / 0.06) 1px, transparent 1px);
+  background-size: var(--tile) var(--tile);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 75%);
+}
+
+.home-v2-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+}
+
+.home-v2-hairline {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(243 239 231 / 0.16) 20%,
+    rgb(243 239 231 / 0.16) 80%,
+    transparent
+  );
+}
+
+.home-v2-swap {
+  animation: home-v2-fade 240ms ease-out both;
+}
+
+.home-v2-wordmark {
+  color: transparent;
+  -webkit-text-stroke: 1px rgb(243 239 231 / 0.16);
+  mask-image: linear-gradient(to bottom, #000 25%, transparent 92%);
+}
+
+/* Hero entrance: one orchestrated sequence on load. */
+@keyframes home-v2-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes home-v2-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes home-v2-scroll-cue {
+  0% {
+    transform: translateY(-100%);
+  }
+  60%,
+  100% {
+    transform: translateY(200%);
+  }
+}
+
+.home-v2-enter {
+  animation: home-v2-rise 700ms var(--ease-out-expo) both;
+  animation-delay: calc(var(--enter-step, 0) * 90ms + 120ms);
+}
+
+.home-v2-video {
+  animation: home-v2-fade 1200ms ease-out both;
+}
+
+.home-v2-scroll-cue::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 40%;
+  background: var(--parchment);
+  animation: home-v2-scroll-cue 2.2s var(--ease-out-expo) infinite;
+}
+
+/*
+ * Motion system — "fog of war": the map reveals itself as you explore.
+ * HomeV2Motion sets `data-inview="play"` when a target enters the viewport
+ * (`static` if it was already visible). Hidden states only exist under
+ * `.home-v2-motion`, so content is visible without JS or with reduced motion.
+ */
+@keyframes home-v2-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes home-v2-reveal-mask {
+  from {
+    opacity: 0;
+    clip-path: inset(-10% -4% 100% -4%);
+    transform: translate3d(0, 0.3em, 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(-10% -4% -15% -4%);
+    transform: none;
+  }
+}
+
+@keyframes home-v2-fog {
+  from {
+    mask-size: 0% 0%;
+  }
+  to {
+    mask-size: 100% 100%;
+  }
+}
+
+@keyframes home-v2-stars {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes home-v2-sheen {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+.home-v2-fog,
+.home-v2-fog-load {
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: 100% 100%;
+}
+
+.home-v2-fog-load {
+  animation: home-v2-fog 1800ms var(--ease-out-expo) 150ms backwards;
+}
+
+.home-v2-sheen {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.home-v2-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.38) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+
+.home-v2-sheen:hover::after {
+  animation: home-v2-sheen 750ms var(--ease-out-expo);
+}
+
+.home-v2-sheen-once::after {
+  animation: home-v2-sheen 1100ms var(--ease-out-expo) 1400ms;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-v2-motion .home-v2-reveal:not([data-inview]) {
+    opacity: 0;
+  }
+
+  .home-v2-motion .home-v2-fog:not([data-inview]) {
+    mask-size: 0% 0%;
+  }
+
+  .home-v2-motion .home-v2-reveal:not([data-inview]) .home-v2-stars-fill {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  .home-v2-reveal[data-inview='play'] {
+    animation: home-v2-reveal 800ms var(--ease-out-expo) backwards;
+    animation-delay: min(calc(var(--stagger, 0) * 90ms), 450ms);
+  }
+
+  .home-v2-reveal[data-reveal='mask'][data-inview='play'] {
+    animation-name: home-v2-reveal-mask;
+    animation-duration: 950ms;
+  }
+
+  .home-v2-fog[data-inview='play'] {
+    animation: home-v2-fog 1600ms var(--ease-out-expo) backwards;
+  }
+
+  .home-v2-reveal[data-inview='play'] .home-v2-stars-fill {
+    animation: home-v2-stars 650ms var(--ease-out-expo) backwards;
+    animation-delay: calc(var(--star, 0) * 90ms + 300ms);
+  }
+}
+
+/* Scroll-linked extras. Static where unsupported. */
+@supports (animation-timeline: view()) {
+  @keyframes home-v2-rail {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  .home-v2-rail {
+    transform-origin: top;
+    animation: home-v2-rail linear both;
+    animation-timeline: view();
+    animation-range: entry 30% cover 70%;
+  }
+
+  @keyframes home-v2-drift {
+    from {
+      transform: translate3d(0, -5%, 0) scale(1.12);
+    }
+    to {
+      transform: translate3d(0, 5%, 0) scale(1.12);
+    }
+  }
+
+  .home-v2-journey-bg {
+    animation: home-v2-drift linear both;
+    animation-timeline: view();
+  }
+}
+
+/* Plan details: bottom sheet on mobile, dialog on desktop. */
+@keyframes home-v2-sheet {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes home-v2-dialog {
+  from {
+    opacity: 0;
+    transform: translate3d(-50%, calc(-50% + 16px), 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0);
+  }
+}
+
+.home-v2-overlay {
+  animation: home-v2-fade 200ms ease-out both;
+}
+
+.home-v2-sheet {
+  animation: home-v2-sheet 320ms var(--ease-out-expo) both;
+}
+
+@media (min-width: 768px) {
+  .home-v2-sheet {
+    transform: translate3d(-50%, -50%, 0);
+    animation: home-v2-dialog 260ms var(--ease-out-expo) both;
+  }
+}
+
+.home-v2-faq-answer {
+  animation: home-v2-rise 260ms var(--ease-out-expo) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  html:has(.home-v2),
+  .home-v2 {
+    scroll-behavior: auto;
+  }
+
+  .home-v2 *,
+  .home-v2 *::before,
+  .home-v2 *::after {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+
   .home-v2-media-zoom {
     transform: none !important;
   }

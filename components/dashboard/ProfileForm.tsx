@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { updateProfile } from '@/app/dashboard/actions';
 import { maskCpf, maskPhone } from '@/lib/masks';
+import { parseBrazilPhoneForStorage } from '@/lib/phone/brazil';
 import type { Profile } from '@/lib/dashboard/types';
 
 interface Props {
@@ -24,6 +25,16 @@ export default function ProfileForm({ profile, redirectTo }: Props) {
 
   function onSubmit(formData: FormData) {
     setMessage('');
+
+    const rawPhone = (formData.get('phone') as string)?.trim() ?? '';
+    if (rawPhone) {
+      const parsed = parseBrazilPhoneForStorage(rawPhone);
+      if (!parsed.ok) {
+        setMessage(parsed.error);
+        return;
+      }
+    }
+
     startTransition(async () => {
       const result = await updateProfile(formData);
       if (result.error) {
@@ -73,7 +84,7 @@ export default function ProfileForm({ profile, redirectTo }: Props) {
             inputMode="tel"
             autoComplete="tel"
             placeholder="(11) 99999-9999"
-            maxLength={15}
+            maxLength={18}
             className="mt-2 w-full rounded-sm border border-white/[0.08] bg-stone-950/80 px-3 py-2.5 text-sm text-white outline-none transition focus:border-ember/40 focus:ring-1 focus:ring-ember/20"
           />
         </label>

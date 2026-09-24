@@ -8,6 +8,7 @@ import {
   cancelPendingSubscriptionUpgrade,
   scheduleSubscriptionUpgrade,
 } from '@/lib/subscriptions/upgrade';
+import { parseBrazilPhoneForStorage } from '@/lib/phone/brazil';
 import { createClient } from '@/lib/supabase/server';
 
 function revalidateDashboard() {
@@ -20,7 +21,15 @@ export async function updateProfile(formData: FormData) {
 
   const full_name = (formData.get('full_name') as string)?.trim() || null;
   const display_name = (formData.get('display_name') as string)?.trim() || null;
-  const phone = (formData.get('phone') as string)?.replace(/\D/g, '') || null;
+
+  const rawPhone = (formData.get('phone') as string)?.trim() ?? '';
+  let phone: string | null = null;
+  if (rawPhone) {
+    const parsedPhone = parseBrazilPhoneForStorage(rawPhone);
+    if (!parsedPhone.ok) return { error: parsedPhone.error };
+    phone = parsedPhone.phone;
+  }
+
   const cpf = (formData.get('cpf') as string)?.replace(/\D/g, '') || null;
   const birth_date = (formData.get('birth_date') as string) || null;
   const newsletter = formData.get('newsletter') === 'on';
@@ -41,6 +50,25 @@ export async function updateProfile(formData: FormData) {
   if (error) return { error: error.message };
   revalidateDashboard();
   return { success: true };
+}
+
+export async function updateProfilePhone(rawPhone: string) {
+  const { supabase, user } = await requireDashboardUser();
+
+  const parsed = parseBrazilPhoneForStorage(rawPhone);
+  if (!parsed.ok) return { error: parsed.error };
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      phone: parsed.phone,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (error) return { error: error.message };
+  revalidateDashboard();
+  return { success: true as const };
 }
 
 export async function saveAddress(formData: FormData) {

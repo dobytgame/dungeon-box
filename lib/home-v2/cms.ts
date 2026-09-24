@@ -12,7 +12,7 @@ import { STORE_ROUTES } from '@/lib/store/routes';
 import { HOME_V2_COPY, type HomeV2MonthlyDungeon, type HomeV2StoreProduct, type HomeV2Testimonial } from '@/lib/home-v2/content';
 
 const STORE_SHELF_SIZE = 4;
-const TESTIMONIAL_QUOTE_LIMIT = 120;
+const TESTIMONIALS_LIMIT = 24;
 
 function toStoreShelfProduct(product: StoreProduct): HomeV2StoreProduct {
   const imageSrc = product.imageUrl ?? product.galleryUrls?.[0];
@@ -86,20 +86,17 @@ export async function getHomeV2MonthlyDungeon(): Promise<HomeV2MonthlyDungeon> {
   };
 }
 
-function clipQuote(message: string): string {
-  const trimmed = message.trim();
-  if (trimmed.length <= TESTIMONIAL_QUOTE_LIMIT) return trimmed;
-  return `${trimmed.slice(0, TESTIMONIAL_QUOTE_LIMIT - 1).trimEnd()}…`;
-}
-
 export async function getHomeV2Testimonials(): Promise<HomeV2Testimonial[]> {
-  const testimonials = await getPublicTestimonials(8);
+  const testimonials = await getPublicTestimonials(TESTIMONIALS_LIMIT);
 
-  return testimonials.map((item) => ({
-    id: item.id,
-    quote: clipQuote(item.message),
-    name: item.name,
-    context: item.themeName ?? undefined,
-    imageUrl: item.imageUrls[0],
-  }));
+  return testimonials
+    .map((item) => ({
+      id: item.id,
+      quote: item.message.trim(),
+      name: item.name,
+      context: item.themeName ?? undefined,
+      rating: Math.min(5, Math.max(1, Math.round(item.rating))),
+      imageUrls: item.imageUrls,
+    }))
+    .sort((a, b) => Number(b.imageUrls.length > 0) - Number(a.imageUrls.length > 0));
 }

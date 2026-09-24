@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { updateProfilePhone } from '@/app/dashboard/actions';
 import { checkoutHref } from '@/lib/checkout/plans';
+import { maskPhone } from '@/lib/masks';
+import { parseBrazilPhoneForStorage } from '@/lib/phone/brazil';
 import { createClient } from '@/lib/supabase/client';
 
 type Mode = 'login' | 'register' | 'forgot';
@@ -47,6 +50,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -97,6 +101,13 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         return;
       }
 
+      const parsedPhone = parseBrazilPhoneForStorage(phone);
+      if (!parsedPhone.ok) {
+        setMessage(parsedPhone.error);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -120,9 +131,19 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
 
       const destination = postRegisterRedirect(redirectTo);
 
-      if (data.session) {
+      async function finishRegistration() {
+        const phoneResult = await updateProfilePhone(phone);
+        if (phoneResult.error) {
+          setMessage(phoneResult.error);
+          setLoading(false);
+          return;
+        }
         void fetch('/api/referral/attribute-signup', { method: 'POST' });
         redirectAfterAuth(destination);
+      }
+
+      if (data.session) {
+        await finishRegistration();
         return;
       }
 
@@ -137,9 +158,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         return;
       }
 
-      void fetch('/api/referral/attribute-signup', { method: 'POST' });
-
-      redirectAfterAuth(destination);
+      await finishRegistration();
       return;
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -197,6 +216,20 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
           autoComplete="email"
           className="w-full border border-stone-700 bg-stone-900 px-4 py-3 text-white placeholder-stone-500 transition focus:border-frost focus:outline-none"
         />
+
+        {mode === 'register' ? (
+          <input
+            type="tel"
+            placeholder="(11) 99999-9999"
+            value={phone}
+            onChange={(e) => setPhone(maskPhone(e.target.value))}
+            required
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={18}
+            className="w-full border border-stone-700 bg-stone-900 px-4 py-3 text-white placeholder-stone-500 transition focus:border-frost focus:outline-none"
+          />
+        ) : null}
 
         {mode !== 'forgot' && (
           <input

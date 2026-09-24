@@ -19,9 +19,16 @@ export function maskCpf(value: string): string {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
+function stripBrazilCountryCodeForMask(digits: string): string {
+  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
 /** Celular BR / WhatsApp: (11) 99999-9999 */
 export function maskPhone(value: string): string {
-  const d = digitsOnly(value).slice(0, 11);
+  const d = stripBrazilCountryCodeForMask(digitsOnly(value)).slice(0, 11);
   if (d.length === 0) return '';
   if (d.length <= 2) return `(${d}`;
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;

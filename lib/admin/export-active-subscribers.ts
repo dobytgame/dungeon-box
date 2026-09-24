@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { relOne } from '@/lib/dashboard/format';
 import { todayBrazilDateKey } from '@/lib/datetime/brazil';
-import { digitsOnly, maskPhone } from '@/lib/masks';
+import { maskPhone } from '@/lib/masks';
 
 const PAGE_SIZE = 1000;
 
@@ -24,10 +24,7 @@ function profileName(profile: ProfileContact): string {
 
 function formatCelular(phone: string | null | undefined): string {
   if (!phone) return '';
-  const digits = digitsOnly(phone);
-  const local =
-    digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
-  return maskPhone(local);
+  return maskPhone(phone);
 }
 
 function csvField(value: string): string {
