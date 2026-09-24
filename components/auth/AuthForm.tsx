@@ -131,7 +131,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
 
       const destination = postRegisterRedirect(redirectTo);
 
-      async function finishRegistration() {
+      const finishRegistration = async () => {
         const phoneResult = await updateProfilePhone(phone);
         if (phoneResult.error) {
           setMessage(phoneResult.error);
@@ -140,7 +140,7 @@ export default function AuthForm({ redirectTo = '/dashboard' }: Props) {
         }
         void fetch('/api/referral/attribute-signup', { method: 'POST' });
         redirectAfterAuth(destination);
-      }
+      };
 
       if (data.session) {
         await finishRegistration();
