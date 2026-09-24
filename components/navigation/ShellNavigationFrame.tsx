@@ -18,7 +18,9 @@ function ShellNavigationFrameInner({ scope, variant, children }: Props) {
   const barClassName =
     variant === 'admin'
       ? 'bg-console shadow-[0_0_12px_rgba(45,212,191,0.55)]'
-      : 'bg-gradient-to-r from-ember via-[#ff9060] to-frost shadow-[0_0_14px_rgba(255,107,43,0.45)]';
+      : variant === 'dashboard'
+        ? 'bg-mesa-ember shadow-[0_0_14px_rgba(255,100,45,0.45)]'
+        : 'bg-gradient-to-r from-ember via-[#ff9060] to-frost shadow-[0_0_14px_rgba(255,107,43,0.45)]';
 
   const barZIndex = variant === 'shop' ? 'z-[250]' : 'z-[100]';
 

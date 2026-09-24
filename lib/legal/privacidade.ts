@@ -10,7 +10,7 @@ export const privacidadeDocument: LegalDocument = {
       id: 'introducao',
       title: '1. Quem somos',
       paragraphs: [
-        `Esta Política de Privacidade descreve o tratamento de dados pessoais realizado pela ${COMPANY.brand} ("nós", "nosso" ou "DungeonBox"), controladora dos dados relacionados ao site ${COMPANY.siteUrl}, à assinatura mensal de cenários 3D para RPG e aos serviços associados (conta, checkout, entregas e suporte).`,
+        `Esta Política de Privacidade descreve o tratamento de dados pessoais realizado pela ${COMPANY.brand} ("nós", "nosso" ou "DungeonBox"), controladora dos dados relacionados ao site ${COMPANY.siteUrl}, à assinatura mensal de cenários 3D para RPG e aos serviços associados (conta, checkout, entregas, suporte e campanhas de conteúdo enviado pelos assinantes).`,
         COMPANY.cnpj
           ? `Razão social: ${COMPANY.legalName}. CNPJ: ${COMPANY.cnpj}.`
           : `Razão social e CNPJ serão informados nesta página assim que o cadastro empresarial estiver concluído.`,
@@ -54,6 +54,14 @@ export const privacidadeDocument: LegalDocument = {
             'Mensagens enviadas ao suporte, quando você nos contatar.',
           ],
         },
+        {
+          title: 'Conteúdo enviado por você (campanha Mostre sua Aventura)',
+          list: [
+            'Fotos da mesa, texto descrevendo a cena, kits utilizados e, se informado, o @ do Instagram.',
+            'Declarações de autorização de uso do conteúdo e, quando houver pessoas adultas identificáveis, de autorização de imagem.',
+            'Data, hora e versão do texto aceito em cada envio, para comprovar o consentimento.',
+          ],
+        },
       ],
     },
     {
@@ -64,7 +72,7 @@ export const privacidadeDocument: LegalDocument = {
         'Execução de contrato: criar sua conta, processar assinatura, cobrar mensalidades, separar e enviar kits.',
         'Cumprimento de obrigação legal: emissão de documentos fiscais e registros exigidos por lei.',
         'Legítimo interesse: prevenir fraudes, proteger a plataforma e melhorar a experiência, sempre com equilíbrio em relação aos seus direitos.',
-        'Consentimento: newsletter, cookies analíticos e de marketing — somente quando você aceitar.',
+        'Consentimento: newsletter, cookies analíticos e de marketing, e uso de fotos/vídeos e depoimentos que você enviar em campanhas como “Mostre sua Aventura” — somente quando você aceitar o texto correspondente.',
       ],
     },
     {
@@ -78,6 +86,7 @@ export const privacidadeDocument: LegalDocument = {
         'Mercado Pago — processamento de pagamentos e assinaturas recorrentes.',
         'Transportadoras e operadores logísticos — entrega dos kits ao endereço informado.',
         'Provedores de e-mail (ex.: Resend) — envio de comunicações transacionais e, se autorizado, marketing.',
+        'Redes sociais e plataformas de anúncio — somente o conteúdo que você autorizou enviar na campanha Mostre sua Aventura, quando publicado pela equipe.',
         'Ferramentas de análise e publicidade — apenas se você consentir cookies opcionais correspondentes.',
         'Alguns parceiros podem estar fora do Brasil; nesses casos, adotamos cláusulas e medidas para proteger seus dados conforme a LGPD.',
       ],
@@ -109,6 +118,7 @@ export const privacidadeDocument: LegalDocument = {
       title: '7. Seus direitos (LGPD)',
       paragraphs: [
         'Você pode, a qualquer momento, solicitar:',
+        'Se pediu o uso de fotos da campanha Mostre sua Aventura e quiser revogar esse consentimento, escreva para o mesmo endereço. Conteúdos já publicados podem ser retirados dos canais da DungeonBox; peças já veiculadas em anúncios contratados podem levar algum tempo para sair do ar.',
         `Envie pedidos para ${COMPANY.privacyEmail} com o assunto "LGPD — [seu pedido]". Podemos solicitar confirmação de identidade para proteger sua conta. Você também pode apresentar reclamação à Autoridade Nacional de Proteção de Dados (ANPD).`,
       ],
       list: [
@@ -132,6 +142,7 @@ export const privacidadeDocument: LegalDocument = {
       title: '9. Crianças e adolescentes',
       paragraphs: [
         'O serviço é destinado a maiores de 18 anos ou a menores com consentimento e supervisão de responsável legal. Não coletamos intencionalmente dados de crianças sem essa base.',
+        'Na campanha Mostre sua Aventura não aceitamos envios em que crianças ou adolescentes apareçam de forma identificável.',
       ],
     },
     {

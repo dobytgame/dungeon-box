@@ -37,7 +37,7 @@ export default async function ReferralPage() {
   return (
     <div className="space-y-8 md:space-y-10">
       <ReferralSubNav />
-      <DashboardCard title="Seu link de indicação" accent="gold">
+      <DashboardCard title="Seu link de indicação" accent="ember">
         <ReferralLinkCard
           code={data.code}
           link={data.link}
@@ -45,7 +45,7 @@ export default async function ReferralPage() {
         />
       </DashboardCard>
 
-      <DashboardCard title="Meus pontos" accent="frost">
+      <DashboardCard title="Meus pontos" accent="jade">
         <dl>
           <DataRow label="Saldo disponível" value={`${data.balance} pts`} />
           {data.expiringSoon > 0 ? (

@@ -53,6 +53,8 @@ import {
   shipStandaloneStoreOrder,
 } from '@/lib/admin/standalone-store-production';
 import { sendFeedbackRequestFromCycleRecord } from '@/lib/feedback/request-emails';
+import { markUgcRewardsSentForCycle } from '@/lib/ugc/reward';
+import { UGC_REWARD_SENT_STATUSES } from '@/lib/ugc/constants';
 import {
   advancePrepaidComboCycleAfterShip,
   resolveCyclePaymentLink,
@@ -915,6 +917,14 @@ export async function advanceCycleProductionAction(
     )
     .eq('id', cycleId)
     .maybeSingle();
+
+  if (
+    !isRollback &&
+    !isReopen &&
+    (UGC_REWARD_SENT_STATUSES as readonly string[]).includes(parsedTarget)
+  ) {
+    await markUgcRewardsSentForCycle(admin, cycleId);
+  }
 
   const postSave: Promise<unknown>[] = [
     logAdminAction(admin, {

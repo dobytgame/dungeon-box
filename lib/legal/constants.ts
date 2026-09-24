@@ -1,7 +1,7 @@
 /** Versão dos documentos legais — incrementar ao publicar alterações relevantes. */
-export const LEGAL_DOCUMENT_VERSION = '1.0';
+export const LEGAL_DOCUMENT_VERSION = '1.1';
 
-export const LEGAL_LAST_UPDATED = '6 de junho de 2026';
+export const LEGAL_LAST_UPDATED = '24 de setembro de 2026';
 
 export const COMPANY = {
   brand: 'DungeonBox',

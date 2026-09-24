@@ -25,7 +25,7 @@ export default async function LoyaltyPage() {
 
   return (
     <div className="space-y-8 md:space-y-10">
-      <DashboardCard title="Seu progresso" accent="gold">
+      <DashboardCard title="Seu progresso" accent="ember">
         <dl>
           <DataRow label="Ciclos pagos" value={cycles} />
           <DataRow label="Nível atual" value={currentLevel} />
@@ -49,41 +49,41 @@ export default async function LoyaltyPage() {
           return (
             <article
               key={level.id}
-              className={`relative overflow-hidden rounded-sm border transition-colors duration-200 ${
+              className={`relative overflow-hidden rounded-2xl border transition-colors duration-200 ${
                 isCurrent
-                  ? 'border-gold/35 bg-gradient-to-br from-gold/10 via-stone-950/50 to-transparent'
+                  ? 'border-mesa-ember/60 bg-mesa-stone shadow-[0_30px_80px_-30px_rgba(255,100,45,0.45)]'
                   : unlocked
-                    ? 'border-white/[0.08] bg-stone-950/30'
-                    : 'border-white/[0.04] bg-stone-950/20 opacity-70'
+                    ? 'border-white/10 bg-mesa-stone'
+                    : 'border-white/[0.06] bg-mesa-stone/60 opacity-70'
               }`}
             >
               {isCurrent ? (
                 <div
-                  className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gold/15 blur-2xl"
+                  className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-mesa-ember/15 blur-2xl"
                   aria-hidden="true"
                 />
               ) : null}
-              <div className="border-l-4 border-l-gold/50 p-5 md:p-6">
+              <div className={`p-5 md:p-6 ${isCurrent ? 'border-l-4 border-l-mesa-ember' : 'border-l-4 border-l-white/10'}`}>
                 <div className="flex items-start gap-4">
                   <div
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-sm border ${
                       isCurrent
-                        ? 'border-gold/40 bg-gold/10 text-gold'
-                        : 'border-white/10 bg-white/[0.03] text-stone-400'
+                        ? 'border-mesa-ember/40 bg-mesa-ember/10 text-mesa-ember'
+                        : 'border-white/10 bg-white/[0.03] text-mesa-ash'
                     }`}
                   >
                     <Icon className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="font-display text-xl uppercase tracking-wide text-white">
+                    <p className="home-v2-display text-xl text-mesa-parchment">
                       {level.name}
                     </p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-stone-500">
+                    <p className="home-v2-display mt-1 text-[11px] tracking-[0.18em] text-mesa-ash">
                       Nível {level.level} · {level.min_cycles}+ ciclos
                     </p>
                   </div>
                 </div>
-                <ul className="mt-5 space-y-2 text-sm text-stone-300">
+                <ul className="mt-5 space-y-2 text-sm text-mesa-ash">
                   {level.bonus_pieces ? (
                     <li>+{level.bonus_pieces} peça bônus por ciclo</li>
                   ) : null}
@@ -96,16 +96,16 @@ export default async function LoyaltyPage() {
                   !level.store_discount &&
                   !level.has_vote &&
                   !level.has_exclusive ? (
-                    <li className="text-stone-500">Benefícios base do plano</li>
+                    <li className="text-mesa-ash">Benefícios base do plano</li>
                   ) : null}
                 </ul>
                 <p
-                  className={`mt-5 font-display text-[0.65rem] uppercase tracking-[0.25em] ${
+                  className={`home-v2-display mt-5 text-[11px] tracking-[0.18em] ${
                     isCurrent
-                      ? 'text-gold'
+                      ? 'text-mesa-ember'
                       : unlocked
-                        ? 'text-emerald-400/90'
-                        : 'text-stone-600'
+                        ? 'text-mesa-jade'
+                        : 'text-mesa-ash'
                   }`}
                 >
                   {isCurrent ? 'Seu nível' : unlocked ? 'Desbloqueado' : 'Em progresso'}

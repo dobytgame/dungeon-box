@@ -24,12 +24,12 @@ export default function CycleProgress({ status, showCopy = false }: Props) {
           return (
             <li
               key={step}
-              className={`rounded-sm border px-2.5 py-1 font-display text-[0.6rem] uppercase tracking-[0.14em] ${
+              className={`rounded-sm border px-2.5 py-1 home-v2-display text-[11px] tracking-[0.14em] ${
                 active
-                  ? 'border-ember/40 bg-ember/10 text-ember'
+                  ? 'border-mesa-ember/50 bg-mesa-ember/10 text-mesa-ember'
                   : done
-                    ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
-                    : 'border-white/5 text-stone-600'
+                    ? 'border-mesa-jade/30 bg-mesa-jade/10 text-mesa-jade'
+                    : 'border-white/10 text-mesa-ash'
               }`}
             >
               {formatCycleStatus(step)}
@@ -38,7 +38,7 @@ export default function CycleProgress({ status, showCopy = false }: Props) {
         })}
       </ol>
       {showCopy ? (
-        <p className="mt-3 text-sm leading-relaxed text-stone-400">
+        <p className="mt-3 text-sm leading-relaxed text-mesa-ash">
           {copy.summary}
           {copy.next ? ` ${copy.next}` : ''}
         </p>

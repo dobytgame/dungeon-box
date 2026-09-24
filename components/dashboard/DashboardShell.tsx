@@ -1,7 +1,10 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { DashboardNavItem } from '@/lib/dashboard/constants';
+import { isDashboardNavActive } from '@/lib/dashboard/constants';
+import { groupDashboardNav } from '@/lib/dashboard/content';
 import CorreiosStrikeModal from './CorreiosStrikeModal';
 import DashboardHeader from './DashboardHeader';
 import DashboardNav from './DashboardNav';
@@ -26,31 +29,28 @@ export default function DashboardShell({
   children,
 }: Props) {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const groups = groupDashboardNav(navItems);
   const navItem =
-    navItems.find((item) =>
-      item.href === '/dashboard'
-        ? pathname === '/dashboard'
-        : pathname.startsWith(item.href)
-    ) ?? navItems[0];
+    navItems.find((item) => isDashboardNavActive(pathname, item.href)) ?? navItems[0];
+
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const toggleMenu = useCallback(() => setMenuOpen((open) => !open), []);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   const isOverview = pathname === '/dashboard';
-  const title = isOverview ? (
-    <>
-      Olá, <span className="text-gradient-ember">{displayName.split(' ')[0]}</span>
-    </>
-  ) : (
-    navItem.label
-  );
+  const firstName = displayName.split(' ')[0];
+  const title = isOverview ? <>Olá, {firstName}</> : navItem.label;
 
   return (
     <ShellNavigationFrame scope="/dashboard" variant="dashboard">
-      <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
+      <div className="relative isolate min-h-screen overflow-hidden bg-mesa-ink">
+        <div className="home-v2-grid home-v2-fog-load absolute inset-0 -z-10" aria-hidden="true" />
         <div
-          className="pointer-events-none absolute -right-24 top-32 h-72 w-72 rounded-full bg-ember/10 blur-[100px]"
-          aria-hidden="true"
-        />
-        <div
-          className="pointer-events-none absolute -left-32 bottom-40 h-64 w-64 rounded-full bg-frost/8 blur-[90px]"
+          className="pointer-events-none absolute -right-20 top-24 h-72 w-72 rounded-full bg-mesa-ember/[0.09] blur-[120px]"
           aria-hidden="true"
         />
 
@@ -58,20 +58,25 @@ export default function DashboardShell({
           displayName={displayName}
           email={email}
           avatarUrl={avatarUrl}
+          currentLabel={navItem.label}
+          menuOpen={menuOpen}
+          onMenuToggle={toggleMenu}
         />
 
-        <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 md:pt-32">
-          <DashboardPageIntro
-            eyebrow={navItem.eyebrow}
-            title={title}
-            description={navItem.description}
-          />
-
-          <div className="mt-8 md:mt-10">
-            <DashboardNav items={navItems} />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28">
+          <div className="lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:items-start lg:gap-10">
+            <DashboardNav groups={groups} mobileOpen={menuOpen} onNavigate={closeMenu} />
+            <div>
+              <DashboardPageIntro
+                eyebrow={navItem.eyebrow}
+                title={title}
+                description={navItem.description}
+              />
+              <main id="conteudo-principal" className="mt-8 md:mt-10">
+                {children}
+              </main>
+            </div>
           </div>
-
-          <main className="mt-10 md:mt-12">{children}</main>
         </div>
         <CorreiosStrikeModal enabled={showCorreiosStrikeNotice} />
       </div>

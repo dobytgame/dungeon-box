@@ -147,6 +147,14 @@ export const ADMIN_NAV = [
     group: 'comunicacao',
   },
   {
+    href: '/admin/ugc',
+    label: 'UGC',
+    eyebrow: 'Campanha',
+    description: 'Envios da campanha Mostre sua Aventura: fotos, autorização e brinde.',
+    icon: 'camera',
+    group: 'comunicacao',
+  },
+  {
     href: '/admin/ferramentas/qr',
     label: 'QR Code',
     eyebrow: 'Comunicação',

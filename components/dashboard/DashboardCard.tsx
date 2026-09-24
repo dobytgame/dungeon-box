@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type Accent = 'ember' | 'frost' | 'gold' | 'none';
+type Accent = 'ember' | 'jade' | 'frost' | 'gold' | 'none';
 
 interface Props {
   title: string;
@@ -11,18 +11,12 @@ interface Props {
   accent?: Accent;
 }
 
-const accentBorder = {
-  ember: 'border-l-ember',
-  frost: 'border-l-frost',
-  gold: 'border-l-gold',
-  none: 'border-l-white/20',
-};
-
-const accentGlow = {
-  ember: 'from-ember/10',
-  frost: 'from-frost/10',
-  gold: 'from-gold/10',
-  none: 'from-white/[0.03]',
+const accentBar = {
+  ember: 'bg-mesa-ember',
+  jade: 'bg-mesa-jade',
+  frost: 'bg-mesa-jade',
+  gold: 'bg-gold',
+  none: 'bg-white/15',
 };
 
 export default function DashboardCard({
@@ -35,18 +29,15 @@ export default function DashboardCard({
 }: Props) {
   return (
     <section
-      className={`relative overflow-hidden rounded-sm border border-white/[0.06] bg-stone-950/40 ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone ${className}`}
     >
-      <div
-        className={`border-l-4 ${accentBorder[accent]} bg-gradient-to-r ${accentGlow[accent]} to-transparent px-5 py-5 md:px-6 md:py-6`}
-      >
+      <div className={`absolute inset-y-0 left-0 w-1 ${accentBar[accent]}`} aria-hidden="true" />
+      <div className="px-5 py-5 md:px-6 md:py-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="font-display text-xl uppercase tracking-wide text-white md:text-2xl">
-              {title}
-            </h2>
+            <h2 className="home-v2-display text-2xl leading-none text-mesa-parchment">{title}</h2>
             {description ? (
-              <p className="mt-2 text-sm leading-relaxed text-stone-400">{description}</p>
+              <p className="mt-2 text-sm leading-relaxed text-mesa-ash">{description}</p>
             ) : null}
           </div>
           {action}

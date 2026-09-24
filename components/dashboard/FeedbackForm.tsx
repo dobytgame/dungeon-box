@@ -8,7 +8,7 @@ import { formatDate } from '@/lib/dashboard/format';
 import type { FeedbackCycleOption } from '@/lib/feedback/types';
 
 const labelClass =
-  'block font-display text-xs uppercase tracking-widest text-stone-400';
+  'home-v2-display block text-[11px] tracking-[0.18em] text-mesa-jade';
 
 async function uploadFeedbackImage(file: File): Promise<string> {
   const formData = new FormData();

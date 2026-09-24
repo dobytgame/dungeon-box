@@ -45,7 +45,7 @@ export default async function FeedbackPage({ searchParams }: Props) {
           )}
 
           {reviewedCycles.length > 0 ? (
-            <DashboardCard title="Avaliações enviadas" accent="frost">
+            <DashboardCard title="Avaliações enviadas" accent="jade">
               <ul className="divide-y divide-white/5">
                 {reviewedCycles.map((cycle) => (
                   <li key={cycle.id} className="py-3 text-sm text-stone-300">

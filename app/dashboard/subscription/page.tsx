@@ -225,7 +225,7 @@ async function SubscriptionDetailCard({
       </DashboardCard>
 
       {plan ? (
-        <DashboardCard title="Benefícios incluídos" accent="frost">
+        <DashboardCard title="Benefícios incluídos" accent="jade">
           <dl>
             <DataRow label="Peças por mês" value={`${plan.pieces_min}–${plan.pieces_max}`} />
             <DataRow

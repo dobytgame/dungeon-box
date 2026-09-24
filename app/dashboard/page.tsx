@@ -136,10 +136,10 @@ export default async function DashboardPage() {
               <DataRow
                 label="Plano"
                 value={
-                  <span className="text-white">
+                  <span className="text-mesa-parchment">
                     {plan?.name ?? '—'}{' '}
                     {plan ? (
-                      <span className="text-stone-500">
+                      <span className="text-mesa-ash">
                         ({formatMoney(plan.price_cents)}/mês)
                       </span>
                     ) : null}
@@ -161,13 +161,13 @@ export default async function DashboardPage() {
             </dl>
             <Link
               href="/dashboard/subscription"
-              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center text-sm text-ember hover:underline"
+              className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-ember transition-colors duration-200 hover:underline"
             >
               Ver detalhes →
             </Link>
           </DashboardCard>
 
-          <DashboardCard title="Próxima entrega" accent="frost">
+          <DashboardCard title="Próxima entrega" accent="jade">
             {nextCycle ? (
               <div className="space-y-5">
                 <dl>
@@ -188,6 +188,9 @@ export default async function DashboardPage() {
                     label="Previsão"
                     value={formatDate(nextCycle.estimated_delivery)}
                   />
+                  {nextCycle.bonus_notes ? (
+                    <DataRow label="Brinde" value={nextCycle.bonus_notes} />
+                  ) : null}
                 </dl>
                 <CycleProgress status={nextCycle.status} showCopy />
                 {nextCycleExtras.length > 0 ? (
@@ -195,20 +198,20 @@ export default async function DashboardPage() {
                 ) : null}
               </div>
             ) : (
-              <p className="text-sm text-stone-500">
+              <p className="text-sm text-mesa-ash">
                 Nenhum ciclo em andamento. Quando a assinatura for ativada, as entregas
                 aparecem aqui.
               </p>
             )}
             <Link
               href="/dashboard/deliveries"
-              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center text-sm text-frost hover:underline"
+              className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-jade transition-colors duration-200 hover:underline"
             >
               Histórico de entregas →
             </Link>
           </DashboardCard>
 
-          <DashboardCard title="Fidelidade" accent="gold">
+          <DashboardCard title="Fidelidade" accent="ember">
             <dl>
               <DataRow
                 label="Nível"
@@ -230,7 +233,7 @@ export default async function DashboardPage() {
             </dl>
             <Link
               href="/dashboard/loyalty"
-              className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center text-sm text-gold hover:underline"
+              className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-ember transition-colors duration-200 hover:underline"
             >
               Ver progressão →
             </Link>
@@ -239,32 +242,34 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <DashboardCard title="Explorar" accent="none">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <DashboardCard title="Atalhos da mesa" accent="none">
+        <div className="grid gap-3 sm:grid-cols-2">
           {[
-            { href: '/dashboard/profile', label: 'Editar perfil', desc: 'CPF, telefone e dados' },
-            { href: '/dashboard/addresses', label: 'Endereços', desc: 'Entrega e padrão' },
-            { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e troca de cartão' },
-            { href: '/dashboard/pedidos', label: 'Pedidos', desc: 'Loja, kits extras e envio' },
-            { href: '/dashboard/loyalty', label: 'Fidelidade', desc: 'Níveis e votos' },
+            { href: '/dashboard/subscription', label: 'Assinatura', desc: 'Plano, cores e cobrança' },
+            { href: '/dashboard/deliveries', label: 'Entregas', desc: 'Produção, rastreio e histórico' },
+            { href: '/dashboard/pedidos', label: 'Pedidos da loja', desc: 'Kits extras e envio' },
+            { href: '/dashboard/aventura', label: 'Mostre sua aventura', desc: 'Fotos da mesa e brinde' },
+            { href: '/dashboard/profile', label: 'Perfil', desc: 'CPF, telefone e dados' },
+            { href: '/dashboard/addresses', label: 'Endereços', desc: 'Onde a caixa chega' },
             ...(showThemeVote
-              ? [{ href: '/dashboard/votacao', label: 'Votação', desc: 'Resultado ou próximo tema' }]
+              ? [{ href: '/dashboard/votacao', label: 'Votação', desc: 'Tema da próxima caixa' }]
               : []),
+            { href: '/dashboard/payments', label: 'Pagamentos', desc: 'Histórico e cartão' },
           ].map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="flex min-h-[72px] cursor-pointer flex-col justify-center rounded-sm border border-white/10 p-4 transition-colors duration-200 hover:border-ember/30 hover:bg-white/5"
+              className="flex min-h-[72px] cursor-pointer flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-[border-color,background-color] duration-200 hover:border-white/25 hover:bg-white/[0.07]"
             >
-              <p className="text-sm font-medium text-white">{item.label}</p>
-              <p className="mt-1 text-xs text-stone-500">{item.desc}</p>
+              <p className="text-sm font-medium text-mesa-parchment">{item.label}</p>
+              <p className="mt-1 text-sm text-mesa-ash">{item.desc}</p>
             </Link>
           ))}
         </div>
       </DashboardCard>
 
       {profile ? (
-        <DashboardCard title="Resumo do perfil" accent="frost">
+        <DashboardCard title="Resumo do perfil" accent="jade">
           <dl>
             <DataRow label="E-mail" value={profile.email} />
             <DataRow

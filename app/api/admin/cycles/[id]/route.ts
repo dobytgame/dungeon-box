@@ -122,6 +122,7 @@ export async function GET(_request: Request, context: RouteContext) {
         amountCents: cycle.amount_cents,
         shippingCostCents: cycle.shipping_cost_cents,
         specialNotes: subscription?.special_notes,
+        bonusNotes: cycle.bonus_notes,
         planName: plan?.name ?? null,
         planSlug: plan?.slug ?? null,
         planProductionCostCents: plan?.production_cost_cents ?? 0,

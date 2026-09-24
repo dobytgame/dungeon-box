@@ -81,6 +81,17 @@ import {
   type FeedbackRequestTemplateData,
 } from '@/lib/email/templates/feedback-request';
 import {
+  UGC_APPROVED_SUBJECT,
+  UGC_RECEIVED_SUBJECT,
+  UGC_REJECTED_SUBJECT,
+  ugcApprovedHtml,
+  ugcApprovedText,
+  ugcReceivedHtml,
+  ugcReceivedText,
+  ugcRejectedHtml,
+  ugcRejectedText,
+} from '@/lib/email/templates/ugc-campaign';
+import {
   getRoleEmailAddress,
   isEmailConfigured,
   type EmailSenderRole,
@@ -406,5 +417,51 @@ export async function sendSupportNotificationToTeam(input: {
     text: `${name} <${input.fromEmail}>\n\n${input.message}`,
     replyTo: input.fromEmail,
     tags: [{ name: 'category', value: 'support_inbound' }],
+  });
+}
+
+export async function sendUgcReceivedEmail(input: {
+  to: string;
+  name?: string | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to: input.to,
+    subject: UGC_RECEIVED_SUBJECT,
+    html: ugcReceivedHtml(input.name),
+    text: ugcReceivedText(input.name),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'ugc_received' }],
+  });
+}
+
+export async function sendUgcApprovedEmail(input: {
+  to: string;
+  name?: string | null;
+  cycleNumber?: number | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to: input.to,
+    subject: UGC_APPROVED_SUBJECT,
+    html: ugcApprovedHtml(input.name, input.cycleNumber),
+    text: ugcApprovedText(input.name, input.cycleNumber),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'ugc_approved' }],
+  });
+}
+
+export async function sendUgcRejectedEmail(input: {
+  to: string;
+  name?: string | null;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    role: 'guild',
+    to: input.to,
+    subject: UGC_REJECTED_SUBJECT,
+    html: ugcRejectedHtml(input.name),
+    text: ugcRejectedText(input.name),
+    replyTo: getRoleEmailAddress('support') ?? COMPANY.supportEmail,
+    tags: [{ name: 'category', value: 'ugc_rejected' }],
   });
 }

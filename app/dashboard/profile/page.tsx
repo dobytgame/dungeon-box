@@ -21,14 +21,14 @@ export default async function ProfilePage({
 
   if (!profile) {
     return (
-      <p className="text-stone-400">Perfil não encontrado. Tente sair e entrar novamente.</p>
+      <p className="text-mesa-ash">Perfil não encontrado. Tente sair e entrar novamente.</p>
     );
   }
 
   return (
     <div className="space-y-8 md:space-y-10">
-      <DashboardCard title="Seus dados" accent="frost">
-        <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-white/[0.04] pb-6">
+      <DashboardCard title="Seus dados" accent="jade">
+        <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-white/[0.06] pb-6">
           {profile.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -37,15 +37,15 @@ export default async function ProfilePage({
               className="h-14 w-14 rounded-full border border-white/10 object-cover"
             />
           ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-ember/30 bg-ember/15 font-display text-xl text-ember">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-mesa-ember/30 bg-mesa-ember/15 home-v2-display text-xl text-mesa-ember">
               {(profile.display_name || profile.full_name || '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div>
-            <p className="font-display text-lg uppercase tracking-wide text-white">
+            <p className="home-v2-display text-lg text-mesa-parchment">
               {profile.display_name || profile.full_name}
             </p>
-            <p className="text-sm text-stone-500">{profile.email}</p>
+            <p className="text-sm text-mesa-ash">{profile.email}</p>
           </div>
         </div>
         <ProfileForm profile={profile} redirectTo={redirectTo} />

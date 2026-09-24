@@ -18,19 +18,19 @@ export default function ComboSubscriptionCallout({
 
   return (
     <div
-      className="rounded-sm border border-gold/25 bg-gold/[0.06] px-4 py-3 text-sm text-stone-200"
+      className="rounded-2xl border border-mesa-jade/25 bg-mesa-jade/[0.06] px-4 py-3 text-sm text-mesa-parchment"
       role="status"
     >
       <div className="flex items-start gap-2.5">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-mesa-jade" aria-hidden="true" />
         <div>
-          <p className="font-display text-xs uppercase tracking-[0.2em] text-gold">
+          <p className="home-v2-display text-[11px] tracking-[0.2em] text-mesa-jade">
             {combo.label}
           </p>
           {combo.isPrepaidActive && combo.prepaidUntil ? (
-            <p className="mt-1 text-stone-100">
+            <p className="mt-1 text-mesa-parchment">
               Combo ativo até{' '}
-              <strong className="font-medium text-white">
+              <strong className="font-medium text-mesa-parchment">
                 {formatDate(combo.prepaidUntil, {
                   day: '2-digit',
                   month: 'long',
@@ -38,17 +38,17 @@ export default function ComboSubscriptionCallout({
                 })}
               </strong>
               {combo.prepaidMonths ? (
-                <span className="text-stone-400">
+                <span className="text-mesa-ash">
                   {' '}
                   · {combo.prepaidMonths} meses cobertos
                 </span>
               ) : null}
             </p>
           ) : (
-            <p className="mt-1 text-stone-300">{combo.nextBillingLabel}</p>
+            <p className="mt-1 text-mesa-ash">{combo.nextBillingLabel}</p>
           )}
           {combo.comboTotalCents ? (
-            <p className="mt-1 text-xs text-stone-500">
+            <p className="mt-1 text-xs text-mesa-ash">
               Valor do combo: {formatMoney(combo.comboTotalCents)}
               {combo.installmentLabel ? ` · ${combo.installmentLabel}` : null}
             </p>

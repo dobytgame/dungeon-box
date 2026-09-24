@@ -1,0 +1,32 @@
+/* Ponte: páginas da conta herdam Mesa sem reescrever cada utilitário antigo. */
+.home-v2 .font-display {
+  font-family: var(--font-home-display), sans-serif;
+}
+
+.home-v2 .text-white {
+  color: var(--parchment);
+}
+
+.home-v2 .text-stone-200,
+.home-v2 .text-stone-300,
+.home-v2 .text-stone-400,
+.home-v2 .text-stone-500,
+.home-v2 .text-stone-600 {
+  color: var(--ash);
+}
+
+.home-v2 .text-frost,
+.home-v2 .text-frost-bright {
+  color: var(--jade);
+}
+
+.home-v2 .text-ember,
+.home-v2 .text-ember-bright {
+  color: var(--ember);
+}
+
+.home-v2 input:not([type='checkbox']):not([type='radio']),
+.home-v2 select,
+.home-v2 textarea {
+  font-size: 1rem;
+}

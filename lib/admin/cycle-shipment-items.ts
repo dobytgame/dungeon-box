@@ -423,6 +423,7 @@ export function buildProductionChecklist(input: {
   cycle: CycleShipmentContext;
   siblingCycles: CycleShipmentContext[];
   specialNotes: string | null | undefined;
+  bonusNotes?: string | null;
   storeOrders: StoreOrderPaymentRow[];
   planName: string | null;
   themeName: string | null;
@@ -441,6 +442,18 @@ export function buildProductionChecklist(input: {
       tag: 'Assinatura',
       quantity: 1,
       detail,
+    });
+  }
+
+  const bonusNotes = input.bonusNotes?.trim();
+  if (bonusNotes) {
+    checklist.push({
+      id: 'ugc-bonus',
+      kind: 'store',
+      name: bonusNotes,
+      tag: 'Brinde',
+      quantity: 1,
+      detail: null,
     });
   }
 
@@ -711,6 +724,7 @@ export async function resolveCycleProductionData(
     paidAt: string | null;
     createdAt: string | null;
     specialNotes: string | null | undefined;
+    bonusNotes?: string | null;
     planName: string | null;
     themeName: string | null;
     piecesLabel: string | null;
@@ -745,6 +759,7 @@ export async function resolveCycleProductionData(
     cycle,
     siblingCycles,
     specialNotes: input.specialNotes,
+    bonusNotes: input.bonusNotes,
     storeOrders,
     planName: input.planName,
     themeName: input.themeName,
@@ -809,6 +824,7 @@ export async function resolveCycleProductionDataWithFinance(
     amountCents: number | null;
     shippingCostCents: number | null;
     specialNotes: string | null | undefined;
+    bonusNotes?: string | null;
     planName: string | null;
     planSlug: string | null;
     planProductionCostCents: number;
@@ -871,6 +887,7 @@ export async function resolveCycleProductionDataWithFinance(
     cycle,
     siblingCycles,
     specialNotes: input.specialNotes,
+    bonusNotes: input.bonusNotes,
     storeOrders,
     planName: input.planName,
     themeName: input.themeName,

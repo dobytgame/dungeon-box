@@ -17,7 +17,7 @@ export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll })
 
   return (
     <section
-      className="relative overflow-hidden rounded-sm border border-ember/30 bg-stone-950"
+      className="relative overflow-hidden rounded-2xl border border-mesa-ember/40 bg-mesa-stone"
       aria-label={
         voted
           ? `Você votou em ${voted.name}`
@@ -25,45 +25,38 @@ export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll })
       }
     >
       <div
-        className="pointer-events-none absolute -right-8 top-0 select-none font-display text-[clamp(5.5rem,22vw,11rem)] leading-none tracking-tighter text-ember/[0.07]"
+        className="pointer-events-none absolute -right-8 top-0 select-none home-v2-display text-[clamp(5.5rem,22vw,11rem)] leading-none tracking-tighter text-mesa-ember/[0.08]"
         aria-hidden="true"
       >
         {poll.cycleNumber}
       </div>
       <div
-        className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-ember/15 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute right-8 top-8 h-32 w-32 rounded-full bg-frost/10 blur-3xl"
+        className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-mesa-ember/[0.12] blur-[120px]"
         aria-hidden="true"
       />
 
       <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-10 lg:p-8">
         <div className="min-w-0">
-          <p className="font-display text-[11px] uppercase tracking-[0.32em] text-ember">
+          <p className="home-v2-display text-[11px] tracking-[0.28em] text-mesa-jade">
             {voted ? 'Voto registrado' : 'Votação aberta'}
-            <span className="text-stone-600"> · </span>
+            <span className="text-mesa-ash"> · </span>
             Ciclo {poll.cycleNumber}
           </p>
-          <h2 className="mt-3 max-w-lg font-display text-3xl uppercase leading-[0.92] tracking-wide text-white sm:text-4xl">
+          <h2 className="home-v2-display mt-3 max-w-lg text-[clamp(2rem,6vw,3.25rem)] leading-[0.92] tracking-wide text-mesa-parchment">
             {voted ? (
-              <>
-                Você escolheu{' '}
-                <span className="text-gradient-ember">{voted.name}</span>
-              </>
+              <>Você escolheu {voted.name}</>
             ) : (
               <>Qual tema entra na próxima caixa?</>
             )}
           </h2>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-stone-400">
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-mesa-ash">
             {voted
               ? `Seu voto está guardado. O resultado sai em ${formatDate(poll.endsAt)}.`
               : `Dois temas. Um voto. Aberto até ${formatDate(poll.endsAt)}.`}
           </p>
           <Link
             href="/dashboard/votacao"
-            className="mt-6 inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition-colors hover:bg-ember-bright focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+            className="home-v2-display mt-6 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-sm bg-mesa-ember px-5 py-3 text-xs tracking-[0.1em] text-mesa-ink transition-colors duration-200 hover:bg-[#ff7a4a]"
           >
             {voted ? 'Ver meu voto' : 'Escolher agora'}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -80,9 +73,9 @@ export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll })
                 return (
                   <div
                     key={option.id}
-                    className={`relative overflow-hidden rounded-sm border ${
+                    className={`relative overflow-hidden rounded-2xl border ${
                       isPick
-                        ? 'border-ember/70 shadow-[0_0_28px_rgba(255,107,43,0.22)]'
+                        ? 'border-mesa-ember/70 shadow-[0_30px_80px_-30px_rgba(255,100,45,0.45)]'
                         : lost
                           ? 'border-white/5'
                           : 'border-white/10'
@@ -95,13 +88,13 @@ export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll })
                       className="aspect-[4/5] sm:aspect-[3/4]"
                     />
                     {isPick ? (
-                      <span className="absolute left-2 top-2 z-10 rotate-[-8deg] border border-ember/50 bg-stone-950/90 px-2 py-1 font-display text-[10px] uppercase tracking-[0.22em] text-ember">
+                      <span className="home-v2-display absolute left-2 top-2 z-10 rotate-[-8deg] rounded-full bg-mesa-ember px-2 py-1 text-[11px] tracking-[0.16em] text-mesa-ink">
                         Seu voto
                       </span>
                     ) : null}
                     <p
-                      className={`absolute inset-x-0 bottom-0 z-10 px-2.5 pb-2.5 font-display text-sm uppercase leading-tight tracking-wide sm:px-3 sm:text-base ${
-                        lost ? 'text-stone-500' : 'text-white'
+                      className={`home-v2-display absolute inset-x-0 bottom-0 z-10 px-2.5 pb-2.5 text-sm leading-tight sm:px-3 sm:text-base ${
+                        lost ? 'text-mesa-ash' : 'text-mesa-parchment'
                       }`}
                     >
                       {option.name}
@@ -112,7 +105,7 @@ export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll })
             </div>
             {!voted ? (
               <div
-                className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center border border-ember/40 bg-stone-950 font-display text-xs uppercase tracking-widest text-ember"
+                className="home-v2-display pointer-events-none absolute left-1/2 top-1/2 z-20 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center border border-mesa-ember/40 bg-mesa-ink text-xs tracking-widest text-mesa-ember"
                 aria-hidden="true"
               >
                 VS

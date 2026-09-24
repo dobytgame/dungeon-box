@@ -1,53 +1,85 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
-import type { DashboardNavItem } from '@/lib/dashboard/constants';
-import { siteNavLinkClassName } from '@/lib/ui/site-nav';
+import { usePathname } from 'next/navigation';
+import type { DashboardNavGroup } from '@/lib/dashboard/content';
+import { isDashboardNavActive } from '@/lib/dashboard/constants';
+import DashboardNavIcon from './DashboardNavIcon';
 
 interface Props {
-  items: DashboardNavItem[];
+  groups: DashboardNavGroup[];
+  mobileOpen: boolean;
+  onNavigate: () => void;
 }
 
-export default function DashboardNav({ items }: Props) {
-  const pathname = usePathname();
-  const navRef = useRef<HTMLElement>(null);
+function NavLinks({
+  groups,
+  pathname,
+  onNavigate,
+}: {
+  groups: DashboardNavGroup[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <ul className="space-y-7">
+      {groups.map((group) => (
+        <li key={group.id}>
+          <p className="home-v2-display px-3 text-[11px] tracking-[0.22em] text-mesa-jade">
+            {group.label}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {group.items.map((item) => {
+              const active = isDashboardNavActive(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={onNavigate}
+                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-sm px-3 text-sm transition-colors duration-200 ${
+                      active
+                        ? 'bg-mesa-ember text-mesa-ink'
+                        : 'text-mesa-parchment hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <DashboardNavIcon name={item.icon} />
+                    <span className={active ? 'font-semibold' : undefined}>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-  useEffect(() => {
-    const active = navRef.current?.querySelector<HTMLElement>('[data-active="true"]');
-    active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [pathname]);
+export default function DashboardNav({ groups, mobileOpen, onNavigate }: Props) {
+  const pathname = usePathname();
 
   return (
-    <div className="dashboard-nav-fade relative -mx-4 sm:-mx-6">
-      <nav
-        ref={navRef}
-        className="dashboard-nav-scroll flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 px-4 pb-1 sm:scroll-px-6 sm:px-6"
-        aria-label="Seções da minha conta"
-      >
-        {items.map((item) => {
-          const active =
-            item.href === '/dashboard'
-              ? pathname === '/dashboard'
-              : pathname.startsWith(item.href);
+    <div>
+      <aside className="hidden lg:block">
+        <nav
+          className="sticky top-24 max-h-[calc(100svh-7rem)] overflow-y-auto pb-8 pr-2"
+          aria-label="Seções da minha conta"
+        >
+          <NavLinks groups={groups} pathname={pathname} />
+        </nav>
+      </aside>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              data-active={active ? 'true' : undefined}
-              className={`inline-flex min-h-[44px] shrink-0 snap-start cursor-pointer items-center rounded-sm px-4 py-2.5 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember ${siteNavLinkClassName} ${
-                active
-                  ? 'bg-ember text-stone-950'
-                  : 'border border-white/10 text-stone-400 hover:border-white/20 hover:text-white'
-              }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {mobileOpen ? (
+        <div
+          id="dashboard-mobile-nav"
+          className="home-v2-overlay fixed inset-x-0 bottom-0 top-[4.25rem] z-[80] overflow-y-auto border-t border-white/10 bg-mesa-ink px-4 pb-10 pt-6 lg:hidden"
+        >
+          <nav aria-label="Seções da minha conta">
+            <NavLinks groups={groups} pathname={pathname} onNavigate={onNavigate} />
+          </nav>
+        </div>
+      ) : null}
     </div>
   );
 }

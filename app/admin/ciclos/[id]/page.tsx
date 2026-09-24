@@ -111,6 +111,7 @@ export default async function AdminCycleDetailPage({ params }: Props) {
           <DataRow label="Cancelado em" value={formatDateTime(cycle.cancelled_at)} />
           <DataRow label="Motivo cancelamento" value={cycle.cancel_reason} />
           <DataRow label="Notas de produção" value={cycle.production_notes} />
+          <DataRow label="Brinde / bônus" value={cycle.bonus_notes} />
           <DataRow label="Previsão entrega" value={formatDate(cycle.estimated_delivery)} />
           {address ? (
             <DataRow

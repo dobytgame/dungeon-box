@@ -8,26 +8,26 @@ import {
 type Kind = 'subscription' | 'cycle' | 'payment';
 
 const styles: Record<string, string> = {
-  active: 'text-emerald-300',
-  approved: 'text-emerald-300',
-  delivered: 'text-emerald-300',
-  pending: 'text-amber-300',
-  upcoming: 'text-sky-300',
-  production: 'text-amber-300',
-  preparing: 'text-console',
-  packed: 'text-teal-300',
-  awaiting_pickup: 'text-sky-300',
-  shipped: 'text-violet-300',
-  paused: 'text-stone-400',
-  past_due: 'text-red-300',
-  cancelled: 'text-stone-500',
-  expired: 'text-stone-500',
-  failed: 'text-red-300',
-  rejected: 'text-red-300',
-  refunded: 'text-orange-300',
-  charged_back: 'text-red-300',
-  authorized: 'text-sky-300',
-  in_process: 'text-amber-300',
+  active: 'text-mesa-jade',
+  approved: 'text-mesa-jade',
+  delivered: 'text-mesa-jade',
+  pending: 'text-mesa-parchment',
+  upcoming: 'text-mesa-parchment',
+  production: 'text-mesa-parchment',
+  preparing: 'text-mesa-jade',
+  packed: 'text-mesa-jade',
+  awaiting_pickup: 'text-mesa-parchment',
+  shipped: 'text-mesa-jade',
+  paused: 'text-mesa-ash',
+  past_due: 'text-mesa-ember',
+  cancelled: 'text-mesa-ash',
+  expired: 'text-mesa-ash',
+  failed: 'text-mesa-ember',
+  rejected: 'text-mesa-ember',
+  refunded: 'text-mesa-ash',
+  charged_back: 'text-mesa-ember',
+  authorized: 'text-mesa-parchment',
+  in_process: 'text-mesa-parchment',
 };
 
 interface Props {
@@ -45,7 +45,7 @@ export default function StatusBadge({ kind, status }: Props) {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 font-display text-xs uppercase tracking-[0.2em] ${styles[status] ?? 'text-stone-400'}`}
+      className={`inline-flex items-center gap-2 home-v2-display text-[11px] tracking-[0.16em] ${styles[status] ?? 'text-mesa-ash'}`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full bg-current ${status === 'active' || status === 'approved' ? 'shadow-[0_0_8px_currentColor]' : ''}`}

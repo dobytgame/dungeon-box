@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import HomeV2Button from '@/components/home-v2/HomeV2Button';
 
 interface Props {
   title: string;
@@ -14,18 +14,15 @@ export default function EmptyState({
   ctaHref,
 }: Props) {
   return (
-    <div className="border-l-4 border-l-white/15 bg-gradient-to-r from-white/[0.02] to-transparent py-8 pl-6 md:py-10 md:pl-8">
-      <p className="font-display text-2xl uppercase tracking-wide text-stone-300 md:text-3xl">
+    <div className="rounded-2xl border border-white/10 bg-mesa-stone px-6 py-8 md:px-8 md:py-10">
+      <p className="home-v2-display text-2xl leading-none text-mesa-parchment md:text-3xl">
         {title}
       </p>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-stone-500">{description}</p>
+      <p className="mt-3 max-w-md text-base leading-relaxed text-mesa-ash">{description}</p>
       {ctaLabel && ctaHref ? (
-        <Link
-          href={ctaHref}
-          className="mt-6 inline-flex cursor-pointer rounded-sm bg-ember px-6 py-3 font-display text-sm uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-        >
+        <HomeV2Button href={ctaHref} size="sm" arrow className="mt-6">
           {ctaLabel}
-        </Link>
+        </HomeV2Button>
       ) : null}
     </div>
   );

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bell,
+  Camera,
   Handshake,
   Home,
   Landmark,
@@ -47,6 +48,7 @@ const ICONS: Record<(typeof ADMIN_NAV)[number]['icon'], LucideIcon> = {
   'qr-code': QrCode,
   ticket: Ticket,
   star: Star,
+  camera: Camera,
   'scroll-text': ScrollText,
 };
 

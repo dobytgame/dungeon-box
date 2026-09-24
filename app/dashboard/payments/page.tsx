@@ -23,7 +23,7 @@ export default async function PaymentsPage() {
   return (
     <div className="space-y-8 md:space-y-10">
       {cardUpdateSubscriptions.length > 0 ? (
-        <DashboardCard title="Cartão da assinatura" accent="frost">
+        <DashboardCard title="Cartão da assinatura" accent="jade">
           <SubscriptionCardUpdate subscriptions={cardUpdateSubscriptions} />
         </DashboardCard>
       ) : null}
