@@ -248,7 +248,7 @@ export default async function DashboardPage() {
             { href: '/dashboard/subscription', label: 'Assinatura', desc: 'Plano, cores e cobrança' },
             { href: '/dashboard/deliveries', label: 'Entregas', desc: 'Produção, rastreio e histórico' },
             { href: '/dashboard/pedidos', label: 'Pedidos da loja', desc: 'Kits extras e envio' },
-            { href: '/dashboard/aventura', label: 'Mostre sua aventura', desc: 'Fotos da mesa e brinde' },
+            { href: '/dashboard/aventura', label: 'Mostre sua aventura', desc: 'Novidade em breve' },
             { href: '/dashboard/profile', label: 'Perfil', desc: 'CPF, telefone e dados' },
             { href: '/dashboard/addresses', label: 'Endereços', desc: 'Onde a caixa chega' },
             ...(showThemeVote

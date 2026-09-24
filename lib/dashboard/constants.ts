@@ -74,9 +74,9 @@ export const DASHBOARD_NAV = [
     label: 'Aventura',
     icon: 'camera',
     group: 'mesa',
-    eyebrow: 'Sua mesa',
+    eyebrow: 'Em breve',
     description:
-      'Envie fotos da mesa em uso. Se a equipe aprovar, o brinde segue no próximo kit.',
+      'Uma novidade da mesa está chegando. O envio ainda está fechado — tem um spoiler na página.',
   },
   {
     href: '/loja',
