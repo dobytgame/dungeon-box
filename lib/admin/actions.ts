@@ -1228,6 +1228,70 @@ export async function adminManualDeactivateSubscriptionAction(
   return { success: true as const };
 }
 
+export async function recordOfflineSubscriptionPaymentAction(input: {
+  subscriptionId: string;
+  paidAt: string;
+  amountReais: string;
+  method: string;
+  note?: string | null;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { paidAtFromDateInput, parseReaisToCents, recordOfflineSubscriptionPayment } =
+    await import('@/lib/admin/record-offline-payment');
+
+  const paidAt = paidAtFromDateInput(input.paidAt);
+  if (!paidAt) {
+    return { error: 'Informe a data do pagamento.' };
+  }
+
+  const amountCents = parseReaisToCents(input.amountReais);
+  if (amountCents == null) {
+    return { error: 'Informe o valor pago.' };
+  }
+
+  const result = await recordOfflineSubscriptionPayment(admin, {
+    subscriptionId: input.subscriptionId,
+    paidAt,
+    amountCents,
+    method: input.method,
+    note: input.note,
+  });
+
+  if ('error' in result) {
+    return result;
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.record_offline_payment',
+    entityType: 'subscription',
+    entityId: input.subscriptionId,
+    metadata: {
+      paymentId: result.paymentId,
+      cycleNumber: result.cycleNumber,
+      method: input.method,
+      amountCents,
+      paidAt,
+      nextBillingDate: result.nextBillingDate,
+      note: input.note?.trim() || null,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+  revalidatePath('/admin/pagamentos');
+  revalidatePath('/dashboard/subscription');
+  revalidatePath('/dashboard/payments');
+
+  return { success: true as const, ...result };
+}
+
 export async function exportActiveSubscribersCsvAction() {
   const { user, admin } = await requireAdmin();
 
@@ -3099,8 +3163,17 @@ export async function chargePagarmeSubscriptionNowAction(subscriptionId: string)
     ipAddress: await clientIp(),
   });
 
+  const { data: chargedSub } = await admin
+    .from('subscriptions')
+    .select('user_id')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
   revalidateAdmin();
   revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+  if (chargedSub?.user_id) {
+    revalidatePath(`/admin/clientes/${chargedSub.user_id}`);
+  }
   revalidatePath('/dashboard/subscription');
 
   return { success: true as const, result };

@@ -7,6 +7,7 @@ import CustomerActivatePlanPanel from '@/components/admin/CustomerActivatePlanPa
 import PartnerBadge from '@/components/admin/PartnerBadge';
 import ReferralAttributionBadge from '@/components/admin/ReferralAttributionBadge';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
+import ChargePagarmeNowButton from '@/components/admin/ChargePagarmeNowButton';
 import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
@@ -112,6 +113,15 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
       .join(' · '),
   }));
 
+  const overdueChargeable = PAGARME_CONFIGURED
+    ? subscriptions.filter(
+        (sub) =>
+          !sub.is_partner &&
+          (sub.status === 'past_due' || sub.status === 'pending') &&
+          Boolean(sub.pagarme_subscription_id)
+      )
+    : [];
+
   return (
     <div className="space-y-8">
       <Link
@@ -204,6 +214,62 @@ export default async function AdminCustomerDetailPage({ params }: Props) {
                 ) : null}
               </div>
             ))}
+          </div>
+        </section>
+      ) : null}
+
+      {overdueChargeable.length > 0 ? (
+        <section className="rounded-sm border border-ember/25 bg-ember/[0.04] p-5 md:p-6">
+          <h3 className="font-display text-sm uppercase tracking-widest text-ember-bright">
+            Cobrança em atraso
+          </h3>
+          <p className="mt-2 max-w-2xl text-sm text-stone-400">
+            Confere se o cliente atualizou o cartão na carteira Pagar.me e
+            dispara a cobrança no cartão mais recente.
+          </p>
+          <div className="mt-4 space-y-4">
+            {overdueChargeable.map((sub) => {
+              const planName = relOne(sub.plans)?.name ?? 'Assinatura';
+              const cardLabel =
+                sub.card_brand || sub.card_last4
+                  ? `${sub.card_brand ?? 'Cartão'}${
+                      sub.card_last4 ? ` •••• ${sub.card_last4}` : ''
+                    }`
+                  : 'Cartão ainda não sincronizado localmente';
+
+              return (
+                <div
+                  key={sub.id}
+                  className="flex flex-col gap-4 rounded-sm border border-white/[0.06] bg-stone-950/40 p-4 md:flex-row md:items-start md:justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display text-sm uppercase tracking-wide text-white">
+                        {planName}
+                      </p>
+                      <StatusBadge kind="subscription" status={sub.status} />
+                    </div>
+                    <p className="font-mono text-[11px] text-stone-400">
+                      {cardLabel}
+                    </p>
+                    <p className="text-xs text-stone-500">
+                      Próxima cobrança:{' '}
+                      {formatDate(sub.next_billing_date) || '—'}
+                    </p>
+                    <Link
+                      href={`/admin/assinaturas/${sub.id}`}
+                      className="inline-block text-xs text-console hover:underline"
+                    >
+                      Abrir assinatura
+                    </Link>
+                  </div>
+                  <ChargePagarmeNowButton
+                    subscriptionId={sub.id}
+                    variant="overdue"
+                  />
+                </div>
+              );
+            })}
           </div>
         </section>
       ) : null}

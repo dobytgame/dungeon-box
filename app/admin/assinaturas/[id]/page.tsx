@@ -23,6 +23,8 @@ import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
 import ChangePagarmeBillingDayPanel from '@/components/admin/ChangePagarmeBillingDayPanel';
+import RecordOfflinePaymentPanel from '@/components/admin/RecordOfflinePaymentPanel';
+import { defaultOfflinePaymentAmountCents } from '@/lib/admin/record-offline-payment';
 import {
   formatDate,
   formatDateTime,
@@ -277,6 +279,20 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
           subscriptionId={subscription.id}
           nextBillingDate={subscription.next_billing_date}
           subscriptionStatus={subscription.status}
+        />
+      ) : null}
+
+      {!subscription.is_partner &&
+      !isComboTerm(billingTerm) &&
+      (subscription.status === 'past_due' || subscription.status === 'pending') ? (
+        <RecordOfflinePaymentPanel
+          subscriptionId={subscription.id}
+          defaultAmountCents={defaultOfflinePaymentAmountCents({
+            shipping_cents: subscription.shipping_cents,
+            special_notes: subscription.special_notes,
+            plans: plan,
+          })}
+          nextBillingDate={subscription.next_billing_date}
         />
       ) : null}
 

@@ -14,6 +14,7 @@ import {
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
 import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
+import { syncLatestPagarmeCardToSubscription } from '@/lib/pagarme/sync-subscription-card';
 import { processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import {
   resolveSubscriptionRecurringCharge,
@@ -21,13 +22,19 @@ import {
   type RecurringChargeBreakdown,
 } from '@/lib/subscriptions/recurring-charge';
 
+type PagarmeChargeCard = {
+  id?: string | null;
+};
+
 type PagarmeCharge = {
   id?: string;
   status?: string;
   amount?: number;
+  card?: PagarmeChargeCard | null;
   last_transaction?: {
     status?: string;
     acquirer_message?: string | null;
+    card?: PagarmeChargeCard | null;
   } | null;
 };
 
@@ -58,7 +65,11 @@ type PagarmeRemoteSubscription = {
   status?: string;
   start_at?: string | null;
   next_billing_at?: string | null;
-  card?: { id?: string | null } | null;
+  card?: {
+    id?: string | null;
+    last_four_digits?: string | null;
+    brand?: string | null;
+  } | null;
   customer?: { id?: string | null } | null;
 };
 
@@ -72,6 +83,14 @@ function chargeStatus(charge?: PagarmeCharge | null): string {
     charge?.status?.trim().toLowerCase() ||
     charge?.last_transaction?.status?.trim().toLowerCase() ||
     ''
+  );
+}
+
+function chargeCardId(charge?: PagarmeCharge | null): string | null {
+  return (
+    charge?.card?.id?.trim() ||
+    charge?.last_transaction?.card?.id?.trim() ||
+    null
   );
 }
 
@@ -137,6 +156,7 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
   currentCycle: number | null;
   charge: RecurringChargeBreakdown;
   remote: PagarmeRemoteSubscription;
+  cardId?: string | null;
 }): Promise<ChargePagarmeSubscriptionNowResult> {
   if (input.charge.totalCents <= 0) {
     return { status: 'error', error: 'Valor da cobrança inválido.', statusCode: 422 };
@@ -155,6 +175,7 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
   }
 
   const cardId =
+    input.cardId?.trim() ||
     input.remote.card?.id?.trim() ||
     (await resolveLatestPagarmeCustomerCardId(pagarmeCustomerId));
   if (!cardId) {
@@ -317,6 +338,7 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
       cycleId: null,
       message:
         'Cobrança enviada. A assinatura future não gera ciclo — acompanhe a confirmação.',
+      card: null,
     };
   }
 
@@ -331,6 +353,7 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
     invoiceId: null,
     cycleId: null,
     acquirerMessage: null,
+    card: null,
   };
 }
 
@@ -352,6 +375,12 @@ function pickRetryableInvoice(invoices: PagarmeInvoice[]): PagarmeInvoice | null
   return ranked[0] ?? null;
 }
 
+export type ChargePagarmeNowCardInfo = {
+  last4: string | null;
+  brand: string | null;
+  synced: boolean;
+};
+
 export type ChargePagarmeSubscriptionNowResult =
   | {
       status: 'charged';
@@ -364,6 +393,7 @@ export type ChargePagarmeSubscriptionNowResult =
       invoiceId: string | null;
       cycleId: string | null;
       acquirerMessage: string | null;
+      card: ChargePagarmeNowCardInfo | null;
     }
   | {
       status: 'pending';
@@ -376,12 +406,15 @@ export type ChargePagarmeSubscriptionNowResult =
       invoiceId: string | null;
       cycleId: string | null;
       message: string;
+      card: ChargePagarmeNowCardInfo | null;
     }
   | { status: 'error'; error: string; statusCode?: number };
 
 /**
  * Cobra agora uma assinatura Pagar.me (atraso/falha):
- * 1) tenta reprocessar a última fatura/cobrança pendente ou falha;
+ * 0) confere a carteira e anexa o cartão mais recente se o cliente atualizou;
+ * 1) tenta reprocessar a última fatura/cobrança pendente ou falha (só se o cartão
+ *    da fatura ainda for o atual — fatura antiga fica presa no cartão recusado);
  * 2) se a assinatura ainda é `future` (migração agendada), cobra avulso no cartão
  *    salvo e remarca o start_at para o próximo dia de vencimento;
  * 3) senão, renova o ciclo (`POST /subscriptions/{id}/cycles`).
@@ -450,12 +483,50 @@ export async function chargePagarmeSubscriptionNow(
   });
 
   try {
+    const remote = await pagarmeRequest<PagarmeRemoteSubscription>(
+      `/subscriptions/${encodeURIComponent(subscription.pagarme_subscription_id)}`
+    );
+    const pagarmeCustomerId =
+      (subscription.pagarme_customer_id as string | null)?.trim() ||
+      remote.customer?.id?.trim() ||
+      null;
+    if (!pagarmeCustomerId) {
+      return {
+        status: 'error',
+        error: 'Assinatura sem cliente Pagar.me para validar o cartão.',
+        statusCode: 422,
+      };
+    }
+
+    const cardSync = await syncLatestPagarmeCardToSubscription({
+      admin,
+      subscriptionId,
+      pagarmeSubscriptionId: subscription.pagarme_subscription_id,
+      pagarmeCustomerId,
+      currentRemoteCardId: remote.card?.id,
+      currentRemoteLast4: remote.card?.last_four_digits,
+      currentRemoteBrand: remote.card?.brand,
+    });
+    if ('error' in cardSync) {
+      return { status: 'error', error: cardSync.error, statusCode: 422 };
+    }
+
+    const card: ChargePagarmeNowCardInfo = {
+      last4: cardSync.last4,
+      brand: cardSync.brand,
+      synced: cardSync.synced,
+    };
+
     const invoices = await listSubscriptionInvoices(
       subscription.pagarme_subscription_id
     );
     const retryInvoice = pickRetryableInvoice(invoices);
+    const retryCardId = chargeCardId(retryInvoice?.charge);
+    const skipRetry =
+      cardSync.synced ||
+      Boolean(retryCardId && retryCardId !== cardSync.cardId);
 
-    if (retryInvoice?.charge?.id) {
+    if (retryInvoice?.charge?.id && !skipRetry) {
       const retried = await pagarmeRequest<PagarmeCharge>(
         `/charges/${encodeURIComponent(retryInvoice.charge.id)}/retry`,
         { method: 'POST' }
@@ -480,6 +551,7 @@ export async function chargePagarmeSubscriptionNow(
           cycleId: null,
           acquirerMessage:
             retried.last_transaction?.acquirer_message?.trim() || null,
+          card,
         };
       }
 
@@ -496,21 +568,18 @@ export async function chargePagarmeSubscriptionNow(
         message:
           retried.last_transaction?.acquirer_message?.trim() ||
           'Reprocessamento enviado. Acompanhe o status da cobrança no Pagar.me / webhooks.',
+        card,
       };
     }
 
-    const remote = await pagarmeRequest<PagarmeRemoteSubscription>(
-      `/subscriptions/${encodeURIComponent(subscription.pagarme_subscription_id)}`
-    );
     if ((remote.status ?? '').trim().toLowerCase() === 'future') {
-      return chargeFuturePagarmeSubscriptionNow({
+      const catchup = await chargeFuturePagarmeSubscriptionNow({
         admin,
         subscriptionId,
         pagarmeSubscriptionId: subscription.pagarme_subscription_id,
         userId: subscription.user_id as string,
         addressId: (subscription.address_id as string | null) ?? null,
-        pagarmeCustomerId:
-          (subscription.pagarme_customer_id as string | null) ?? null,
+        pagarmeCustomerId,
         startedAt: (subscription.started_at as string | null) ?? null,
         nextBillingDate: (subscription.next_billing_date as string | null) ?? null,
         asaasSubscriptionId:
@@ -518,7 +587,10 @@ export async function chargePagarmeSubscriptionNow(
         currentCycle: (subscription.current_cycle as number | null) ?? null,
         charge,
         remote,
+        cardId: cardSync.cardId,
       });
+      if (catchup.status === 'error') return catchup;
+      return { ...catchup, card };
     }
 
     const cycle = await pagarmeRequest<PagarmeCycleResponse>(
@@ -564,6 +636,7 @@ export async function chargePagarmeSubscriptionNow(
         invoiceId: latestInvoiceId,
         cycleId: cycle.id ?? null,
         acquirerMessage,
+        card,
       };
     }
 
@@ -580,6 +653,7 @@ export async function chargePagarmeSubscriptionNow(
       message:
         acquirerMessage ||
         'Ciclo renovado no Pagar.me. A cobrança foi disparada — confirme via webhook ou painel.',
+      card,
     };
   } catch (error) {
     console.error('[pagarme] manual charge:', subscriptionId, error);

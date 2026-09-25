@@ -49,21 +49,33 @@ export async function listPagarmeCustomerCards(
   return response.data ?? [];
 }
 
+export function pickNewestActivePagarmeCard(
+  cards: PagarmeCustomerCard[]
+): PagarmeCustomerCard | null {
+  const active = cards.filter(
+    (card) => (card.status ?? 'active').toLowerCase() === 'active' && card.id
+  );
+  if (active.length === 0) return null;
+  active.sort((a, b) =>
+    String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
+  );
+  return active[0] ?? null;
+}
+
 /** Fallback: último cartão ativo do cliente (útil após cobrança com token). */
-export async function resolveLatestPagarmeCustomerCardId(
+export async function resolveLatestPagarmeCustomerCard(
   customerId: string
-): Promise<string | null> {
+): Promise<PagarmeCustomerCard | null> {
   try {
-    const cards = await listPagarmeCustomerCards(customerId);
-    const active = cards.filter(
-      (card) => (card.status ?? 'active').toLowerCase() === 'active' && card.id
-    );
-    if (active.length === 0) return null;
-    active.sort((a, b) =>
-      String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
-    );
-    return active[0]?.id ?? null;
+    return pickNewestActivePagarmeCard(await listPagarmeCustomerCards(customerId));
   } catch {
     return null;
   }
+}
+
+export async function resolveLatestPagarmeCustomerCardId(
+  customerId: string
+): Promise<string | null> {
+  const card = await resolveLatestPagarmeCustomerCard(customerId);
+  return card?.id ?? null;
 }
