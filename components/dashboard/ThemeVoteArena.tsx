@@ -187,7 +187,7 @@ export default function ThemeVoteArena({ poll }: Props) {
   }
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative">
       <div
         className="pointer-events-none absolute -right-6 -top-10 select-none home-v2-display text-[clamp(6rem,24vw,14rem)] leading-none tracking-tighter text-mesa-parchment/[0.04]"
         aria-hidden="true"

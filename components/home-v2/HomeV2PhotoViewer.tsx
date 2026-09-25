@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import HomeV2Button from '@/components/home-v2/HomeV2Button';
@@ -27,9 +28,14 @@ export default function HomeV2PhotoViewer({
   previewSizes,
 }: Props) {
   const [index, setIndex] = useState(initialIndex);
+  const [mounted, setMounted] = useState(false);
   const total = photos.length;
   const photo = photos[index];
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const go = useCallback(
     (delta: number) => setIndex((current) => (current + delta + total) % total),
@@ -41,20 +47,20 @@ export default function HomeV2PhotoViewer({
     if (event.key === 'ArrowLeft') go(-1);
   });
 
-  if (!photo) return null;
+  if (!photo || !mounted) return null;
 
   const arrowClass =
     'absolute top-1/2 z-10 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-mesa-ink/70 text-mesa-parchment backdrop-blur-md transition-colors duration-200 hover:border-white/40 hover:bg-mesa-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-mesa-ember';
 
-  return (
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={`${eyebrow}: ${title}`}
-      className="home-v2-overlay fixed inset-0 z-[80] flex flex-col bg-[#060708]/95 backdrop-blur-md"
+      className="home-v2-overlay home-v2 fixed inset-0 z-[90] flex flex-col bg-[#060708]/95 backdrop-blur-md"
     >
-      <div className="flex items-center justify-between gap-4 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6">
+      <div className="flex items-center justify-between gap-4 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
         <div className="min-w-0">
           <p className="home-v2-display text-[11px] tracking-[0.22em] text-mesa-jade">{eyebrow}</p>
           <p className="home-v2-display mt-0.5 truncate text-xl leading-tight text-mesa-parchment">
@@ -157,6 +163,7 @@ export default function HomeV2PhotoViewer({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
