@@ -7,6 +7,7 @@ import type {
   ThemePoll,
   ThemePollVoter,
   ThemePollWithTallies,
+  ThemeUserVote,
 } from '@/lib/theme-votes/types';
 
 type OptionRow = {
@@ -189,24 +190,38 @@ export async function getThemePollWithTallies(
   return withTallies(poll, counts);
 }
 
-export async function getUserVoteOptionId(
+export async function getUserVote(
   client: SupabaseClient,
   userId: string,
   pollId: string
-): Promise<string | null> {
+): Promise<ThemeUserVote | null> {
   const { data, error } = await client
     .from('theme_votes')
-    .select('theme_option_id')
+    .select('theme_option_id, change_count')
     .eq('user_id', userId)
     .eq('poll_id', pollId)
     .maybeSingle();
 
   if (error) {
-    console.error('[theme-votes] getUserVoteOptionId:', error.message);
+    console.error('[theme-votes] getUserVote:', error.message);
     return null;
   }
 
-  return (data?.theme_option_id as string | undefined) ?? null;
+  if (!data?.theme_option_id) return null;
+
+  return {
+    optionId: data.theme_option_id as string,
+    changeCount: Number(data.change_count ?? 0),
+  };
+}
+
+export async function getUserVoteOptionId(
+  client: SupabaseClient,
+  userId: string,
+  pollId: string
+): Promise<string | null> {
+  const vote = await getUserVote(client, userId, pollId);
+  return vote?.optionId ?? null;
 }
 
 export async function userHasActiveSubscription(

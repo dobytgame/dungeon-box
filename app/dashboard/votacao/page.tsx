@@ -11,7 +11,7 @@ import {
   userCanSeeThemeVote,
 } from '@/lib/theme-votes/access';
 import {
-  getUserVoteOptionId,
+  getUserVote,
   listThemePollsWithTallies,
   pickFeaturedThemePoll,
   userHasActiveSubscription,
@@ -38,12 +38,12 @@ export default async function ThemeVotePage() {
 
   const featured = pickFeaturedThemePoll(polls);
 
-  const userVoteOptionId = featured
-    ? await getUserVoteOptionId(admin, user.id, featured.id)
+  const userVote = featured
+    ? await getUserVote(admin, user.id, featured.id)
     : null;
 
   const view = featured
-    ? toSubscriberThemePollView(featured, userVoteOptionId, canVote)
+    ? toSubscriberThemePollView(featured, userVote, canVote)
     : null;
 
   if (!view) {

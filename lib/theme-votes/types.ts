@@ -1,4 +1,10 @@
 export const THEME_VOTE_MIN_CYCLE = 3;
+export const THEME_VOTE_MAX_CHANGES = 1;
+
+export type ThemeUserVote = {
+  optionId: string;
+  changeCount: number;
+};
 
 export type ThemePollStatus = 'upcoming' | 'open' | 'ended';
 
@@ -49,5 +55,7 @@ export type AdminThemePollDetail = ThemePollWithTallies & {
 
 export type SubscriberThemePollView = ThemePollWithTallies & {
   userVoteOptionId: string | null;
+  voteChangeCount: number;
   canVote: boolean;
+  canChangeVote: boolean;
 };

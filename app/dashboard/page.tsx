@@ -29,10 +29,11 @@ import { loadDashboardCycleExtras } from '@/lib/dashboard/cycle-extras';
 import {
   getLatestEndedThemePollWithTallies,
   getOpenThemePoll,
-  getUserVoteOptionId,
+  getUserVote,
   userHasActiveSubscription,
 } from '@/lib/theme-votes/queries';
 import { userCanCastThemeVote, userCanSeeThemeVote } from '@/lib/theme-votes/access';
+import { THEME_VOTE_MAX_CHANGES } from '@/lib/theme-votes/types';
 import { getThemePollStatus } from '@/lib/theme-votes/window';
 
 export default async function DashboardPage() {
@@ -67,9 +68,10 @@ export default async function DashboardPage() {
       ? await getLatestEndedThemePollWithTallies(admin)
       : null;
   const featuredPollId = openPoll?.id ?? endedPoll?.id ?? null;
-  const featuredVoteId = featuredPollId
-    ? await getUserVoteOptionId(admin, user.id, featuredPollId)
+  const featuredVote = featuredPollId
+    ? await getUserVote(admin, user.id, featuredPollId)
     : null;
+  const featuredVoteId = featuredVote?.optionId ?? null;
   const voteBanner =
     openPoll &&
     openPoll.options.length >= 2 &&
@@ -80,6 +82,9 @@ export default async function DashboardPage() {
           endsAt: openPoll.ends_at,
           options: openPoll.options,
           votedOptionId: featuredVoteId,
+          canChangeVote:
+            Boolean(featuredVoteId) &&
+            (featuredVote?.changeCount ?? 0) < THEME_VOTE_MAX_CHANGES,
         }
       : null;
   const voteResult =

@@ -1,11 +1,20 @@
-import type { SubscriberThemePollView, ThemePollWithTallies } from '@/lib/theme-votes/types';
+import {
+  THEME_VOTE_MAX_CHANGES,
+  type SubscriberThemePollView,
+  type ThemePollWithTallies,
+  type ThemeUserVote,
+} from '@/lib/theme-votes/types';
 
 export function toSubscriberThemePollView(
   poll: ThemePollWithTallies,
-  userVoteOptionId: string | null,
+  userVote: ThemeUserVote | null,
   canVote: boolean
 ): SubscriberThemePollView {
   const hideTallies = poll.status !== 'ended';
+  const userVoteOptionId = userVote?.optionId ?? null;
+  const voteChangeCount = userVote?.changeCount ?? 0;
+  const openAndEligible = canVote && poll.status === 'open';
+
   return {
     ...poll,
     totalVotes: hideTallies ? 0 : poll.totalVotes,
@@ -15,6 +24,11 @@ export function toSubscriberThemePollView(
       hideTallies ? { ...option, voteCount: 0, percent: 0 } : option
     ),
     userVoteOptionId,
-    canVote: canVote && poll.status === 'open' && !userVoteOptionId,
+    voteChangeCount,
+    canVote: openAndEligible && !userVoteOptionId,
+    canChangeVote:
+      openAndEligible &&
+      Boolean(userVoteOptionId) &&
+      voteChangeCount < THEME_VOTE_MAX_CHANGES,
   };
 }

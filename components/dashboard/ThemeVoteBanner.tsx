@@ -9,6 +9,7 @@ export type ThemeVoteBannerPoll = {
   endsAt: string;
   options: ThemeOption[];
   votedOptionId: string | null;
+  canChangeVote?: boolean;
 };
 
 export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll }) {
@@ -51,14 +52,16 @@ export default function ThemeVoteBanner({ poll }: { poll: ThemeVoteBannerPoll })
           </h2>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-mesa-ash">
             {voted
-              ? `Seu voto está guardado. O resultado sai em ${formatDate(poll.endsAt)}.`
-              : `Dois temas. Um voto. Aberto até ${formatDate(poll.endsAt)}.`}
+              ? poll.canChangeVote
+                ? `Seu voto está guardado. Ainda dá para trocar uma vez até ${formatDate(poll.endsAt)}.`
+                : `Seu voto está guardado. O resultado sai em ${formatDate(poll.endsAt)}.`
+              : `Escolha o tema, confirme o voto e, se quiser, troque uma vez. Aberto até ${formatDate(poll.endsAt)}.`}
           </p>
           <Link
             href="/dashboard/votacao"
             className="home-v2-display mt-6 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-sm bg-mesa-ember px-5 py-3 text-xs tracking-[0.1em] text-mesa-ink transition-colors duration-200 hover:bg-[#ff7a4a]"
           >
-            {voted ? 'Ver meu voto' : 'Escolher agora'}
+            {voted ? (poll.canChangeVote ? 'Trocar ou ver voto' : 'Ver meu voto') : 'Escolher agora'}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>

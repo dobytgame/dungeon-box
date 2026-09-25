@@ -50,7 +50,7 @@ export const DASHBOARD_NAV = [
     group: 'caixa',
     eyebrow: 'Próxima caixa',
     description:
-      'Dois temas na mesa. Aberto, o seu voto. Encerrado, o vencedor e a porcentagem dos votos válidos.',
+      'Dois temas na mesa. Escolha, confirme o voto e, se quiser, troque uma vez. Encerrado, o vencedor e a porcentagem.',
   },
   {
     href: '/dashboard/pedidos',
