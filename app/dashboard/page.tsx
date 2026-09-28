@@ -18,9 +18,14 @@ import {
 } from '@/lib/dashboard/format';
 import { getCustomerSubscriptionPaymentLink } from '@/lib/dashboard/pending-payment';
 import {
+  LOYALTY_CYCLE_COUPON,
+  LOYALTY_CYCLE_DISCOUNT,
+  hasSentCycle,
+} from '@/lib/dashboard/loyalty-milestones';
+import {
+  getCycles,
   getSubscriptionWithCycles,
   getManageableSubscriptions,
-  getLoyaltyLevel,
   getProfile,
   requireDashboardUser,
 } from '@/lib/dashboard/queries';
@@ -42,11 +47,8 @@ export default async function DashboardPage() {
   const manageable = await getManageableSubscriptions(user.id);
   const subscription = await getSubscriptionWithCycles(user.id);
   const plan = relOne(subscription?.plans);
-  const loyalty = subscription?.loyalty_level
-    ? await getLoyaltyLevel(subscription.loyalty_level)
-    : await getLoyaltyLevel(1);
-
   const cycles = subscription?.subscription_cycles;
+  const cycleThreeSent = hasSentCycle(await getCycles(user.id), 3);
   const nextCycle = Array.isArray(cycles)
     ? pickCurrentDashboardCycle(cycles)
     : null;
@@ -219,28 +221,24 @@ export default async function DashboardPage() {
           <DashboardCard title="Fidelidade" accent="ember">
             <dl>
               <DataRow
-                label="Nível"
+                label="Ciclo 3"
                 value={
-                  <span>
-                    {loyalty?.icon} {loyalty?.name ?? 'Recruta'}
-                  </span>
+                  cycleThreeSent
+                    ? `${LOYALTY_CYCLE_DISCOUNT}% na loja`
+                    : 'Em breve'
                 }
               />
-              <DataRow label="Ciclos pagos" value={subscription.current_cycle ?? 0} />
               <DataRow
-                label="Bônus"
-                value={
-                  loyalty?.bonus_pieces
-                    ? `+${loyalty.bonus_pieces} peça(s) por ciclo`
-                    : 'Nenhum ainda'
-                }
+                label="Cupom"
+                value={cycleThreeSent ? LOYALTY_CYCLE_COUPON : 'Libera no envio'}
               />
+              <DataRow label="Ciclos 6, 9 e 12" value="Fechados" />
             </dl>
             <Link
               href="/dashboard/loyalty"
               className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-ember transition-colors duration-200 hover:underline"
             >
-              Ver progressão →
+              Ver fidelidade →
             </Link>
           </DashboardCard>
         </div>

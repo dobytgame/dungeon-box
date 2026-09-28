@@ -115,8 +115,9 @@ export const DASHBOARD_NAV = [
     label: 'Fidelidade',
     icon: 'star',
     group: 'mesa',
-    eyebrow: 'Recompensas',
-    description: 'Níveis, bônus e benefícios por permanência na assinatura.',
+    eyebrow: 'Descontos',
+    description:
+      '20% na loja quando a caixa do ciclo 3 é enviada. Os ciclos 6, 9 e 12 ainda estão fechados.',
   },
 ] as const;
 
