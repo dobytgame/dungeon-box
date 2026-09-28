@@ -116,8 +116,7 @@ export const DASHBOARD_NAV = [
     icon: 'star',
     group: 'mesa',
     eyebrow: 'Descontos',
-    description:
-      '20% na loja quando a caixa do ciclo 3 é enviada. Os ciclos 6, 9 e 12 ainda estão fechados.',
+    description: '',
   },
 ] as const;
 
