@@ -82,9 +82,11 @@ export default function ChargePagarmeNowButton({
                   : 'renovação de ciclo';
             const cardLabel = formatCardLabel(result.card);
             const cardNote = result.card?.synced
-              ? ` Cartão atualizado e validado${cardLabel ? `: ${cardLabel}` : ''}.`
+              ? ` Cartão da assinatura${cardLabel ? `: ${cardLabel}` : ''} (sincronizado antes da cobrança).`
               : cardLabel
-                ? ` Cartão confirmado: ${cardLabel}.`
+                ? result.mode === 'retry'
+                  ? ` Cartão debitado no reprocessamento: ${cardLabel}.`
+                  : ` Cartão da assinatura: ${cardLabel}.`
                 : '';
 
             if (result.status === 'charged') {

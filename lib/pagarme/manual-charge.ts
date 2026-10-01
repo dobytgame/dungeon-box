@@ -14,6 +14,7 @@ import {
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
 import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
+import { cancelOpenPagarmeSubscriptionInvoices } from '@/lib/pagarme/subscription-api';
 import { syncLatestPagarmeCardToSubscription } from '@/lib/pagarme/sync-subscription-card';
 import { processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
 import {
@@ -24,6 +25,8 @@ import {
 
 type PagarmeChargeCard = {
   id?: string | null;
+  last_four_digits?: string | null;
+  brand?: string | null;
 };
 
 type PagarmeCharge = {
@@ -112,6 +115,23 @@ async function listSubscriptionInvoices(
     `/invoices?subscription_id=${encodeURIComponent(pagarmeSubscriptionId)}&size=20&page=1`
   );
   return listed.data ?? [];
+}
+
+async function resolveChargeCardId(chargeId: string): Promise<string | null> {
+  const charge = await pagarmeRequest<PagarmeCharge>(
+    `/charges/${encodeURIComponent(chargeId)}`
+  );
+  return chargeCardId(charge);
+}
+
+function cardInfoFromCharge(charge?: PagarmeCharge | null): ChargePagarmeNowCardInfo | null {
+  const card = charge?.card ?? charge?.last_transaction?.card;
+  if (!card?.last_four_digits && !card?.brand) return null;
+  return {
+    last4: card.last_four_digits?.trim() || null,
+    brand: card.brand?.trim() || null,
+    synced: false,
+  };
 }
 
 function formatPagarmeDate(date: Date): string {
@@ -443,6 +463,8 @@ export async function chargePagarmeSubscriptionNow(
       special_notes,
       pagarme_subscription_id,
       pagarme_customer_id,
+      card_last4,
+      card_brand,
       asaas_subscription_id,
       is_partner,
       plans!plan_id(name, slug, price_cents)
@@ -521,21 +543,52 @@ export async function chargePagarmeSubscriptionNow(
       subscription.pagarme_subscription_id
     );
     const retryInvoice = pickRetryableInvoice(invoices);
-    const retryCardId = chargeCardId(retryInvoice?.charge);
-    const skipRetry =
-      cardSync.synced ||
-      Boolean(retryCardId && retryCardId !== cardSync.cardId) ||
-      Boolean(cardSync.previousCardId && cardSync.previousCardId !== cardSync.cardId);
+    const retryChargeId = retryInvoice?.charge?.id?.trim() || null;
+    let retryCardId = chargeCardId(retryInvoice?.charge);
+    if (retryChargeId && !retryCardId) {
+      try {
+        retryCardId = await resolveChargeCardId(retryChargeId);
+      } catch (error) {
+        console.warn(
+          '[pagarme] could not resolve charge card before retry:',
+          subscriptionId,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
 
-    if (retryInvoice?.charge?.id && !skipRetry) {
+    const localLast4 = (subscription.card_last4 as string | null)?.trim() || null;
+    const canRetrySameCard =
+      Boolean(retryChargeId) &&
+      Boolean(retryCardId) &&
+      retryCardId === cardSync.cardId;
+
+    if (retryChargeId && !canRetrySameCard && retryInvoice) {
+      try {
+        await cancelOpenPagarmeSubscriptionInvoices(
+          subscription.pagarme_subscription_id
+        );
+      } catch (error) {
+        console.warn(
+          '[pagarme] cancel stale invoices before renew:',
+          subscriptionId,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+
+    if (retryChargeId && canRetrySameCard && retryInvoice?.charge) {
+      const failedInvoice = retryInvoice;
+      const failedCharge = failedInvoice.charge!;
       const retried = await pagarmeRequest<PagarmeCharge>(
-        `/charges/${encodeURIComponent(retryInvoice.charge.id)}/retry`,
+        `/charges/${encodeURIComponent(retryChargeId)}/retry`,
         { method: 'POST' }
       );
 
-      const status = chargeStatus(retried) || chargeStatus(retryInvoice.charge);
+      const chargedCard = cardInfoFromCharge(retried) ?? card;
+      const status = chargeStatus(retried) || chargeStatus(failedCharge);
       const amountCents = Math.round(
-        retried.amount ?? retryInvoice.charge.amount ?? retryInvoice.amount ?? 0
+        retried.amount ?? failedCharge.amount ?? failedInvoice.amount ?? 0
       );
       const paid = isPagarmeChargePaid(status);
 
@@ -546,15 +599,23 @@ export async function chargePagarmeSubscriptionNow(
           amountCents: amountCents || charge.totalCents,
           expectedCents: charge.totalCents,
           promoSummary: charge.promoSummary,
-          chargeId: retried.id ?? retryInvoice.charge.id,
+          chargeId: retried.id ?? failedCharge.id ?? null,
           chargeStatus: status || 'paid',
-          invoiceId: retryInvoice.id ?? null,
+          invoiceId: failedInvoice.id ?? null,
           cycleId: null,
           acquirerMessage:
             retried.last_transaction?.acquirer_message?.trim() || null,
-          card,
+          card: chargedCard,
         };
       }
+
+      const acquirerMessage =
+        retried.last_transaction?.acquirer_message?.trim() || null;
+      const chargedLast4 = chargedCard?.last4?.trim() || null;
+      const mismatchNote =
+        localLast4 && chargedLast4 && localLast4 !== chargedLast4
+          ? ` Cobrança usou •••• ${chargedLast4} (cadastro local •••• ${localLast4}). Peça nova troca de cartão e cobre de novo.`
+          : '';
 
       return {
         status: 'pending',
@@ -562,14 +623,15 @@ export async function chargePagarmeSubscriptionNow(
         amountCents: amountCents || charge.totalCents,
         expectedCents: charge.totalCents,
         promoSummary: charge.promoSummary,
-        chargeId: retried.id ?? retryInvoice.charge.id,
+        chargeId: retried.id ?? retryChargeId,
         chargeStatus: status || null,
-        invoiceId: retryInvoice.id ?? null,
+        invoiceId: failedInvoice.id ?? null,
         cycleId: null,
         message:
-          retried.last_transaction?.acquirer_message?.trim() ||
-          'Reprocessamento enviado. Acompanhe o status da cobrança no Pagar.me / webhooks.',
-        card,
+          (acquirerMessage ||
+            'Reprocessamento enviado. Acompanhe o status da cobrança no Pagar.me / webhooks.') +
+          mismatchNote,
+        card: chargedCard,
       };
     }
 
