@@ -14,6 +14,10 @@ import {
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
 import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
+import {
+  migrationNeedsImmediateCharge,
+  resolveMigrationCatchUpStartAt,
+} from '@/lib/pagarme/migration-schedule';
 import { cancelOpenPagarmeSubscriptionInvoices } from '@/lib/pagarme/subscription-api';
 import { syncLatestPagarmeCardToSubscription } from '@/lib/pagarme/sync-subscription-card';
 import { processActiveSubscriptionPayment } from '@/lib/subscriptions/cycles';
@@ -163,7 +167,8 @@ async function updateFutureSubscriptionStart(
   );
 }
 
-async function chargeFuturePagarmeSubscriptionNow(input: {
+/** Cobrança avulsa no cartão da assinatura (migração, atraso ou fatura antiga inválida). */
+async function chargeSubscriptionCatchUpNow(input: {
   admin: SupabaseClient;
   subscriptionId: string;
   pagarmeSubscriptionId: string;
@@ -177,6 +182,7 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
   charge: RecurringChargeBreakdown;
   remote: PagarmeRemoteSubscription;
   cardId?: string | null;
+  nextBillingAt?: Date;
 }): Promise<ChargePagarmeSubscriptionNowResult> {
   if (input.charge.totalCents <= 0) {
     return { status: 'error', error: 'Valor da cobrança inválido.', statusCode: 422 };
@@ -234,7 +240,8 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
     extractBillingDay(input.startedAt) ??
     extractBillingDay(input.nextBillingDate) ??
     19;
-  const nextBillingAt = resolveBillingDayAfterCatchUpCharge(billingDay);
+  const nextBillingAt =
+    input.nextBillingAt ?? resolveBillingDayAfterCatchUpCharge(billingDay);
   const nextBillingIso = nextBillingAt.toISOString();
   const orderCode = `${input.subscriptionId}-cu-${Date.now().toString(36)}`;
 
@@ -357,7 +364,7 @@ async function chargeFuturePagarmeSubscriptionNow(input: {
       invoiceId: null,
       cycleId: null,
       message:
-        'Cobrança enviada. A assinatura future não gera ciclo — acompanhe a confirmação.',
+        'Cobrança enviada (avulsa). Acompanhe a confirmação no Pagar.me / webhooks.',
       card: null,
     };
   }
@@ -635,8 +642,21 @@ export async function chargePagarmeSubscriptionNow(
       };
     }
 
-    if ((remote.status ?? '').trim().toLowerCase() === 'future') {
-      const catchup = await chargeFuturePagarmeSubscriptionNow({
+    const remoteStatus = (remote.status ?? '').trim().toLowerCase();
+    const subscriptionStatus = (subscription.status as string | null)?.trim() ?? '';
+    const nextBillingDate = (subscription.next_billing_date as string | null) ?? null;
+    const needsImmediateCharge = migrationNeedsImmediateCharge({
+      status: subscriptionStatus,
+      nextBillingDate,
+    });
+    const skippedStaleRetry = Boolean(retryChargeId && !canRetrySameCard);
+
+    if (remoteStatus === 'future' || needsImmediateCharge || skippedStaleRetry) {
+      const nextBillingAt =
+        needsImmediateCharge && nextBillingDate
+          ? resolveMigrationCatchUpStartAt(nextBillingDate)
+          : undefined;
+      const catchup = await chargeSubscriptionCatchUpNow({
         admin,
         subscriptionId,
         pagarmeSubscriptionId: subscription.pagarme_subscription_id,
@@ -644,16 +664,17 @@ export async function chargePagarmeSubscriptionNow(
         addressId: (subscription.address_id as string | null) ?? null,
         pagarmeCustomerId,
         startedAt: (subscription.started_at as string | null) ?? null,
-        nextBillingDate: (subscription.next_billing_date as string | null) ?? null,
+        nextBillingDate,
         asaasSubscriptionId:
           (subscription.asaas_subscription_id as string | null) ?? null,
         currentCycle: (subscription.current_cycle as number | null) ?? null,
         charge,
         remote,
         cardId: cardSync.cardId,
+        nextBillingAt,
       });
       if (catchup.status === 'error') return catchup;
-      return { ...catchup, card };
+      return { ...catchup, card: catchup.card ?? card };
     }
 
     const cycle = await pagarmeRequest<PagarmeCycleResponse>(
@@ -715,7 +736,7 @@ export async function chargePagarmeSubscriptionNow(
       cycleId: cycle.id ?? null,
       message:
         acquirerMessage ||
-        'Ciclo renovado no Pagar.me. A cobrança foi disparada — confirme via webhook ou painel.',
+        'Ciclo renovado, mas nenhuma cobrança paga foi confirmada. Se a assinatura estiver em atraso, o botão passará a usar cobrança avulsa no cartão atual.',
       card,
     };
   } catch (error) {

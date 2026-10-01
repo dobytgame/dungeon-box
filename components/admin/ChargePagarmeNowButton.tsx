@@ -78,7 +78,7 @@ export default function ChargePagarmeNowButton({
               result.mode === 'retry'
                 ? 'reprocessamento'
                 : result.mode === 'catchup'
-                  ? 'regularização (assinatura futura)'
+                  ? 'cobrança avulsa (atraso/migração)'
                   : 'renovação de ciclo';
             const cardLabel = formatCardLabel(result.card);
             const cardNote = result.card?.synced
