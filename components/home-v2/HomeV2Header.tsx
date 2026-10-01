@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import HomeV2Button from '@/components/home-v2/HomeV2Button';
@@ -8,7 +9,7 @@ import { HOME_V2_COPY } from '@/lib/home-v2/content';
 import { trackHomeV2HeroCta } from '@/lib/home-v2/analytics';
 
 const NAV_LINKS = [
-  { href: '#jornada', label: 'Como funciona' },
+  { href: '#kits', label: 'Os kits' },
   { href: '#planos', label: 'Planos' },
   { href: '#loja', label: 'Loja' },
   { href: '#faq', label: 'FAQ' },
@@ -42,7 +43,20 @@ function useActiveSection(ids: string[]) {
 
 const SECTION_IDS = NAV_LINKS.map((link) => link.href.slice(1));
 
-export default function HomeV2Header() {
+interface Props {
+  isLoggedIn?: boolean;
+  userName?: string | null;
+}
+
+function accountLabel(isLoggedIn: boolean, userName?: string | null): string {
+  if (!isLoggedIn) return 'Entrar';
+  const firstName = userName?.trim().split(' ')[0];
+  return firstName ? `Olá, ${firstName}` : 'Minha conta';
+}
+
+export default function HomeV2Header({ isLoggedIn = false, userName }: Props) {
+  const accountHref = isLoggedIn ? '/dashboard' : '/auth';
+  const accountText = accountLabel(isLoggedIn, userName);
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const active = useActiveSection(SECTION_IDS);
@@ -105,6 +119,12 @@ export default function HomeV2Header() {
           </ul>
 
           <div className="flex items-center gap-2">
+            <Link
+              href={accountHref}
+              className="inline-flex min-h-11 items-center rounded-sm px-2 text-sm font-medium text-mesa-ash transition-colors duration-200 hover:text-mesa-parchment"
+            >
+              {accountText}
+            </Link>
             <HomeV2Button
               href="#planos"
               size="sm"
@@ -153,6 +173,18 @@ export default function HomeV2Header() {
                 </a>
               </li>
             ))}
+            <li
+              className="home-v2-enter border-b border-white/[0.07]"
+              style={{ '--enter-step': NAV_LINKS.length * 0.6 } as React.CSSProperties}
+            >
+              <Link
+                href={accountHref}
+                className="block rounded-sm px-2 py-3 text-base text-mesa-parchment"
+                onClick={() => setMenuOpen(false)}
+              >
+                {isLoggedIn ? 'Minha conta' : 'Entrar'}
+              </Link>
+            </li>
           </ul>
           <div className="home-v2-enter mt-8" style={{ '--enter-step': 2.4 } as React.CSSProperties}>
             <HomeV2Button

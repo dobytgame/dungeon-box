@@ -10,7 +10,11 @@ import {
   updateMpPreapprovalStatus,
   type MpPreapprovalStatus,
 } from '@/lib/mercadopago';
-import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
+import {
+  cancelPagarmeSubscriptionBestEffort,
+  pausePagarmeSubscriptionBilling,
+  resumePagarmeSubscriptionBilling,
+} from '@/lib/pagarme/subscription-api';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
@@ -18,6 +22,38 @@ import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
 import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 
 export type SubscriptionStatusAction = 'pause' | 'cancel' | 'resume';
+
+/** Próxima cobrança na retomada: a data salva, se ainda for futura; senão, daqui a um mês. */
+export function resolveResumeBillingDate(
+  nextBillingDate: string | null,
+  now = new Date()
+): Date {
+  const todayUtc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate()
+  );
+
+  if (nextBillingDate) {
+    const parsed = new Date(
+      nextBillingDate.includes('T') || nextBillingDate.includes(' ')
+        ? nextBillingDate
+        : `${nextBillingDate}T12:00:00Z`
+    );
+    if (!Number.isNaN(parsed.getTime())) {
+      const billingUtc = Date.UTC(
+        parsed.getUTCFullYear(),
+        parsed.getUTCMonth(),
+        parsed.getUTCDate()
+      );
+      if (billingUtc > todayUtc) return parsed;
+    }
+  }
+
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
+  );
+}
 
 type SubscriptionRow = {
   id: string;
@@ -82,6 +118,29 @@ export async function applySubscriptionStatusChange(
   }
 
   const row = subscription as SubscriptionRow;
+  const resumeBillingDate = resolveResumeBillingDate(row.next_billing_date);
+
+  async function revertPause() {
+    if (action !== 'pause') return;
+    await supabase
+      .from('subscriptions')
+      .update({ status: row.status, updated_at: new Date().toISOString() })
+      .eq('id', subscriptionId);
+  }
+
+  if (action === 'pause') {
+    let markPaused = supabase
+      .from('subscriptions')
+      .update({ status: 'paused', updated_at: updates.updated_at })
+      .eq('id', subscriptionId);
+    if (options.userId) {
+      markPaused = markPaused.eq('user_id', options.userId);
+    }
+    const { error: markPausedError } = await markPaused;
+    if (markPausedError) return { error: markPausedError.message };
+  }
+
+  let pagarmeBillingPostponed = false;
 
   if (row.pagarme_subscription_id && PAGARME_CONFIGURED && action === 'cancel') {
     try {
@@ -92,6 +151,33 @@ export async function applySubscriptionStatusChange(
     }
   }
 
+  if (
+    row.pagarme_subscription_id &&
+    PAGARME_CONFIGURED &&
+    (action === 'pause' || action === 'resume')
+  ) {
+    try {
+      if (action === 'pause') {
+        await pausePagarmeSubscriptionBilling(row.pagarme_subscription_id);
+        pagarmeBillingPostponed = true;
+      } else {
+        await resumePagarmeSubscriptionBilling(
+          row.pagarme_subscription_id,
+          resumeBillingDate
+        );
+      }
+    } catch (error) {
+      console.error('Pagar.me subscription pause/resume:', error);
+      await revertPause();
+      return {
+        error:
+          action === 'pause'
+            ? 'Não foi possível pausar a cobrança no Pagar.me. A assinatura continua ativa.'
+            : 'Não foi possível retomar a cobrança no Pagar.me. Tente novamente.',
+      };
+    }
+  }
+
   if (row.asaas_subscription_id && ASAAS_CONFIGURED) {
     try {
       if (action === 'cancel') {
@@ -99,17 +185,26 @@ export async function applySubscriptionStatusChange(
       } else if (action === 'pause') {
         await pauseAsaasSubscription(row.asaas_subscription_id);
       } else if (action === 'resume') {
-        const nextDue = row.next_billing_date
-          ? new Date(row.next_billing_date)
-          : (() => {
-              const fallback = new Date();
-              fallback.setMonth(fallback.getMonth() + 1);
-              return fallback;
-            })();
-        await resumeAsaasSubscription(row.asaas_subscription_id, nextDue);
+        await resumeAsaasSubscription(row.asaas_subscription_id, resumeBillingDate);
       }
     } catch (error) {
       console.error('Asaas subscription update:', error);
+      if (action === 'pause') {
+        if (pagarmeBillingPostponed && row.pagarme_subscription_id) {
+          try {
+            await resumePagarmeSubscriptionBilling(
+              row.pagarme_subscription_id,
+              resumeBillingDate
+            );
+          } catch (restoreError) {
+            console.error(
+              'Pagar.me billing restore after Asaas pause failure:',
+              restoreError
+            );
+          }
+        }
+        await revertPause();
+      }
       return {
         error:
           'Não foi possível atualizar a assinatura no Asaas. Tente novamente.',
@@ -135,6 +230,7 @@ export async function applySubscriptionStatusChange(
       }
     } catch (error) {
       console.error('Stripe subscription update:', error);
+      await revertPause();
       return {
         error:
           'Não foi possível atualizar a assinatura no Stripe. Tente novamente.',
@@ -145,6 +241,7 @@ export async function applySubscriptionStatusChange(
       await updateMpPreapprovalStatus(row.mp_subscription_id, mpStatus);
     } catch (error) {
       console.error('MP preapproval update:', error);
+      await revertPause();
       return {
         error:
           'Não foi possível atualizar a assinatura no Mercado Pago. Tente novamente.',

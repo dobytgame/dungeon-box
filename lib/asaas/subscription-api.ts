@@ -35,6 +35,9 @@ export async function cancelAsaasSubscriptionBestEffort(
   }
 }
 
+const CANCELLABLE_ASAAS_PAYMENT_STATUSES = new Set(['PENDING', 'OVERDUE']);
+
+/** Inativa a recorrência e remove cobranças ainda não pagas, que o Asaas seguiria tentando. */
 export async function pauseAsaasSubscription(asaasSubscriptionId: string) {
   await asaasRequest<AsaasSubscriptionResponse>(
     `/subscriptions/${asaasSubscriptionId}`,
@@ -43,6 +46,17 @@ export async function pauseAsaasSubscription(asaasSubscriptionId: string) {
       body: { status: 'INACTIVE' },
     }
   );
+
+  const listed = await asaasRequest<{
+    data?: Array<{ id?: string; status?: string }>;
+  }>(`/subscriptions/${asaasSubscriptionId}/payments?limit=50`);
+
+  for (const payment of listed.data ?? []) {
+    const status = payment.status?.trim().toUpperCase() ?? '';
+    if (!payment.id || !CANCELLABLE_ASAAS_PAYMENT_STATUSES.has(status)) continue;
+
+    await asaasRequest(`/payments/${payment.id}`, { method: 'DELETE' });
+  }
 }
 
 export async function resumeAsaasSubscription(

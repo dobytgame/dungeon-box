@@ -446,6 +446,10 @@ export async function handlePagarmeSubscriptionActive(
   const local = await findLocalSubscriptionByPagarmeId(supabase, subscription.id);
   if (!local) return 'skipped';
 
+  if (local.status === 'paused' || local.status === 'cancelled') {
+    return 'skipped';
+  }
+
   if (local.status === 'pending') {
     const { data: detail } = await supabase
       .from('subscriptions')

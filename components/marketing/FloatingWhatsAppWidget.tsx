@@ -70,10 +70,12 @@ function WhatsAppIcon({ className }: { className?: string }) {
 
 interface Props {
   source?: string;
+  className?: string;
 }
 
 export default function FloatingWhatsAppWidget({
   source = 'floating_widget',
+  className = '',
 }: Props) {
   const formId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -197,7 +199,9 @@ export default function FloatingWhatsAppWidget({
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-5 right-4 z-[80] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
+    <div
+      className={`pointer-events-none fixed bottom-5 right-4 z-[80] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6 ${className}`}
+    >
       {open ? (
         <>
           <button

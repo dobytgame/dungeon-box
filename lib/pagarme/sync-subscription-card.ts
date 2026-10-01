@@ -45,22 +45,28 @@ export async function syncLatestPagarmeCardToSubscription(input: {
   }
 
   const latestWallet = pickNewestActivePagarmeCard(cards);
-  const currentInWallet = previousCardId
+  const subscriptionCardInWallet = previousCardId
     ? cards.find((card) => card.id === previousCardId)
     : undefined;
 
+  // Após PATCH com card_token, o cartão novo pode existir só na assinatura e não na
+  // carteira `/customers/.../cards`. Nesse caso, não substituir pela carteira — isso
+  // revertia para o cartão antigo antes da cobrança manual/retry.
   const walletIsNewer =
     Boolean(latestWallet?.id) &&
     latestWallet!.id !== previousCardId &&
-    (!currentInWallet || cardStamp(latestWallet) >= cardStamp(currentInWallet));
+    Boolean(subscriptionCardInWallet) &&
+    cardStamp(latestWallet!) >= cardStamp(subscriptionCardInWallet!);
 
   let cardId = previousCardId;
   let last4 =
     input.currentRemoteLast4?.trim() ||
-    currentInWallet?.last_four_digits?.trim() ||
+    subscriptionCardInWallet?.last_four_digits?.trim() ||
     null;
   let brand =
-    input.currentRemoteBrand?.trim() || currentInWallet?.brand?.trim() || null;
+    input.currentRemoteBrand?.trim() ||
+    subscriptionCardInWallet?.brand?.trim() ||
+    null;
   let synced = false;
 
   const attachWalletCard = async (card: PagarmeCustomerCard) => {

@@ -106,7 +106,7 @@ export default function HomeV2Hero() {
               {hero.cta}
             </HomeV2Button>
             <HomeV2Button
-              href="#jornada"
+              href="#kits"
               size="lg"
               variant="ghost"
               className="hidden sm:inline-flex"

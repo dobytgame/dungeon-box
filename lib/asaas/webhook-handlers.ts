@@ -263,6 +263,10 @@ export async function handleAsaasPaymentConfirmed(
     return 'processed';
   }
 
+  if (local.status === 'paused' || local.status === 'cancelled') {
+    return 'processed';
+  }
+
   if (local.status === 'pending') {
     const activated = await activateSubscriptionFromAsaas(supabase, local.id);
     if (!activated) {
@@ -393,7 +397,9 @@ export async function handleAsaasPaymentOverdue(
   payment: AsaasWebhookPayment
 ): Promise<'processed' | 'skipped'> {
   const local = await resolveLocalAsaasSubscription(supabase, payment);
-  if (!local || local.status === 'cancelled') return 'skipped';
+  if (!local || local.status === 'cancelled' || local.status === 'paused') {
+    return 'skipped';
+  }
 
   await supabase
     .from('subscriptions')

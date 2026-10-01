@@ -10,7 +10,7 @@ const LINK_GROUPS = [
   {
     title: 'Explorar',
     links: [
-      { href: '#jornada', label: 'Como funciona' },
+      { href: '#kits', label: 'Os kits' },
       { href: '#planos', label: 'Planos' },
       { href: '#dungeon-do-mes', label: 'Dungeon do mês' },
       { href: '#loja', label: 'Loja' },

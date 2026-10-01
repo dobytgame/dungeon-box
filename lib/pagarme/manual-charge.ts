@@ -524,7 +524,8 @@ export async function chargePagarmeSubscriptionNow(
     const retryCardId = chargeCardId(retryInvoice?.charge);
     const skipRetry =
       cardSync.synced ||
-      Boolean(retryCardId && retryCardId !== cardSync.cardId);
+      Boolean(retryCardId && retryCardId !== cardSync.cardId) ||
+      Boolean(cardSync.previousCardId && cardSync.previousCardId !== cardSync.cardId);
 
     if (retryInvoice?.charge?.id && !skipRetry) {
       const retried = await pagarmeRequest<PagarmeCharge>(

@@ -60,7 +60,7 @@ export const HOME_V2_COPY = {
     support:
       'Receba novos cenários 3D todos os meses e transforme cada campanha em uma mesa que seus jogadores vão lembrar.',
     cta: 'Escolher meu plano',
-    secondaryCta: 'Ver como funciona',
+    secondaryCta: 'Ver os kits',
     guarantees: ['Cancele quando quiser', 'Sem carência', 'Peças que se conectam'],
   },
   evidenceSection: {
