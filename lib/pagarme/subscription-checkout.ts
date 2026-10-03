@@ -21,6 +21,7 @@ import {
 } from '@/lib/pagarme/store-order-code';
 import { syncPagarmeComboOrderPayment } from '@/lib/pagarme/combo-payment';
 import { pagarmeRequest } from '@/lib/pagarme/client';
+import { truncatePagarmeItemDescription } from '@/lib/pagarme/item-description';
 import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
 import { buildPagarmeSubscriptionCardPayload } from '@/lib/pagarme/subscription-card-payload';
 import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-card-payload';
@@ -352,7 +353,9 @@ export async function createPagarmeSubscription(
           }),
           items: [
             {
-              description: `DungeonBox — ${input.planName} (renovação mensal)`,
+              description: truncatePagarmeItemDescription(
+                `DungeonBox — ${input.planName} (renovação mensal)`
+              ),
               quantity: 1,
               pricing_scheme: {
                 scheme_type: 'unit',
@@ -419,7 +422,9 @@ export async function createPagarmeSubscription(
         }),
         items: [
           {
-            description: `DungeonBox — ${input.planName}`,
+            description: truncatePagarmeItemDescription(
+              `DungeonBox — ${input.planName}`
+            ),
             quantity: 1,
             pricing_scheme: {
               scheme_type: 'unit',

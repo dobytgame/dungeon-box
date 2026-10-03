@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import CustomOrderPayLinkBar from '@/components/admin/CustomOrderPayLinkBar';
+import RecordOfflineStorePaymentPanel from '@/components/admin/RecordOfflineStorePaymentPanel';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
 import CycleShipForm from '@/components/admin/CycleShipForm';
 import ProductionPipeline from '@/components/admin/ProductionPipeline';
@@ -39,7 +40,14 @@ export default function StoreOrderDetailPanel({ order, onUpdated }: Props) {
     return (
       <div className="space-y-8">
         {awaitingPayment ? (
-          <CustomOrderPayLinkBar orderId={order.orderId} />
+          <>
+            <CustomOrderPayLinkBar orderId={order.orderId} />
+            <RecordOfflineStorePaymentPanel
+              paymentId={order.paymentId}
+              defaultAmountCents={detail.amount_cents ?? 0}
+              isCustom={order.isCustom}
+            />
+          </>
         ) : (
           <ProductionPipeline status={detail.status} />
         )}
@@ -154,8 +162,18 @@ export default function StoreOrderDetailPanel({ order, onUpdated }: Props) {
     );
   }
 
+  const awaitingPayment = order.paymentStatus !== 'approved';
+
   return (
     <div className="space-y-8">
+      {awaitingPayment ? (
+        <RecordOfflineStorePaymentPanel
+          paymentId={order.paymentId}
+          defaultAmountCents={order.amountCents}
+          isCustom={order.meta.source === 'admin_custom'}
+        />
+      ) : null}
+
       {order.cycleStatus ? (
         <ProductionPipeline status={order.cycleStatus} />
       ) : null}

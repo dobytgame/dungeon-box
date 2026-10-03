@@ -1228,6 +1228,70 @@ export async function adminManualDeactivateSubscriptionAction(
   return { success: true as const };
 }
 
+export async function recordOfflineStorePaymentAction(input: {
+  paymentId: string;
+  paidAt: string;
+  amountReais: string;
+  method: string;
+  note?: string | null;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.paymentId) {
+    return { error: 'Informe o pedido.' };
+  }
+
+  const {
+    paidAtFromDateInput,
+    parseReaisToCents,
+    recordOfflineStoreOrderPayment,
+  } = await import('@/lib/admin/record-offline-store-payment');
+
+  const paidAt = paidAtFromDateInput(input.paidAt);
+  if (!paidAt) {
+    return { error: 'Informe a data do pagamento.' };
+  }
+
+  const amountCents = parseReaisToCents(input.amountReais);
+  if (amountCents == null) {
+    return { error: 'Informe o valor pago.' };
+  }
+
+  const result = await recordOfflineStoreOrderPayment(admin, {
+    paymentId: input.paymentId,
+    paidAt,
+    amountCents,
+    method: input.method,
+    note: input.note,
+  });
+
+  if ('error' in result) {
+    return result;
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'store_order.record_offline_payment',
+    entityType: 'payment',
+    entityId: input.paymentId,
+    metadata: {
+      order_id: result.orderId,
+      method: input.method,
+      amountCents,
+      paidAt,
+      note: input.note?.trim() || null,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath('/admin/loja/pedidos');
+  revalidatePath(`/admin/loja/pedidos/${input.paymentId}`);
+  revalidatePath('/admin/ciclos');
+  revalidateAdmin();
+
+  return { success: true as const, orderId: result.orderId };
+}
+
 export async function recordOfflineSubscriptionPaymentAction(input: {
   subscriptionId: string;
   paidAt: string;

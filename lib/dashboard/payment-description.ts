@@ -16,6 +16,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   pix: 'Pix',
   debit_card: 'Débito',
   ticket: 'Boleto',
+  manual: 'Pagamento direto',
 };
 
 function looksLikeJson(value: string): boolean {

@@ -40,6 +40,10 @@ import type {
   AsaasCreditCardHolderInput,
   AsaasCreditCardInput,
 } from '@/lib/asaas/subscription-checkout';
+import {
+  buildStoreOrderPaymentDescription,
+  storeOrderDescriptionMaxLength,
+} from '@/lib/store/order-description';
 import { getActivePaymentProvider } from '@/lib/payments/provider';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
@@ -132,12 +136,6 @@ function buildPagarmeBillingAddress(address: AddressRow) {
   };
 }
 
-function buildOrderDescription(items: StoreOrderMeta['items']): string {
-  const summary = items
-    .map((line) => `${line.quantity}x ${line.name}`)
-    .join(', ');
-  return `DungeonBox Loja — ${summary}`;
-}
 
 async function loadProfileAndAddress(
   admin: SupabaseClient,
@@ -462,7 +460,10 @@ export async function chargeCustomStoreOrder(
     paymentRow.user_id,
     meta.orderId
   );
-  const description = buildOrderDescription(meta.items);
+  const description = buildStoreOrderPaymentDescription(
+    meta.items,
+    storeOrderDescriptionMaxLength(gateway === 'pagarme' ? 'pagarme' : 'asaas')
+  );
   const pagarmeOrderCode = buildPagarmeStoreOrderCode(meta.orderId);
   const pagarmeMetadata = {
     store_user_id: paymentRow.user_id,

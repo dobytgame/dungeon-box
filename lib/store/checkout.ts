@@ -51,6 +51,10 @@ import {
 import { resolveStoreProductForCheckout } from '@/lib/store/resolve-product';
 import { isPublicStoreProduct, isStorePublic } from '@/lib/store/access';
 import { quoteStoreStandaloneShipping } from '@/lib/store/shipping';
+import {
+  buildStoreOrderPaymentDescription,
+  storeOrderDescriptionMaxLength,
+} from '@/lib/store/order-description';
 import { formatProductNameWithVariations, formatVariationSummary, validateSelectedProductOptions } from '@/lib/store/product-variations';
 import {
   minQuantityForProduct,
@@ -166,10 +170,6 @@ function buildPagarmeBillingAddress(address: AddressRow) {
   };
 }
 
-function buildOrderDescription(lines: ResolvedStoreLine[]): string {
-  const summary = lines.map((line) => `${line.quantity}x ${line.name}`).join(', ');
-  return `DungeonBox Loja — ${summary}`;
-}
 
 function findPaintKitForBundle(
   items: CartLine[]
@@ -551,10 +551,13 @@ export async function purchaseStoreOrder(
     input.userId,
     orderId
   );
-  const description = buildOrderDescription(lines);
 
   const gateway =
     (await getActivePaymentProvider()) === 'pagarme' ? 'pagarme' : 'asaas';
+  const description = buildStoreOrderPaymentDescription(
+    lines,
+    storeOrderDescriptionMaxLength(gateway)
+  );
 
   const orderMeta: StoreOrderMeta = {
     type: 'store_order',

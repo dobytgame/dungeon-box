@@ -64,7 +64,10 @@ export type StoreOrderMeta = {
   orderId: string;
   /** Pedido criado no admin com itens e valor livres. */
   source?: 'admin_custom';
-  gateway?: 'asaas' | 'pagarme';
+  gateway?: 'asaas' | 'pagarme' | 'offline';
+  /** Pagamento confirmado pelo admin, fora do gateway. */
+  offlineSettlement?: boolean;
+  offlineNote?: string | null;
   pagarmeOrderId?: string | null;
   paymentMethod: 'credit_card' | 'pix';
   items: Array<{

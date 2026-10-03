@@ -1,4 +1,5 @@
 import { pagarmeRequest } from '@/lib/pagarme/client';
+import { truncatePagarmeItemDescription } from '@/lib/pagarme/item-description';
 import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-checkout';
 
 export type PagarmeOrderCharge = {
@@ -170,7 +171,7 @@ async function createPagarmeOrder(input: {
       items: [
         {
           amount: input.valueCents,
-          description: input.description,
+          description: truncatePagarmeItemDescription(input.description),
           quantity: 1,
           code: input.orderCode,
         },
