@@ -14,6 +14,10 @@ import {
   recreateAsaasSubscriptionForBillingPlan,
   repairAllPlanUpgradeAsaasRecurrences,
 } from '@/lib/asaas/plan-upgrade-recurrence';
+import {
+  cancelPendingSubscriptionUpgrade,
+  scheduleSubscriptionUpgrade,
+} from '@/lib/subscriptions/upgrade';
 import { PLAN_SLUGS, type PlanSlug } from '@/lib/checkout/plans';
 import {
   normalizePromoCode,
@@ -643,6 +647,101 @@ export async function repairAllPlanUpgradeAsaasRecurrencesAction() {
     console.error('[admin] repair plan upgrade asaas recurrences:', error);
     return { error: 'Falha ao corrigir recorrências de upgrade no Asaas.' };
   }
+}
+
+export async function adminSchedulePlanUpgradeAction(
+  subscriptionId: string,
+  targetPlanSlug: string
+) {
+  const { user, admin } = await requireAdmin();
+
+  if (!PLAN_SLUGS.includes(targetPlanSlug as PlanSlug)) {
+    return { error: 'Plano inválido.' };
+  }
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id, user_id')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (!subscription?.user_id) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  const result = await scheduleSubscriptionUpgrade(
+    admin,
+    subscription.user_id,
+    subscriptionId,
+    targetPlanSlug as PlanSlug,
+    {
+      allowPastDue: true,
+      actor: 'admin',
+      actorId: user.id,
+    }
+  );
+
+  if ('error' in result) {
+    return result;
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.schedule_plan_upgrade',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: { targetPlanSlug },
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+  revalidatePath(`/admin/clientes/${subscription.user_id}`);
+
+  return { success: true as const };
+}
+
+export async function adminCancelPlanUpgradeAction(subscriptionId: string) {
+  const { user, admin } = await requireAdmin();
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select('id, user_id')
+    .eq('id', subscriptionId)
+    .maybeSingle();
+
+  if (!subscription?.user_id) {
+    return { error: 'Assinatura não encontrada.' };
+  }
+
+  const result = await cancelPendingSubscriptionUpgrade(
+    admin,
+    subscription.user_id,
+    subscriptionId,
+    {
+      actor: 'admin',
+      actorId: user.id,
+    }
+  );
+
+  if ('error' in result) {
+    return result;
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.cancel_plan_upgrade',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: {},
+    ipAddress: await clientIp(),
+  });
+
+  revalidateAdmin();
+  revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+  revalidatePath(`/admin/clientes/${subscription.user_id}`);
+
+  return { success: true as const };
 }
 
 export async function repairSubscriptionCyclesAction(subscriptionId: string) {

@@ -126,7 +126,8 @@ export async function findReusableSubscriptionPix(
 export type PagarmeSubscriptionPixChargeKind =
   | 'admin_pix'
   | 'pix_renewal'
-  | 'combo';
+  | 'combo'
+  | 'plan_upgrade';
 
 export async function createPagarmeSubscriptionPixPayment(
   supabase: SupabaseClient,

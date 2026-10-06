@@ -8,6 +8,7 @@ import DataRow from '@/components/dashboard/DataRow';
 import EmptyState from '@/components/dashboard/EmptyState';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import SubscriptionPaymentCallout from '@/components/dashboard/SubscriptionPaymentCallout';
+import SubscriptionUpgradeActivation from '@/components/dashboard/SubscriptionUpgradeActivation';
 import ThemeVoteBanner from '@/components/dashboard/ThemeVoteBanner';
 import ThemeVoteResult from '@/components/dashboard/ThemeVoteResult';
 import { formatDashboardTracking, pickCurrentDashboardCycle } from '@/lib/dashboard/cycle-status';
@@ -17,6 +18,7 @@ import {
   relOne,
 } from '@/lib/dashboard/format';
 import { getCustomerSubscriptionPaymentLink } from '@/lib/dashboard/pending-payment';
+import { resolvePendingUpgradePricing } from '@/lib/subscriptions/upgrade';
 import {
   LOYALTY_CYCLE_COUPON,
   LOYALTY_CYCLE_DISCOUNT,
@@ -106,16 +108,32 @@ export default async function DashboardPage() {
       : null;
 
   const pastDueSubscription = manageable.find((sub) => sub.status === 'past_due');
-  const pastDuePaymentLink = pastDueSubscription
-    ? await getCustomerSubscriptionPaymentLink(user.id, pastDueSubscription.id)
+  const pastDuePendingPlan = pastDueSubscription
+    ? relOne(pastDueSubscription.pending_plan)
     : null;
+  const pastDueUpgradePricing =
+    pastDueSubscription && pastDuePendingPlan
+      ? await resolvePendingUpgradePricing(pastDueSubscription)
+      : null;
+  const pastDuePaymentLink =
+    pastDueSubscription && !pastDuePendingPlan
+      ? await getCustomerSubscriptionPaymentLink(user.id, pastDueSubscription.id)
+      : null;
   const pastDuePlan = pastDueSubscription
     ? relOne(pastDueSubscription.plans)
     : null;
 
   return (
     <div className="space-y-8 md:space-y-10">
-      {pastDueSubscription && pastDuePaymentLink ? (
+      {pastDueSubscription && pastDuePendingPlan && pastDueUpgradePricing ? (
+        <SubscriptionUpgradeActivation
+          subscriptionId={pastDueSubscription.id}
+          currentPlanName={pastDuePlan?.name ?? 'plano atual'}
+          targetPlanName={pastDuePendingPlan.name}
+          amountCents={pastDueUpgradePricing.totalCents}
+          promoSummary={pastDueUpgradePricing.promoSummary}
+        />
+      ) : pastDueSubscription && pastDuePaymentLink ? (
         <SubscriptionPaymentCallout
           status="past_due"
           planName={pastDuePlan?.name ?? null}

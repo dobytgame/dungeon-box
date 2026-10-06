@@ -51,8 +51,9 @@ export default function SubscriptionActions({ subscription }: Props) {
       ) : null}
       {isPastDue ? (
         <p className="text-sm text-red-200/90">
-          Sua assinatura está em atraso. Use o botão &quot;Pagar agora&quot; acima para
-          regularizar e evitar interrupção das entregas.
+          {subscription.pending_plan_id
+            ? 'Sua assinatura está em atraso. Pague o upgrade acima para ativar o plano novo.'
+            : 'Sua assinatura está em atraso. Use o pagamento acima para regularizar e evitar interrupção das entregas.'}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-3">

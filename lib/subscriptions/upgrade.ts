@@ -12,6 +12,7 @@ import {
   type SubscriptionRecurringContext,
 } from '@/lib/subscriptions/recurring-charge';
 import { recreateAsaasSubscriptionForBillingPlan } from '@/lib/asaas/plan-upgrade-recurrence';
+import { syncPagarmeSubscriptionRecurringPrice } from '@/lib/pagarme/sync-recurring-price';
 import { logSubscriptionPlanChange } from '@/lib/subscriptions/plan-change-log';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -76,12 +77,16 @@ async function resolveRecurringChargeForPlan(
 }
 
 export async function buildUpgradeOptionsPricing(
-  subscription: SubscriptionUpgradeRow
+  subscription: SubscriptionUpgradeRow,
+  pricingOptions?: { allowPastDue?: boolean }
 ): Promise<UpgradeOptionPricing[]> {
   const currentPlan = relOne(subscription.plans);
   const currentSlug = currentPlan?.slug as PlanSlug | undefined;
+  const statusAllowed = pricingOptions?.allowPastDue
+    ? subscription.status === 'active' || subscription.status === 'past_due'
+    : subscription.status === 'active';
 
-  if (!currentSlug || subscription.status !== 'active') {
+  if (!currentSlug || !statusAllowed) {
     return [];
   }
 
@@ -241,12 +246,17 @@ export async function scheduleSubscriptionUpgrade(
   supabase: SupabaseClient,
   userId: string,
   subscriptionId: string,
-  targetPlanSlug: PlanSlug
+  targetPlanSlug: PlanSlug,
+  options?: {
+    allowPastDue?: boolean;
+    actor?: 'user' | 'admin';
+    actorId?: string;
+  }
 ): Promise<{ success: true } | { error: string }> {
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select(
-      'id, status, asaas_subscription_id, plan_id, promo_code, shipping_cents, special_notes, billing_term, prepaid_until, plans!plan_id(*)'
+      'id, status, asaas_subscription_id, pagarme_subscription_id, plan_id, promo_code, shipping_cents, special_notes, billing_term, prepaid_until, plans!plan_id(*)'
     )
     .eq('id', subscriptionId)
     .eq('user_id', userId)
@@ -256,9 +266,15 @@ export async function scheduleSubscriptionUpgrade(
     return { error: 'Assinatura não encontrada.' };
   }
 
-  if (subscription.status !== 'active') {
+  const statusAllowed = options?.allowPastDue
+    ? subscription.status === 'active' || subscription.status === 'past_due'
+    : subscription.status === 'active';
+
+  if (!statusAllowed) {
     return {
-      error: 'Só é possível fazer upgrade de assinaturas ativas.',
+      error: options?.allowPastDue
+        ? 'Só é possível fazer upgrade de assinaturas ativas ou em atraso.'
+        : 'Só é possível fazer upgrade de assinaturas ativas.',
     };
   }
 
@@ -326,17 +342,10 @@ export async function scheduleSubscriptionUpgrade(
     const syncResult = await recreateAsaasSubscriptionForBillingPlan(
       admin,
       subscriptionId,
-      { remoteIp }
+      { remoteIp, allowPastDue: options?.allowPastDue }
     );
     if (syncResult.status === 'failed') {
-      await supabase
-        .from('subscriptions')
-        .update({
-          pending_plan_id: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', subscriptionId)
-        .eq('user_id', userId);
+      await clearPendingPlanUpgrade(supabase, subscriptionId, userId);
 
       const reason =
         syncResult.reason === 'credit_card_token_unavailable'
@@ -354,14 +363,34 @@ export async function scheduleSubscriptionUpgrade(
     }
   }
 
+  if (subscription.pagarme_subscription_id) {
+    const priceSync = await syncPagarmeSubscriptionRecurringPrice(
+      admin,
+      subscriptionId
+    );
+    if (priceSync.status === 'error') {
+      await clearPendingPlanUpgrade(supabase, subscriptionId, userId);
+      if (subscription.asaas_subscription_id) {
+        const remoteIp = await resolveUpgradeRemoteIp();
+        await recreateAsaasSubscriptionForBillingPlan(admin, subscriptionId, {
+          remoteIp,
+          allowPastDue: options?.allowPastDue,
+        });
+      }
+      return {
+        error: `Não foi possível atualizar o valor no Pagar.me. ${priceSync.error}`,
+      };
+    }
+  }
+
   await logSubscriptionPlanChange(supabase, {
     subscriptionId,
     userId,
     fromPlanId: currentPlan.id,
     toPlanId: targetPlan.id,
     event: 'scheduled',
-    actor: 'user',
-    actorId: userId,
+    actor: options?.actor ?? 'user',
+    actorId: options?.actorId ?? userId,
     metadata: {
       fromPlanName: currentPlan.name,
       toPlanName: targetPlan.name,
@@ -375,12 +404,13 @@ export async function scheduleSubscriptionUpgrade(
 export async function cancelPendingSubscriptionUpgrade(
   supabase: SupabaseClient,
   userId: string,
-  subscriptionId: string
+  subscriptionId: string,
+  options?: { actor?: 'user' | 'admin'; actorId?: string }
 ): Promise<{ success: true } | { error: string }> {
   const { data: subscription } = await supabase
     .from('subscriptions')
     .select(
-      'id, user_id, pending_plan_id, asaas_subscription_id, plan_id, promo_code, shipping_cents, special_notes, plans!plan_id(id, name), pending_plan:plans!pending_plan_id(id, name)'
+      'id, user_id, status, pending_plan_id, asaas_subscription_id, pagarme_subscription_id, plan_id, promo_code, shipping_cents, special_notes, plans!plan_id(id, name), pending_plan:plans!pending_plan_id(id, name)'
     )
     .eq('id', subscriptionId)
     .eq('user_id', userId)
@@ -414,21 +444,53 @@ export async function cancelPendingSubscriptionUpgrade(
     fromPlanId: currentPlan?.id ?? subscription.plan_id ?? null,
     toPlanId: subscription.pending_plan_id,
     event: 'cancelled',
-    actor: 'user',
-    actorId: userId,
+    actor: options?.actor ?? 'user',
+    actorId: options?.actorId ?? userId,
     metadata: {
       fromPlanName: currentPlan?.name ?? null,
       toPlanName: pendingPlan?.name ?? null,
     },
   });
 
+  const admin = createAdminClient();
+  const allowPastDue = subscription.status === 'past_due';
+
   if (subscription.asaas_subscription_id) {
-    const admin = createAdminClient();
     const remoteIp = await resolveUpgradeRemoteIp();
     await recreateAsaasSubscriptionForBillingPlan(admin, subscriptionId, {
       remoteIp,
+      allowPastDue,
     });
   }
 
+  if (subscription.pagarme_subscription_id) {
+    const priceSync = await syncPagarmeSubscriptionRecurringPrice(
+      admin,
+      subscriptionId
+    );
+    if (priceSync.status === 'error') {
+      console.error(
+        '[upgrade] pagarme price revert after cancel failed:',
+        subscriptionId,
+        priceSync.error
+      );
+    }
+  }
+
   return { success: true };
+}
+
+async function clearPendingPlanUpgrade(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  userId: string
+) {
+  await supabase
+    .from('subscriptions')
+    .update({
+      pending_plan_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', subscriptionId)
+    .eq('user_id', userId);
 }

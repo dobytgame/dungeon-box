@@ -23,8 +23,10 @@ import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
 import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigrationTools';
 import ChangePagarmeBillingDayPanel from '@/components/admin/ChangePagarmeBillingDayPanel';
+import AdminPlanUpgradePanel from '@/components/admin/AdminPlanUpgradePanel';
 import RecordOfflinePaymentPanel from '@/components/admin/RecordOfflinePaymentPanel';
 import { defaultOfflinePaymentAmountCents } from '@/lib/admin/record-offline-payment';
+import { buildUpgradeOptionsPricing } from '@/lib/subscriptions/upgrade';
 import {
   formatDate,
   formatDateTime,
@@ -89,6 +91,27 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
   const combo = getSubscriptionComboSummary(subscription, plan?.slug ?? null);
   const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
+  const prepaidStillOpen =
+    isComboTerm(billingTerm) &&
+    Boolean(subscription.prepaid_until) &&
+    new Date(subscription.prepaid_until as string) > new Date();
+  const canAdminUpgradePlan =
+    !subscription.is_partner &&
+    (subscription.status === 'active' || subscription.status === 'past_due') &&
+    !prepaidStillOpen;
+  const upgradeOptions = canAdminUpgradePlan
+    ? await buildUpgradeOptionsPricing(
+        {
+          id: subscription.id,
+          status: subscription.status,
+          promo_code: subscription.promo_code,
+          shipping_cents: subscription.shipping_cents,
+          special_notes: subscription.special_notes,
+          plans: plan,
+        },
+        { allowPastDue: true }
+      )
+    : [];
   const showAsaasSync =
     !subscription.is_partner &&
     Boolean(subscription.asaas_subscription_id || subscription.asaas_customer_id);
@@ -293,6 +316,20 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
             plans: plan,
           })}
           nextBillingDate={subscription.next_billing_date}
+        />
+      ) : null}
+
+      {canAdminUpgradePlan ? (
+        <AdminPlanUpgradePanel
+          subscriptionId={subscription.id}
+          pastDue={subscription.status === 'past_due'}
+          currentPlanName={plan?.name ?? 'plano atual'}
+          pendingPlan={
+            pendingPlan
+              ? { name: pendingPlan.name, priceCents: pendingPlan.price_cents }
+              : null
+          }
+          options={upgradeOptions}
         />
       ) : null}
 

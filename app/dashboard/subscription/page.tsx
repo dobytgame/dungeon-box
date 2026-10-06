@@ -10,6 +10,7 @@ import SubscriptionComboUpgrade from '@/components/dashboard/SubscriptionComboUp
 import SubscriptionComboTierUpgrade from '@/components/dashboard/SubscriptionComboTierUpgrade';
 import SubscriptionGatewayMigration from '@/components/dashboard/SubscriptionGatewayMigration';
 import SubscriptionUpgrade from '@/components/dashboard/SubscriptionUpgrade';
+import SubscriptionUpgradeActivation from '@/components/dashboard/SubscriptionUpgradeActivation';
 import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { getPaintKitBump } from '@/lib/checkout/order-bumps';
@@ -104,8 +105,10 @@ async function SubscriptionDetailCard({
   const customerNotes = parseCustomerNotes(subscription.special_notes);
   const paintKitBump = getPaintKitBump(parsePaintKitBump(subscription.special_notes));
   const paintKitRecurring = parsePaintKitBumpRecurring(subscription.special_notes);
+  const pendingPlan = relOne(subscription.pending_plan);
   const isPending = subscription.status === 'pending';
   const isPastDue = subscription.status === 'past_due';
+  const needsUpgradePayment = isPastDue && Boolean(pendingPlan);
   const needsPayment = isPending || isPastDue;
   const resumeCheckoutHref = plan?.slug
     ? checkoutHref(plan.slug as PlanSlug)
@@ -124,7 +127,15 @@ async function SubscriptionDetailCard({
         />
       ) : null}
 
-      {needsPayment && paymentLink ? (
+      {needsUpgradePayment && pendingPlan && pendingUpgradePricing ? (
+        <SubscriptionUpgradeActivation
+          subscriptionId={subscription.id}
+          currentPlanName={plan?.name ?? 'plano atual'}
+          targetPlanName={pendingPlan.name}
+          amountCents={pendingUpgradePricing.totalCents}
+          promoSummary={pendingUpgradePricing.promoSummary}
+        />
+      ) : needsPayment && paymentLink ? (
         <SubscriptionPaymentCallout
           status={isPastDue ? 'past_due' : 'pending'}
           planName={plan?.name ?? null}

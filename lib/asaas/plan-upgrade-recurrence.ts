@@ -198,7 +198,7 @@ function billingLooksAligned(
 export async function recreateAsaasSubscriptionForBillingPlan(
   supabase: SupabaseClient,
   subscriptionId: string,
-  options?: { remoteIp?: string | null }
+  options?: { remoteIp?: string | null; allowPastDue?: boolean }
 ): Promise<RecreateAsaasSubscriptionBillingResult> {
   if (!ASAAS_CONFIGURED) {
     return { status: 'skipped', reason: 'asaas_not_configured' };
@@ -209,7 +209,11 @@ export async function recreateAsaasSubscriptionForBillingPlan(
     return { status: 'failed', reason: 'subscription_not_found' };
   }
 
-  if (subscription.status !== 'active') {
+  const statusAllowed =
+    subscription.status === 'active' ||
+    (options?.allowPastDue && subscription.status === 'past_due');
+
+  if (!statusAllowed) {
     return { status: 'skipped', reason: 'subscription_not_active' };
   }
 

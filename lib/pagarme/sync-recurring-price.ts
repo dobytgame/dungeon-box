@@ -115,7 +115,8 @@ export async function syncPagarmeSubscriptionRecurringPrice(
       shipping_cents,
       special_notes,
       pagarme_subscription_id,
-      plans!plan_id(name, slug, price_cents)
+      plans!plan_id(name, slug, price_cents),
+      pending_plan:plans!pending_plan_id(name, slug, price_cents)
     `
     )
     .eq('id', subscriptionId)
@@ -133,7 +134,16 @@ export async function syncPagarmeSubscriptionRecurringPrice(
     };
   }
 
-  const plan = relOne(subscription.plans as PlanChargeRow | PlanChargeRow[] | null);
+  const pendingPlan = relOne(
+    subscription.pending_plan as PlanChargeRow | PlanChargeRow[] | null
+  );
+  const currentPlan = relOne(
+    subscription.plans as PlanChargeRow | PlanChargeRow[] | null
+  );
+  const plan =
+    pendingPlan?.slug && pendingPlan.price_cents != null
+      ? pendingPlan
+      : currentPlan;
   if (!plan?.slug || plan.price_cents == null) {
     return { status: 'error', error: 'Plano da assinatura não encontrado.', statusCode: 404 };
   }

@@ -183,7 +183,7 @@ export async function handlePagarmeChargePaid(
 
   const { data: existingPayment } = await supabase
     .from('payments')
-    .select('id, paid_at, payment_method')
+    .select('id, paid_at, payment_method, status_detail')
     .eq('pagarme_charge_id', charge.id)
     .maybeSingle();
 
@@ -247,6 +247,28 @@ export async function handlePagarmeChargePaid(
       cycleNumber: 1,
     }).catch((err) => {
       console.error('[admin] subscription activated notify failed:', err);
+    });
+    return 'processed';
+  }
+
+  const upgradeDetail = existingPayment?.status_detail as string | null | undefined;
+  const isPlanUpgradeCharge =
+    charge.metadata?.charge_kind === 'plan_upgrade' ||
+    (typeof upgradeDetail === 'string' &&
+      upgradeDetail.includes('plan_upgrade_activation'));
+
+  if (
+    isPlanUpgradeCharge &&
+    (local.status === 'active' || local.status === 'past_due') &&
+    paymentRow
+  ) {
+    const { finalizePlanUpgradeActivation } = await import(
+      '@/lib/subscriptions/upgrade-activation'
+    );
+    await finalizePlanUpgradeActivation(supabase, local.id, {
+      id: paymentRow.id,
+      amount_cents: paymentRow.amount_cents,
+      paid_at: paidAt,
     });
     return 'processed';
   }
