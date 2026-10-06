@@ -7,6 +7,7 @@ import {
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
 import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
+import { buildPagarmeSubscriptionPlanUpgradeCode } from '@/lib/pagarme/store-order-code';
 import {
   countApprovedSubscriptionPayments,
   loyaltyLevelFromApprovedPayments,
@@ -288,7 +289,7 @@ export async function payPlanUpgradeWithLinkedCard(input: {
       valueCents: quote.amountCents,
       description: `DungeonBox — ativar upgrade ${quote.targetPlanName}`,
       billingAddress: buildBillingAddress(address),
-      orderCode: `${input.subscriptionId}-plan-upgrade-${Date.now().toString(36)}`,
+      orderCode: buildPagarmeSubscriptionPlanUpgradeCode(input.subscriptionId),
       cardId: linkedCard.cardId,
       metadata: {
         subscription_id: input.subscriptionId,

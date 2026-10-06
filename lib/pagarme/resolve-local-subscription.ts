@@ -59,6 +59,11 @@ export function parsePagarmeSubscriptionChargeCode(
   );
   if (pixMatch?.[1]) return pixMatch[1];
 
+  const upgradeMatch = trimmed.match(
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-upg(?:-[a-z0-9]+)?$/i
+  );
+  if (upgradeMatch?.[1]) return upgradeMatch[1];
+
   const comboMatch = trimmed.match(
     /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-combo(?:-[a-z0-9]+)?$/i
   );

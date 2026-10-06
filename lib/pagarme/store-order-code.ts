@@ -35,6 +35,18 @@ export function buildPagarmeSubscriptionComboTierCode(
   return `${subscriptionId}-combo-tier`;
 }
 
+/** Código único da cobrança de ativação de upgrade. Limite Pagar.me: 52. */
+export function buildPagarmeSubscriptionPlanUpgradeCode(
+  subscriptionId: string
+): string {
+  const unique = Date.now().toString(36).slice(-8);
+  const code = `${subscriptionId}-upg-${unique}`;
+  if (code.length > 52) {
+    throw new Error('Código do pedido excedeu o limite do Pagar.me.');
+  }
+  return code;
+}
+
 /** Código único para PIX avulso (ativação/renovação admin). */
 export function buildPagarmeSubscriptionPixCode(
   subscriptionId: string,

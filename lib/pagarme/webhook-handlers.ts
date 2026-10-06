@@ -254,6 +254,7 @@ export async function handlePagarmeChargePaid(
   const upgradeDetail = existingPayment?.status_detail as string | null | undefined;
   const isPlanUpgradeCharge =
     charge.metadata?.charge_kind === 'plan_upgrade' ||
+    /-upg(?:-[a-z0-9]+)?$/i.test(charge.code ?? '') ||
     (typeof upgradeDetail === 'string' &&
       upgradeDetail.includes('plan_upgrade_activation'));
 
