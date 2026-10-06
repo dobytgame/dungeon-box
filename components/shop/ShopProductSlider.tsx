@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import ShopSection from '@/components/shop/ShopSection';
 import StoreProductFeatureCard from '@/components/store/StoreProductFeatureCard';
 import type { StoreProduct } from '@/lib/store/catalog';
 
@@ -53,8 +54,7 @@ function useCardsPerPage() {
   useEffect(() => {
     function update() {
       const width = window.innerWidth;
-      if (width < 640) setCardsPerPage(1);
-      else if (width < 1024) setCardsPerPage(2);
+      if (width < 1024) setCardsPerPage(2);
       else setCardsPerPage(4);
     }
 
@@ -215,88 +215,63 @@ export default function ShopProductSlider({ title, eyebrow, products }: Props) {
   if (products.length === 0) return null;
 
   const showControls = totalBasePages > 1;
+  const arrowClass =
+    'flex size-11 cursor-pointer items-center justify-center rounded-sm border border-white/15 text-mesa-parchment transition-colors duration-200 hover:border-white/35 hover:bg-white/[0.04]';
+
+  const controls = showControls ? (
+    <div className="flex items-center gap-4">
+      <div className="hidden gap-1.5 sm:flex" role="group" aria-label="Páginas">
+        {basePages.map((_, index) => (
+          <button
+            key={index}
+            type="button"
+            onClick={() => goToPage(index)}
+            aria-label={`Ir para página ${index + 1}`}
+            aria-current={index === pageIndex ? 'true' : undefined}
+            className="group flex h-11 cursor-pointer items-center"
+          >
+            <span
+              className={`block h-0.5 rounded-full transition-all duration-300 ${
+                index === pageIndex ? 'w-8 bg-mesa-ember' : 'w-4 bg-white/25 group-hover:bg-white/45'
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => goToRelativePage(-1)} className={arrowClass} aria-label="Produtos anteriores">
+          <ChevronLeft className="size-4" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => goToRelativePage(1)} className={arrowClass} aria-label="Próximos produtos">
+          <ChevronRight className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {eyebrow ? (
-            <p className="font-display text-xs uppercase tracking-[0.25em] text-stone-500">
-              {eyebrow}
-            </p>
-          ) : null}
-          {title ? (
-            <h2 className="mt-2 font-display text-2xl uppercase tracking-wide text-white sm:text-3xl">
-              {title}
-            </h2>
-          ) : null}
-        </div>
-
-        {showControls ? (
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1.5">
-              {basePages.map((_, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => goToPage(index)}
-                  className={`h-2 min-w-[8px] rounded-full transition-all ${
-                    index === pageIndex
-                      ? 'w-6 bg-ember'
-                      : 'w-2 bg-white/25 hover:bg-white/40'
-                  }`}
-                  aria-label={`Ir para página ${index + 1}`}
-                />
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => goToRelativePage(-1)}
-                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-400 transition hover:border-white/20 hover:text-white"
-                aria-label="Produtos anteriores"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => goToRelativePage(1)}
-                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-stone-400 transition hover:border-white/20 hover:text-white"
-                aria-label="Próximos produtos"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+    <ShopSection
+      titleId={`loja-slider-${(title ?? 'destaques').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+      eyebrow={eyebrow}
+      title={title ?? 'Destaques'}
+      aside={controls}
+    >
+      <div
+        ref={trackRef}
+        className="home-v2-reveal flex snap-x snap-mandatory overflow-x-auto scrollbar-none"
+        aria-roledescription="carrossel"
+      >
+        {loopedPages.map((pageProducts, pageKey) => (
+          <div
+            key={pageKey}
+            className="grid w-full shrink-0 snap-start grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
+          >
+            {pageProducts.map((item) => (
+              <StoreProductFeatureCard key={item.key} product={item.product} />
+            ))}
           </div>
-        ) : null}
+        ))}
       </div>
-
-      <div className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#0A0C10] to-transparent sm:w-12"
-          aria-hidden="true"
-        />
-        <div
-          className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#0A0C10] to-transparent sm:w-12"
-          aria-hidden="true"
-        />
-
-        <div
-          ref={trackRef}
-          className="flex snap-x snap-mandatory overflow-x-auto scrollbar-none"
-        >
-          {loopedPages.map((pageProducts, pageKey) => (
-            <div
-              key={pageKey}
-              className="grid w-full shrink-0 snap-start grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4"
-            >
-              {pageProducts.map((item) => (
-                <StoreProductFeatureCard key={item.key} product={item.product} />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+    </ShopSection>
   );
 }

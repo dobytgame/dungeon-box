@@ -82,7 +82,7 @@ export default function ProductGallery({ name, images }: Props) {
 
   if (gallery.length === 0) {
     return (
-      <div className="flex aspect-square items-center justify-center rounded-sm border border-white/[0.08] bg-stone-900/40 text-sm text-stone-600">
+      <div className="home-v2-grid flex aspect-square items-center justify-center rounded-2xl border border-white/10 bg-mesa-stone text-sm text-mesa-ash">
         Sem imagem
       </div>
     );
@@ -91,7 +91,7 @@ export default function ProductGallery({ name, images }: Props) {
   return (
     <div className="min-w-0">
       <div
-        className="group relative touch-pan-y overflow-hidden rounded-sm border border-white/[0.08] bg-stone-950/50"
+        className="group relative touch-pan-y overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone"
         onTouchStart={(event) => handleTouchStart(event.touches[0]?.clientX ?? 0)}
         onTouchMove={(event) => handleTouchMove(event.touches[0]?.clientX ?? 0)}
         onTouchEnd={handleTouchEnd}
@@ -104,7 +104,7 @@ export default function ProductGallery({ name, images }: Props) {
           height={STORE_PRODUCT_IMAGE_SIZE}
           sizes="(max-width: 1024px) 100vw, 560px"
           priority
-          className={`${storeProductImageClassName} transition duration-300 group-hover:scale-[1.02]`}
+          className={`${storeProductImageClassName} home-v2-media-zoom transition duration-500 ease-out group-hover:scale-[1.03]`}
           draggable={false}
         />
 
@@ -113,7 +113,7 @@ export default function ProductGallery({ name, images }: Props) {
             <button
               type="button"
               onClick={goPrev}
-              className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm border border-white/10 bg-stone-950/80 text-white opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"
+              className="absolute left-3 top-1/2 flex size-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-mesa-ink/70 text-mesa-parchment ring-1 ring-inset ring-white/15 backdrop-blur-md transition-opacity hover:bg-mesa-ink sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
               aria-label="Imagem anterior"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -121,12 +121,12 @@ export default function ProductGallery({ name, images }: Props) {
             <button
               type="button"
               onClick={goNext}
-              className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm border border-white/10 bg-stone-950/80 text-white opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"
+              className="absolute right-3 top-1/2 flex size-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-mesa-ink/70 text-mesa-parchment ring-1 ring-inset ring-white/15 backdrop-blur-md transition-opacity hover:bg-mesa-ink sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
               aria-label="Próxima imagem"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
-            <p className="pointer-events-none absolute bottom-3 left-3 rounded-sm bg-stone-950/75 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-stone-400 sm:hidden">
+            <p className="home-v2-display pointer-events-none absolute bottom-3 left-3 rounded-full bg-mesa-ink/75 px-3 py-1.5 text-[11px] tabular-nums tracking-[0.16em] text-mesa-parchment backdrop-blur-md sm:hidden">
               {activeIndex + 1} / {gallery.length}
             </p>
           </>
@@ -135,7 +135,7 @@ export default function ProductGallery({ name, images }: Props) {
         <button
           type="button"
           onClick={() => setLightboxOpen(true)}
-          className="absolute bottom-3 right-3 flex h-11 w-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 bg-stone-950/80 text-stone-300 transition hover:text-white"
+          className="absolute bottom-3 right-3 flex size-11 cursor-pointer items-center justify-center rounded-full bg-mesa-ink/70 text-mesa-parchment ring-1 ring-inset ring-white/15 backdrop-blur-md transition-colors hover:bg-mesa-ink"
           aria-label="Ampliar imagem"
         >
           <ZoomIn className="h-4 w-4" />
@@ -156,10 +156,10 @@ export default function ProductGallery({ name, images }: Props) {
                   }}
                   type="button"
                   onClick={() => setActiveIndex(index)}
-                  className={`block w-full overflow-hidden rounded-sm border transition ${
+                  className={`block w-full cursor-pointer overflow-hidden rounded-lg border transition-[border-color,opacity] duration-200 ${
                     index === activeIndex
-                      ? 'border-ember/60 ring-1 ring-ember/30'
-                      : 'border-white/[0.08] hover:border-white/20'
+                      ? 'border-mesa-parchment'
+                      : 'border-white/10 opacity-60 hover:border-white/30 hover:opacity-100'
                   }`}
                   aria-label={`Ver imagem ${index + 1}`}
                   aria-current={index === activeIndex}
@@ -182,7 +182,7 @@ export default function ProductGallery({ name, images }: Props) {
 
       {lightboxOpen ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+          className="home-v2-overlay fixed inset-0 z-[100] flex items-center justify-center bg-mesa-ink/95 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label={`Galeria de ${name}`}
@@ -194,7 +194,7 @@ export default function ProductGallery({ name, images }: Props) {
           <button
             type="button"
             onClick={() => setLightboxOpen(false)}
-            className="absolute right-4 top-4 flex h-11 w-11 cursor-pointer items-center justify-center rounded-sm border border-white/10 text-white pt-safe"
+            className="absolute right-4 top-4 flex size-11 cursor-pointer items-center justify-center rounded-full bg-white/[0.06] text-mesa-parchment ring-1 ring-inset ring-white/15 transition-colors hover:bg-white/[0.12]"
             aria-label="Fechar"
           >
             <X className="h-5 w-5" />
@@ -205,7 +205,7 @@ export default function ProductGallery({ name, images }: Props) {
               <button
                 type="button"
                 onClick={goPrev}
-                className="absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm border border-white/10 bg-stone-950/60 text-white"
+                className="absolute left-4 top-1/2 z-10 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-mesa-ink/70 text-mesa-parchment ring-1 ring-inset ring-white/15 transition-colors hover:bg-mesa-ink"
                 aria-label="Imagem anterior"
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -213,7 +213,7 @@ export default function ProductGallery({ name, images }: Props) {
               <button
                 type="button"
                 onClick={goNext}
-                className="absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm border border-white/10 bg-stone-950/60 text-white"
+                className="absolute right-4 top-1/2 z-10 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-mesa-ink/70 text-mesa-parchment ring-1 ring-inset ring-white/15 transition-colors hover:bg-mesa-ink"
                 aria-label="Próxima imagem"
               >
                 <ChevronRight className="h-6 w-6" />

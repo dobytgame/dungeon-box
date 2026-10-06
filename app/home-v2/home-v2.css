@@ -29,6 +29,53 @@ html:has(.home-v2) {
   outline-offset: 3px;
 }
 
+/*
+ * Store bridge: store components were written against `font-display`/`font-body`
+ * (Bebas Neue/DM Sans). Inside the shop those resolve to the Mesa fonts, and
+ * Barlow Condensed needs weight + caps to match Bebas' single-weight uppercase.
+ */
+.home-v2-shop {
+  --font-display: var(--font-home-display);
+  --font-body: var(--font-home-body);
+  font-family: var(--font-home-body), sans-serif;
+}
+
+.home-v2-shop .font-display {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.home-v2-shop .product-description {
+  color: var(--ash);
+}
+
+.home-v2-shop .product-description h2,
+.home-v2-shop .product-description h3,
+.home-v2-shop .product-description p:has(> strong:only-child) strong {
+  font-weight: 700;
+  color: var(--parchment);
+}
+
+.home-v2-shop .product-description h2 {
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+}
+
+.home-v2-shop .product-description ul li,
+.home-v2-shop .product-description p {
+  color: var(--ash);
+}
+
+.home-v2-shop .product-description p strong,
+.home-v2-shop .product-description ul li strong {
+  color: var(--parchment);
+}
+
+.home-v2-shop .product-description ul li::before {
+  background: var(--jade);
+  box-shadow: none;
+}
+
 .home-v2-display {
   font-family: var(--font-home-display), sans-serif;
   font-weight: 700;
@@ -303,6 +350,25 @@ html:has(.home-v2) {
 
 .home-v2-kit-swap {
   animation: home-v2-kit-swap 220ms var(--ease-out-expo);
+}
+
+/* Store hero: the active bar fills over the slide duration; `animationend` advances. */
+@keyframes home-v2-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.home-v2-progress {
+  transform-origin: left;
+  animation: home-v2-progress var(--slide-duration, 6s) linear both;
+}
+
+[data-paused] .home-v2-progress {
+  animation-play-state: paused;
 }
 
 /* Plan details: bottom sheet on mobile, dialog on desktop. */

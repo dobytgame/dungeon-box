@@ -32,6 +32,13 @@ export default async function AdminSalesPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
+      <p className="font-mono text-[11px] text-stone-500">
+        Estudo mês a mês (assinantes, loja, receita):{' '}
+        <Link href="/admin/vendas/relatorio" className="text-console hover:underline">
+          Relatório mensal
+        </Link>
+      </p>
+
       <AdminSalesFiltersForm
         values={{
           q: filters.q,

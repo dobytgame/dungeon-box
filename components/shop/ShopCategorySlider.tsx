@@ -1,4 +1,5 @@
 import ShopCategoryMediaCard from '@/components/shop/ShopCategoryMediaCard';
+import ShopSection from '@/components/shop/ShopSection';
 import type { StoreCategory } from '@/lib/store/load-catalog';
 
 interface Props {
@@ -15,21 +16,18 @@ export default function ShopCategorySlider({ categories }: Props) {
   if (visibleCategories.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <div className="mb-6">
-        <p className="font-display text-xs uppercase tracking-[0.25em] text-stone-500">
-          Navegue por
-        </p>
-        <h2 className="mt-2 font-display text-2xl uppercase tracking-wide text-white sm:text-3xl">
-          Categorias
-        </h2>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-5">
-        {visibleCategories.map((category) => (
-          <ShopCategoryMediaCard key={category.slug} category={category} className="w-full" />
+    <ShopSection titleId="loja-categorias-title" eyebrow="Navegue por" title="Categorias" tone="stone">
+      <ul className="home-v2-snap -mx-4 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+        {visibleCategories.map((category, index) => (
+          <li
+            key={category.slug}
+            className="home-v2-reveal w-[82%] shrink-0 sm:w-auto"
+            style={{ '--stagger': index } as React.CSSProperties}
+          >
+            <ShopCategoryMediaCard category={category} index={index} />
+          </li>
         ))}
-      </div>
-    </section>
+      </ul>
+    </ShopSection>
   );
 }

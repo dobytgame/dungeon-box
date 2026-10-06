@@ -18,11 +18,11 @@ export default function MonthlyKitThemePicker({
   if (themes.length === 0) return null;
 
   return (
-    <div className="space-y-2 border-t border-white/[0.06] pt-4">
-      <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+    <div className="space-y-3 border-t border-white/10 pt-5" role="group" aria-labelledby="kit-theme-label">
+      <p id="kit-theme-label" className="home-v2-display text-[11px] tracking-[0.2em] text-mesa-ash">
         Tema do kit
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {themes.map((theme) => {
           const selected = selectedThemeId === theme.id;
           const label = formatStoreKitThemeLabel(theme);
@@ -32,13 +32,14 @@ export default function MonthlyKitThemePicker({
               key={theme.id}
               type="button"
               onClick={() => onChange(theme.id)}
-              className={`flex cursor-pointer items-center gap-3 rounded-sm border px-3 py-2.5 text-left transition ${
+              aria-pressed={selected}
+              className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors duration-200 ${
                 selected
-                  ? 'border-ember/50 bg-ember/10'
-                  : 'border-white/10 bg-stone-950 hover:border-white/20'
+                  ? 'border-mesa-ember bg-mesa-ember/[0.08]'
+                  : 'border-white/10 bg-mesa-stone hover:border-white/25'
               }`}
             >
-              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-stone-900">
+              <div className="size-10 shrink-0 overflow-hidden rounded-md border border-white/10 bg-mesa-ink">
                 {theme.imageUrl ? (
                   <StoreMediaImage
                     src={theme.imageUrl}
@@ -49,14 +50,14 @@ export default function MonthlyKitThemePicker({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center font-display text-[10px] text-gold">
+                  <div className="home-v2-display flex size-full items-center justify-center text-sm tabular-nums text-mesa-parchment">
                     {theme.kitNumber}
                   </div>
                 )}
               </div>
               <span className="min-w-0">
-                <span className="block text-sm text-white">{theme.name}</span>
-                <span className="block text-[10px] uppercase tracking-widest text-stone-500">
+                <span className="block truncate text-sm font-medium text-mesa-parchment">{theme.name}</span>
+                <span className="block truncate text-[11px] uppercase tracking-[0.14em] text-mesa-ash">
                   {label}
                 </span>
               </span>

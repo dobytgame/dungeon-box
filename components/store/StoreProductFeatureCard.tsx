@@ -1,8 +1,10 @@
 'use client';
 
-import { ShoppingCart } from 'lucide-react';
+import { Check, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
+import { homeV2ButtonClassName } from '@/components/home-v2/HomeV2Button';
+import StoreBadge from '@/components/store/StoreBadge';
 import { useAddToStoreCart } from '@/components/store/useAddToStoreCart';
 import StoreMediaImage from '@/components/store/StoreMediaImage';
 import { formatMoney } from '@/lib/dashboard/format';
@@ -15,13 +17,18 @@ interface Props {
   product: StoreProduct;
 }
 
+const actionClassName = homeV2ButtonClassName({
+  size: 'sm',
+  className: 'mt-4 w-full',
+});
+
 export default function StoreProductFeatureCard({ product }: Props) {
   const addToCart = useAddToStoreCart(product);
   const [added, setAdded] = useState(false);
   const imageUrl = product.imageUrl ?? product.galleryUrls?.[0];
+  const productHref = STORE_ROUTES.product(product.slug);
   const onSale =
-    product.originalPriceCents !== undefined &&
-    product.originalPriceCents > product.priceCents;
+    product.originalPriceCents !== undefined && product.originalPriceCents > product.priceCents;
   const showSubscriberBadge = product.subscriberDiscount && onSale;
   const subscriberBadgeLabel = formatSubscriberDiscountBadge(
     product.subscriberDiscountAppliedPercent
@@ -35,80 +42,78 @@ export default function StoreProductFeatureCard({ product }: Props) {
   }
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-sm border border-white/[0.06] bg-stone-950/50 transition hover:border-white/15">
+    <article className="group flex w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone transition-[border-color,box-shadow] duration-200 hover:border-white/25 hover:shadow-[0_24px_50px_-24px_rgba(0,0,0,0.9)]">
       <Link
-        href={STORE_ROUTES.product(product.slug)}
-        className="relative block aspect-square overflow-hidden bg-stone-900"
+        href={productHref}
+        className="relative block aspect-square overflow-hidden bg-mesa-ink"
+        aria-label={`Ver ${product.name}`}
       >
         {imageUrl ? (
           <StoreMediaImage
             src={imageUrl}
             alt={product.name}
             fill
-            sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 220px"
-            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+            sizes="(min-width: 1024px) 270px, (min-width: 640px) 45vw, 50vw"
+            className="home-v2-media-zoom object-cover transition duration-300 ease-out group-hover:scale-[1.04]"
           />
         ) : (
-          <div
-            className="h-full w-full bg-gradient-to-br from-stone-800 to-stone-950"
-            aria-hidden="true"
-          />
+          <div className="home-v2-grid size-full" aria-hidden="true" />
         )}
-
-        {showSubscriberBadge ? (
-          <span className="absolute left-2 top-2 rounded-sm bg-gold/90 px-1.5 py-0.5 font-display text-[9px] uppercase tracking-wider text-stone-950">
-            {subscriberBadgeLabel}
-          </span>
-        ) : onSale ? (
-          <span className="absolute left-2 top-2 rounded-sm bg-ember/90 px-1.5 py-0.5 font-display text-[9px] uppercase tracking-wider text-stone-950">
-            Oferta
+        {showSubscriberBadge || onSale ? (
+          <span className="absolute left-2.5 top-2.5">
+            {showSubscriberBadge ? (
+              <StoreBadge tone="jade">{subscriberBadgeLabel}</StoreBadge>
+            ) : (
+              <StoreBadge tone="ember">Oferta</StoreBadge>
+            )}
           </span>
         ) : null}
       </Link>
 
-      <div className="flex flex-1 flex-col p-3">
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
         {product.storeCategoryName ? (
-          <p className="truncate font-display text-[10px] uppercase tracking-[0.15em] text-stone-500">
+          <p className="truncate text-[11px] uppercase tracking-[0.16em] text-mesa-ash">
             {product.storeCategoryName}
           </p>
         ) : null}
-
-        <h3 className="mt-1 line-clamp-2 flex-1 font-display text-sm uppercase leading-snug tracking-wide text-white">
-          <Link href={STORE_ROUTES.product(product.slug)} className="hover:text-ember">
+        <h3
+          className="mt-1 line-clamp-3 text-[15px] leading-snug text-mesa-parchment sm:text-base"
+          title={product.name}
+        >
+          <Link href={productHref} className="transition-colors hover:text-mesa-ember">
             {product.name}
           </Link>
         </h3>
 
-        <div className="mt-2 flex flex-wrap items-baseline gap-1.5">
-          {onSale ? (
-            <span className="font-display text-xs text-stone-500 line-through">
-              {formatMoney(product.originalPriceCents!)}
-            </span>
-          ) : null}
-          <span className="font-display text-lg text-gold">{product.priceLabel}</span>
-        </div>
-        {!product.subscriberDiscount &&
-        product.subscriberPriceCents != null &&
-        product.subscriberPriceCents < product.priceCents ? (
-          <p className="mt-1 text-[10px] text-gold/80">
-            Assinantes: {formatMoney(product.subscriberPriceCents)}
+        <div className="mt-auto pt-3">
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            {onSale ? (
+              <span className="text-xs text-mesa-ash line-through">
+                {formatMoney(product.originalPriceCents!)}
+              </span>
+            ) : null}
+            <span className="font-semibold tabular-nums text-mesa-parchment">{product.priceLabel}</span>
           </p>
-        ) : null}
+          {!product.subscriberDiscount &&
+          product.subscriberPriceCents != null &&
+          product.subscriberPriceCents < product.priceCents ? (
+            <p className="mt-0.5 text-[11px] font-medium text-mesa-jade">
+              Assinantes: {formatMoney(product.subscriberPriceCents)}
+            </p>
+          ) : null}
+        </div>
 
         {productRequiresKitTheme(product) ? (
-          <Link
-            href={STORE_ROUTES.product(product.slug)}
-            className="mt-3 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-sm bg-ember px-2 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-          >
+          <Link href={productHref} className={actionClassName}>
             Escolher tema
           </Link>
         ) : (
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="mt-3 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-sm bg-ember px-2 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
-          >
-            <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <button type="button" onClick={handleAdd} className={actionClassName} aria-live="polite">
+            {added ? (
+              <Check className="size-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <ShoppingBag className="size-4 shrink-0" aria-hidden="true" />
+            )}
             {added ? 'Adicionado' : 'Adicionar'}
           </button>
         )}

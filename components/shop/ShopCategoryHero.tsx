@@ -12,10 +12,10 @@ export default function ShopCategoryHero({ category }: Props) {
 
   return (
     <section
-      className="category-hero relative overflow-hidden border-b border-white/[0.06]"
+      className="category-hero home-v2-grain relative isolate overflow-hidden border-b border-white/10 bg-mesa-ink"
       aria-labelledby="category-hero-title"
     >
-      <div className="category-hero__frame relative">
+      <div className="category-hero__frame relative flex flex-col">
         {imageUrl ? (
           <>
             <StoreMediaImage
@@ -24,42 +24,42 @@ export default function ShopCategoryHero({ category }: Props) {
               fill
               priority
               sizes="100vw"
-              className="category-hero__image object-cover"
+              className="category-hero__image -z-20 object-cover"
             />
-            <div className="category-hero__overlay-left" aria-hidden="true" />
-            <div className="category-hero__overlay-bottom" aria-hidden="true" />
+            <div
+              className="absolute inset-0 -z-10 bg-gradient-to-t from-mesa-ink via-mesa-ink/70 to-mesa-ink/10 lg:bg-gradient-to-r lg:from-mesa-ink lg:via-mesa-ink/75 lg:to-transparent"
+              aria-hidden="true"
+            />
+            <div
+              className="absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-t from-mesa-ink to-transparent"
+              aria-hidden="true"
+            />
           </>
-        ) : (
-          <div
-            className="absolute inset-0 bg-gradient-to-br from-stone-900 via-[#0A0C10] to-[#0A0C10]"
-            aria-hidden="true"
-          />
-        )}
-        <div
-          className="category-hero__glow absolute inset-0"
-          aria-hidden="true"
-        />
+        ) : null}
+        <div className="home-v2-grid home-v2-fog-load absolute inset-0 -z-10 opacity-60" aria-hidden="true" />
 
-        <div className="category-hero__content absolute inset-0 mx-auto flex max-w-7xl flex-col justify-end px-4 pb-10 pt-28 sm:px-6 sm:pb-12 sm:pt-32 lg:justify-center lg:pb-16 lg:pt-36">
-          <div className="max-w-3xl">
-            <p className="font-display text-xs uppercase tracking-[0.3em] text-ember">
+        <div className="category-hero__content relative mx-auto flex w-full max-w-[75rem] flex-1 flex-col justify-end px-4 pb-10 pt-28 sm:px-6 sm:pb-12 lg:justify-center lg:pb-16 lg:pt-20">
+          <div className="max-w-2xl">
+            <p
+              className="home-v2-enter home-v2-display text-[11px] tracking-[0.28em] text-mesa-jade"
+              style={{ '--enter-step': 0 } as React.CSSProperties}
+            >
               {categoryLabel}
             </p>
             <h1
               id="category-hero-title"
-              className="mt-3 font-display text-4xl uppercase leading-[0.95] tracking-wide text-white sm:text-5xl lg:text-6xl"
+              className="home-v2-enter home-v2-display mt-3 text-[clamp(2.75rem,9vw,5.5rem)] leading-[0.88] text-mesa-parchment"
+              style={{ '--enter-step': 1 } as React.CSSProperties}
             >
               {category.name}
             </h1>
-            <div
-              className="mt-5 h-px w-16 bg-gradient-to-r from-ember to-transparent"
-              aria-hidden="true"
-            />
             {category.description ? (
-              <ProductDescriptionContent
-                html={category.description}
-                className="product-description--hero mt-5"
-              />
+              <div className="home-v2-enter" style={{ '--enter-step': 2 } as React.CSSProperties}>
+                <ProductDescriptionContent
+                  html={category.description}
+                  className="product-description--hero mt-5"
+                />
+              </div>
             ) : null}
           </div>
         </div>

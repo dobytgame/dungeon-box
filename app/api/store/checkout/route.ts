@@ -13,6 +13,10 @@ import {
   digitsOnly,
   validateCreditCard,
 } from '@/lib/payments/card-validation';
+import {
+  marketingAttributionInputSchema,
+  marketingAttributionToRecord,
+} from '@/lib/marketing/attribution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +46,7 @@ const sharedCheckoutSchema = z.object({
   addressId: z.string().uuid(),
   bundleSubscriptionId: z.string().uuid().nullable().optional(),
   couponCode: z.string().max(64).nullable().optional(),
+  marketingAttribution: marketingAttributionInputSchema,
 });
 
 const bodySchema = z.discriminatedUnion('paymentMethod', [
@@ -173,6 +178,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: checkoutGuard.error }, { status: 403 });
   }
 
+  const marketingAttribution = marketingAttributionToRecord(body.marketingAttribution);
+
   const sharedInput = {
     supabase,
     userId: user.id,
@@ -186,6 +193,7 @@ export async function POST(request: Request) {
     addressId: body.addressId,
     bundleSubscriptionId: body.bundleSubscriptionId ?? null,
     couponCode: body.couponCode ?? null,
+    marketingAttribution,
   };
 
   try {

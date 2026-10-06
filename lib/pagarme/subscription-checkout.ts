@@ -70,6 +70,7 @@ export type CreatePagarmeSubscriptionInput = {
   shippingRegion: string;
   oneTimeCents: number;
   oneTimeDescription: string | null;
+  marketingAttribution?: Record<string, unknown> | null;
 };
 
 export type CreatePagarmeSubscriptionResult = {
@@ -197,6 +198,9 @@ export async function createPagarmeSubscription(
     card_last4: input.cardLast4,
     card_brand: input.cardBrand,
     updated_at: now.toISOString(),
+    ...(input.marketingAttribution
+      ? { marketing_attribution: input.marketingAttribution }
+      : {}),
   };
 
   let subscriptionId: string;

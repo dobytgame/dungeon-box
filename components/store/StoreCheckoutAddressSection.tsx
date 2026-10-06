@@ -22,10 +22,10 @@ const emptyForm = {
 };
 
 const inputClass =
-  'mt-2 w-full rounded-sm border border-white/[0.08] bg-stone-950/80 px-3 py-2.5 text-base text-white outline-none transition-colors duration-200 focus:border-frost/40 focus:ring-1 focus:ring-frost/20 sm:text-sm';
+  'mt-2 w-full rounded-sm border border-white/10 bg-mesa-ink/80 px-3 py-2.5 text-base text-mesa-parchment outline-none transition-colors duration-200 focus:border-frost/40 focus:ring-1 focus:ring-frost/20 sm:text-sm';
 
 const labelClass =
-  'font-display text-[0.65rem] uppercase tracking-[0.25em] text-stone-500';
+  'font-display text-[0.65rem] uppercase tracking-[0.25em] text-mesa-ash';
 
 interface Props {
   addresses: Address[];
@@ -139,7 +139,7 @@ export default function StoreCheckoutAddressSection({
                 className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
                   isSelected
                     ? 'border-frost/40 bg-frost/5'
-                    : 'border-white/[0.06] hover:border-white/15'
+                    : 'border-white/10 hover:border-white/15'
                 }`}
               >
                 <input
@@ -149,17 +149,17 @@ export default function StoreCheckoutAddressSection({
                   onChange={() => onSelectAddress(address.id)}
                   className="mt-1"
                 />
-                <span className="min-w-0 text-sm text-stone-300">
-                  <span className="flex items-center gap-2 text-white">
+                <span className="min-w-0 text-sm text-mesa-parchment/90">
+                  <span className="flex items-center gap-2 text-mesa-parchment">
                     <MapPin
                       className={`h-4 w-4 shrink-0 ${
-                        isSelected ? 'text-frost' : 'text-stone-600'
+                        isSelected ? 'text-frost' : 'text-mesa-ash/70'
                       }`}
                       aria-hidden="true"
                     />
                     {address.recipient}
                     {address.is_default ? (
-                      <span className="font-display text-[9px] uppercase tracking-widest text-stone-500">
+                      <span className="font-display text-[9px] uppercase tracking-widest text-mesa-ash">
                         Padrão
                       </span>
                     ) : null}
@@ -168,7 +168,7 @@ export default function StoreCheckoutAddressSection({
                     {address.street}, {address.number}
                     {address.complement ? ` — ${address.complement}` : ''}
                   </span>
-                  <span className="block text-xs text-stone-500">
+                  <span className="block text-xs text-mesa-ash">
                     {address.neighborhood}, {address.city}/{address.state} ·{' '}
                     {formatZip(address.zip_code)}
                   </span>
@@ -180,8 +180,8 @@ export default function StoreCheckoutAddressSection({
       ) : null}
 
       {showForm ? (
-        <div className="space-y-4 rounded-sm border border-white/[0.06] bg-stone-950/30 p-4 md:p-5">
-          <p className="font-display text-xs uppercase tracking-widest text-stone-500">
+        <div className="space-y-4 rounded-sm border border-white/10 bg-mesa-ink/30 p-4 md:p-5">
+          <p className="font-display text-xs uppercase tracking-widest text-mesa-ash">
             Novo endereço de entrega
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -208,7 +208,7 @@ export default function StoreCheckoutAddressSection({
                 className={inputClass}
               />
               {cepLoading ? (
-                <span className="mt-1 block text-xs text-stone-500">
+                <span className="mt-1 block text-xs text-mesa-ash">
                   Buscando endereço…
                 </span>
               ) : null}
@@ -314,7 +314,7 @@ export default function StoreCheckoutAddressSection({
                   setShowForm(false);
                   resetForm();
                 }}
-                className="text-sm text-stone-500 transition hover:text-white disabled:opacity-50"
+                className="text-sm text-mesa-ash transition hover:text-mesa-parchment disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -328,7 +328,7 @@ export default function StoreCheckoutAddressSection({
             resetForm();
             setShowForm(true);
           }}
-          className="inline-flex cursor-pointer items-center gap-2 text-sm text-stone-500 transition hover:text-frost"
+          className="inline-flex cursor-pointer items-center gap-2 text-sm text-mesa-ash transition hover:text-frost"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Cadastrar outro endereço de entrega

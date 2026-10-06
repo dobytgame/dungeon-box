@@ -43,14 +43,14 @@ export default function StoreCheckoutTotals({
   return (
     <div className="space-y-3">
       {hasPromoDiscount ? (
-        <div className="flex justify-between text-sm text-stone-500">
+        <div className="flex justify-between text-sm text-mesa-ash">
           <span>Subtotal sem cupom</span>
           <span className="line-through">{formatMoney(originalSubtotalCents)}</span>
         </div>
       ) : null}
       <div className="flex justify-between text-sm">
-        <span className="text-stone-500">Subtotal</span>
-        <span className="font-display text-lg text-white">
+        <span className="text-mesa-ash">Subtotal</span>
+        <span className="font-display text-lg text-mesa-parchment">
           {formatMoney(discountedSubtotalCents)}
         </span>
       </div>
@@ -62,11 +62,11 @@ export default function StoreCheckoutTotals({
       ) : null}
       {shippingMode === 'standalone' ? (
         <div className="flex justify-between text-sm">
-          <span className="text-stone-500">Frete</span>
-          <span className="text-white">
+          <span className="text-mesa-ash">Frete</span>
+          <span className="text-mesa-parchment">
             {couponFreeShipping ? (
               <>
-                <span className="text-stone-600 line-through">
+                <span className="text-mesa-ash/70 line-through">
                   {shippingQuote ? formatMoney(shippingQuote.cents) : '—'}
                 </span>{' '}
                 Grátis
@@ -81,12 +81,12 @@ export default function StoreCheckoutTotals({
           </span>
         </div>
       ) : null}
-      <div className="flex justify-between border-t border-white/[0.06] pt-4 text-sm">
-        <span className="text-stone-500">Total</span>
-        <span className="font-display text-xl text-ember">{formatMoney(totalCents)}</span>
+      <div className="flex justify-between border-t border-white/10 pt-4 text-sm">
+        <span className="text-mesa-ash">Total</span>
+        <span className="font-display text-xl text-mesa-ember">{formatMoney(totalCents)}</span>
       </div>
       {appliedPromoCodes.length > 0 ? (
-        <p className="text-xs text-gold/80">
+        <p className="text-xs text-mesa-jade">
           Cupom da assinatura aplicado: {appliedPromoCodes.join(', ')}
         </p>
       ) : null}
@@ -95,7 +95,7 @@ export default function StoreCheckoutTotals({
           Cupom da loja: {couponCode} — {couponSummary}
         </p>
       ) : null}
-      <p className="text-xs leading-relaxed text-stone-600">
+      <p className="text-xs leading-relaxed text-mesa-ash/70">
         {hasMonthlyKit || shippingMode === 'with_subscription'
           ? 'Frete grátis — enviado com a próxima caixa da assinatura.'
           : shippingQuote

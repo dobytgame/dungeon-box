@@ -25,6 +25,7 @@ export type StoreMediaImageProps = FixedSizeProps | FillProps;
 
 function canOptimizeRemoteUrl(src: string): boolean {
   if (src.startsWith('data:') || src.startsWith('blob:')) return false;
+  if (src.startsWith('/') && !src.startsWith('//')) return true;
   if (!src.startsWith('http://') && !src.startsWith('https://')) return false;
 
   try {
@@ -49,7 +50,7 @@ export default function StoreMediaImage(props: StoreMediaImageProps) {
         <img
           src={src}
           alt={alt}
-          className={className}
+          className={`absolute inset-0 size-full ${className ?? ''}`}
           draggable={draggable}
         />
       );

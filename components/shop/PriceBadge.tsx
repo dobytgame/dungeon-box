@@ -1,3 +1,4 @@
+import StoreBadge from '@/components/store/StoreBadge';
 import { formatMoney } from '@/lib/dashboard/format';
 import { formatSubscriberDiscountBadge } from '@/lib/store/subscriber-discount';
 
@@ -20,38 +21,32 @@ export default function PriceBadge({
   subscriberDiscountPercent,
   size = 'lg',
 }: Props) {
-  const onSale =
-    originalPriceCents !== undefined && originalPriceCents > priceCents;
-  const subscriberBadgeLabel = formatSubscriberDiscountBadge(
-    subscriberDiscountPercent
-  );
-  const priceClass =
-    size === 'lg' ? 'font-display text-3xl text-ember' : 'font-display text-2xl text-gold';
-  const strikeClass =
-    size === 'lg' ? 'font-display text-base text-stone-500 line-through' : 'font-display text-sm text-stone-500 line-through';
+  const onSale = originalPriceCents !== undefined && originalPriceCents > priceCents;
+  const subscriberBadgeLabel = formatSubscriberDiscountBadge(subscriberDiscountPercent);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
+      <p
+        className={`font-semibold tabular-nums text-mesa-parchment ${
+          size === 'lg' ? 'text-[2rem] leading-none' : 'text-2xl leading-none'
+        }`}
+      >
+        {priceLabel}
+      </p>
       {onSale ? (
-        <>
-          {subscriberDiscount ? (
-            <span className="rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
-              {subscriberBadgeLabel}
-            </span>
-          ) : (
-            <span className="rounded-sm bg-ember/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-ember">
-              Oferta
-            </span>
-          )}
-          <p className={strikeClass}>{formatMoney(originalPriceCents)}</p>
-        </>
+        <p className="text-base tabular-nums text-mesa-ash line-through">
+          {formatMoney(originalPriceCents)}
+        </p>
       ) : null}
-      {featured && !onSale ? (
-        <span className="rounded-sm bg-gold/15 px-2 py-1 font-display text-[10px] uppercase tracking-widest text-gold">
-          Destaque
-        </span>
+      {onSale ? (
+        subscriberDiscount ? (
+          <StoreBadge tone="jade">{subscriberBadgeLabel}</StoreBadge>
+        ) : (
+          <StoreBadge tone="ember">Oferta</StoreBadge>
+        )
+      ) : featured ? (
+        <StoreBadge tone="ember">Destaque</StoreBadge>
       ) : null}
-      <p className={priceClass}>{priceLabel}</p>
     </div>
   );
 }

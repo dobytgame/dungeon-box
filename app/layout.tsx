@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import MarketingAttributionCapture from '@/components/marketing/MarketingAttributionCapture';
 import { Bebas_Neue, DM_Sans } from 'next/font/google';
 import GoogleTagManager from '@/components/analytics/GoogleTagManager';
 import GtmConsentDefaults from '@/components/analytics/GtmConsentDefaults';
@@ -84,6 +86,9 @@ export default function RootLayout({
         <CookieConsentRoot>
           <GoogleTagManager />
           <AuthRecoveryRedirect />
+          <Suspense fallback={null}>
+            <MarketingAttributionCapture />
+          </Suspense>
           {children}
         </CookieConsentRoot>
       </body>

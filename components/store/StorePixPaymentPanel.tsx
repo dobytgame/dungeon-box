@@ -97,25 +97,25 @@ export default function StorePixPaymentPanel({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-sm border border-gold/20 bg-gold/[0.04] p-4">
-        <p className="font-display text-xs uppercase tracking-widest text-gold">
+      <div className="rounded-sm border border-mesa-jade/20 bg-mesa-jade/[0.04] p-4">
+        <p className="font-display text-xs uppercase tracking-widest text-mesa-jade">
           Pague com PIX
         </p>
-        <p className="mt-2 text-sm text-stone-300">
+        <p className="mt-2 text-sm text-mesa-parchment/90">
           Valor:{' '}
-          <span className="font-display text-lg text-white">
+          <span className="font-display text-lg text-mesa-parchment">
             {formatMoney(amountCents)}
           </span>
         </p>
         {expirationLabel ? (
-          <p className="mt-1 text-xs text-stone-500">
+          <p className="mt-1 text-xs text-mesa-ash">
             Válido até {expirationLabel}
           </p>
         ) : null}
       </div>
 
       {pix.encodedImage ? (
-        <div className="flex justify-center rounded-sm border border-white/[0.08] bg-white p-4">
+        <div className="flex justify-center rounded-sm border border-white/10 bg-white p-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`data:image/png;base64,${pix.encodedImage}`}
@@ -124,7 +124,7 @@ export default function StorePixPaymentPanel({
           />
         </div>
       ) : pix.imageUrl ? (
-        <div className="flex justify-center rounded-sm border border-white/[0.08] bg-white p-4">
+        <div className="flex justify-center rounded-sm border border-white/10 bg-white p-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={pix.imageUrl}
@@ -135,21 +135,21 @@ export default function StorePixPaymentPanel({
       ) : null}
 
       <div>
-        <p className="mb-2 text-xs text-stone-500">Pix copia e cola</p>
+        <p className="mb-2 text-xs text-mesa-ash">Pix copia e cola</p>
         <div className="flex gap-2">
           <input
             readOnly
             value={pix.payload}
-            className="min-w-0 flex-1 rounded-sm border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-300"
+            className="min-w-0 flex-1 rounded-sm border border-white/10 bg-mesa-ink px-3 py-2 text-xs text-mesa-parchment/90"
           />
           <button
             type="button"
             onClick={() => void copyPayload()}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-xs text-stone-300 transition hover:border-gold/30 hover:text-white"
+            className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-sm border border-white/10 px-3 py-2 text-xs text-mesa-parchment/90 transition hover:border-mesa-jade/30 hover:text-mesa-parchment"
           >
             {copied ? (
               <>
-                <Check className="h-4 w-4 text-gold" aria-hidden="true" />
+                <Check className="h-4 w-4 text-mesa-jade" aria-hidden="true" />
                 Copiado
               </>
             ) : (
@@ -163,14 +163,14 @@ export default function StorePixPaymentPanel({
       </div>
 
       {checking ? (
-        <p className="flex items-center gap-2 text-sm text-stone-400">
+        <p className="flex items-center gap-2 text-sm text-mesa-ash">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Aguardando confirmação do PIX…
         </p>
       ) : null}
 
       {error ? (
-        <p className="text-sm text-stone-400" role="status">
+        <p className="text-sm text-mesa-ash" role="status">
           {error}
         </p>
       ) : null}

@@ -1,6 +1,7 @@
 'use client';
 
-import { Check, ShoppingCart } from 'lucide-react';
+import { Check, ShoppingBag } from 'lucide-react';
+import { homeV2ButtonClassName } from '@/components/home-v2/HomeV2Button';
 import StoreProductQuantityStepper from '@/components/store/StoreProductQuantityStepper';
 
 interface Props {
@@ -34,18 +35,20 @@ export default function StoreProductPurchaseActions({
       type="button"
       onClick={onAdd}
       disabled={addDisabled}
-      className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 ${
-        variant === 'card' ? 'w-full' : 'min-w-0 flex-1'
-      }`}
+      aria-live="polite"
+      className={homeV2ButtonClassName({
+        size: variant === 'panel' ? 'lg' : 'md',
+        className: variant === 'card' ? 'w-full' : 'min-w-0 flex-1',
+      })}
     >
       {added ? (
         <>
-          <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Check className="size-[1.1em] shrink-0" aria-hidden="true" />
           Adicionado
         </>
       ) : (
         <>
-          <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <ShoppingBag className="size-[1.1em] shrink-0" aria-hidden="true" />
           <span className="truncate">{addLabel}</span>
         </>
       )}
@@ -56,9 +59,7 @@ export default function StoreProductPurchaseActions({
     return (
       <div className={`space-y-3 ${className}`}>
         <div className="flex items-center justify-between gap-3">
-          <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
-            Quantidade
-          </p>
+          <p className="home-v2-display text-[11px] tracking-[0.2em] text-mesa-ash">Quantidade</p>
           <StoreProductQuantityStepper
             value={quantity}
             max={maxQty}
@@ -73,15 +74,14 @@ export default function StoreProductPurchaseActions({
 
   return (
     <div className={`space-y-2 ${className}`}>
-      <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
-        Quantidade
-      </p>
+      <p className="home-v2-display text-[11px] tracking-[0.2em] text-mesa-ash">Quantidade</p>
       <div className="flex items-stretch gap-3">
         <StoreProductQuantityStepper
           value={quantity}
           max={maxQty}
           min={minQty}
           onChange={onQuantityChange}
+          size="lg"
         />
         {addButton}
       </div>

@@ -20,6 +20,7 @@ import {
 import { filterStoreProductsForVitrine } from '@/lib/store/load-catalog';
 import { getMonthlyKitProductsForUser } from '@/lib/store/monthly-kits';
 import { enrichStoreProductsForSubscriber } from '@/lib/store/subscriber-discount';
+import '@/app/home-v2/home-v2.css';
 
 export const metadata: Metadata = {
   title: 'Loja | DungeonBox',

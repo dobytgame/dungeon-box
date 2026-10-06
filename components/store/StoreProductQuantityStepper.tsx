@@ -9,6 +9,8 @@ interface Props {
   min?: number;
   label?: string;
   showLabel?: boolean;
+  /** `lg` matches the 56px primary button on the product page. */
+  size?: 'md' | 'lg';
 }
 
 export default function StoreProductQuantityStepper({
@@ -18,27 +20,35 @@ export default function StoreProductQuantityStepper({
   min = 1,
   label = 'Quantidade',
   showLabel = false,
+  size = 'md',
 }: Props) {
   const clamped = Math.min(Math.max(value, min), max);
+  const buttonClass =
+    'flex w-11 shrink-0 cursor-pointer items-center justify-center text-mesa-ash transition-colors hover:text-mesa-parchment disabled:cursor-not-allowed disabled:opacity-40';
 
   return (
     <div className="shrink-0" role="group" aria-label={!showLabel ? label : undefined}>
       {showLabel ? (
-        <p className="mb-2 font-display text-[10px] uppercase tracking-widest text-stone-500">
-          {label}
-        </p>
+        <p className="home-v2-display mb-2 text-[11px] tracking-[0.2em] text-mesa-ash">{label}</p>
       ) : null}
-      <div className="flex h-11 items-stretch rounded-sm border border-white/10 bg-stone-950/60">
+      <div
+        className={`flex items-stretch rounded-sm border border-white/15 bg-mesa-ink ${
+          size === 'lg' ? 'h-14' : 'h-11'
+        }`}
+      >
         <button
           type="button"
           aria-label="Diminuir quantidade"
           disabled={clamped <= min}
           onClick={() => onChange(clamped - 1)}
-          className="flex w-10 shrink-0 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          className={buttonClass}
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="size-4" aria-hidden="true" />
         </button>
-        <span className="flex min-w-[2.25rem] items-center justify-center text-sm font-medium text-white">
+        <span
+          className="flex min-w-[2.25rem] items-center justify-center text-sm font-semibold tabular-nums text-mesa-parchment"
+          aria-live="polite"
+        >
           {clamped}
         </span>
         <button
@@ -46,9 +56,9 @@ export default function StoreProductQuantityStepper({
           aria-label="Aumentar quantidade"
           disabled={clamped >= max}
           onClick={() => onChange(clamped + 1)}
-          className="flex w-10 shrink-0 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          className={buttonClass}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="size-4" aria-hidden="true" />
         </button>
       </div>
     </div>

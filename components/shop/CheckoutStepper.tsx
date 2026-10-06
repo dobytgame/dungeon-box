@@ -25,10 +25,10 @@ export default function CheckoutStepper({ currentStep, className = '' }: Props) 
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-display text-xs ${
                   active
-                    ? 'bg-ember text-stone-950'
+                    ? 'bg-mesa-ember text-mesa-ink'
                     : done
-                      ? 'bg-ember/20 text-ember'
-                      : 'border border-white/15 text-stone-500'
+                      ? 'bg-mesa-ember/20 text-mesa-ember'
+                      : 'border border-white/15 text-mesa-ash'
                 }`}
                 aria-current={active ? 'step' : undefined}
               >
@@ -36,14 +36,14 @@ export default function CheckoutStepper({ currentStep, className = '' }: Props) 
               </span>
               <span
                 className={`truncate font-display text-[9px] uppercase tracking-widest max-[380px]:inline sm:hidden ${
-                  active ? 'text-white' : 'text-stone-500'
+                  active ? 'text-mesa-parchment' : 'text-mesa-ash'
                 }`}
               >
                 {step.label}
               </span>
               <span
                 className={`hidden truncate font-display text-[10px] uppercase tracking-widest sm:inline ${
-                  active ? 'text-white' : 'text-stone-500'
+                  active ? 'text-mesa-parchment' : 'text-mesa-ash'
                 }`}
               >
                 {step.label}
@@ -52,7 +52,7 @@ export default function CheckoutStepper({ currentStep, className = '' }: Props) 
             {index < STEPS.length - 1 ? (
               <div
                 className={`h-px min-w-[1rem] flex-1 ${
-                  done ? 'bg-ember/40' : 'bg-white/10'
+                  done ? 'bg-mesa-ember/40' : 'bg-white/10'
                 }`}
                 aria-hidden="true"
               />

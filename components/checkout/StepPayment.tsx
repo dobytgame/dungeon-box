@@ -9,7 +9,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { CreditCard, Lock, Loader2, ShieldCheck, Tag } from 'lucide-react';
+import { CreditCard, Lock, Loader2, QrCode, ShieldCheck, Tag } from 'lucide-react';
 import type { CheckoutData } from '@/lib/checkout/types';
 import { sumRecurringCheckoutCents } from '@/lib/checkout/bump-billing';
 import type { Profile } from '@/lib/dashboard/types';
@@ -29,7 +29,9 @@ import {
   comboInterestFreeMaxForCheckout,
   isComboTerm,
 } from '@/lib/checkout/combo-billing';
+import CheckoutPixPaymentPanel from './CheckoutPixPaymentPanel';
 import PagarmePaymentForm from './PagarmePaymentForm';
+import type { StorePixDetails } from '@/components/store/StorePixPaymentPanel';
 import AsaasPaymentForm, {
   type AsaasCardPayload,
 } from './AsaasPaymentForm';
@@ -66,6 +68,15 @@ export default function StepPayment({
   const phoneReady = isValidBrazilMobilePhone(profile?.phone ?? '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [comboPayMethod, setComboPayMethod] = useState<'credit_card' | 'pix'>(
+    'credit_card'
+  );
+  const [pixPending, setPixPending] = useState(false);
+  const [pixCheckout, setPixCheckout] = useState<{
+    subscriptionId: string;
+    amountCents: number;
+    pix: StorePixDetails;
+  } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [checkoutSubscriptionId, setCheckoutSubscriptionId] = useState<
     string | null
@@ -223,6 +234,11 @@ export default function StepPayment({
 
   const handlePagarmeSubmit = useCallback(
     async (tokenized: { token: string; last4: string; brand: string }) => {
+      const { readStoredMarketingAttribution } = await import(
+        '@/lib/marketing/utm-session'
+      );
+      const marketingAttribution = readStoredMarketingAttribution();
+
       const res = await fetch('/api/pagarme/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -238,6 +254,7 @@ export default function StepPayment({
           cardLast4: tokenized.last4,
           cardBrand: tokenized.brand,
           couponCode: promotionCode,
+          ...(marketingAttribution ? { marketingAttribution } : {}),
         }),
       });
 
@@ -323,6 +340,76 @@ export default function StepPayment({
     [data, promotionCode, router, handleSuccess]
   );
 
+  const pixAvailable = isCombo && (asaasReady || pagarmeReady);
+  const payingWithPix = pixAvailable && comboPayMethod === 'pix';
+
+  const handleComboPix = useCallback(async () => {
+    setPixPending(true);
+    setError('');
+
+    try {
+      const { readStoredMarketingAttribution } = await import(
+        '@/lib/marketing/utm-session'
+      );
+      const marketingAttribution = readStoredMarketingAttribution();
+
+      const res = await fetch('/api/checkout/combo-pix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planSlugs: data.planSlugs,
+          addressId: data.addressId,
+          specialNotes: data.specialNotes,
+          paintKitBump: data.paintKitBump,
+          paintKitBumpRecurring: data.paintKitBumpRecurring,
+          billingTerm: data.billingTerm,
+          couponCode: promotionCode,
+          ...(marketingAttribution ? { marketingAttribution } : {}),
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (payload.code === 'SUBSCRIPTION_ALREADY_ACTIVE') {
+          router.push('/dashboard/subscription');
+          router.refresh();
+          return;
+        }
+        throw new Error(
+          typeof payload.error === 'string'
+            ? payload.error
+            : 'Não foi possível gerar o PIX.'
+        );
+      }
+
+      const subscriptionId =
+        typeof payload.subscriptionId === 'string' ? payload.subscriptionId : '';
+
+      if (payload.alreadyPaid && subscriptionId) {
+        handleSuccess([subscriptionId]);
+        return;
+      }
+
+      if (!subscriptionId || !payload.pix?.payload) {
+        throw new Error('Não foi possível gerar o QR Code PIX.');
+      }
+
+      setPixCheckout({
+        subscriptionId,
+        amountCents:
+          typeof payload.amountCents === 'number'
+            ? payload.amountCents
+            : comboTotalCents,
+        pix: payload.pix as StorePixDetails,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao gerar o PIX.');
+    } finally {
+      setPixPending(false);
+    }
+  }, [comboTotalCents, data, handleSuccess, promotionCode, router]);
+
   const displayPrice = (monthlyTotalCents / 100).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -343,9 +430,11 @@ export default function StepPayment({
       <CheckoutSection
         title="Pagamento"
         subtitle={
-          isCombo
-            ? 'Pagamento único do combo. Renovação mensal após o período.'
-            : 'Cobrança mensal automática. Você pode cancelar a qualquer momento.'
+          payingWithPix
+            ? 'PIX à vista do combo. A assinatura entra depois da confirmação do pagamento.'
+            : isCombo
+              ? 'Pagamento único do combo. Renovação mensal após o período.'
+              : 'Cobrança mensal automática. Você pode cancelar a qualquer momento.'
         }
       >
         {profile ? (
@@ -391,7 +480,7 @@ export default function StepPayment({
           </p>
         ) : null}
 
-        {isCombo && (asaasReady || pagarmeReady) ? (
+        {isCombo && (asaasReady || pagarmeReady) && !payingWithPix ? (
           <CheckoutSection
             title="Parcelamento"
             subtitle="Disponível apenas para combos."
@@ -407,20 +496,90 @@ export default function StepPayment({
           </CheckoutSection>
         ) : null}
 
+        {pixAvailable ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setComboPayMethod('credit_card')}
+              className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
+                comboPayMethod === 'credit_card'
+                  ? 'border-ember/40 bg-ember/10 text-ember'
+                  : 'border-white/10 text-stone-400 hover:border-white/20 hover:text-white'
+              }`}
+            >
+              Cartão
+            </button>
+            <button
+              type="button"
+              onClick={() => setComboPayMethod('pix')}
+              className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
+                comboPayMethod === 'pix'
+                  ? 'border-ember/40 bg-ember/10 text-ember'
+                  : 'border-white/10 text-stone-400 hover:border-white/20 hover:text-white'
+              }`}
+            >
+              PIX
+            </button>
+          </div>
+        ) : null}
+
         <div className="rounded-sm border border-white/[0.06] bg-stone-950/40 p-5">
           <div className="flex items-start gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-stone-950">
-              <CreditCard className="h-5 w-5 text-stone-400" aria-hidden="true" />
+              {payingWithPix ? (
+                <QrCode className="h-5 w-5 text-stone-400" aria-hidden="true" />
+              ) : (
+                <CreditCard className="h-5 w-5 text-stone-400" aria-hidden="true" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-white">Cartão de crédito</p>
+              <p className="text-sm font-medium text-white">
+                {payingWithPix ? 'PIX' : 'Cartão de crédito'}
+              </p>
               <p className="mt-1 text-sm leading-relaxed text-stone-500">
-                {paymentDescription}
+                {payingWithPix
+                  ? `Combo à vista — R$ ${(comboTotalCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Gere o QR Code e pague no app do banco.`
+                  : paymentDescription}
               </p>
             </div>
           </div>
 
           <div className="relative mt-5 min-h-[120px] rounded-sm border border-dashed border-white/10 bg-stone-950/50 px-2 py-4">
+            {payingWithPix && pixCheckout ? (
+              <CheckoutPixPaymentPanel
+                subscriptionId={pixCheckout.subscriptionId}
+                amountCents={pixCheckout.amountCents}
+                pix={pixCheckout.pix}
+                onConfirmed={() => handleSuccess([pixCheckout.subscriptionId])}
+              />
+            ) : null}
+
+            {payingWithPix && !pixCheckout ? (
+              <div className="space-y-4 px-2">
+                <p className="text-sm text-stone-400">
+                  O PIX é à vista, no valor total do combo. A confirmação é
+                  automática depois do pagamento.
+                </p>
+                <button
+                  type="button"
+                  disabled={pixPending || !pixAvailable}
+                  onClick={() => void handleComboPix()}
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pixPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      Gerando PIX…
+                    </>
+                  ) : (
+                    'Gerar PIX'
+                  )}
+                </button>
+              </div>
+            ) : null}
+
+            {payingWithPix ? null : (
+            <>
             {!providerLoaded ? (
               <div className="flex min-h-[120px] items-center justify-center">
                 <Loader2
@@ -489,6 +648,8 @@ export default function StepPayment({
                 Não foi possível carregar o pagamento.
               </p>
             ) : null}
+            </>
+            )}
           </div>
         </div>
 

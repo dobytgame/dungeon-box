@@ -75,7 +75,7 @@ export default function StoreOrderPaymentResume({ orderId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-stone-400">
+      <div className="flex items-center gap-2 text-sm text-mesa-ash">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         Carregando pedido…
       </div>
@@ -85,19 +85,19 @@ export default function StoreOrderPaymentResume({ orderId }: Props) {
   if (payload?.state === 'approved') {
     return (
       <ShopCard title="Pagamento confirmado" eyebrow="Pedido">
-        <p className="text-sm text-stone-300">
+        <p className="text-sm text-mesa-parchment/90">
           Este pedido já foi pago. Você pode acompanhar os detalhes em Pagamentos.
         </p>
         <div className="mt-6 flex flex-wrap gap-4">
           <Link
             href="/dashboard/payments"
-            className="inline-flex min-h-[44px] items-center rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+            className="inline-flex min-h-[44px] items-center rounded-sm bg-mesa-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a]"
           >
             Ver pagamentos
           </Link>
           <Link
             href={STORE_ROUTES.home}
-            className="inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember/80"
+            className="inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-mesa-ember hover:text-mesa-ember/80"
           >
             Voltar à loja
           </Link>
@@ -109,13 +109,13 @@ export default function StoreOrderPaymentResume({ orderId }: Props) {
   if (payload?.state === 'not_found' || !payload) {
     return (
       <ShopCard title="Pedido não encontrado" eyebrow="Loja">
-        <p className="text-sm text-stone-400">
+        <p className="text-sm text-mesa-ash">
           {payload?.error ??
             'Não encontramos este pedido na sua conta. Verifique o link ou tente novamente pelo carrinho.'}
         </p>
         <Link
           href={STORE_ROUTES.cart}
-          className="mt-6 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+          className="mt-6 inline-flex font-display text-xs uppercase tracking-widest text-mesa-ember hover:text-[#ff7a4a]"
         >
           Ir ao carrinho →
         </Link>
@@ -126,10 +126,10 @@ export default function StoreOrderPaymentResume({ orderId }: Props) {
   if (payload.pix && amountCents != null) {
     return (
       <ShopCard title="Concluir pagamento" eyebrow="Pedido pendente">
-        <p className="text-sm text-stone-400">
+        <p className="text-sm text-mesa-ash">
           Pedido registrado. Finalize o pagamento via PIX para confirmar a compra.
         </p>
-        <p className="mt-2 font-display text-2xl text-white">
+        <p className="mt-2 font-display text-2xl text-mesa-parchment">
           {formatMoney(amountCents)}
         </p>
         <div className="mt-6">
@@ -149,23 +149,23 @@ export default function StoreOrderPaymentResume({ orderId }: Props) {
 
   return (
     <ShopCard title="Pagamento pendente" eyebrow="Pedido">
-      <p className="text-sm text-stone-300">
+      <p className="text-sm text-mesa-parchment/90">
         Seu pedido foi registrado, mas o pagamento ainda não foi concluído.
         {payload.state === 'pending'
           ? ' Se escolheu cartão, aguarde a análise ou tente novamente pelo checkout.'
           : ''}
       </p>
-      <p className="mt-2 font-mono text-xs text-stone-500">Referência: {orderId}</p>
+      <p className="mt-2 font-mono text-xs text-mesa-ash">Referência: {orderId}</p>
       <div className="mt-6 flex flex-wrap gap-4">
         <Link
           href={STORE_ROUTES.checkout}
-          className="inline-flex min-h-[44px] items-center rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+          className="inline-flex min-h-[44px] items-center rounded-sm bg-mesa-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a]"
         >
           Voltar ao checkout
         </Link>
         <Link
           href="/dashboard/payments"
-          className="inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-ember hover:text-ember/80"
+          className="inline-flex min-h-[44px] items-center font-display text-xs uppercase tracking-widest text-mesa-ember hover:text-mesa-ember/80"
         >
           Ver em pagamentos
         </Link>

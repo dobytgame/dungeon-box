@@ -45,6 +45,7 @@ import {
 } from '@/lib/analytics/store-events';
 import { STORE_ROUTES } from '@/lib/store/routes';
 import type { StorePaymentConfig } from '@/lib/store/payment-config';
+import { readStoredMarketingAttribution } from '@/lib/marketing/utm-session';
 
 interface Props {
   addresses: Address[];
@@ -64,12 +65,14 @@ function buildCheckoutPayload(
   card?: AsaasCardPayload,
   cardToken?: string
 ) {
+  const marketingAttribution = readStoredMarketingAttribution();
   return {
     paymentMethod,
     items: lines,
     addressId: checkoutAddressId,
     bundleSubscriptionId,
     couponCode,
+    ...(marketingAttribution ? { marketingAttribution } : {}),
     ...(paymentMethod === 'credit_card' && cardToken
       ? { cardToken }
       : {}),
@@ -358,19 +361,19 @@ export default function StoreCheckoutForm({
 
   if (!hydrated) {
     return (
-      <DashboardCard title="Checkout" accent="gold">
-        <p className="text-sm text-stone-500">Carregando…</p>
+      <DashboardCard title="Checkout" accent="jade">
+        <p className="text-sm text-mesa-ash">Carregando…</p>
       </DashboardCard>
     );
   }
 
   if (resolved.length === 0) {
     return (
-      <DashboardCard title="Checkout" accent="gold">
-        <p className="text-sm text-stone-400">Seu carrinho está vazio.</p>
+      <DashboardCard title="Checkout" accent="jade">
+        <p className="text-sm text-mesa-ash">Seu carrinho está vazio.</p>
         <Link
           href={STORE_ROUTES.home}
-          className="mt-4 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+          className="mt-4 inline-flex font-display text-xs uppercase tracking-widest text-mesa-ember hover:text-[#ff7a4a]"
         >
           Voltar à loja →
         </Link>
@@ -556,7 +559,7 @@ export default function StoreCheckoutForm({
           <button
             type="button"
             onClick={() => setStep((step - 1) as 1 | 2)}
-            className="inline-flex shrink-0 cursor-pointer items-center font-display text-xs uppercase tracking-widest text-stone-500 transition hover:text-white"
+            className="inline-flex shrink-0 cursor-pointer items-center font-display text-xs uppercase tracking-widest text-mesa-ash transition hover:text-mesa-parchment"
           >
             ← {step === 3 ? 'Voltar para entrega' : 'Voltar ao resumo'}
           </button>
@@ -568,7 +571,7 @@ export default function StoreCheckoutForm({
         {step === 1 ? (
           <DashboardCard
             title="Resumo do pedido"
-            accent="gold"
+            accent="jade"
             description={`${checkoutItemCount} ${
               checkoutItemCount === 1 ? 'item' : 'itens'
             } no carrinho`}
@@ -579,7 +582,7 @@ export default function StoreCheckoutForm({
                 <CartValidationBanner issues={validationIssues} />
               </div>
             ) : null}
-            <div className="mt-6 border-t border-white/[0.06] pt-6">
+            <div className="mt-6 border-t border-white/10 pt-6">
               <StoreCouponField
                 subtotalCents={subtotalCents}
                 standaloneShipping={shippingMode === 'standalone'}
@@ -596,7 +599,7 @@ export default function StoreCheckoutForm({
               type="button"
               onClick={goToDeliveryStep}
               disabled={!cartIsValid}
-              className="mt-6 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="mt-6 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-sm bg-mesa-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               Continuar para entrega →
             </button>
@@ -611,11 +614,11 @@ export default function StoreCheckoutForm({
         {requiresBundledMonthlyKit ? (
           <DashboardCard
             title="Envio com sua assinatura"
-            accent="gold"
+            accent="jade"
             description="Escolha a assinatura cujo próximo envio receberá os kits extras — sem frete."
           >
             {eligibleMonthlyKitSubs.length === 0 ? (
-              <p className="text-sm text-stone-400">
+              <p className="text-sm text-mesa-ash">
                 Nenhuma assinatura ativa encontrada.
               </p>
             ) : (
@@ -627,8 +630,8 @@ export default function StoreCheckoutForm({
                       key={subscription.id}
                       className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
                         monthlyKitBundleSubscriptionId === subscription.id
-                          ? 'border-gold/40 bg-gold/5'
-                          : 'border-white/[0.06] hover:border-white/15'
+                          ? 'border-mesa-jade/40 bg-mesa-jade/5'
+                          : 'border-white/10 hover:border-white/15'
                       }`}
                     >
                       <input
@@ -640,11 +643,11 @@ export default function StoreCheckoutForm({
                         }
                         className="mt-1"
                       />
-                      <span className="text-sm text-stone-300">
-                        <span className="text-white">
+                      <span className="text-sm text-mesa-parchment/90">
+                        <span className="text-mesa-parchment">
                           Próxima caixa — {plan?.name ?? 'Assinatura'}
                         </span>
-                        <span className="mt-0.5 block text-xs text-gold">
+                        <span className="mt-0.5 block text-xs text-mesa-jade">
                           Frete grátis · kits extras vão neste envio
                         </span>
                       </span>
@@ -654,7 +657,7 @@ export default function StoreCheckoutForm({
               </div>
             )}
 
-            <ul className="mt-4 space-y-2 border-t border-white/[0.06] pt-4 text-sm text-stone-400">
+            <ul className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-mesa-ash">
               {resolved
                 .filter((line) => line.category === 'monthly-kit')
                 .map((line) => (
@@ -665,7 +668,7 @@ export default function StoreCheckoutForm({
             </ul>
 
             {selectedMonthlySub ? (
-              <p className="mt-3 text-xs text-stone-500">
+              <p className="mt-3 text-xs text-mesa-ash">
                 Os kits podem ser de qualquer plano — o envio usa o endereço da
                 assinatura {relOne(selectedMonthlySub.plans)?.name ?? 'selecionada'}.
               </p>
@@ -686,11 +689,11 @@ export default function StoreCheckoutForm({
         {canBundlePaintKit && eligiblePaintKitSubs.length > 0 ? (
           <DashboardCard
             title="Envio com sua assinatura"
-            accent="gold"
+            accent="jade"
             description="Frete grátis: o kit vai junto com a próxima dungeon."
           >
             <div className="space-y-3">
-              <label className="flex cursor-pointer gap-3 rounded-sm border border-white/[0.06] p-4">
+              <label className="flex cursor-pointer gap-3 rounded-sm border border-white/10 p-4">
                 <input
                   type="radio"
                   name="paint-kit-bundle"
@@ -698,9 +701,9 @@ export default function StoreCheckoutForm({
                   onChange={() => setPaintKitBundleSubscriptionId('')}
                   className="mt-1"
                 />
-                <span className="text-sm text-stone-300">
-                  <span className="text-white">Envio avulso</span>
-                  <span className="mt-0.5 block text-xs text-stone-500">
+                <span className="text-sm text-mesa-parchment/90">
+                  <span className="text-mesa-parchment">Envio avulso</span>
+                  <span className="mt-0.5 block text-xs text-mesa-ash">
                     Enviaremos para o endereço selecionado em pedido separado.
                   </span>
                 </span>
@@ -713,8 +716,8 @@ export default function StoreCheckoutForm({
                     key={subscription.id}
                     className={`flex cursor-pointer gap-3 rounded-sm border p-4 transition ${
                       paintKitBundleSubscriptionId === subscription.id
-                        ? 'border-gold/40 bg-gold/5'
-                        : 'border-white/[0.06] hover:border-white/15'
+                        ? 'border-mesa-jade/40 bg-mesa-jade/5'
+                        : 'border-white/10 hover:border-white/15'
                     }`}
                   >
                     <input
@@ -726,11 +729,11 @@ export default function StoreCheckoutForm({
                       }
                       className="mt-1"
                     />
-                    <span className="text-sm text-stone-300">
-                      <span className="text-white">
+                    <span className="text-sm text-mesa-parchment/90">
+                      <span className="text-mesa-parchment">
                         Com a próxima caixa — {plan?.name ?? 'Assinatura'}
                       </span>
-                      <span className="mt-0.5 block text-xs text-gold">
+                      <span className="mt-0.5 block text-xs text-mesa-jade">
                         Frete grátis
                       </span>
                     </span>
@@ -745,7 +748,7 @@ export default function StoreCheckoutForm({
           <button
             type="button"
             onClick={() => setStep(1)}
-            className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm border border-white/10 px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-400"
+            className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm border border-white/10 px-5 py-3 font-display text-xs uppercase tracking-widest text-mesa-ash"
           >
             ← Voltar
           </button>
@@ -753,7 +756,7 @@ export default function StoreCheckoutForm({
             type="button"
             onClick={goToPaymentStep}
             disabled={!paymentsReady || !cartIsValid}
-            className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-mesa-ember px-6 py-3 font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Continuar para pagamento →
           </button>
@@ -779,8 +782,8 @@ export default function StoreCheckoutForm({
                   onClick={() => setPaymentMethod('credit_card')}
                   className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
                     paymentMethod === 'credit_card'
-                      ? 'border-ember/40 bg-ember/10 text-ember'
-                      : 'border-white/[0.08] text-stone-400 hover:border-white/15'
+                      ? 'border-mesa-ember/40 bg-mesa-ember/10 text-mesa-ember'
+                      : 'border-white/10 text-mesa-ash hover:border-white/15'
                   }`}
                 >
                   Cartão
@@ -790,8 +793,8 @@ export default function StoreCheckoutForm({
                   onClick={() => setPaymentMethod('pix')}
                   className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
                     paymentMethod === 'pix'
-                      ? 'border-ember/40 bg-ember/10 text-ember'
-                      : 'border-white/[0.08] text-stone-400 hover:border-white/15'
+                      ? 'border-mesa-ember/40 bg-mesa-ember/10 text-mesa-ember'
+                      : 'border-white/10 text-mesa-ash hover:border-white/15'
                   }`}
                 >
                   PIX
@@ -826,7 +829,7 @@ export default function StoreCheckoutForm({
                 )
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm text-stone-400">
+                  <p className="text-sm text-mesa-ash">
                     Gere o QR Code PIX e pague pelo app do seu banco. A confirmação
                     é automática após o pagamento.
                   </p>
@@ -839,7 +842,7 @@ export default function StoreCheckoutForm({
                       (hasMonthlyKit && eligibleMonthlyKitSubs.length === 0)
                     }
                     onClick={() => void handlePixPay()}
-                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-mesa-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-mesa-ink transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {pending ? (
                       <>
@@ -855,7 +858,7 @@ export default function StoreCheckoutForm({
             </>
           )}
           {pending ? (
-            <p className="mt-4 flex items-center gap-2 text-sm text-stone-400">
+            <p className="mt-4 flex items-center gap-2 text-sm text-mesa-ash">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Processando pagamento…
             </p>

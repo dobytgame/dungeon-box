@@ -25,12 +25,10 @@ export default async function LojaCheckoutPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-5xl px-4 pb-16 pt-8 sm:px-6 sm:pt-10">
       <div className="mb-8">
-        <p className="font-display text-xs uppercase tracking-[0.25em] text-stone-500">
-          Checkout
-        </p>
-        <h1 className="mt-2 font-display text-2xl uppercase tracking-wide text-white">
+        <p className="home-v2-display text-[11px] tracking-[0.28em] text-mesa-jade">Checkout</p>
+        <h1 className="home-v2-display mt-3 text-[clamp(2.25rem,6vw,3.5rem)] leading-[0.92] text-mesa-parchment">
           Finalizar compra
         </h1>
       </div>

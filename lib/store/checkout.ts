@@ -141,6 +141,7 @@ export type StoreCheckoutInput = {
   creditCardHolderInfo?: AsaasCreditCardHolderInput;
   cardToken?: string;
   remoteIp?: string;
+  marketingAttribution?: Record<string, unknown> | null;
 };
 
 export type StoreCheckoutResult =
@@ -623,6 +624,7 @@ export async function purchaseStoreOrder(
       amountCents: totalCents,
       paymentMethod: input.paymentMethod,
       orderMeta,
+      marketingAttribution: input.marketingAttribution ?? null,
     });
 
     if ('error' in pendingPayment) {

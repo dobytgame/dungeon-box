@@ -388,6 +388,7 @@ export async function createPendingStoreOrderPayment(
     amountCents: number;
     paymentMethod: 'credit_card' | 'pix';
     orderMeta: StoreOrderMeta;
+    marketingAttribution?: Record<string, unknown> | null;
   }
 ): Promise<{ id: string } | { error: string }> {
   const { data, error } = await admin
@@ -402,6 +403,9 @@ export async function createPendingStoreOrderPayment(
       status_detail: JSON.stringify(input.orderMeta),
       paid_at: null,
       payment_method: input.paymentMethod,
+      ...(input.marketingAttribution
+        ? { marketing_attribution: input.marketingAttribution }
+        : {}),
     })
     .select('id')
     .single();

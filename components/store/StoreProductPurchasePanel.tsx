@@ -109,10 +109,10 @@ function MultiVariationPurchasePanel({ product }: Props) {
 
   return (
     <div className="mt-8 space-y-4">
-      <ul className="space-y-2 text-sm text-stone-400">
+      <ul className="space-y-2 text-sm text-mesa-ash">
         {product.includes.map((item) => (
-          <li key={item} className="flex gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />
+          <li key={item} className="flex gap-2.5">
+            <Check className="mt-0.5 size-4 shrink-0 text-mesa-jade" aria-hidden="true" />
             <span>{item}</span>
           </li>
         ))}
@@ -130,10 +130,10 @@ function MultiVariationPurchasePanel({ product }: Props) {
       ) : null}
 
       {hasVariations ? (
-        <div className="space-y-4 border-t border-white/[0.06] pt-4">
+        <div className="space-y-5 border-t border-white/10 pt-5">
           {(product.variations ?? []).map((variation) => (
             <div key={variation.name}>
-              <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+              <p className="home-v2-display text-[11px] tracking-[0.2em] text-mesa-ash">
                 {variation.name}
               </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -152,13 +152,14 @@ function MultiVariationPurchasePanel({ product }: Props) {
                         }));
                         setSelectionError('');
                       }}
-                      className={`flex cursor-pointer items-center gap-3 rounded-sm border px-3 py-2.5 text-left transition ${
+                      aria-pressed={selected}
+                      className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors duration-200 ${
                         selected
-                          ? 'border-ember/50 bg-ember/10'
-                          : 'border-white/10 bg-stone-950 hover:border-white/20'
+                          ? 'border-mesa-ember bg-mesa-ember/[0.08]'
+                          : 'border-white/10 bg-mesa-stone hover:border-white/25'
                       }`}
                     >
-                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-stone-900">
+                      <div className="size-10 shrink-0 overflow-hidden rounded-md border border-white/10 bg-mesa-ink">
                         {option.imageUrl ? (
                           <StoreMediaImage
                             src={option.imageUrl}
@@ -169,12 +170,12 @@ function MultiVariationPurchasePanel({ product }: Props) {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] text-stone-600">
+                          <div className="home-v2-display flex size-full items-center justify-center text-[11px] text-mesa-ash">
                             {label.slice(0, 2).toUpperCase()}
                           </div>
                         )}
                       </div>
-                      <span className="text-sm text-white">{label}</span>
+                      <span className="text-sm font-medium text-mesa-parchment">{label}</span>
                     </button>
                   );
                 })}
@@ -201,7 +202,7 @@ function MultiVariationPurchasePanel({ product }: Props) {
         variant="panel"
       />
 
-      <p className="text-xs leading-relaxed text-stone-600">
+      <p className="text-xs leading-relaxed text-mesa-ash/80">
         {STORE_PRODUCTION_LEAD_TIME_LABEL}.{' '}
         {isMonthlyKit ? (
           isStandaloneMonthlyKit ? (
@@ -215,7 +216,10 @@ function MultiVariationPurchasePanel({ product }: Props) {
           <>
             {' '}
             Assinantes: frete grátis na{' '}
-            <Link href="/dashboard/subscription" className="text-ember hover:underline">
+            <Link
+              href="/dashboard/subscription"
+              className="text-mesa-parchment underline decoration-mesa-ember/60 underline-offset-2 hover:decoration-mesa-ember"
+            >
               próxima caixa
             </Link>
             .

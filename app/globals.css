@@ -518,37 +518,6 @@
     object-position: center 38%;
   }
 
-  .category-hero__overlay-left {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      90deg,
-      rgb(10 12 16 / 0.96) 0%,
-      rgb(10 12 16 / 0.82) 38%,
-      rgb(10 12 16 / 0.35) 68%,
-      transparent 100%
-    );
-  }
-
-  .category-hero__overlay-bottom {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to top,
-      rgb(10 12 16 / 0.92) 0%,
-      rgb(10 12 16 / 0.35) 28%,
-      transparent 58%
-    );
-  }
-
-  .category-hero__glow {
-    background: radial-gradient(
-      circle at 78% 28%,
-      rgb(255 107 43 / 0.14),
-      transparent 48%
-    );
-  }
-
   @media (min-width: 640px) {
     .category-hero__frame {
       min-height: 28rem;

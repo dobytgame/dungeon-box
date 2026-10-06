@@ -1356,6 +1356,70 @@ export async function recordOfflineSubscriptionPaymentAction(input: {
   return { success: true as const, ...result };
 }
 
+export async function getCycleOrdersPrintOptionsAction() {
+  const { admin } = await requireAdmin();
+
+  const { listCycleOrdersPrintOptions } = await import(
+    '@/lib/admin/cycle-orders-print-report'
+  );
+  const options = await listCycleOrdersPrintOptions(admin);
+  return {
+    success: true as const,
+    cycles: options.map((item) => ({
+      cycleNumber: item.cycleNumber,
+      label: item.label,
+      count: item.count,
+      hasOpenWork: item.hasOpenWork,
+    })),
+  };
+}
+
+export async function exportCycleOrdersPrintHtmlAction(cycleNumber: number) {
+  const { user, admin } = await requireAdmin();
+
+  try {
+    const {
+      buildCycleOrdersPrintReport,
+      renderCycleOrdersPrintHtml,
+    } = await import('@/lib/admin/cycle-orders-print-report');
+
+    const { rows, cycleLabel } = await buildCycleOrdersPrintReport(
+      admin,
+      cycleNumber
+    );
+    const html = renderCycleOrdersPrintHtml({
+      cycleLabel,
+      rows,
+      generatedAt: new Date(),
+    });
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'production.export_cycle_orders_print',
+      entityType: 'subscription_cycle',
+      metadata: {
+        cycleNumber,
+        cycleLabel,
+        rowCount: rows.length,
+      },
+      ipAddress: await clientIp(),
+    });
+
+    return {
+      success: true as const,
+      html,
+      cycleLabel,
+      rowCount: rows.length,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Não foi possível gerar o relatório.';
+    return { error: message };
+  }
+}
+
 export async function exportActiveSubscribersCsvAction() {
   const { user, admin } = await requireAdmin();
 

@@ -29,15 +29,15 @@ function LineImage({
   if (!imageUrl) {
     return (
       <div
-        className={`flex ${dimension} shrink-0 items-center justify-center rounded-sm bg-stone-900`}
+        className={`flex ${dimension} shrink-0 items-center justify-center rounded-sm bg-mesa-stone`}
       >
-        <ShoppingBag className="h-5 w-5 text-stone-600" aria-hidden="true" />
+        <ShoppingBag className="h-5 w-5 text-mesa-ash/70" aria-hidden="true" />
       </div>
     );
   }
 
   return (
-    <div className={`${dimension} shrink-0 overflow-hidden rounded-sm bg-stone-900`}>
+    <div className={`${dimension} shrink-0 overflow-hidden rounded-sm bg-mesa-stone`}>
       <StoreMediaImage
         src={imageUrl}
         alt=""
@@ -79,7 +79,7 @@ function CheckoutQuantityControls({
             line.quantity <= 1 ? `Remover ${line.name}` : 'Diminuir quantidade'
           }
           onClick={onDecrease}
-          className={`flex ${buttonSize} cursor-pointer items-center justify-center text-stone-400 transition hover:text-white`}
+          className={`flex ${buttonSize} cursor-pointer items-center justify-center text-mesa-ash transition hover:text-mesa-parchment`}
         >
           {line.quantity <= 1 ? (
             <Trash2 className={iconSize} />
@@ -87,7 +87,7 @@ function CheckoutQuantityControls({
             <Minus className={iconSize} />
           )}
         </button>
-        <span className="min-w-[2rem] text-center text-sm text-white">
+        <span className="min-w-[2rem] text-center text-sm text-mesa-parchment">
           {line.quantity}
         </span>
         <button
@@ -95,7 +95,7 @@ function CheckoutQuantityControls({
           aria-label="Aumentar quantidade"
           disabled={line.quantity >= maxQuantity}
           onClick={onIncrease}
-          className={`flex ${buttonSize} cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40`}
+          className={`flex ${buttonSize} cursor-pointer items-center justify-center text-mesa-ash transition hover:text-mesa-parchment disabled:cursor-not-allowed disabled:opacity-40`}
         >
           <Plus className={iconSize} />
         </button>
@@ -104,7 +104,7 @@ function CheckoutQuantityControls({
       <button
         type="button"
         onClick={onRemove}
-        className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-stone-500 transition hover:text-red-300"
+        className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-mesa-ash transition hover:text-red-300"
         aria-label={`Remover ${line.name}`}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -152,26 +152,26 @@ export default function StoreCheckoutLineItems({
 
   if (variant === 'compact') {
     return (
-      <ul className="divide-y divide-white/[0.06]">
+      <ul className="divide-y divide-white/10">
         {lines.map((line) => (
           <li key={line.lineId} className="py-3 first:pt-0 last:pb-0">
             <div className="flex gap-3">
               <LineImage imageUrl={line.imageUrl} name={line.name} size="sm" />
               <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="line-clamp-2 text-sm leading-snug text-stone-300">
+                  <p className="line-clamp-2 text-sm leading-snug text-mesa-parchment/90">
                     {!editable ? (
                       <>
-                        <span className="font-medium text-white">{line.quantity}×</span>{' '}
+                        <span className="font-medium text-mesa-parchment">{line.quantity}×</span>{' '}
                       </>
                     ) : null}
                     {line.name}
                   </p>
                   {line.themeName ? (
-                    <p className="mt-1 text-xs text-gold">Tema: {line.themeName}</p>
+                    <p className="mt-1 text-xs text-mesa-jade">Tema: {line.themeName}</p>
                   ) : null}
                   {line.variationSummary ? (
-                    <p className="mt-1 text-xs text-stone-500">{line.variationSummary}</p>
+                    <p className="mt-1 text-xs text-mesa-ash">{line.variationSummary}</p>
                   ) : null}
                   {line.requiresUnitUploads && line.uploadsComplete === false ? (
                     <p className="mt-1 text-xs text-amber-200/90">
@@ -179,7 +179,7 @@ export default function StoreCheckoutLineItems({
                     </p>
                   ) : null}
                 </div>
-                <p className="shrink-0 text-sm font-medium text-white">
+                <p className="shrink-0 text-sm font-medium text-mesa-parchment">
                   {formatMoney(line.lineTotalCents)}
                 </p>
               </div>
@@ -192,29 +192,29 @@ export default function StoreCheckoutLineItems({
   }
 
   return (
-    <ul className="divide-y divide-white/[0.06]">
+    <ul className="divide-y divide-white/10">
       {lines.map((line) => (
         <li key={line.lineId} className="flex gap-4 py-4 first:pt-0 last:pb-0">
           <LineImage imageUrl={line.imageUrl} name={line.name} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 text-sm font-medium leading-snug text-white">
+                <p className="line-clamp-2 text-sm font-medium leading-snug text-mesa-parchment">
                   {line.name}
                 </p>
                 {line.themeName ? (
-                  <p className="mt-1 text-xs text-gold">Tema: {line.themeName}</p>
+                  <p className="mt-1 text-xs text-mesa-jade">Tema: {line.themeName}</p>
                 ) : null}
                 {line.variationSummary ? (
-                  <p className="mt-1 text-xs text-stone-500">{line.variationSummary}</p>
+                  <p className="mt-1 text-xs text-mesa-ash">{line.variationSummary}</p>
                 ) : null}
               </div>
-              <p className="shrink-0 font-display text-sm text-ember">
+              <p className="shrink-0 font-display text-sm text-mesa-ember">
                 {formatMoney(line.lineTotalCents)}
               </p>
             </div>
             {!editable ? (
-              <p className="mt-2 text-xs text-stone-500">
+              <p className="mt-2 text-xs text-mesa-ash">
                 {line.quantity} {line.quantity === 1 ? 'unidade' : 'unidades'} ·{' '}
                 {formatMoney(line.priceCents)} cada
               </p>

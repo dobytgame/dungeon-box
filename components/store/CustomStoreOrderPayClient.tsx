@@ -98,7 +98,7 @@ export default function CustomStoreOrderPayClient({
   if (order.state === 'approved') {
     return (
       <ShopCard title="Pagamento confirmado" eyebrow="Pedido personalizado">
-        <p className="text-sm text-stone-300">
+        <p className="text-sm text-mesa-parchment/90">
           Este pedido já foi pago. A produção entra na fila da loja.
         </p>
       </ShopCard>
@@ -108,7 +108,7 @@ export default function CustomStoreOrderPayClient({
   if (awaitingReview) {
     return (
       <ShopCard title="Pagamento em análise" eyebrow="Pedido personalizado">
-        <p className="text-sm text-stone-300">
+        <p className="text-sm text-mesa-parchment/90">
           Recebemos o pagamento e estamos aguardando a confirmação da
           operadora. Você receberá um e-mail quando o pedido for aprovado.
         </p>
@@ -129,23 +129,23 @@ export default function CustomStoreOrderPayClient({
                 {item.quantity > 1 ? `${item.quantity}× ` : ''}
                 {item.name}
               </span>
-              <span className="tabular-nums text-white">
+              <span className="tabular-nums text-mesa-parchment">
                 {formatMoney(item.lineTotalCents)}
               </span>
             </li>
           ))}
         </ul>
         <div className="mt-5 flex items-center justify-between text-sm">
-          <span className="text-stone-500">
+          <span className="text-mesa-ash">
             {order.shippingLabel ?? 'Frete incluso'}
             {order.addressSummary ? ` · ${order.addressSummary}` : ''}
           </span>
-          <span className="font-display text-2xl text-white">
+          <span className="font-display text-2xl text-mesa-parchment">
             {formatMoney(order.amountCents)}
           </span>
         </div>
         {order.notes ? (
-          <p className="mt-4 text-sm text-stone-400">{order.notes}</p>
+          <p className="mt-4 text-sm text-mesa-ash">{order.notes}</p>
         ) : null}
       </ShopCard>
 
@@ -174,8 +174,8 @@ export default function CustomStoreOrderPayClient({
                 onClick={() => setPaymentMethod('credit_card')}
                 className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
                   paymentMethod === 'credit_card'
-                    ? 'border-ember/40 bg-ember/10 text-ember'
-                    : 'border-white/[0.08] text-stone-400 hover:border-white/15'
+                    ? 'border-mesa-ember/40 bg-mesa-ember/10 text-mesa-ember'
+                    : 'border-white/10 text-mesa-ash hover:border-white/15'
                 }`}
               >
                 Cartão
@@ -185,8 +185,8 @@ export default function CustomStoreOrderPayClient({
                 onClick={() => setPaymentMethod('pix')}
                 className={`flex-1 cursor-pointer rounded-sm border px-4 py-3 font-display text-[10px] uppercase tracking-widest transition ${
                   paymentMethod === 'pix'
-                    ? 'border-ember/40 bg-ember/10 text-ember'
-                    : 'border-white/[0.08] text-stone-400 hover:border-white/15'
+                    ? 'border-mesa-ember/40 bg-mesa-ember/10 text-mesa-ember'
+                    : 'border-white/10 text-mesa-ash hover:border-white/15'
                 }`}
               >
                 PIX
@@ -221,7 +221,7 @@ export default function CustomStoreOrderPayClient({
               )
             ) : (
               <div className="space-y-4">
-                <p className="text-sm text-stone-400">
+                <p className="text-sm text-mesa-ash">
                   Gere o QR Code PIX e pague pelo app do seu banco. A
                   confirmação é automática.
                 </p>
@@ -229,7 +229,7 @@ export default function CustomStoreOrderPayClient({
                   type="button"
                   disabled={pending}
                   onClick={() => void pay({ paymentMethod: 'pix' })}
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-stone-950 transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-mesa-ember px-5 py-3 font-display text-xs uppercase tracking-widest text-mesa-ink transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? (
                     <>

@@ -34,7 +34,7 @@ export default function CartValidationBanner({ issues }: Props) {
             {issue.actionHref && issue.actionLabel ? (
               <Link
                 href={issue.actionHref}
-                className="mt-1 inline-flex font-display text-[11px] uppercase tracking-widest text-ember hover:text-ember-bright"
+                className="mt-1 inline-flex font-display text-[11px] uppercase tracking-widest text-mesa-ember hover:text-[#ff7a4a]"
               >
                 {issue.actionLabel} →
               </Link>

@@ -22,12 +22,17 @@ import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import { userFacingPagarmeError } from '@/lib/pagarme/errors';
 import { handlePagarmeChargePaid } from '@/lib/pagarme/webhook-handlers';
 import { handlePagarmeComboPaymentConfirmed } from '@/lib/pagarme/combo-payment';
-import { createPagarmeSubscriptionPixPayment } from '@/lib/pagarme/subscription-pix';
+import {
+  cancelPendingSubscriptionPixCharges,
+  createPagarmeSubscriptionPixPayment,
+  findReusableSubscriptionPix,
+} from '@/lib/pagarme/subscription-pix';
 import { cancelPagarmeSubscriptionBestEffort } from '@/lib/pagarme/subscription-api';
 import { findBlockingSubscriptionForPlan } from '@/lib/subscriptions/find-blocking';
 import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkout';
 import { ShippingQuoteError, shippingMonthlyCents } from '@/lib/shipping/quote';
 import { resolveShippingForCheckout } from '@/lib/shipping/resolve-server';
+import type { MarketingAttributionRecord } from '@/lib/marketing/attribution';
 
 export type AdminCreateSubscriptionPixInput = {
   userId: string;
@@ -38,6 +43,8 @@ export type AdminCreateSubscriptionPixInput = {
   specialNotes?: string | null;
   paintKitBump?: PaintKitBumpId | null;
   paintKitBumpRecurring?: boolean;
+  marketingAttribution?: MarketingAttributionRecord | null;
+  expiresInSeconds?: number;
 };
 
 export type AdminCreateSubscriptionPixResult = {
@@ -53,6 +60,7 @@ export type AdminCreateSubscriptionPixResult = {
   };
   paymentUrl: string;
   emailSent: boolean;
+  alreadyPaid: boolean;
 };
 
 function addMonths(date: Date, months: number): Date {
@@ -283,6 +291,9 @@ export async function createAdminSubscriptionWithPix(
     combo_total_cents: isCombo ? chargeTotalCents : null,
     combo_installments: isCombo ? 1 : null,
     updated_at: now.toISOString(),
+    ...(input.marketingAttribution
+      ? { marketing_attribution: input.marketingAttribution }
+      : {}),
   };
 
   let subscriptionId: string;
@@ -321,6 +332,65 @@ export async function createAdminSubscriptionWithPix(
     ? `DungeonBox — ${comboLabel(input.billingTerm)} (${plan.name}${bump ? ` + ${bump.name}` : ''})`
     : `DungeonBox — ${plan.name}${bump ? ` + ${bump.name}` : ''}`;
 
+  const paymentUrl = `${getSiteUrl()}/dashboard/subscription`;
+
+  const reusable = await findReusableSubscriptionPix(
+    admin,
+    subscriptionId,
+    chargeTotalCents
+  );
+  if (reusable?.kind === 'paid') {
+    if (isCombo) {
+      await handlePagarmeComboPaymentConfirmed(admin, {
+        chargeId: reusable.chargeId,
+        orderId: reusable.orderId,
+        amountCents: chargeTotalCents,
+        paymentMethod: 'pix',
+        metadata: {
+          subscription_id: subscriptionId,
+          charge_kind: 'combo',
+          billing_term: input.billingTerm,
+        },
+      });
+    } else {
+      await handlePagarmeChargePaid(admin, {
+        id: reusable.chargeId,
+        amount: chargeTotalCents,
+        payment_method: 'pix',
+        metadata: {
+          subscription_id: subscriptionId,
+          charge_kind: 'admin_pix',
+        },
+      });
+    }
+
+    return {
+      subscriptionId,
+      paymentId: reusable.paymentId,
+      amountCents: chargeTotalCents,
+      planName: plan.name as string,
+      pix: { payload: '', expirationDate: '' },
+      paymentUrl,
+      emailSent: false,
+      alreadyPaid: true,
+    };
+  }
+
+  if (reusable?.kind === 'open') {
+    return {
+      subscriptionId,
+      paymentId: reusable.paymentId,
+      amountCents: chargeTotalCents,
+      planName: plan.name as string,
+      pix: reusable.pix,
+      paymentUrl,
+      emailSent: false,
+      alreadyPaid: false,
+    };
+  }
+
+  await cancelPendingSubscriptionPixCharges(admin, subscriptionId);
+
   let pixCharge;
   try {
     pixCharge = await createPagarmeSubscriptionPixPayment(admin, {
@@ -339,19 +409,29 @@ export async function createAdminSubscriptionWithPix(
             gateway: 'pagarme',
           })
         : null,
+      expiresInSeconds: input.expiresInSeconds,
     });
   } catch (error) {
     throw new Error(userFacingPagarmeError(error));
   }
 
   if (resolvedCoupon) {
-    await recordPromoRedemption(
-      admin,
-      resolvedCoupon.promo.id,
-      input.userId,
-      subscriptionId,
-      resolvedCoupon.promo.code
-    );
+    const { data: existingRedemption } = await admin
+      .from('promo_code_redemptions')
+      .select('id')
+      .eq('subscription_id', subscriptionId)
+      .eq('promo_code_id', resolvedCoupon.promo.id)
+      .maybeSingle();
+
+    if (!existingRedemption) {
+      await recordPromoRedemption(
+        admin,
+        resolvedCoupon.promo.id,
+        input.userId,
+        subscriptionId,
+        resolvedCoupon.promo.code
+      );
+    }
   }
 
   if (pixCharge.alreadyPaid) {
@@ -379,8 +459,6 @@ export async function createAdminSubscriptionWithPix(
     }
   }
 
-  const paymentUrl = `${getSiteUrl()}/dashboard/subscription`;
-
   const emailNotify = pixCharge.pix.payload
     ? await notifySubscriptionPixPayment(admin, {
         userId: input.userId,
@@ -400,5 +478,6 @@ export async function createAdminSubscriptionWithPix(
     pix: pixCharge.pix,
     paymentUrl,
     emailSent: emailNotify.sent,
+    alreadyPaid: pixCharge.alreadyPaid,
   };
 }

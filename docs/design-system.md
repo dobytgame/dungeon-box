@@ -282,6 +282,20 @@ Quando a segunda área for adotar o sistema:
 - Mover os componentes genéricos (`Button`, `SectionHeading`, `MediaFrame`, `Stars`, `PhotoViewer`, `useDialog`, `Motion`) para `components/mesa/`, deixando em `home-v2/` só as seções específicas da home.
 - Extrair `Section` e `Card` como componentes (hoje são padrões de classe repetidos).
 
+### Loja (`/loja`) — já aplicado
+
+A loja usa o sistema como referência de implementação para outras áreas:
+
+- **Fontes:** `lib/fonts/mesa.ts` exporta `mesaFontVariables`. Use isso em vez de recarregar as fontes por rota.
+- **Shell:** `components/shop/ShopShell.tsx` envolve tudo com `${mesaFontVariables} home-v2 home-v2-shop` e renderiza `HomeV2Motion`. Portais (ex.: `CartDrawer`) ficam fora do wrapper e precisam de `${mesaFontVariables} home-v2-shop` no próprio root, sem `.home-v2`, porque ele pinta fundo.
+- **Ponte `.home-v2-shop`** (em `home-v2.css`): remapeia `--font-display`/`--font-body` para Barlow/Manrope, para que componentes legados com `font-display` herdem a tipografia nova sem reescrita.
+- **Container:** quando o padding fica dentro do container, use `max-w-[75rem] px-4 sm:px-6`. Isso alinha com seções que usam `px-4 sm:px-6` + `max-w-6xl`.
+- **Seções:** `components/shop/ShopSection.tsx` (eyebrow + título + apoio + "Ver todos", tons `ink`/`stone`). `HomeV2SectionHeading` aceita `size="md"` para seções de catálogo e `as="h1"` para topo de página.
+- **Botões fora de `<Link>` do HomeV2Button:** `homeV2ButtonClassName({ variant, size, className })` para `<button>`, `<Link>` custom ou submit.
+- **Badges:** `components/store/StoreBadge.tsx` (`ember` = destaque/oferta, `jade` = benefício de assinante, `ghost` = informativo).
+- **Footer:** `HomeV2Footer context="shop"` troca os grupos de links para loja/assinatura.
+- **Cores legadas:** o dourado (`gold`) virou `mesa-jade` em benefícios e descontos. `stone-*` e `text-white` foram trocados por `mesa-ash` e `mesa-parchment`. Dourado fica só para estrelas.
+
 ---
 
 ## 9. Não fazer

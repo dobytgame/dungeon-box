@@ -32,6 +32,15 @@ const sizes: Record<Size, string> = {
   lg: 'min-h-14 gap-2.5 px-8 text-lg',
 };
 
+/** Same look for `<button>` elements (add to cart, checkout) that can't use the Link. */
+export function homeV2ButtonClassName({
+  variant = 'primary',
+  size = 'md',
+  className = '',
+}: { variant?: Variant; size?: Size; className?: string } = {}) {
+  return `group/cta home-v2-display inline-flex cursor-pointer items-center justify-center rounded-sm tracking-[0.1em] transition-[background-color,box-shadow,border-color,transform,color,opacity] duration-150 ease-out hover:scale-[1.015] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mesa-ember disabled:pointer-events-none disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`;
+}
+
 export default function HomeV2Button({
   href,
   children,
@@ -46,7 +55,7 @@ export default function HomeV2Button({
     <Link
       href={href}
       onClick={onClick}
-      className={`group/cta home-v2-display inline-flex cursor-pointer items-center justify-center rounded-sm tracking-[0.1em] transition-[background-color,box-shadow,border-color,transform,color] duration-150 ease-out hover:scale-[1.015] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mesa-ember ${variants[variant]} ${sizes[size]} ${className}`}
+      className={homeV2ButtonClassName({ variant, size, className })}
     >
       {icon ? <span aria-hidden="true" className="shrink-0">{icon}</span> : null}
       <span>{children}</span>

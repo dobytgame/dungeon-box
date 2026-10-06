@@ -4,7 +4,15 @@ interface Props {
   titleId: string;
   support?: string;
   align?: 'left' | 'center';
+  /** `md` for pages that stack many sections (store); `lg` is the landing scale. */
+  size?: 'lg' | 'md';
+  as?: 'h1' | 'h2';
 }
+
+const TITLE_SIZES = {
+  lg: 'text-[clamp(2rem,7vw,4.25rem)] leading-[0.92]',
+  md: 'text-[clamp(1.85rem,5vw,3rem)] leading-[0.95]',
+} as const;
 
 export default function HomeV2SectionHeading({
   eyebrow,
@@ -12,6 +20,8 @@ export default function HomeV2SectionHeading({
   titleId,
   support,
   align = 'left',
+  size = 'lg',
+  as: Title = 'h2',
 }: Props) {
   return (
     <header className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
@@ -20,14 +30,14 @@ export default function HomeV2SectionHeading({
           {eyebrow}
         </p>
       ) : null}
-      <h2
+      <Title
         id={titleId}
         data-reveal="mask"
-        className="home-v2-reveal home-v2-display mt-3 text-balance text-[clamp(2rem,7vw,4.25rem)] leading-[0.92] tracking-wide text-mesa-parchment"
+        className={`home-v2-reveal home-v2-display mt-3 text-balance tracking-wide text-mesa-parchment ${TITLE_SIZES[size]}`}
         style={{ '--stagger': 1 } as React.CSSProperties}
       >
         {title}
-      </h2>
+      </Title>
       {support ? (
         <p
           className={`home-v2-reveal mt-4 max-w-xl text-pretty text-base leading-relaxed text-mesa-ash ${

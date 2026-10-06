@@ -138,23 +138,23 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
 
   return (
     <div className="mt-8 space-y-5">
-      <ul className="space-y-2 text-sm text-stone-400">
+      <ul className="space-y-2 text-sm text-mesa-ash">
         {product.includes.map((item) => (
           <li key={item} className="flex gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-mesa-jade" aria-hidden="true" />
             <span>{item}</span>
           </li>
         ))}
       </ul>
 
-      <div className="space-y-3 border-t border-white/[0.06] pt-4">
+      <div className="space-y-3 border-t border-white/10 pt-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+            <p className="font-display text-[10px] uppercase tracking-widest text-mesa-ash">
               {variation.name}
             </p>
             {minQty > 1 ? (
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-mesa-ash">
                 Mínimo {minQty} un. no total · máx. {maxQty} un.
               </p>
             ) : null}
@@ -162,7 +162,7 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
           {totalQuantity > 0 ? (
             <p
               className={`text-xs ${
-                meetsMinimum ? 'text-stone-500' : 'text-amber-400/90'
+                meetsMinimum ? 'text-mesa-ash' : 'text-amber-400/90'
               }`}
             >
               {totalQuantity} / {minQty > 1 ? minQty : maxQty}{' '}
@@ -189,12 +189,12 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
                 key={label}
                 className={`rounded-sm border p-3 transition ${
                   quantity > 0
-                    ? 'border-ember/40 bg-ember/5'
-                    : 'border-white/10 bg-stone-950/40'
+                    ? 'border-mesa-ember/40 bg-mesa-ember/5'
+                    : 'border-white/10 bg-mesa-ink/40'
                 }`}
               >
                 <div className="flex gap-3">
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-stone-900">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-sm border border-white/10 bg-mesa-stone">
                     {option.imageUrl ? (
                       <StoreMediaImage
                         src={option.imageUrl}
@@ -205,15 +205,15 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-stone-600">
+                      <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-mesa-ash/70">
                         {label.slice(0, 2).toUpperCase()}
                       </div>
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="font-display text-sm text-white">{label}</p>
-                    <p className="mt-0.5 text-xs text-stone-500">
+                    <p className="font-display text-sm text-mesa-parchment">{label}</p>
+                    <p className="mt-0.5 text-xs text-mesa-ash">
                       {formatMoney(product.priceCents)} / un.
                     </p>
                     <div className="mt-2">
@@ -238,13 +238,13 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
         </p>
       ) : null}
 
-      <div className="space-y-3 border-t border-white/[0.06] pt-5">
+      <div className="space-y-3 border-t border-white/10 pt-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+            <p className="font-display text-[10px] uppercase tracking-widest text-mesa-ash">
               Total selecionado
             </p>
-            <p className="mt-1 text-xs text-stone-500">
+            <p className="mt-1 text-xs text-mesa-ash">
               {totalQuantity > 0
                 ? `${formatMoney(product.priceCents)} × ${totalQuantity}`
                 : minQty > 1
@@ -256,11 +256,11 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
           <div className="text-right">
             <div className="flex flex-wrap items-baseline justify-end gap-2">
               {showOriginalTotal ? (
-                <span className="font-display text-sm text-stone-500 line-through">
+                <span className="font-display text-sm text-mesa-ash line-through">
                   {formatMoney(originalLineTotalCents!)}
                 </span>
               ) : null}
-              <p className="font-display text-2xl text-ember">
+              <p className="font-display text-2xl text-mesa-ember">
                 {formatMoney(lineTotalCents)}
               </p>
             </div>
@@ -271,7 +271,7 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
           type="button"
           onClick={handleAdd}
           disabled={added}
-          className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]"
+          className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-mesa-ember px-4 font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]"
         >
           {added ? (
             <>
@@ -287,7 +287,7 @@ export default function VarietyProductPurchasePanel({ product }: Props) {
         </button>
       </div>
 
-      <p className="text-xs leading-relaxed text-stone-600">
+      <p className="text-xs leading-relaxed text-mesa-ash/70">
         {STORE_PRODUCTION_LEAD_TIME_LABEL}. Frete calculado por região no checkout.
       </p>
     </div>

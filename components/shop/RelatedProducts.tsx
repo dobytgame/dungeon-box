@@ -1,4 +1,5 @@
-import ShopProductGrid from '@/components/shop/ShopProductGrid';
+import HomeV2SectionHeading from '@/components/home-v2/HomeV2SectionHeading';
+import { ShopProductList } from '@/components/shop/ShopProductGrid';
 import type { StoreProduct } from '@/lib/store/catalog';
 
 interface Props {
@@ -9,13 +10,16 @@ export default function RelatedProducts({ products }: Props) {
   if (products.length === 0) return null;
 
   return (
-    <div className="mt-16 border-t border-white/[0.06] pt-12">
-      <ShopProductGrid
+    <section className="mt-16 border-t border-white/10 pt-12 md:mt-20" aria-labelledby="produto-relacionados-title">
+      <HomeV2SectionHeading
         eyebrow="Você também pode gostar"
         title="Produtos relacionados"
-        products={products}
-        variant="compact"
+        titleId="produto-relacionados-title"
+        size="md"
       />
-    </div>
+      <div className="mt-10">
+        <ShopProductList products={products} variant="compact" />
+      </div>
+    </section>
   );
 }

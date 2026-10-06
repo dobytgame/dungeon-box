@@ -37,7 +37,7 @@ export default function CartAddedToast() {
           transition={{ type: 'spring', stiffness: 420, damping: 28 }}
           className="pointer-events-auto fixed bottom-safe-offset left-4 right-4 z-[100] mx-auto max-w-md sm:left-auto sm:right-6"
         >
-          <div className="overflow-hidden rounded-sm border border-ember/30 bg-[#0A0C10]/95 shadow-[0_20px_60px_-12px_rgba(249,115,22,0.35)] backdrop-blur-md">
+          <div className="overflow-hidden rounded-sm border border-mesa-ember/30 bg-mesa-ink/95 shadow-[0_20px_60px_-12px_rgba(249,115,22,0.35)] backdrop-blur-md">
             <div className="flex items-start gap-3 p-4">
               <div className="relative shrink-0">
                 {addFeedback.imageUrl ? (
@@ -50,24 +50,24 @@ export default function CartAddedToast() {
                     className="aspect-square h-14 w-14 rounded-sm object-cover"
                   />
                 ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-sm bg-ember/15">
-                    <ShoppingBag className="h-6 w-6 text-ember" aria-hidden="true" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-sm bg-mesa-ember/15">
+                    <ShoppingBag className="h-6 w-6 text-mesa-ember" aria-hidden="true" />
                   </div>
                 )}
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ember text-[10px] font-bold text-stone-950">
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-mesa-ember text-[10px] font-bold text-mesa-ink">
                   {addFeedback.quantity}
                 </span>
               </div>
 
               <div className="min-w-0 flex-1 pt-0.5">
-                <p className="flex items-center gap-1.5 font-display text-[10px] uppercase tracking-[0.2em] text-ember">
+                <p className="flex items-center gap-1.5 font-display text-[10px] uppercase tracking-[0.2em] text-mesa-ember">
                   <Check className="h-3.5 w-3.5" aria-hidden="true" />
                   Adicionado ao carrinho
                 </p>
-                <p className="mt-1 truncate font-medium text-white">
+                <p className="mt-1 truncate font-medium text-mesa-parchment">
                   {addFeedback.name}
                 </p>
-                <p className="mt-0.5 text-xs text-stone-400">
+                <p className="mt-0.5 text-xs text-mesa-ash">
                   {addFeedback.quantity > 1
                     ? `${addFeedback.quantity} unidades · `
                     : ''}
@@ -79,21 +79,21 @@ export default function CartAddedToast() {
               <button
                 type="button"
                 onClick={dismissAddFeedback}
-                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-sm text-stone-500 transition hover:bg-white/5 hover:text-white"
+                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-sm text-mesa-ash transition hover:bg-white/5 hover:text-mesa-parchment"
                 aria-label="Fechar aviso"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="flex border-t border-white/[0.08]">
+            <div className="flex border-t border-white/10">
               <button
                 type="button"
                 onClick={() => {
                   dismissAddFeedback();
                   openCartDrawer();
                 }}
-                className="flex min-h-[44px] flex-1 cursor-pointer items-center justify-center gap-2 bg-ember font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+                className="flex min-h-[44px] flex-1 cursor-pointer items-center justify-center gap-2 bg-mesa-ember font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a]"
               >
                 <ShoppingBag className="h-4 w-4" aria-hidden="true" />
                 Ver carrinho
@@ -102,7 +102,7 @@ export default function CartAddedToast() {
                 href={STORE_ROUTES.checkout}
                 loadingLabel="Abrindo pagamento…"
                 onNavigate={dismissAddFeedback}
-                className="flex min-h-[44px] flex-1 items-center justify-center border-l border-white/[0.08] font-display text-xs uppercase tracking-widest text-stone-300 transition hover:bg-white/5 hover:text-white"
+                className="flex min-h-[44px] flex-1 items-center justify-center border-l border-white/10 font-display text-xs uppercase tracking-widest text-mesa-parchment/90 transition hover:bg-white/5 hover:text-mesa-parchment"
               >
                 Finalizar
               </StoreNavLink>

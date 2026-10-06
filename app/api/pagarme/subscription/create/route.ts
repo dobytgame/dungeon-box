@@ -34,6 +34,10 @@ import { prepareCheckoutSubscription } from '@/lib/subscriptions/pending-checkou
 import { cookies } from 'next/headers';
 import { REFERRAL_COOKIE_NAME } from '@/lib/referral/cookie';
 import { registerReferralAtCheckout } from '@/lib/referral/referrals';
+import {
+  marketingAttributionInputSchema,
+  marketingAttributionToRecord,
+} from '@/lib/marketing/attribution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +56,7 @@ const bodySchema = z
     couponCode: z.string().max(64).optional().nullable(),
     billingTerm: z.enum(BILLING_TERMS).optional().default('monthly'),
     installmentCount: z.number().int().min(1).max(COMBO_MAX_INSTALLMENTS).optional(),
+    marketingAttribution: marketingAttributionInputSchema,
   })
   .refine((value) => value.planSlug || (value.planSlugs?.length ?? 0) > 0, {
     message: 'Informe ao menos um plano.',
@@ -175,6 +180,7 @@ export async function POST(request: Request) {
   );
 
   const billingAddress = buildBillingAddress(address);
+  const marketingAttribution = marketingAttributionToRecord(body.marketingAttribution);
   const created: Array<{
     subscriptionId: string;
     pagarmeSubscriptionId: string;
@@ -359,6 +365,7 @@ export async function POST(request: Request) {
           !isComboTerm(billingTerm) && includeBump && !bumpRecurring && bump
             ? buildOneTimeDescription(bump.name)
             : null,
+        marketingAttribution,
       });
 
       if (result.pagarmeCardId) {

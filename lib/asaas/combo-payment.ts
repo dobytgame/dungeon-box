@@ -176,6 +176,11 @@ export async function handleComboPaymentConfirmed(
         status: 'approved',
         paid_at: paidAt,
         installments,
+        ...(payment.billingType?.toUpperCase() === 'PIX'
+          ? { payment_method: 'pix' as const }
+          : payment.billingType?.toUpperCase() === 'CREDIT_CARD'
+            ? { payment_method: 'credit_card' as const }
+            : {}),
         status_detail: JSON.stringify({
           type: 'combo_prepaid',
           billing_term: local.billing_term,

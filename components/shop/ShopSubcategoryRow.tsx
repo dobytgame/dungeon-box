@@ -29,10 +29,10 @@ export default function ShopSubcategoryRow({
         <div className="mb-4 flex flex-wrap gap-2">
           <Link
             href={STORE_ROUTES.category(parentCategory.slug)}
-            className={`rounded-sm border px-3 py-2 text-sm font-semibold transition ${
+            className={`flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm font-medium transition-colors duration-200 ${
               activeSlug === parentCategory.slug
-                ? 'border-ember/40 bg-ember/15 text-ember'
-                : 'border-white/10 text-stone-400 hover:border-white/20 hover:text-white'
+                ? 'border-mesa-parchment bg-mesa-parchment text-mesa-ink'
+                : 'border-white/10 text-mesa-ash hover:border-white/25 hover:text-mesa-parchment'
             }`}
           >
             Todas
@@ -45,7 +45,7 @@ export default function ShopSubcategoryRow({
               category={subcategory}
               className={
                 activeSlug === subcategory.slug
-                  ? 'ring-2 ring-ember/50 ring-offset-2 ring-offset-[#0A0C10]'
+                  ? 'ring-2 ring-mesa-ember/60 ring-offset-2 ring-offset-mesa-ink'
                   : ''
               }
             />
@@ -62,10 +62,10 @@ export default function ShopSubcategoryRow({
     >
       <Link
         href={STORE_ROUTES.category(parentCategory.slug)}
-        className={`rounded-sm border px-3 py-2 text-sm font-semibold transition ${
+        className={`flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm font-medium transition-colors duration-200 ${
           activeSlug === parentCategory.slug
-            ? 'border-ember/40 bg-ember/15 text-ember'
-            : 'border-white/10 text-stone-400 hover:border-white/20 hover:text-white'
+            ? 'border-mesa-parchment bg-mesa-parchment text-mesa-ink'
+            : 'border-white/10 text-mesa-ash hover:border-white/25 hover:text-mesa-parchment'
         }`}
       >
         Todas
@@ -74,10 +74,10 @@ export default function ShopSubcategoryRow({
         <Link
           key={subcategory.slug}
           href={STORE_ROUTES.category(subcategory.slug)}
-          className={`rounded-sm border px-3 py-2 text-sm font-semibold transition ${
+          className={`flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm font-medium transition-colors duration-200 ${
             activeSlug === subcategory.slug
-              ? 'border-ember/40 bg-ember/15 text-ember'
-              : 'border-white/10 text-stone-400 hover:border-white/20 hover:text-white'
+              ? 'border-mesa-parchment bg-mesa-parchment text-mesa-ink'
+              : 'border-white/10 text-mesa-ash hover:border-white/25 hover:text-mesa-parchment'
           }`}
         >
           {subcategory.name}

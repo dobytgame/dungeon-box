@@ -100,13 +100,13 @@ export default function StoreCouponField({
   if (!STORE_COUPONS_ENABLED || subtotalCents <= 0) return null;
 
   return (
-    <div className="rounded-sm border border-white/[0.06] bg-stone-950/30 p-4">
+    <div className="rounded-sm border border-white/10 bg-mesa-ink/30 p-4">
       {!showCoupon && !couponCode ? (
         <button
           type="button"
           onClick={() => setShowCoupon(true)}
           disabled={disabled}
-          className="flex cursor-pointer items-center gap-2 text-sm text-stone-400 transition-colors hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex cursor-pointer items-center gap-2 text-sm text-mesa-ash transition-colors hover:text-mesa-jade disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Tag className="h-4 w-4" aria-hidden="true" />
           Tem um cupom de desconto?
@@ -114,8 +114,8 @@ export default function StoreCouponField({
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-sm font-medium text-white">
-              <Tag className="h-4 w-4 text-gold" aria-hidden="true" />
+            <p className="flex items-center gap-2 text-sm font-medium text-mesa-parchment">
+              <Tag className="h-4 w-4 text-mesa-jade" aria-hidden="true" />
               Cupom da loja
             </p>
             {couponCode ? (
@@ -126,7 +126,7 @@ export default function StoreCouponField({
                   onRemove();
                 }}
                 disabled={disabled || couponLoading}
-                className="flex cursor-pointer items-center gap-1 text-xs text-stone-500 transition-colors hover:text-stone-300 disabled:opacity-50"
+                className="flex cursor-pointer items-center gap-1 text-xs text-mesa-ash transition-colors hover:text-mesa-parchment/90 disabled:opacity-50"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
                 Remover
@@ -155,7 +155,7 @@ export default function StoreCouponField({
                 }}
                 placeholder="Código do cupom"
                 disabled={disabled || couponLoading}
-                className="min-w-0 flex-1 rounded-sm border border-white/10 bg-stone-950 px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30 disabled:opacity-50"
+                className="min-w-0 flex-1 rounded-sm border border-white/10 bg-mesa-ink px-3 py-2.5 text-sm text-mesa-parchment placeholder:text-mesa-ash/70 focus:border-mesa-jade/50 focus:outline-none focus:ring-1 focus:ring-mesa-jade/30 disabled:opacity-50"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -165,7 +165,7 @@ export default function StoreCouponField({
                 disabled={
                   disabled || couponLoading || !couponInput.trim()
                 }
-                className="cursor-pointer rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-stone-300 transition-colors hover:border-gold/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="cursor-pointer rounded-sm border border-white/15 px-4 py-2.5 font-display text-xs uppercase tracking-widest text-mesa-parchment/90 transition-colors hover:border-mesa-jade/40 hover:text-mesa-parchment disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {couponLoading ? 'Validando…' : 'Aplicar'}
               </button>

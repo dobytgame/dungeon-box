@@ -1,80 +1,85 @@
-import Link from 'next/link';
+import ShopSection from '@/components/shop/ShopSection';
 import StoreProductCard from '@/components/store/StoreProductCard';
 import StoreProductFeatureCard from '@/components/store/StoreProductFeatureCard';
 import type { StoreProduct } from '@/lib/store/catalog';
-import { STORE_ROUTES } from '@/lib/store/routes';
 
 interface Props {
   title?: string;
   eyebrow?: string;
+  support?: string;
   products: StoreProduct[];
   viewAllHref?: string;
   /** Cards compactos para listagens densas (categorias, relacionados). */
   variant?: 'full' | 'compact';
   /** Sem section wrapper nem padding vertical (uso em páginas de categoria). */
   embedded?: boolean;
+  id?: string;
+}
+
+function slugify(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+export function ShopProductList({
+  products,
+  variant = 'full',
+}: Pick<Props, 'products' | 'variant'>) {
+  return (
+    <ul
+      className={
+        variant === 'compact'
+          ? 'grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4'
+          : 'grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3'
+      }
+    >
+      {products.map((product, index) => (
+        <li
+          key={product.id}
+          className="home-v2-reveal flex"
+          style={{ '--stagger': index % (variant === 'compact' ? 4 : 3) } as React.CSSProperties}
+        >
+          {variant === 'compact' ? (
+            <StoreProductFeatureCard product={product} />
+          ) : (
+            <StoreProductCard product={product} />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function ShopProductGrid({
   title,
   eyebrow,
+  support,
   products,
   viewAllHref,
   variant = 'full',
   embedded = false,
+  id,
 }: Props) {
   if (products.length === 0) return null;
 
-  const showHeader = Boolean(title || eyebrow || viewAllHref);
+  const list = <ShopProductList products={products} variant={variant} />;
 
-  const grid = (
-    <div
-      className={
-        variant === 'compact'
-          ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-          : 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-      }
-    >
-      {products.map((product) =>
-        variant === 'compact' ? (
-          <StoreProductFeatureCard key={product.id} product={product} />
-        ) : (
-          <StoreProductCard key={product.id} product={product} />
-        )
-      )}
-    </div>
-  );
-
-  if (embedded) return grid;
+  if (embedded || !title) return list;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      {showHeader ? (
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {eyebrow ? (
-            <p className="font-display text-xs uppercase tracking-[0.25em] text-stone-500">
-              {eyebrow}
-            </p>
-          ) : null}
-          {title ? (
-            <h2 className="mt-2 font-display text-2xl uppercase tracking-wide text-white sm:text-3xl">
-              {title}
-            </h2>
-          ) : null}
-        </div>
-        {viewAllHref ? (
-          <Link
-            href={viewAllHref}
-            className="font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
-          >
-            Ver todos →
-          </Link>
-        ) : null}
-      </div>
-      ) : null}
-
-      {grid}
-    </section>
+    <ShopSection
+      id={id}
+      titleId={`loja-${slugify(title)}`}
+      eyebrow={eyebrow}
+      title={title}
+      support={support}
+      viewAll={viewAllHref ? { href: viewAllHref } : undefined}
+    >
+      {list}
+    </ShopSection>
   );
 }

@@ -232,16 +232,16 @@ export default function PersonalizedProductPurchasePanel({
 
   return (
     <div className="mt-8 space-y-5">
-      <ul className="space-y-1.5 text-sm text-stone-400">
+      <ul className="space-y-1.5 text-sm text-mesa-ash">
         {product.includes.map((item) => (
           <li key={item} className="flex gap-2">
-            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" aria-hidden="true" />
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mesa-jade" aria-hidden="true" />
             <span>{item}</span>
           </li>
         ))}
       </ul>
 
-      <p className="text-xs leading-relaxed text-stone-500">
+      <p className="text-xs leading-relaxed text-mesa-ash">
         Mínimo {minQty} un. · 1 imagem por item (JPG, PNG ou WebP, até 10 MB)
         {existingCartLine && (existingCartLine.itemUploads?.length ?? 0) < quantity ? (
           <>
@@ -255,7 +255,7 @@ export default function PersonalizedProductPurchasePanel({
             ·{' '}
             <Link
               href={`/auth?next=${encodeURIComponent(`/loja/produto/${product.slug}`)}`}
-              className="text-ember hover:underline"
+              className="text-mesa-ember hover:underline"
             >
               Faça login
             </Link>{' '}
@@ -266,12 +266,12 @@ export default function PersonalizedProductPurchasePanel({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+          <p className="font-display text-[10px] uppercase tracking-widest text-mesa-ash">
             Imagens ({uploadedCount}/{quantity})
           </p>
           <div className="h-1 flex-1 max-w-[8rem] overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-ember transition-all duration-300"
+              className="h-full rounded-full bg-mesa-ember transition-all duration-300"
               style={{ width: `${(uploadedCount / quantity) * 100}%` }}
             />
           </div>
@@ -281,7 +281,7 @@ export default function PersonalizedProductPurchasePanel({
           {slots.map((slot, index) => (
             <div key={index} className="w-[4.5rem]">
               {slot.previewUrl || slot.path ? (
-                <div className="group relative h-[4.5rem] w-[4.5rem] overflow-hidden rounded-sm border border-white/10 bg-stone-900">
+                <div className="group relative h-[4.5rem] w-[4.5rem] overflow-hidden rounded-sm border border-white/10 bg-mesa-stone">
                   {slot.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -291,28 +291,28 @@ export default function PersonalizedProductPurchasePanel({
                     />
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-1 text-center">
-                      <Check className="h-4 w-4 text-gold" aria-hidden="true" />
-                      <span className="font-mono text-[8px] text-stone-400">Enviada</span>
+                      <Check className="h-4 w-4 text-mesa-jade" aria-hidden="true" />
+                      <span className="font-mono text-[8px] text-mesa-ash">Enviada</span>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => clearSlot(index)}
-                    className="absolute right-0.5 top-0.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-stone-950/80 text-stone-300 opacity-0 transition group-hover:opacity-100"
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-mesa-ink/80 text-mesa-parchment/90 opacity-0 transition group-hover:opacity-100"
                     aria-label={`Remover imagem do item ${index + 1}`}
                   >
                     <X className="h-3 w-3" />
                   </button>
-                  <span className="absolute bottom-0 left-0 right-0 bg-stone-950/75 py-0.5 text-center font-mono text-[9px] text-stone-400">
+                  <span className="absolute bottom-0 left-0 right-0 bg-mesa-ink/75 py-0.5 text-center font-mono text-[9px] text-mesa-ash">
                     {index + 1}
                   </span>
                 </div>
               ) : (
                 <label
-                  className={`flex h-[4.5rem] w-[4.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-sm border border-dashed text-stone-500 transition ${
+                  className={`flex h-[4.5rem] w-[4.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-sm border border-dashed text-mesa-ash transition ${
                     slot.error
                       ? 'border-red-500/40 bg-red-500/5'
-                      : 'border-white/15 bg-stone-950/40 hover:border-ember/35 hover:text-stone-300'
+                      : 'border-white/15 bg-mesa-ink/40 hover:border-mesa-ember/35 hover:text-mesa-parchment/90'
                   } ${!isLoggedIn || slot.uploading ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
                   <input
@@ -350,10 +350,10 @@ export default function PersonalizedProductPurchasePanel({
         </p>
       ) : null}
 
-      <div className="space-y-3 border-t border-white/[0.06] pt-5">
+      <div className="space-y-3 border-t border-white/10 pt-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+            <p className="font-display text-[10px] uppercase tracking-widest text-mesa-ash">
               Quantidade
             </p>
             <div className="mt-2">
@@ -367,19 +367,19 @@ export default function PersonalizedProductPurchasePanel({
           </div>
 
           <div className="text-right">
-            <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+            <p className="font-display text-[10px] uppercase tracking-widest text-mesa-ash">
               Total do pedido
             </p>
-            <p className="mt-1 text-xs text-stone-500">
+            <p className="mt-1 text-xs text-mesa-ash">
               {formatMoney(product.priceCents)} × {displayQuantity}
             </p>
             <div className="mt-0.5 flex flex-wrap items-baseline justify-end gap-2">
               {showOriginalTotal ? (
-                <span className="font-display text-sm text-stone-500 line-through">
+                <span className="font-display text-sm text-mesa-ash line-through">
                   {formatMoney(originalLineTotalCents!)}
                 </span>
               ) : null}
-              <p className="font-display text-2xl text-ember">
+              <p className="font-display text-2xl text-mesa-ember">
                 {formatMoney(lineTotalCents)}
               </p>
             </div>
@@ -390,7 +390,7 @@ export default function PersonalizedProductPurchasePanel({
           type="button"
           onClick={handleAdd}
           disabled={!canAdd || isAdded}
-          className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]"
+          className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm bg-mesa-ember px-4 font-display text-xs uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem]"
         >
           {isAdded ? (
             <>
@@ -406,13 +406,13 @@ export default function PersonalizedProductPurchasePanel({
         </button>
 
         {!canAdd && uploadedCount < quantity ? (
-          <p className="text-xs text-stone-600">
+          <p className="text-xs text-mesa-ash/70">
             Envie as {quantity - uploadedCount} imagem(ns) restante(s) para continuar.
           </p>
         ) : null}
       </div>
 
-      <p className="text-xs leading-relaxed text-stone-600">
+      <p className="text-xs leading-relaxed text-mesa-ash/70">
         {STORE_PRODUCTION_LEAD_TIME_LABEL}. Frete calculado por região no checkout.
       </p>
     </div>

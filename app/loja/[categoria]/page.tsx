@@ -86,13 +86,16 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
     <>
       {hasHero ? <ShopCategoryHero category={category} /> : null}
 
-      <div className="mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8">
+      <div className="mx-auto max-w-[75rem] px-4 pb-16 pt-6 sm:px-6 sm:pt-8 md:pb-24">
         {!hasHero ? (
-          <header className="mb-4 border-b border-white/[0.06] pb-6">
-            <p className="font-display text-xs uppercase tracking-[0.25em] text-stone-500">
+          <header className="mb-6 border-b border-white/10 pb-8 pt-6">
+            <p className="home-v2-display text-[11px] tracking-[0.28em] text-mesa-jade">
               {category.parentName ? 'Subcategoria' : 'Categoria'}
             </p>
-            <h1 className="mt-2 font-display text-3xl uppercase tracking-wide text-white sm:text-4xl">
+            <h1
+              data-reveal="mask"
+              className="home-v2-reveal home-v2-display mt-3 text-[clamp(2.5rem,8vw,4.5rem)] leading-[0.9] text-mesa-parchment"
+            >
               {category.name}
             </h1>
             {category.description ? (
@@ -118,9 +121,12 @@ export default async function LojaCategoryPage({ params, searchParams }: Props) 
         {products.length > 0 ? (
           <ShopProductGrid products={products} variant="compact" embedded />
         ) : (
-          <p className="text-sm text-stone-500">
-            Nenhum produto disponível nesta categoria no momento.
-          </p>
+          <div className="home-v2-grid flex min-h-56 items-center justify-center rounded-2xl border border-white/10 bg-mesa-stone p-8 text-center">
+            <p className="max-w-sm text-sm leading-relaxed text-mesa-ash">
+              Nenhum produto disponível nesta categoria no momento. Novas peças entram na loja todo
+              mês.
+            </p>
+          </div>
         )}
       </div>
     </>

@@ -27,14 +27,14 @@ export default function StoreCheckoutMobileBar({
   onScrollToCardForm,
 }: Props) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#0A0C10]/95 px-4 py-3 pb-safe backdrop-blur-md md:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-mesa-ink/95 px-4 py-3 pb-safe backdrop-blur-md md:hidden">
       <div className="mx-auto flex max-w-lg items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-display text-[10px] uppercase tracking-widest text-stone-500">
+          <p className="font-display text-[10px] uppercase tracking-widest text-mesa-ash">
             {itemCount} {itemCount === 1 ? 'item' : 'itens'}
             {shippingLoading ? ' · calculando frete…' : ''}
           </p>
-          <p className="font-display text-xl text-ember">{formatMoney(totalCents)}</p>
+          <p className="font-display text-xl text-mesa-ember">{formatMoney(totalCents)}</p>
         </div>
 
         {step === 2 ? (
@@ -42,7 +42,7 @@ export default function StoreCheckoutMobileBar({
             type="button"
             onClick={onContinueToPayment}
             disabled={pending || shippingLoading}
-            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center justify-center rounded-sm bg-ember px-4 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center justify-center rounded-sm bg-mesa-ember px-4 font-display text-[10px] uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Pagamento →
           </button>
@@ -51,7 +51,7 @@ export default function StoreCheckoutMobileBar({
             type="button"
             onClick={onPixPay}
             disabled={pending}
-            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm bg-ember px-4 font-display text-[10px] uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm bg-mesa-ember px-4 font-display text-[10px] uppercase tracking-widest text-mesa-ink transition hover:bg-[#ff7a4a] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending ? (
               <>
@@ -66,7 +66,7 @@ export default function StoreCheckoutMobileBar({
           <button
             type="button"
             onClick={onScrollToCardForm}
-            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-ember/40 bg-ember/10 px-4 font-display text-[10px] uppercase tracking-widest text-ember transition hover:bg-ember/20"
+            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center justify-center rounded-sm border border-mesa-ember/40 bg-mesa-ember/10 px-4 font-display text-[10px] uppercase tracking-widest text-mesa-ember transition hover:bg-mesa-ember/20"
           >
             Ver cartão
           </button>

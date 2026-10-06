@@ -2,6 +2,7 @@ import Link from 'next/link';
 import AdminListPagination from '@/components/admin/AdminListPagination';
 import AdminSubscriptionsFiltersForm from '@/components/admin/AdminSubscriptionsFiltersForm';
 import ExportActiveSubscribersCsvButton from '@/components/admin/ExportActiveSubscribersCsvButton';
+import ExportCycleOrdersPrintPanel from '@/components/admin/ExportCycleOrdersPrintPanel';
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import PlanUpgradeBadge from '@/components/admin/PlanUpgradeBadge';
@@ -15,6 +16,10 @@ import {
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { requireAdmin } from '@/lib/admin/auth';
 import { parseAdminListPagination } from '@/lib/admin/list-pagination';
+import {
+  defaultCycleNumberForPrintReport,
+  listCycleOrdersPrintOptions,
+} from '@/lib/admin/cycle-orders-print-report';
 import { listAdminSubscriptions } from '@/lib/admin/queries';
 import type { AdminSubscriptionSortField } from '@/lib/admin/types';
 import {
@@ -88,6 +93,15 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
 
   const subscriptions = result.items;
 
+  const cyclePrintNav = await listCycleOrdersPrintOptions(admin);
+  const cyclePrintOptions = cyclePrintNav.map((item) => ({
+    cycleNumber: item.cycleNumber,
+    label: item.label,
+    count: item.count,
+    hasOpenWork: item.hasOpenWork,
+  }));
+  const defaultCycleNumber = defaultCycleNumberForPrintReport(cyclePrintNav);
+
   return (
     <div className="space-y-6">
       <AdminSubscriptionsFiltersForm
@@ -102,6 +116,11 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
       />
 
       <ExportActiveSubscribersCsvButton />
+
+      <ExportCycleOrdersPrintPanel
+        cycles={cyclePrintOptions}
+        defaultCycleNumber={defaultCycleNumber}
+      />
 
       <RepairPlanUpgradeAsaasButton />
 

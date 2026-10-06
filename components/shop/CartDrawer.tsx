@@ -15,6 +15,8 @@ import { STORE_PRODUCT_IMAGE_SIZE } from '@/lib/store/product-media';
 import { STORE_ROUTES } from '@/lib/store/routes';
 import StoreNavLink from '@/components/shop/StoreNavLink';
 import CartValidationBanner from '@/components/store/CartValidationBanner';
+import { homeV2ButtonClassName } from '@/components/home-v2/HomeV2Button';
+import { mesaFontVariables } from '@/lib/fonts/mesa';
 
 interface Props {
   open: boolean;
@@ -73,14 +75,14 @@ export default function CartDrawer({ open, onClose }: Props) {
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-[200]" role="presentation">
+        <div className={`${mesaFontVariables} home-v2-shop fixed inset-0 z-[200]`} role="presentation">
           <motion.button
             type="button"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="absolute inset-0 cursor-pointer bg-black/60"
+            className="absolute inset-0 cursor-pointer bg-mesa-ink/70 backdrop-blur-sm"
             onClick={onClose}
             aria-label="Fechar carrinho"
           />
@@ -90,18 +92,18 @@ export default function CartDrawer({ open, onClose }: Props) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-            className="absolute right-0 top-0 grid h-full max-h-[100dvh] w-full max-w-md grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-l border-white/[0.08] bg-[#0A0C10] shadow-2xl"
+            className="absolute right-0 top-0 grid h-full max-h-[100dvh] w-full max-w-md grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-l border-white/10 bg-mesa-ink text-mesa-parchment shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-label="Carrinho de compras"
           >
-            <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] px-5 py-4">
+            <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5 text-ember" aria-hidden="true" />
-                <h2 className="font-display text-sm uppercase tracking-widest text-white">
+                <ShoppingBag className="size-5 text-mesa-ember" aria-hidden="true" />
+                <h2 className="home-v2-display text-xl leading-none tracking-[0.08em] text-mesa-parchment">
                   Carrinho
                   {hydrated && resolved.length > 0 ? (
-                    <span className="ml-2 text-stone-500">
+                    <span className="ml-2 tabular-nums text-mesa-ash">
                       ({resolved.reduce((sum, line) => sum + line.quantity, 0)})
                     </span>
                   ) : null}
@@ -110,7 +112,7 @@ export default function CartDrawer({ open, onClose }: Props) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-sm text-stone-400 hover:text-white"
+                className="flex size-11 cursor-pointer items-center justify-center rounded-sm text-mesa-ash transition-colors hover:text-mesa-parchment"
                 aria-label="Fechar"
               >
                 <X className="h-5 w-5" />
@@ -119,23 +121,24 @@ export default function CartDrawer({ open, onClose }: Props) {
 
             <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-2">
               {!hydrated ? (
-                <p className="text-sm text-stone-500">Carregando…</p>
+                <p className="py-6 text-sm text-mesa-ash">Carregando…</p>
               ) : resolved.length === 0 ? (
                 <div className="flex flex-col items-center py-12 text-center">
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-sm bg-white/[0.04]">
-                    <ShoppingBag className="h-7 w-7 text-stone-600" aria-hidden="true" />
+                  <div className="home-v2-grid mb-5 flex size-16 items-center justify-center rounded-2xl border border-white/10 bg-mesa-stone">
+                    <ShoppingBag className="size-7 text-mesa-ash" aria-hidden="true" />
                   </div>
-                  <p className="text-sm text-stone-400">Seu carrinho está vazio.</p>
+                  <p className="home-v2-display text-2xl leading-none text-mesa-parchment">Seu carrinho está vazio</p>
+                  <p className="mt-2 max-w-xs text-sm text-mesa-ash">Kits, miniaturas e acessórios esperando para entrar na sua mesa.</p>
                   <Link
                     href={STORE_ROUTES.home}
                     onClick={onClose}
-                    className="mt-4 inline-flex font-display text-xs uppercase tracking-widest text-ember hover:text-ember-bright"
+                    className={homeV2ButtonClassName({ variant: 'outline', size: 'sm', className: 'mt-6' })}
                   >
-                    Ver produtos →
+                    Ver produtos
                   </Link>
                 </div>
               ) : (
-                <ul className="divide-y divide-white/[0.06]">
+                <ul className="divide-y divide-white/10">
                   {resolved.map((line) => {
                     const maxQty = maxQuantityForCartLine(line, lines, allProducts);
                     const productHref = line.slug
@@ -147,7 +150,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                         <Link
                           href={productHref}
                           onClick={onClose}
-                          className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-sm bg-stone-900"
+                          className="relative size-20 shrink-0 self-start overflow-hidden rounded-lg border border-white/10 bg-mesa-stone"
                         >
                           {line.imageUrl ? (
                             <StoreMediaImage
@@ -161,7 +164,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                           ) : (
                             <div className="flex h-20 w-20 items-center justify-center">
                               <ShoppingBag
-                                className="h-6 w-6 text-stone-600"
+                                className="size-6 text-mesa-ash"
                                 aria-hidden="true"
                               />
                             </div>
@@ -174,17 +177,17 @@ export default function CartDrawer({ open, onClose }: Props) {
                               <Link
                                 href={productHref}
                                 onClick={onClose}
-                                className="line-clamp-2 font-medium text-white hover:text-ember"
+                                className="line-clamp-2 text-sm font-semibold leading-snug text-mesa-parchment transition-colors hover:text-mesa-ember"
                               >
                                 {line.name}
                               </Link>
                               {line.themeName ? (
-                                <p className="mt-0.5 text-xs text-gold">
+                                <p className="mt-1 text-xs font-medium text-mesa-jade">
                                   Tema: {line.themeName}
                                 </p>
                               ) : null}
                               {line.variationSummary ? (
-                                <p className="mt-0.5 text-xs text-stone-400">
+                                <p className="mt-0.5 text-xs text-mesa-ash">
                                   {line.variationSummary}
                                 </p>
                               ) : null}
@@ -197,20 +200,20 @@ export default function CartDrawer({ open, onClose }: Props) {
                                   <Link
                                     href={productHref}
                                     onClick={onClose}
-                                    className="mt-1 inline-flex font-display text-[10px] uppercase tracking-widest text-ember hover:text-ember-bright"
+                                    className="home-v2-display mt-1 inline-flex text-[11px] tracking-[0.14em] text-mesa-ember hover:text-[#ff7a4a]"
                                   >
                                     Enviar na página do produto →
                                   </Link>
                                 </div>
                               ) : null}
-                              <p className="mt-1 text-xs text-stone-500">
+                              <p className="mt-1 text-xs tabular-nums text-mesa-ash">
                                 {line.originalPriceCents &&
                                 line.originalPriceCents > line.priceCents ? (
                                   <>
                                     <span className="mr-1.5 line-through">
                                       {formatMoney(line.originalPriceCents)}
                                     </span>
-                                    <span className="text-ember">
+                                    <span className="text-mesa-parchment">
                                       {formatMoney(line.priceCents)} cada
                                     </span>
                                   </>
@@ -219,13 +222,13 @@ export default function CartDrawer({ open, onClose }: Props) {
                                 )}
                               </p>
                             </div>
-                            <p className="shrink-0 font-display text-sm text-ember">
+                            <p className="shrink-0 text-sm font-semibold tabular-nums text-mesa-parchment">
                               {formatMoney(line.lineTotalCents)}
                             </p>
                           </div>
 
                           <div className="mt-3 flex items-center justify-between gap-2">
-                            <div className="flex items-center rounded-sm border border-white/10">
+                            <div className="flex items-center rounded-sm border border-white/15 bg-mesa-stone">
                               <button
                                 type="button"
                                 aria-label={
@@ -236,7 +239,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                                 onClick={() =>
                                   decreaseQuantity(line.lineId, line.quantity)
                                 }
-                                className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white"
+                                className="flex size-11 cursor-pointer items-center justify-center text-mesa-ash transition-colors hover:text-mesa-parchment"
                               >
                                 {line.quantity <= 1 ? (
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -244,7 +247,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                                   <Minus className="h-3.5 w-3.5" />
                                 )}
                               </button>
-                              <span className="min-w-[2rem] text-center text-sm text-white">
+                              <span className="min-w-[2rem] text-center text-sm font-semibold tabular-nums text-mesa-parchment">
                                 {line.quantity}
                               </span>
                               <button
@@ -258,7 +261,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                                     line
                                   )
                                 }
-                                className="flex h-11 w-11 cursor-pointer items-center justify-center text-stone-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex size-11 cursor-pointer items-center justify-center text-mesa-ash transition-colors hover:text-mesa-parchment disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 <Plus className="h-3.5 w-3.5" />
                               </button>
@@ -267,7 +270,7 @@ export default function CartDrawer({ open, onClose }: Props) {
                             <button
                               type="button"
                               onClick={() => removeItem(line.lineId)}
-                              className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-stone-500 transition hover:text-red-300"
+                              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 px-1 text-xs text-mesa-ash transition-colors hover:text-red-300"
                               aria-label={`Remover ${line.name}`}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -283,15 +286,15 @@ export default function CartDrawer({ open, onClose }: Props) {
             </div>
 
             {hydrated && resolved.length > 0 ? (
-              <div className="shrink-0 border-t border-white/[0.08] bg-[#0A0C10] px-5 py-4 pb-safe">
+              <div className="shrink-0 border-t border-white/10 bg-mesa-stone px-5 py-5 pb-safe">
                 {validationIssues.length > 0 ? (
                   <div className="mb-4">
                     <CartValidationBanner issues={validationIssues} />
                   </div>
                 ) : null}
-                <div className="mb-4 flex justify-between text-sm">
-                  <span className="text-stone-500">Subtotal</span>
-                  <span className="font-display text-lg text-white">
+                <div className="mb-4 flex items-baseline justify-between">
+                  <span className="home-v2-display text-[11px] tracking-[0.2em] text-mesa-ash">Subtotal</span>
+                  <span className="text-xl font-semibold tabular-nums text-mesa-parchment">
                     {formatMoney(subtotalCents)}
                   </span>
                 </div>
@@ -299,14 +302,14 @@ export default function CartDrawer({ open, onClose }: Props) {
                   href={STORE_ROUTES.checkout}
                   loadingLabel="Abrindo pagamento…"
                   disabled={!cartIsValid}
-                  className="mb-3 flex min-h-[44px] cursor-pointer items-center justify-center rounded-sm bg-ember font-display text-xs uppercase tracking-widest text-stone-950 transition hover:bg-ember-bright"
+                  className={homeV2ButtonClassName({ size: 'lg', className: 'mb-2 w-full' })}
                 >
                   Finalizar compra
                 </StoreNavLink>
                 <StoreNavLink
                   href={STORE_ROUTES.cart}
                   loadingLabel="Abrindo carrinho…"
-                  className="flex min-h-[40px] items-center justify-center font-display text-xs uppercase tracking-widest text-stone-400 hover:text-white"
+                  className="home-v2-display flex min-h-11 items-center justify-center text-sm tracking-[0.1em] text-mesa-ash transition-colors hover:text-mesa-parchment"
                 >
                   Ver carrinho completo
                 </StoreNavLink>
