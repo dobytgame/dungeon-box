@@ -1,19 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { pagarmeRequest } from '@/lib/pagarme/client';
 import { userFacingPagarmeError } from '@/lib/pagarme/errors';
-import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import {
   assertPagarmeCreditCardOrderPaid,
   chargePagarmeOneTimeOrder,
-  extractPagarmeStorePix,
-  fetchPagarmeOrder,
-  isPagarmeChargePaid,
   resolvePagarmeOrderChargeIds,
 } from '@/lib/pagarme/one-time-order';
-import {
-  CHECKOUT_COMBO_PIX_EXPIRES_IN_SECONDS,
-  createPagarmeSubscriptionPixPayment,
-} from '@/lib/pagarme/subscription-pix';
-import type { PagarmeBillingAddressInput } from '@/lib/pagarme/subscription-card-payload';
+import { buildBillingAddress } from '@/lib/pagarme/subscription-checkout';
 import {
   countApprovedSubscriptionPayments,
   loyaltyLevelFromApprovedPayments,
@@ -51,16 +44,6 @@ function upgradeStatusDetail(input: {
     from_plan: input.fromPlanName,
     to_plan: input.toPlanName,
   });
-}
-
-function isUpgradePaymentDetail(raw: string | null | undefined): boolean {
-  if (!raw) return false;
-  try {
-    const parsed = JSON.parse(raw) as { type?: string };
-    return parsed.type === UPGRADE_DETAIL_TYPE;
-  } catch {
-    return raw.includes(UPGRADE_DETAIL_TYPE);
-  }
 }
 
 export async function quotePlanUpgradeActivation(
@@ -198,7 +181,10 @@ async function loadPayableSubscription(
       promo_code,
       shipping_cents,
       special_notes,
+      card_brand,
+      card_last4,
       pagarme_customer_id,
+      pagarme_subscription_id,
       plans!plan_id(name),
       pending_plan:plans!pending_plan_id(name, slug, price_cents)
     `
@@ -210,109 +196,58 @@ async function loadPayableSubscription(
   return subscription;
 }
 
-export async function startPlanUpgradePixPayment(input: {
-  userId: string;
-  subscriptionId: string;
-}): Promise<
-  | {
-      alreadyPaid: boolean;
-      amountCents: number;
-      targetPlanName: string;
-      pix: { payload: string; expirationDate: string; imageUrl?: string; encodedImage?: string };
-    }
-  | { error: string }
-> {
-  const admin = createAdminClient();
-  const quote = await quotePlanUpgradeActivation(admin, input.subscriptionId);
-  if (!quote) {
-    return { error: 'Não há upgrade aguardando pagamento nesta assinatura.' };
+type LinkedSubscriptionCard = {
+  cardId: string;
+  customerId: string;
+  brand: string | null;
+  last4: string | null;
+};
+
+async function resolveLinkedSubscriptionCard(
+  subscription: {
+    pagarme_subscription_id: string | null;
+    pagarme_customer_id: string | null;
+    card_last4: string | null;
+  }
+): Promise<LinkedSubscriptionCard | { error: string }> {
+  const pagarmeSubscriptionId = subscription.pagarme_subscription_id?.trim() || null;
+  if (!pagarmeSubscriptionId) {
+    return { error: 'Esta assinatura não tem cartão vinculado para cobrança.' };
   }
 
-  const subscription = await loadPayableSubscription(
-    admin,
-    input.subscriptionId,
-    input.userId
-  );
-  if (!subscription) return { error: 'Assinatura não encontrada.' };
+  const remote = await pagarmeRequest<{
+    card?: {
+      id?: string | null;
+      brand?: string | null;
+      last_four_digits?: string | null;
+    } | null;
+    customer?: { id?: string | null } | null;
+  }>(`/subscriptions/${encodeURIComponent(pagarmeSubscriptionId)}`);
 
-  const reusable = await reuseOpenUpgradePix(
-    admin,
-    input.subscriptionId,
-    quote.amountCents
-  );
-  if (reusable) {
-    if (reusable.alreadyPaid && reusable.paymentId) {
-      await finalizePlanUpgradeActivation(admin, input.subscriptionId, {
-        id: reusable.paymentId,
-        amount_cents: quote.amountCents,
-        paid_at: new Date().toISOString(),
-      });
-    }
+  const cardId = remote.card?.id?.trim() || null;
+  const last4 = remote.card?.last_four_digits?.trim() || null;
+  const brand = remote.card?.brand?.trim() || null;
+  const customerId =
+    subscription.pagarme_customer_id?.trim() || remote.customer?.id?.trim() || null;
+  const localLast4 = subscription.card_last4?.trim() || null;
+
+  if (!cardId || !customerId) {
+    return { error: 'Não encontramos o cartão vinculado a esta assinatura.' };
+  }
+
+  if (localLast4 && last4 && localLast4 !== last4) {
     return {
-      alreadyPaid: reusable.alreadyPaid,
-      amountCents: quote.amountCents,
-      targetPlanName: quote.targetPlanName,
-      pix: reusable.pix,
+      error:
+        'O cartão vinculado na assinatura não confere com o cadastro. Atualize o cartão e tente de novo.',
     };
   }
 
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('id, email, full_name, cpf, phone, pagarme_customer_id')
-    .eq('id', input.userId)
-    .maybeSingle();
-
-  const { data: address } = await admin
-    .from('addresses')
-    .select('recipient, zip_code, street, number, complement, neighborhood, city, state')
-    .eq('id', subscription.address_id)
-    .maybeSingle();
-
-  if (!profile?.email || !address) {
-    return { error: 'Cadastro incompleto para gerar o PIX.' };
-  }
-
-  const customerId = await getOrCreatePagarmeCustomer(admin, profile, address);
-
-  let pixCharge;
-  try {
-    pixCharge = await createPagarmeSubscriptionPixPayment(admin, {
-      customerId,
-      userId: input.userId,
-      subscriptionId: input.subscriptionId,
-      valueCents: quote.amountCents,
-      description: `DungeonBox — ativar upgrade ${quote.targetPlanName}`,
-      chargeKind: 'plan_upgrade',
-      statusDetail: upgradeStatusDetail({
-        fromPlanName: quote.currentPlanName,
-        toPlanName: quote.targetPlanName,
-      }),
-      expiresInSeconds: CHECKOUT_COMBO_PIX_EXPIRES_IN_SECONDS,
-    });
-  } catch (error) {
-    return { error: userFacingPagarmeError(error) };
-  }
-
-  if (pixCharge.alreadyPaid) {
-    await finalizePlanUpgradeActivation(admin, input.subscriptionId, {
-      id: pixCharge.paymentId,
-      amount_cents: quote.amountCents,
-      paid_at: new Date().toISOString(),
-    });
-  }
-
-  return {
-    alreadyPaid: pixCharge.alreadyPaid,
-    amountCents: quote.amountCents,
-    targetPlanName: quote.targetPlanName,
-    pix: pixCharge.pix,
-  };
+  return { cardId, customerId, brand, last4 };
 }
 
-export async function payPlanUpgradeWithCard(input: {
+export async function payPlanUpgradeWithLinkedCard(input: {
   userId: string;
   subscriptionId: string;
-  cardToken: string;
 }): Promise<{ success: true; targetPlanName: string } | { error: string }> {
   const admin = createAdminClient();
   const quote = await quotePlanUpgradeActivation(admin, input.subscriptionId);
@@ -327,41 +262,34 @@ export async function payPlanUpgradeWithCard(input: {
   );
   if (!subscription) return { error: 'Assinatura não encontrada.' };
 
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('id, email, full_name, cpf, phone, pagarme_customer_id')
-    .eq('id', input.userId)
-    .maybeSingle();
-
   const { data: address } = await admin
     .from('addresses')
     .select('recipient, zip_code, street, number, complement, neighborhood, city, state')
     .eq('id', subscription.address_id)
     .maybeSingle();
 
-  if (!profile?.email || !address) {
-    return { error: 'Cadastro incompleto para cobrar o cartão.' };
+  if (!address) {
+    return { error: 'Assinatura sem endereço para cobrar o cartão vinculado.' };
   }
 
-  const customerId = await getOrCreatePagarmeCustomer(admin, profile, address);
-  const billingAddress: PagarmeBillingAddressInput = {
-    line_1: `${address.number}, ${address.street}, ${address.neighborhood}`,
-    line_2: address.complement ?? undefined,
-    zip_code: address.zip_code.replace(/\D/g, ''),
-    city: address.city,
-    state: address.state,
-    country: 'BR',
-  };
+  let linkedCard: LinkedSubscriptionCard;
+  try {
+    const resolved = await resolveLinkedSubscriptionCard(subscription);
+    if ('error' in resolved) return resolved;
+    linkedCard = resolved;
+  } catch (error) {
+    return { error: userFacingPagarmeError(error) };
+  }
 
   let order;
   try {
     order = await chargePagarmeOneTimeOrder({
-      customerId,
+      customerId: linkedCard.customerId,
       valueCents: quote.amountCents,
       description: `DungeonBox — ativar upgrade ${quote.targetPlanName}`,
-      billingAddress,
+      billingAddress: buildBillingAddress(address),
       orderCode: `${input.subscriptionId}-plan-upgrade-${Date.now().toString(36)}`,
-      cardToken: input.cardToken,
+      cardId: linkedCard.cardId,
       metadata: {
         subscription_id: input.subscriptionId,
         charge_kind: 'plan_upgrade',
@@ -394,6 +322,8 @@ export async function payPlanUpgradeWithCard(input: {
         status: 'approved',
         paid_at: now,
         payment_method: 'credit_card',
+        card_brand: linkedCard.brand,
+        card_last4: linkedCard.last4,
         installments: 1,
         status_detail: upgradeStatusDetail({
           fromPlanName: quote.currentPlanName,
@@ -416,113 +346,4 @@ export async function payPlanUpgradeWithCard(input: {
   });
 
   return { success: true, targetPlanName: quote.targetPlanName };
-}
-
-export async function syncPlanUpgradePixPayment(input: {
-  userId: string;
-  subscriptionId: string;
-}): Promise<'active' | 'pending'> {
-  const admin = createAdminClient();
-  const { data: subscription } = await admin
-    .from('subscriptions')
-    .select('id, status, pending_plan_id')
-    .eq('id', input.subscriptionId)
-    .eq('user_id', input.userId)
-    .maybeSingle();
-
-  if (!subscription) return 'pending';
-  if (subscription.status === 'active' && !subscription.pending_plan_id) {
-    return 'active';
-  }
-
-  const { data: payment } = await admin
-    .from('payments')
-    .select('id, amount_cents, paid_at, status, status_detail, pagarme_order_id')
-    .eq('subscription_id', input.subscriptionId)
-    .eq('payment_method', 'pix')
-    .order('created_at', { ascending: false })
-    .limit(8);
-
-  const upgradePayment = (payment ?? []).find((row) =>
-    isUpgradePaymentDetail(row.status_detail as string | null)
-  );
-  if (!upgradePayment?.pagarme_order_id) return 'pending';
-
-  if (upgradePayment.status === 'approved') {
-    await finalizePlanUpgradeActivation(admin, input.subscriptionId, {
-      id: upgradePayment.id as string,
-      amount_cents: upgradePayment.amount_cents as number,
-      paid_at: (upgradePayment.paid_at as string | null) ?? new Date().toISOString(),
-    });
-    return 'active';
-  }
-
-  try {
-    const order = await fetchPagarmeOrder(upgradePayment.pagarme_order_id as string);
-    const ids = resolvePagarmeOrderChargeIds(order);
-    if (!ids.chargeId || !isPagarmeChargePaid(ids.chargeStatus)) return 'pending';
-
-    const paidAt = new Date().toISOString();
-    await admin
-      .from('payments')
-      .update({ status: 'approved', paid_at: paidAt })
-      .eq('id', upgradePayment.id);
-
-    await finalizePlanUpgradeActivation(admin, input.subscriptionId, {
-      id: upgradePayment.id as string,
-      amount_cents: upgradePayment.amount_cents as number,
-      paid_at: paidAt,
-    });
-    return 'active';
-  } catch (error) {
-    console.error('[upgrade] sync activation pix:', input.subscriptionId, error);
-    return 'pending';
-  }
-}
-
-async function reuseOpenUpgradePix(
-  admin: SupabaseClient,
-  subscriptionId: string,
-  amountCents: number
-): Promise<{
-  alreadyPaid: boolean;
-  paymentId: string | null;
-  pix: { payload: string; expirationDate: string; imageUrl?: string };
-} | null> {
-  const { data: rows } = await admin
-    .from('payments')
-    .select('id, amount_cents, status, status_detail, pagarme_order_id')
-    .eq('subscription_id', subscriptionId)
-    .eq('payment_method', 'pix')
-    .eq('amount_cents', amountCents)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-    .limit(5);
-
-  const row = (rows ?? []).find((item) =>
-    isUpgradePaymentDetail(item.status_detail as string | null)
-  );
-  if (!row?.pagarme_order_id) return null;
-
-  try {
-    const order = await fetchPagarmeOrder(row.pagarme_order_id as string);
-    const ids = resolvePagarmeOrderChargeIds(order);
-    if (ids.chargeId && isPagarmeChargePaid(ids.chargeStatus)) {
-      return {
-        alreadyPaid: true,
-        paymentId: row.id as string,
-        pix: { payload: '', expirationDate: '' },
-      };
-    }
-
-    const pix = extractPagarmeStorePix(order);
-    if (!pix?.payload?.trim()) return null;
-    if (pix.expirationDate) {
-      const expiresAt = new Date(pix.expirationDate).getTime();
-      if (Number.isFinite(expiresAt) && expiresAt < Date.now() + 60_000) return null;
-    }
-    return { alreadyPaid: false, paymentId: row.id as string, pix };
-  } catch {
-    return null;
-  }
 }

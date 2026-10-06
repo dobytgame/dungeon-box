@@ -134,6 +134,8 @@ async function SubscriptionDetailCard({
           targetPlanName={pendingPlan.name}
           amountCents={pendingUpgradePricing.totalCents}
           promoSummary={pendingUpgradePricing.promoSummary}
+          cardBrand={subscription.card_brand}
+          cardLast4={subscription.card_last4}
         />
       ) : needsPayment && paymentLink ? (
         <SubscriptionPaymentCallout

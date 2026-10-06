@@ -132,6 +132,8 @@ export default async function DashboardPage() {
           targetPlanName={pastDuePendingPlan.name}
           amountCents={pastDueUpgradePricing.totalCents}
           promoSummary={pastDueUpgradePricing.promoSummary}
+          cardBrand={pastDueSubscription.card_brand}
+          cardLast4={pastDueSubscription.card_last4}
         />
       ) : pastDueSubscription && pastDuePaymentLink ? (
         <SubscriptionPaymentCallout
