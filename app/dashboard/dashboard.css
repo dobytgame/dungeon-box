@@ -1,8 +1,4 @@
-/* Ponte: páginas da conta herdam Mesa sem reescrever cada utilitário antigo. */
-.home-v2 .font-display {
-  font-family: var(--font-home-display), sans-serif;
-}
-
+/* Ponte de cor da conta. A tipografia continua Bebas Neue e DM Sans. */
 .home-v2 .text-white {
   color: var(--parchment);
 }

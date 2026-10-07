@@ -5,7 +5,6 @@ import ShellNavigationFrame from '@/components/navigation/ShellNavigationFrame';
 import ShopPromoBar from '@/components/shop/ShopPromoBar';
 import StoreCartFeedback from '@/components/shop/StoreCartFeedback';
 import ShopHeader from '@/components/shop/ShopHeader';
-import { mesaFontVariables } from '@/lib/fonts/mesa';
 import type { StoreCategory } from '@/lib/store/load-catalog';
 
 interface Props {
@@ -24,7 +23,7 @@ export default function ShopShell({
   return (
     <ShellNavigationFrame scope="/loja" variant="shop">
       <div
-        className={`${mesaFontVariables} home-v2 home-v2-shop flex min-h-screen flex-col bg-mesa-ink text-mesa-parchment`}
+        className="home-v2 home-v2-shop flex min-h-screen flex-col bg-mesa-ink font-body text-mesa-parchment"
       >
         <a
           href="#conteudo-principal"

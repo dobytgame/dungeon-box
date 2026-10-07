@@ -16,7 +16,6 @@ import { STORE_ROUTES } from '@/lib/store/routes';
 import StoreNavLink from '@/components/shop/StoreNavLink';
 import CartValidationBanner from '@/components/store/CartValidationBanner';
 import { homeV2ButtonClassName } from '@/components/home-v2/HomeV2Button';
-import { mesaFontVariables } from '@/lib/fonts/mesa';
 
 interface Props {
   open: boolean;
@@ -75,7 +74,7 @@ export default function CartDrawer({ open, onClose }: Props) {
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <div className={`${mesaFontVariables} home-v2-shop fixed inset-0 z-[200]`} role="presentation">
+        <div className="home-v2-shop fixed inset-0 z-[200] font-body" role="presentation">
           <motion.button
             type="button"
             initial={{ opacity: 0 }}

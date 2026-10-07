@@ -9,6 +9,7 @@ import {
   type RevenuePaymentRow,
   type SubscriptionRevenueContext,
 } from '@/lib/payments/revenue-aggregation';
+import { isOnOrAfterPrepaidEndDay } from '@/lib/payments/prepaid-renewal';
 
 type PaymentRow = {
   id: string;
@@ -143,7 +144,12 @@ export async function cancelPhantomSubscriptionCharges(
       isComboSubscription(subscription)
     ) {
       const canonicalId = canonicalCombo.get(payment.subscription_id);
-      if (canonicalId && payment.id !== canonicalId) {
+      const paidAt = payment.paid_at ?? payment.created_at;
+      if (
+        canonicalId &&
+        payment.id !== canonicalId &&
+        !isOnOrAfterPrepaidEndDay(subscription?.prepaid_until, paidAt)
+      ) {
         const { error: updateError } = await admin
           .from('payments')
           .update({
@@ -170,12 +176,10 @@ export async function cancelPhantomSubscriptionCharges(
       payment.id !== firstId &&
       subscription?.prepaid_until
     ) {
-      const prepaidUntil = new Date(subscription.prepaid_until);
       const paidAt = payment.paid_at ?? payment.created_at;
       if (
         paidAt &&
-        !Number.isNaN(prepaidUntil.getTime()) &&
-        new Date(paidAt).getTime() <= prepaidUntil.getTime()
+        !isOnOrAfterPrepaidEndDay(subscription.prepaid_until, paidAt)
       ) {
         const { error: updateError } = await admin
           .from('payments')

@@ -35,6 +35,8 @@ import { isPaymentAlreadyLinkedToSubscriptionCycle } from '@/lib/subscriptions/p
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
 import { seedPrepaidComboProductionSchedule } from '@/lib/subscriptions/combo-production-schedule';
 import { parseBrazilDateOnlyToIso, resolveGatewayPaidAt } from '@/lib/datetime/brazil';
+import { normalizeAsaasSubscriptionRef } from '@/lib/asaas/refs';
+import { isOnOrAfterPrepaidEndDay } from '@/lib/payments/prepaid-renewal';
 
 export type AsaasWebhookPayment = {
   id: string;
@@ -46,7 +48,29 @@ export type AsaasWebhookPayment = {
   installment?: string | null;
   installmentNumber?: number | null;
   paymentDate?: string | null;
+  dueDate?: string | null;
+  clientPaymentDate?: string | null;
 };
+
+function asaasRenewalAnchor(payment: AsaasWebhookPayment): string {
+  return (
+    payment.dueDate?.trim() ||
+    payment.clientPaymentDate?.trim() ||
+    payment.paymentDate?.trim() ||
+    new Date().toISOString()
+  );
+}
+
+/** Renovação mensal da assinatura Asaas no dia em que o combo pré-pago acaba. */
+function isPostPrepaidAsaasRenewal(
+  payment: AsaasWebhookPayment,
+  prepaidUntil: string | null | undefined
+): boolean {
+  if (!normalizeAsaasSubscriptionRef(payment.subscription)) return false;
+  if (payment.installment) return false;
+  if (parseComboPaymentReference(payment.externalReference)) return false;
+  return isOnOrAfterPrepaidEndDay(prepaidUntil, asaasRenewalAnchor(payment));
+}
 
 function paymentAmountCents(payment: AsaasWebhookPayment): number {
   const value = payment.value ?? 0;
@@ -137,7 +161,13 @@ export async function handleAsaasPaymentConfirmed(
     .eq('id', local.id)
     .maybeSingle();
 
+  const postPrepaidRenewal = isPostPrepaidAsaasRenewal(
+    payment,
+    subscriptionBilling?.prepaid_until as string | null | undefined
+  );
+
   if (
+    !postPrepaidRenewal &&
     subscriptionBilling &&
     isComboInstallmentSlicePayment(
       { amount_cents: amountCents, status_detail: null },
@@ -151,7 +181,11 @@ export async function handleAsaasPaymentConfirmed(
     }
   }
 
-  if (subscriptionBilling && isComboSubscription(subscriptionBilling)) {
+  if (
+    !postPrepaidRenewal &&
+    subscriptionBilling &&
+    isComboSubscription(subscriptionBilling)
+  ) {
     const existingComboPrepaid = await findCanonicalComboPrepaidPayment(
       supabase,
       local.id
@@ -179,7 +213,7 @@ export async function handleAsaasPaymentConfirmed(
   const prepaidUntil = subscriptionBilling?.prepaid_until
     ? new Date(subscriptionBilling.prepaid_until)
     : null;
-  if (prepaidUntil && prepaidUntil > new Date()) {
+  if (!postPrepaidRenewal && prepaidUntil && prepaidUntil > new Date()) {
     const existingComboPrepaid = await findCanonicalComboPrepaidPayment(
       supabase,
       local.id
@@ -228,11 +262,16 @@ export async function handleAsaasPaymentConfirmed(
     return 'skipped';
   }
 
+  const renewalDay = postPrepaidRenewal ? asaasRenewalAnchor(payment) : '';
+  const gatewayPaidAt = payment.paymentDate?.trim()
+    ? parseBrazilDateOnlyToIso(payment.paymentDate.trim())
+    : /^\d{4}-\d{2}-\d{2}$/.test(renewalDay)
+      ? parseBrazilDateOnlyToIso(renewalDay)
+      : null;
+
   const paidAt = resolveGatewayPaidAt(
     existingPayment?.paid_at as string | null,
-    payment.paymentDate?.trim()
-      ? parseBrazilDateOnlyToIso(payment.paymentDate.trim())
-      : null,
+    gatewayPaidAt,
     now
   );
 
@@ -247,6 +286,14 @@ export async function handleAsaasPaymentConfirmed(
         currency: 'BRL',
         status: 'approved',
         paid_at: paidAt,
+        ...(postPrepaidRenewal
+          ? {
+              status_detail: JSON.stringify({
+                type: 'post_combo_renewal',
+                due_date: payment.dueDate ?? payment.clientPaymentDate ?? null,
+              }),
+            }
+          : {}),
       },
       { onConflict: 'asaas_payment_id' }
     )

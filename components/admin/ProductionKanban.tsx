@@ -30,6 +30,7 @@ import {
   productionCycleCardClasses,
 } from '@/lib/admin/production-cycle-theme';
 import { kanbanCyclePaidAt } from '@/lib/admin/cycle-payment-resolve';
+import ExportMelhorEnvioPickupButton from '@/components/admin/ExportMelhorEnvioPickupButton';
 import SendFeedbackEmailButton from '@/components/admin/SendFeedbackEmailButton';
 import ProductionSlaStrip from '@/components/admin/ProductionSlaStrip';
 
@@ -735,6 +736,11 @@ export default function ProductionKanban({
                   </div>
                 </div>
                 <p className="mt-1 text-[11px] text-zinc-600">{meta.hint}</p>
+                {status === 'awaiting_pickup' ? (
+                  <ExportMelhorEnvioPickupButton
+                    cardIds={cards.map((row) => row.id)}
+                  />
+                ) : null}
               </header>
 
               <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2">

@@ -1550,6 +1550,38 @@ export async function exportActiveSubscribersCsvAction() {
   }
 }
 
+export async function exportAwaitingPickupMelhorEnvioAction(cardIds: string[]) {
+  const { user, admin } = await requireAdmin();
+
+  try {
+    const { buildAwaitingPickupMelhorEnvioExport } = await import(
+      '@/lib/admin/melhor-envio-pickup-sheet'
+    );
+    const result = await buildAwaitingPickupMelhorEnvioExport(admin, cardIds);
+    if ('error' in result) return result;
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'production.export_melhor_envio_pickup',
+      entityType: 'subscription_cycle',
+      metadata: {
+        filename: result.filename,
+        exported: result.exported,
+        skipped: result.skipped.length,
+      },
+      ipAddress: await clientIp(),
+    });
+
+    return { success: true as const, ...result };
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Não foi possível gerar a planilha do Melhor Envio.';
+    return { error: message };
+  }
+}
+
 export async function setSubscriptionPartnerAction(
   subscriptionId: string,
   isPartner: boolean

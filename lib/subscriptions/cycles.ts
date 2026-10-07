@@ -17,6 +17,7 @@ import {
   isStoreOrderBillingPayment,
   prepareBillingCyclePayments,
 } from '@/lib/subscriptions/billing-cycle-payments';
+import { isOnOrAfterPrepaidEndDay } from '@/lib/payments/prepaid-renewal';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
@@ -325,13 +326,19 @@ export async function processActiveSubscriptionPayment(
 
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('billing_term')
+    .select('billing_term, prepaid_until')
     .eq('id', subscriptionId)
     .maybeSingle();
 
   const billingTerm = (subscription?.billing_term as BillingTerm | null) ?? 'monthly';
+  const postPrepaidRenewal =
+    isComboTerm(billingTerm) &&
+    isOnOrAfterPrepaidEndDay(
+      subscription?.prepaid_until as string | null | undefined,
+      payment.paid_at ?? now
+    );
 
-  if (isComboTerm(billingTerm)) {
+  if (isComboTerm(billingTerm) && !postPrepaidRenewal) {
     const { count: existingCycles } = await supabase
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
@@ -395,6 +402,7 @@ export async function processActiveSubscriptionPayment(
       current_period_start: now,
       current_period_end: periodEndIso,
       next_billing_date: periodEndIso,
+      ...(postPrepaidRenewal ? { billing_term: 'monthly' } : {}),
       updated_at: now,
     })
     .eq('id', subscriptionId);

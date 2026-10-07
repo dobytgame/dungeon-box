@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Barlow_Condensed, Manrope } from 'next/font/google';
 import HomeV2Motion from '@/components/home-v2/HomeV2Motion';
 import DashboardShell from '@/components/dashboard/DashboardShell';
 import { privatePageMetadata } from '@/lib/seo/metadata';
@@ -15,20 +14,6 @@ import {
 } from '@/lib/dashboard/queries';
 import '@/app/home-v2/home-v2.css';
 import './dashboard.css';
-
-const barlowCondensed = Barlow_Condensed({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  variable: '--font-home-display',
-  display: 'swap',
-});
-
-const manrope = Manrope({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-home-body',
-  display: 'swap',
-});
 
 export const metadata: Metadata = privatePageMetadata('Minha conta');
 
@@ -50,7 +35,7 @@ export default async function DashboardLayout({
   const navItems = buildDashboardNav(showReferral, showStore, showThemeVote);
 
   return (
-    <div className={`${barlowCondensed.variable} ${manrope.variable} home-v2 font-homeBody`}>
+    <div className="home-v2 font-body">
       <a
         href="#conteudo-principal"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[80] focus:bg-mesa-ember focus:px-4 focus:py-3 focus:font-homeBody focus:text-sm focus:font-semibold focus:text-mesa-ink"

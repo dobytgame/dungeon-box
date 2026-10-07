@@ -61,6 +61,7 @@ export function isComboInstallmentSlicePayment(
 ): boolean {
   const detail = parsePaymentStatusDetail(payment.status_detail);
   if (detail?.type === 'combo_installment_slice') return true;
+  if (detail?.type === 'post_combo_renewal') return false;
   if (isComboPrepaidPayment(payment.status_detail)) return false;
 
   const billingTerm = subscription?.billing_term;

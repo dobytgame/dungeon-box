@@ -13,6 +13,7 @@ import {
   isComboInstallmentSlicePayment,
   resolveEffectivePaymentAmountCents,
 } from '@/lib/payments/effective-amount';
+import { isOnOrAfterPrepaidEndDay } from '@/lib/payments/prepaid-renewal';
 
 export type RevenuePaymentRow = {
   id: string;
@@ -254,11 +255,12 @@ function isPaymentCoveredByPrepaid(
 ): boolean {
   if (!subscription?.prepaid_until || !row.subscription_id) return false;
 
-  const prepaidUntil = new Date(subscription.prepaid_until);
   const paidAt = row.paid_at ?? row.created_at;
-  if (!paidAt || Number.isNaN(prepaidUntil.getTime())) return false;
+  if (!paidAt) return false;
+  if (isOnOrAfterPrepaidEndDay(subscription.prepaid_until, paidAt)) return false;
 
-  if (new Date(paidAt).getTime() > prepaidUntil.getTime()) return false;
+  const prepaidUntil = new Date(subscription.prepaid_until);
+  if (Number.isNaN(prepaidUntil.getTime())) return false;
 
   const firstId = firstPaymentBySubscription.get(row.subscription_id);
   return Boolean(firstId && row.id !== firstId);
@@ -319,16 +321,19 @@ export function shouldCountPaymentInRevenue(
   }
 
   if (subscriptionId && isComboSubscription(subscription)) {
-    const canonicalId = canonicalComboBySubscription.get(subscriptionId);
-    if (canonicalId) {
-      return row.id === canonicalId;
-    }
+    const paidAt = row.paid_at ?? row.created_at;
+    if (!isOnOrAfterPrepaidEndDay(subscription?.prepaid_until, paidAt)) {
+      const canonicalId = canonicalComboBySubscription.get(subscriptionId);
+      if (canonicalId) {
+        return row.id === canonicalId;
+      }
 
-    if (isComboPrepaidPayment(row.status_detail)) {
-      return true;
-    }
+      if (isComboPrepaidPayment(row.status_detail)) {
+        return true;
+      }
 
-    return false;
+      return false;
+    }
   }
 
   if (isComboPrepaidPayment(row.status_detail) && subscriptionId) {

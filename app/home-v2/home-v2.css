@@ -10,7 +10,9 @@
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background: var(--ink);
   color: var(--parchment);
-  font-family: var(--font-home-body), sans-serif;
+  --font-home-display: var(--font-display);
+  --font-home-body: var(--font-body);
+  font-family: var(--font-body), sans-serif;
   scroll-behavior: smooth;
 }
 
@@ -29,20 +31,10 @@ html:has(.home-v2) {
   outline-offset: 3px;
 }
 
-/*
- * Store bridge: store components were written against `font-display`/`font-body`
- * (Bebas Neue/DM Sans). Inside the shop those resolve to the Mesa fonts, and
- * Barlow Condensed needs weight + caps to match Bebas' single-weight uppercase.
- */
 .home-v2-shop {
-  --font-display: var(--font-home-display);
-  --font-body: var(--font-home-body);
-  font-family: var(--font-home-body), sans-serif;
-}
-
-.home-v2-shop .font-display {
-  font-weight: 700;
-  text-transform: uppercase;
+  --font-home-display: var(--font-display);
+  --font-home-body: var(--font-body);
+  font-family: var(--font-body), sans-serif;
 }
 
 .home-v2-shop .product-description {
@@ -52,7 +44,7 @@ html:has(.home-v2) {
 .home-v2-shop .product-description h2,
 .home-v2-shop .product-description h3,
 .home-v2-shop .product-description p:has(> strong:only-child) strong {
-  font-weight: 700;
+  font-weight: 400;
   color: var(--parchment);
 }
 
@@ -77,8 +69,8 @@ html:has(.home-v2) {
 }
 
 .home-v2-display {
-  font-family: var(--font-home-display), sans-serif;
-  font-weight: 700;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }

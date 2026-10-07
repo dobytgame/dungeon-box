@@ -22,6 +22,9 @@ type AsaasPaymentListItem = {
   status?: string;
   billingType?: string;
   paymentDate?: string | null;
+  dueDate?: string | null;
+  clientPaymentDate?: string | null;
+  installment?: string | null;
 };
 
 type PaymentListResponse = {
@@ -45,6 +48,9 @@ export function toAsaasWebhookPayment(
     status: payment.status,
     billingType: payment.billingType,
     paymentDate: payment.paymentDate ?? undefined,
+    dueDate: payment.dueDate ?? undefined,
+    clientPaymentDate: payment.clientPaymentDate ?? undefined,
+    installment: payment.installment ?? undefined,
   };
 }
 
