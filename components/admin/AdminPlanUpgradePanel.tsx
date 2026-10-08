@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react';
 import {
   adminCancelPlanUpgradeAction,
   adminSchedulePlanUpgradeAction,
+  createUpgradePaymentLinkAction,
 } from '@/lib/admin/actions';
 import { formatMoney } from '@/lib/dashboard/format';
 import type { PlanSlug } from '@/lib/checkout/plans';
@@ -29,6 +30,7 @@ export default function AdminPlanUpgradePanel({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [paymentUrl, setPaymentUrl] = useState('');
 
   function schedule(slug: PlanSlug, planName: string) {
     const confirmMessage = pastDue
@@ -51,6 +53,27 @@ export default function AdminPlanUpgradePanel({
           : `Upgrade para ${planName} agendado.`
       );
       router.refresh();
+    });
+  }
+
+  function createPaymentLink() {
+    setMessage('');
+    setError('');
+    startTransition(async () => {
+      const result = await createUpgradePaymentLinkAction(subscriptionId);
+      if ('error' in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      if ('url' in result && result.url) {
+        setPaymentUrl(result.url);
+        try {
+          await navigator.clipboard.writeText(result.url);
+          setMessage('Link copiado. Envie para o cliente informar o cartão e pagar.');
+        } catch {
+          setMessage('Link gerado. Copie o endereço abaixo e envie ao cliente.');
+        }
+      }
     });
   }
 
@@ -83,7 +106,7 @@ export default function AdminPlanUpgradePanel({
       </h3>
       <p className="mt-2 text-sm text-stone-500">
         {pastDue
-          ? 'O plano novo só ativa quando o cliente pagar. Ele vê o valor e o botão de pagamento na conta.'
+          ? 'O plano novo só ativa quando o cliente pagar. Gere o link para ele informar um cartão novo e quitar o atraso.'
           : 'O plano superior passa a valer na próxima cobrança. Até lá, o cliente continua no plano atual.'}
       </p>
 
@@ -96,14 +119,34 @@ export default function AdminPlanUpgradePanel({
             <span className="font-medium text-white">{pendingPlan.name}</span> (
             {formatMoney(pendingPlan.priceCents)}/mês).
           </p>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={cancelUpgrade}
-            className="cursor-pointer rounded-sm border border-white/15 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300 transition hover:border-white/30 disabled:opacity-50"
-          >
-            Cancelar upgrade
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {pastDue ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={createPaymentLink}
+                className="cursor-pointer rounded-sm border border-console/40 bg-console/10 px-4 py-2 font-display text-xs uppercase tracking-widest text-console transition hover:bg-console/20 disabled:opacity-50"
+              >
+                Gerar link do cartão
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={cancelUpgrade}
+              className="cursor-pointer rounded-sm border border-white/15 px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-300 transition hover:border-white/30 disabled:opacity-50"
+            >
+              Cancelar upgrade
+            </button>
+          </div>
+          {paymentUrl ? (
+            <input
+              readOnly
+              value={paymentUrl}
+              onFocus={(event) => event.currentTarget.select()}
+              className="w-full rounded-sm border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-200"
+            />
+          ) : null}
         </div>
       ) : options.length === 0 ? (
         <p className="mt-4 text-sm text-stone-500">

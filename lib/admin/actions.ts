@@ -3567,6 +3567,39 @@ export async function createGatewayMigrationLinkAction(input: {
   };
 }
 
+export async function createUpgradePaymentLinkAction(subscriptionId: string) {
+  const { user, admin } = await requireAdmin();
+
+  if (!subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { createOrReuseUpgradePaymentLink } = await import(
+    '@/lib/subscriptions/upgrade-payment-link'
+  );
+
+  const result = await createOrReuseUpgradePaymentLink(admin, subscriptionId);
+  if ('error' in result) return { error: result.error };
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.create_upgrade_payment_link',
+    entityType: 'subscription',
+    entityId: subscriptionId,
+    metadata: { reused: result.reused, expiresAt: result.expiresAt },
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath(`/admin/assinaturas/${subscriptionId}`);
+
+  return {
+    success: true as const,
+    url: result.url,
+    expiresAt: result.expiresAt,
+    reused: result.reused,
+  };
+}
+
 function storeKitThemeConstraintError(message: string): string | null {
   if (message.includes('store_kit_themes_slug_key')) {
     return 'Já existe um tema com este slug.';
