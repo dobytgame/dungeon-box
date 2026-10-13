@@ -7,13 +7,30 @@ import { useHomeV2Dialog } from '@/components/home-v2/useHomeV2Dialog';
 import { formatHomeV2Price, getHomeV2PlanCta, type HomeV2Plan } from '@/lib/home-v2/content';
 import { trackHomeV2CheckoutStarted, trackHomeV2PlanSelected } from '@/lib/home-v2/analytics';
 
+export interface HomeV2PlanPurchase {
+  href: string;
+  priceCents: number;
+  /** Sufixo ao lado do preço: "/mês" ou "/3 meses". */
+  priceSuffix: string;
+  /** Linha de apoio abaixo do preço (ex.: equivalente mensal). */
+  note?: string;
+  /** Período de cobrança enviado ao analytics. */
+  term?: string;
+}
+
 interface Props {
   plan: HomeV2Plan;
+  purchase?: HomeV2PlanPurchase;
   onClose: () => void;
 }
 
-export default function HomeV2PlanDetails({ plan, onClose }: Props) {
+export default function HomeV2PlanDetails({ plan, purchase, onClose }: Props) {
   const titleId = useId();
+  const buy: HomeV2PlanPurchase = purchase ?? {
+    href: plan.checkoutUrl,
+    priceCents: plan.monthlyPriceCents,
+    priceSuffix: '/mês',
+  };
   const { dialogRef, initialFocusRef: closeRef } = useHomeV2Dialog<HTMLButtonElement>(onClose);
 
   return (
@@ -43,11 +60,14 @@ export default function HomeV2PlanDetails({ plan, onClose }: Props) {
               id={titleId}
               className="home-v2-display mt-2 flex items-baseline gap-1.5 text-4xl leading-none text-mesa-parchment"
             >
-              {formatHomeV2Price(plan.monthlyPriceCents)}
+              {formatHomeV2Price(buy.priceCents)}
               <span className="font-homeBody text-base font-normal normal-case tracking-normal text-mesa-ash">
-                /mês
+                {buy.priceSuffix}
               </span>
             </h3>
+            {buy.note ? (
+              <p className="mt-2 text-sm text-mesa-jade">{buy.note}</p>
+            ) : null}
             <p className="mt-3 text-sm leading-relaxed text-mesa-ash">{plan.tagline}</p>
           </div>
           <button
@@ -100,13 +120,13 @@ export default function HomeV2PlanDetails({ plan, onClose }: Props) {
 
         <div className="border-t border-white/10 bg-mesa-stone/95 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:px-7">
           <HomeV2Button
-            href={plan.checkoutUrl}
+            href={buy.href}
             size="lg"
             arrow
             className="w-full"
             onClick={() => {
-              trackHomeV2PlanSelected(plan.slug, plan.monthlyPriceCents / 100);
-              trackHomeV2CheckoutStarted(plan.slug);
+              trackHomeV2PlanSelected(plan.slug, buy.priceCents / 100);
+              trackHomeV2CheckoutStarted(plan.slug, buy.term);
             }}
           >
             {getHomeV2PlanCta(plan.slug)}

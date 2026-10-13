@@ -2,7 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Check, ChevronLeft, ChevronRight, Expand } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Expand,
+  Layers,
+  LayoutGrid,
+  Package,
+  PackageOpen,
+  Puzzle,
+  Scale,
+  type LucideIcon,
+} from 'lucide-react';
 import HomeV2Button from '@/components/home-v2/HomeV2Button';
 import HomeV2PhotoViewer from '@/components/home-v2/HomeV2PhotoViewer';
 import {
@@ -24,6 +36,28 @@ import {
 
 const copy = KIT_SHOWCASE_COPY;
 
+const TAB_ICONS: Record<KitCategory, LucideIcon> = {
+  conteudo: Package,
+  mesa: LayoutGrid,
+  planos: Scale,
+  unboxing: PackageOpen,
+  encaixe: Puzzle,
+  colecao: Layers,
+};
+
+const TAB_META = KIT_TABS.map((tab) => {
+  const entries = kitItemsByCategory(tab.id);
+  const count = entries.length;
+  const unit = tab.id === 'planos' ? (count === 1 ? 'plano' : 'planos') : count === 1 ? 'foto' : 'fotos';
+  return {
+    ...tab,
+    Icon: TAB_ICONS[tab.id],
+    thumbnail: entries[0]?.thumbnail ?? entries[0]?.src ?? null,
+    position: entries[0]?.position ?? 'center',
+    countLabel: `${count} ${unit}`,
+  };
+});
+
 function planLabel(plan: KitGalleryItem['plan']) {
   if (plan === 'heroi') return 'Herói';
   if (plan === 'lendario') return 'Lendário';
@@ -43,7 +77,7 @@ function eventProps(item: KitGalleryItem, position: number) {
 export default function HomeV2KitShowcase() {
   const sectionRef = useRef<HTMLElement>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const stripRef = useRef<HTMLDivElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const [category, setCategory] = useState<KitCategory>('conteudo');
   const [index, setIndex] = useState(0);
@@ -76,7 +110,10 @@ export default function HomeV2KitShowcase() {
     const tab = tabRefs.current[tabIndex];
     if (!tab) return;
     tab.focus({ preventScroll: true });
-    tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const list = tablistRef.current;
+    if (!list || list.scrollWidth <= list.clientWidth) return;
+    const left = tab.offsetLeft - (list.clientWidth - tab.clientWidth) / 2;
+    list.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
   };
 
   const selectTab = (next: KitCategory, tabIndex: number) => {
@@ -111,12 +148,6 @@ export default function HomeV2KitShowcase() {
     setIndex(next);
     const media = items[next];
     if (media) trackKitGalleryMedia(eventProps(media, next + 1));
-    const strip = stripRef.current;
-    const thumb = strip?.querySelectorAll<HTMLButtonElement>('button')[next];
-    if (strip && thumb) {
-      const left = thumb.offsetLeft - strip.clientWidth / 2 + thumb.clientWidth / 2;
-      strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-    }
   };
 
   const openLightbox = () => {
@@ -179,39 +210,82 @@ export default function HomeV2KitShowcase() {
         </header>
 
         <div className="home-v2-reveal mt-10 md:mt-14" style={{ '--stagger': 2 } as React.CSSProperties}>
-          <div className="-mx-4 overflow-x-auto px-4 [mask-image:linear-gradient(to_right,transparent,#000_1rem,#000_calc(100%-2.5rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 sm:[mask-image:none] [&::-webkit-scrollbar]:hidden">
-            <div
-              role="tablist"
-              aria-label="Fotos do kit"
-              className="mr-6 inline-flex gap-1 rounded-full border border-white/10 bg-mesa-stone/70 p-1 backdrop-blur-sm"
-            >
-              {KIT_TABS.map((tab, tabIndex) => {
-                const selected = tab.id === category;
-                return (
-                  <button
-                    key={tab.id}
-                    ref={(node) => {
-                      tabRefs.current[tabIndex] = node;
-                    }}
-                    type="button"
-                    role="tab"
-                    id={`kit-tab-${tab.id}`}
-                    aria-selected={selected}
-                    aria-controls="kit-gallery-panel"
-                    tabIndex={selected ? 0 : -1}
-                    onClick={() => selectTab(tab.id, tabIndex)}
-                    onKeyDown={(event) => onTabKeyDown(event, tabIndex)}
-                    className={`home-v2-display min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-4 text-[13px] sm:px-5 tracking-[0.12em] transition-[background-color,color,box-shadow] duration-200 ${
-                      selected
-                        ? 'bg-mesa-ink text-mesa-parchment shadow-[inset_0_0_0_1px_rgba(255,100,45,0.6),0_10px_30px_-12px_rgba(255,100,45,0.45)]'
-                        : 'text-mesa-ash hover:bg-white/[0.05] hover:text-mesa-parchment'
+          <div
+            ref={tablistRef}
+            role="tablist"
+            aria-label="Fotos do kit"
+            className="home-v2-snap -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-6 [&::-webkit-scrollbar]:hidden"
+          >
+            {TAB_META.map((tab, tabIndex) => {
+              const selected = tab.id === category;
+              const Icon = tab.Icon;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(node) => {
+                    tabRefs.current[tabIndex] = node;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`kit-tab-${tab.id}`}
+                  aria-selected={selected}
+                  aria-controls="kit-gallery-panel"
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => selectTab(tab.id, tabIndex)}
+                  onKeyDown={(event) => onTabKeyDown(event, tabIndex)}
+                  className={`group/tab relative aspect-[4/3] w-[44%] shrink-0 snap-start cursor-pointer overflow-hidden rounded-2xl border text-left transition-[border-color,transform,box-shadow] duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mesa-ember sm:w-auto ${
+                    selected
+                      ? 'border-mesa-ember shadow-[0_18px_40px_-18px_rgba(255,100,45,0.6)]'
+                      : 'border-white/10 hover:-translate-y-0.5 hover:border-white/30'
+                  }`}
+                >
+                  {tab.thumbnail ? (
+                    <Image
+                      src={tab.thumbnail}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 16vw, (min-width: 640px) 30vw, 44vw"
+                      className={`object-cover transition-[opacity,transform,filter] duration-300 ease-out ${
+                        selected
+                          ? 'scale-100 opacity-100'
+                          : 'scale-[1.02] opacity-45 saturate-50 group-hover/tab:scale-[1.05] group-hover/tab:opacity-80 group-hover/tab:saturate-100'
+                      }`}
+                      style={{ objectPosition: tab.position }}
+                    />
+                  ) : (
+                    <span aria-hidden="true" className="absolute inset-0 bg-mesa-stone" />
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-gradient-to-t from-mesa-ink via-mesa-ink/35 to-mesa-ink/10"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-2.5 top-2.5 flex size-7 items-center justify-center rounded-full backdrop-blur-md transition-colors duration-200 ${
+                      selected ? 'bg-mesa-ember text-mesa-ink' : 'bg-mesa-ink/60 text-mesa-parchment'
+                    }`}
+                  >
+                    <Icon className="size-3.5" strokeWidth={2} />
+                  </span>
+                  <span className="home-v2-display absolute right-2.5 top-2.5 rounded-full bg-mesa-ink/60 px-2 py-1 text-[10px] tracking-[0.14em] text-mesa-parchment/85 backdrop-blur-md">
+                    {tab.countLabel}
+                  </span>
+                  <span
+                    className={`home-v2-display absolute inset-x-3 bottom-2.5 text-balance text-[13px] leading-[1.05] tracking-[0.06em] transition-colors duration-200 sm:text-sm ${
+                      selected ? 'text-mesa-parchment' : 'text-mesa-parchment/75 group-hover/tab:text-mesa-parchment'
                     }`}
                   >
                     {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 bottom-0 h-0.5 origin-left bg-mesa-ember transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                      selected ? 'scale-x-100' : 'scale-x-0'
+                    }`}
+                  />
+                </button>
+              );
+            })}
           </div>
 
           <div id="kit-gallery-panel" role="tabpanel" aria-labelledby={`kit-tab-${category}`} className="mt-6 md:mt-8">
@@ -219,9 +293,9 @@ export default function HomeV2KitShowcase() {
               <PlanComparison />
             ) : item ? (
               <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-6">
-                <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
+                <div className="min-w-0 lg:flex">
                   <div
-                    className="group relative aspect-[4/3] overflow-hidden rounded-2xl border sm:rounded-3xl border-white/10 bg-mesa-stone shadow-2xl shadow-black/40 sm:aspect-[16/10.5]"
+                    className="group relative aspect-[4/3] overflow-hidden rounded-2xl border sm:rounded-3xl border-white/10 bg-mesa-stone shadow-2xl shadow-black/40 sm:aspect-[16/10.5] lg:aspect-auto lg:min-h-[28rem] lg:flex-1"
                     onTouchStart={onStageTouchStart}
                     onTouchEnd={onStageTouchEnd}
                   >
@@ -281,7 +355,7 @@ export default function HomeV2KitShowcase() {
                   </div>
                 </div>
 
-                <aside className="relative order-3 mt-1 flex lg:mt-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone p-5 shadow-2xl shadow-black/25 sm:rounded-3xl sm:p-8 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+                <aside className="relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone p-5 shadow-2xl shadow-black/25 sm:rounded-3xl sm:p-8">
                   <div
                     aria-hidden="true"
                     className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full border border-mesa-jade/10"
@@ -322,40 +396,6 @@ export default function HomeV2KitShowcase() {
                   ) : null}
                 </aside>
 
-                {multiple ? (
-                  <div
-                    ref={stripRef}
-                    className="order-2 -mx-4 flex gap-2.5 overflow-x-auto px-5 py-1 [scrollbar-width:none] sm:mx-0 sm:gap-3 sm:px-1 lg:order-3 lg:col-start-1 lg:row-start-2 [&::-webkit-scrollbar]:hidden"
-                    aria-label="Miniaturas"
-                  >
-                    {items.map((thumb, thumbIndex) => {
-                      const selected = thumbIndex === index;
-                      return (
-                        <button
-                          key={thumb.id}
-                          type="button"
-                          onClick={() => selectMedia(thumbIndex)}
-                          aria-current={selected ? 'true' : undefined}
-                          aria-label={thumb.title}
-                          className={`relative h-14 w-20 shrink-0 cursor-pointer overflow-hidden rounded-xl transition-[box-shadow,opacity] duration-200 sm:h-[4.5rem] sm:w-28 ${
-                            selected
-                              ? 'opacity-100 ring-2 ring-mesa-ember ring-offset-2 ring-offset-mesa-ink'
-                              : 'opacity-60 ring-1 ring-white/15 hover:opacity-100 hover:ring-white/40'
-                          }`}
-                        >
-                          <Image
-                            src={thumb.thumbnail}
-                            alt=""
-                            fill
-                            sizes="112px"
-                            className="object-cover"
-                            style={{ objectPosition: thumb.position ?? 'center' }}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
               </div>
             ) : null}
           </div>

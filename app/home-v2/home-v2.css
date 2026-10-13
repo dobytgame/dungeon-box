@@ -117,6 +117,36 @@ html:has(.home-v2) {
   animation: home-v2-fade 240ms ease-out both;
 }
 
+/* Aba "Combo" quando não está selecionada: brilho desfocado que respira. */
+.home-v2-combo-pulse {
+  isolation: isolate;
+}
+
+.home-v2-combo-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 100 45);
+  filter: blur(16px);
+  opacity: 0.45;
+  transform: scale(0.96);
+  animation: home-v2-combo-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes home-v2-combo-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
 .home-v2-wordmark {
   color: transparent;
   -webkit-text-stroke: 1px rgb(243 239 231 / 0.16);

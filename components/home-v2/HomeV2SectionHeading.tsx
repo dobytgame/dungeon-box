@@ -4,15 +4,22 @@ interface Props {
   titleId: string;
   support?: string;
   align?: 'left' | 'center';
-  /** `md` for pages that stack many sections (store); `lg` is the landing scale. */
-  size?: 'lg' | 'md';
+  /** `md` store · `lg` seções · `xl` CTA final (escala do hero). */
+  size?: 'lg' | 'md' | 'xl';
   as?: 'h1' | 'h2';
 }
 
 const TITLE_SIZES = {
+  xl: 'text-[clamp(2.75rem,10vw,6rem)] leading-[0.88]',
   lg: 'text-[clamp(2rem,7vw,4.25rem)] leading-[0.92]',
   md: 'text-[clamp(1.85rem,5vw,3rem)] leading-[0.95]',
 } as const;
+
+const HEADER_MAX: Record<NonNullable<Props['size']>, string> = {
+  xl: 'max-w-5xl',
+  lg: 'max-w-3xl',
+  md: 'max-w-3xl',
+};
 
 export default function HomeV2SectionHeading({
   eyebrow,
@@ -24,7 +31,9 @@ export default function HomeV2SectionHeading({
   as: Title = 'h2',
 }: Props) {
   return (
-    <header className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
+    <header
+      className={`${HEADER_MAX[size]} ${align === 'center' ? 'mx-auto text-center' : ''}`}
+    >
       {eyebrow ? (
         <p className="home-v2-reveal home-v2-display text-[11px] tracking-[0.28em] text-mesa-jade">
           {eyebrow}

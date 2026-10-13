@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import MarketingAttributionCapture from '@/components/marketing/MarketingAttributionCapture';
-import { Bebas_Neue, DM_Sans } from 'next/font/google';
 import GoogleTagManager from '@/components/analytics/GoogleTagManager';
 import GtmConsentDefaults from '@/components/analytics/GtmConsentDefaults';
 import AuthRecoveryRedirect from '@/components/auth/AuthRecoveryRedirect';
@@ -19,19 +18,6 @@ import {
   getCanonicalSiteUrl,
 } from '@/lib/seo/site';
 import './globals.css';
-
-const bebasNeue = Bebas_Neue({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-});
-
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  variable: '--font-body',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getCanonicalSiteUrl()),
@@ -80,7 +66,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${bebasNeue.variable} ${dmSans.variable}`}>
+    <html lang="pt-BR">
+      <head>
+        <link
+          rel="preload"
+          href="/fonts/bebas-neue-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/dm-sans-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="bg-stone-950 font-body text-white antialiased">
         <GtmConsentDefaults />
         <CookieConsentRoot>

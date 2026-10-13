@@ -36,7 +36,7 @@ export default function ExportMelhorEnvioPickupButton({
       <button
         type="button"
         disabled={pending || cardIds.length === 0}
-        title="Planilha da cotação múltipla do Melhor Envio. Todos os pedidos usam a caixa de 12 × 22 × 31 cm e 0,5 kg."
+        title="Planilha do Melhor Envio com destinatário, CPF, telefone e endereço. Todos os pedidos usam a caixa de 12 × 22 × 31 cm, 0,5 kg e valor segurado de R$ 19,00."
         onClick={() => {
           setPending(true);
           setError('');

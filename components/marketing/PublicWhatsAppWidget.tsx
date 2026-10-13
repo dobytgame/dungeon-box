@@ -16,7 +16,6 @@ function shouldShowWhatsAppWidget(pathname: string): boolean {
 
   return (
     pathname === '/' ||
-    pathname === '/home-v2' ||
     pathname.startsWith('/loja') ||
     isGuildCampaignPath(pathname)
   );
@@ -31,9 +30,7 @@ export default function PublicWhatsAppWidget() {
 
   const source = pathname.startsWith('/loja')
     ? 'floating_widget_loja'
-    : pathname === '/home-v2'
-      ? 'floating_widget_home_v2'
-      : pathname === '/entre-para-guilda-v1'
+    : pathname === '/entre-para-guilda-v1'
         ? 'floating_widget_guilda_v1'
         : pathname === '/entre-para-guilda'
           ? 'floating_widget_guilda'
@@ -43,7 +40,7 @@ export default function PublicWhatsAppWidget() {
     <FloatingWhatsAppWidget
       source={source}
       className={
-        pathname === '/home-v2'
+        pathname === '/'
           ? 'max-md:!bottom-[calc(5.75rem+env(safe-area-inset-bottom))]'
           : undefined
       }

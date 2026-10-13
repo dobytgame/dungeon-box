@@ -1,6 +1,9 @@
 import { pushDataLayer, trackBeginCheckout } from '@/lib/analytics/data-layer';
+import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { plans } from '@/lib/data';
+import { getHomeV2ComboPricing, type HomeV2ComboTerm } from '@/lib/home-v2/combo';
 import { HOME_V2_VARIANT } from '@/lib/home-v2/content';
+import type { PlanSlug } from '@/lib/checkout/plans';
 
 function track(event: string, properties: Record<string, unknown> = {}) {
   pushDataLayer({
@@ -26,17 +29,31 @@ export function trackHomeV2PlanSelected(plan: string, price: number) {
   track('plan_selected', { plano: plan, preco: price });
 }
 
-export function trackHomeV2CheckoutStarted(plan: string) {
-  track('checkout_started', { plano: plan, origem: 'home-v2' });
+export function trackHomeV2PlanModeChanged(mode: 'subscription' | 'combo') {
+  track('plan_mode_changed', { modo: mode });
+}
+
+export function trackHomeV2ComboTermChanged(term: string) {
+  track('combo_term_changed', { periodo: term });
+}
+
+export function trackHomeV2CheckoutStarted(plan: string, term: string = 'monthly') {
+  track('checkout_started', { plano: plan, origem: 'home-v2', periodo: term });
 
   const entry = plans.find((item) => item.id === plan);
   if (!entry) return;
 
+  const slug = entry.id as PlanSlug;
+  const monthlyCents = entry.price * 100;
+  const value = isComboTerm(term)
+    ? getHomeV2ComboPricing(slug, monthlyCents, term as HomeV2ComboTerm).totalCents / 100
+    : entry.price;
+
   trackBeginCheckout({
     planSlug: entry.id,
     planName: `Plano ${entry.name}`,
-    value: entry.price,
-    location: `planos_${entry.id}`,
+    value,
+    location: `planos_${entry.id}${term !== 'monthly' ? `_${term}` : ''}`,
   });
 }
 

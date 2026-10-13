@@ -4,7 +4,7 @@ import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
 import HomeV2Button from '@/components/home-v2/HomeV2Button';
 import Logo from '@/components/ui/Logo';
 import { COMPANY } from '@/lib/legal/constants';
-import { HOME_V2_COPY } from '@/lib/home-v2/content';
+import { HOME_V2_COPY, HOME_V2_PUBLIC_PATH } from '@/lib/home-v2/content';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
 const LEGAL_GROUP = {
@@ -28,7 +28,7 @@ const SHOP_LINK_GROUPS = [
     title: 'Assinatura',
     links: [
       { href: '/#planos', label: 'Planos' },
-      { href: '/#temas', label: 'Temas' },
+      { href: '/#dungeon-do-mes', label: 'Dungeon do mês' },
       { href: '/#faq', label: 'Perguntas frequentes' },
     ],
   },
@@ -86,14 +86,18 @@ const linkClass =
 interface Props {
   /** `shop` swaps in-page anchors for links that work outside the landing page. */
   context?: 'home' | 'shop';
+  homePath?: string;
 }
 
-export default function HomeV2Footer({ context = 'home' }: Props) {
+export default function HomeV2Footer({
+  context = 'home',
+  homePath = HOME_V2_PUBLIC_PATH,
+}: Props) {
   const year = new Date().getFullYear();
   const { footer } = HOME_V2_COPY;
   const isShop = context === 'shop';
   const linkGroups = isShop ? SHOP_LINK_GROUPS : HOME_LINK_GROUPS;
-  const homeHref = isShop ? '/' : '/home-v2';
+  const homeHref = isShop ? '/' : homePath;
   const plansHref = isShop ? '/#planos' : '#planos';
 
   return (

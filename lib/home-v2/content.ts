@@ -2,6 +2,9 @@ import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { faqItems, plans, planSupportCopy } from '@/lib/data';
 export const HOME_V2_VARIANT = 'home-v2';
 
+/** URL pública da home (LP2). */
+export const HOME_V2_PUBLIC_PATH = '/';
+
 export type HomeV2Plan = {
   slug: PlanSlug;
   name: string;
@@ -97,7 +100,7 @@ export const HOME_V2_COPY = {
         month: 'Mês 1',
         copy: 'Sua primeira sala.',
         image: {
-          src: '/images/aventureiro-1.png',
+          src: '/images/home-v2/mesa-montada-1.png',
           alt: 'Kit inicial montado: primeira sala de dungeon na mesa',
         },
       },
@@ -105,7 +108,7 @@ export const HOME_V2_COPY = {
         month: 'Mês 3',
         copy: 'Sua dungeon ganha vida.',
         image: {
-          src: '/images/heroi-1.png',
+          src: '/images/home-v2/mesa-montada-2.png',
           alt: 'Expansão da dungeon com corredores e decoração',
         },
       },
@@ -113,7 +116,7 @@ export const HOME_V2_COPY = {
         month: 'Mês 12',
         copy: 'Uma campanha inteira na mesa.',
         image: {
-          src: '/images/lendario-1.png',
+          src: '/images/home-v2/mesa-montada-4.png',
           alt: 'Cenário amplo montado em sessão real de RPG',
         },
       },
@@ -127,7 +130,16 @@ export const HOME_V2_COPY = {
     switcherLabel: 'Escolha um plano para ver os detalhes',
     footer: 'Comece pelo Aventureiro. Você pode fazer upgrade depois.',
     billing: 'Cobrança mensal · Cancele quando quiser',
+    modeLabel: 'Como você quer assinar',
+    modes: { subscription: 'Assinatura', combo: 'Combo' },
+    comboModeHint: 'até 1 mês grátis',
+    comboTermLabel: 'Período do combo',
+    comboBilling: 'Pague uma vez · renova mensal ao fim do combo',
+    comboEquivalent: 'equivale a',
+    comboSavings: 'você economiza',
+    comboFreeShipping: 'Frete grátis incluso',
     reassurance: ['Checkout seguro', 'Sem carência e sem multa', 'Upgrade a qualquer momento'],
+    comboReassurance: ['Checkout seguro', 'Parcele no cartão', 'Upgrade a qualquer momento'],
   },
   monthly: {
     eyebrow: 'Chegando à sua mesa',
@@ -199,6 +211,13 @@ const PLAN_CTAS: Record<PlanSlug, string> = {
   lendario: 'Escolher Lendário',
 };
 
+/** Fotos dos cards de plano na LP2 (`public/images/home-v2/`). */
+const HOME_V2_PLAN_GALLERY: Record<PlanSlug, string[]> = {
+  aventureiro: ['/images/home-v2/kit-aventureiro.png'],
+  heroi: ['/images/home-v2/kit-herio.png'],
+  lendario: ['/images/home-v2/kit-lendario.png'],
+};
+
 const PLAN_METRICS: Record<
   PlanSlug,
   Array<{ label: string; value: string }>
@@ -230,9 +249,9 @@ export function getHomeV2Plans(): HomeV2Plan[] {
       monthlyPriceCents: plan.price * 100,
       badge: slug === 'lendario' ? 'Mais comprado' : undefined,
       metrics: PLAN_METRICS[slug],
-      gallery: plan.images.map((src, index) => ({
+      gallery: HOME_V2_PLAN_GALLERY[slug].map((src, index, all) => ({
         src,
-        alt: `Kit ${plan.name} montado na mesa — foto ${index + 1} de ${plan.images.length}`,
+        alt: `Kit ${plan.name} montado na mesa — foto ${index + 1} de ${all.length}`,
       })),
       checkoutUrl: checkoutHref(slug),
       details: {

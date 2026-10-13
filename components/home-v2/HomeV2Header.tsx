@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import HomeV2Button from '@/components/home-v2/HomeV2Button';
-import { HOME_V2_COPY } from '@/lib/home-v2/content';
+import { HOME_V2_COPY, HOME_V2_PUBLIC_PATH } from '@/lib/home-v2/content';
 import { trackHomeV2HeroCta } from '@/lib/home-v2/analytics';
 
 const NAV_LINKS = [
@@ -46,6 +47,8 @@ const SECTION_IDS = NAV_LINKS.map((link) => link.href.slice(1));
 interface Props {
   isLoggedIn?: boolean;
   userName?: string | null;
+  /** Logo e retorno pós-login. Default: HOME_V2_PUBLIC_PATH. */
+  homePath?: string;
 }
 
 function accountLabel(isLoggedIn: boolean, userName?: string | null): string {
@@ -54,8 +57,14 @@ function accountLabel(isLoggedIn: boolean, userName?: string | null): string {
   return firstName ? `Olá, ${firstName}` : 'Minha conta';
 }
 
-export default function HomeV2Header({ isLoggedIn = false, userName }: Props) {
-  const accountHref = isLoggedIn ? '/dashboard' : '/auth';
+export default function HomeV2Header({
+  isLoggedIn = false,
+  userName,
+  homePath = HOME_V2_PUBLIC_PATH,
+}: Props) {
+  const pathname = usePathname();
+  const authNext = pathname && pathname.startsWith('/') ? pathname : homePath;
+  const accountHref = isLoggedIn ? '/dashboard' : `/auth?next=${encodeURIComponent(authNext)}`;
   const accountText = accountLabel(isLoggedIn, userName);
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -97,7 +106,7 @@ export default function HomeV2Header({ isLoggedIn = false, userName }: Props) {
           className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6"
           aria-label="Navegação principal"
         >
-          <Logo variant="nav" href="/home-v2" className="h-12 sm:h-14" />
+          <Logo variant="nav" href={homePath} className="h-12 sm:h-14" />
 
           <ul className="hidden items-center gap-1 md:flex">
             {NAV_LINKS.map((link) => {

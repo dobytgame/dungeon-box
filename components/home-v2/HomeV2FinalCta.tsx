@@ -26,6 +26,7 @@ export default function HomeV2FinalCta() {
           title={finalCta.title}
           titleId="home-v2-final-title"
           align="center"
+          size="xl"
         />
         <div
           className="home-v2-reveal mt-10 flex flex-col items-center gap-4"
@@ -40,7 +41,7 @@ export default function HomeV2FinalCta() {
           >
             {finalCta.cta}
           </HomeV2Button>
-          <p className="text-sm text-mesa-ash">{finalCta.support}</p>
+          <p className="text-base text-mesa-ash sm:text-lg">{finalCta.support}</p>
         </div>
       </div>
     </section>

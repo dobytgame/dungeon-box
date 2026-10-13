@@ -216,6 +216,11 @@ export async function createPagarmeSubscription(
       .single();
 
     if (error || !data) {
+      console.error(
+        '[pagarme] update subscription:',
+        error?.message,
+        error?.details
+      );
       throw new Error('Não foi possível atualizar a assinatura.');
     }
     subscriptionId = data.id;
@@ -230,6 +235,11 @@ export async function createPagarmeSubscription(
       .single();
 
     if (error || !data) {
+      console.error(
+        '[pagarme] save subscription:',
+        error?.message,
+        error?.details
+      );
       throw new Error('Não foi possível salvar a assinatura.');
     }
     subscriptionId = data.id;

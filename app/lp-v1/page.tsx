@@ -8,16 +8,21 @@ import Fidelidade from '@/components/sections/Fidelidade';
 import Temas from '@/components/sections/Temas';
 import FAQ from '@/components/sections/FAQ';
 import LandingPageAnalytics from '@/components/analytics/LandingPageAnalytics';
-import JsonLd from '@/components/seo/JsonLd';
 import { displayName, getProfile } from '@/lib/dashboard/queries';
-import { homePageMetadata } from '@/lib/seo/metadata';
-import { buildHomeJsonLd } from '@/lib/seo/structured-data';
+import { buildRobots, homePageMetadata } from '@/lib/seo/metadata';
 import { isStoreLinkVisible } from '@/lib/store/access';
 import { createClient } from '@/lib/supabase/server';
+import type { Metadata } from 'next';
 
-export const metadata = homePageMetadata;
+/** Cópia arquivada da home anterior ao go-live da LP2. Não indexar. */
+export const metadata: Metadata = {
+  ...homePageMetadata,
+  title: { absolute: 'LP v1 (arquivo) | DungeonBox' },
+  robots: buildRobots(false),
+  alternates: { canonical: undefined },
+};
 
-export default async function Home() {
+export default async function LegacyHomeV1Page() {
   const supabase = createClient();
   const {
     data: { user },
@@ -27,11 +32,8 @@ export default async function Home() {
   const isLoggedIn = !!user;
   const showStoreLink = isStoreLinkVisible();
 
-  const jsonLd = buildHomeJsonLd();
-
   return (
     <>
-      <JsonLd data={jsonLd} />
       <LandingPageAnalytics />
       <Navbar isLoggedIn={isLoggedIn} userName={userName} />
       <main id="conteudo-principal" className="overflow-x-clip">

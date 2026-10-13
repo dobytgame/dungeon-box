@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { excludeAbandonedCheckoutCancellations } from '@/lib/subscriptions/abandoned-checkout';
 import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getRecurringMrrSummary } from '@/lib/admin/recurring-mrr';
@@ -571,11 +572,13 @@ export async function getAdminDashboardStats(
       .from('subscriptions')
       .select('id', { count: 'exact', head: true })
       .gte('started_at', since30d),
-    admin
-      .from('subscriptions')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'cancelled')
-      .gte('cancelled_at', since30d),
+    excludeAbandonedCheckoutCancellations(
+      admin
+        .from('subscriptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'cancelled')
+        .gte('cancelled_at', since30d)
+    ),
     admin
       .from('subscription_cycles')
       .select('id', { count: 'exact', head: true })
@@ -1007,6 +1010,8 @@ export async function listAdminSubscriptions(
   } else if (filters.gateway === 'mp') {
     query = query.not('mp_subscription_id', 'is', null);
   }
+
+  query = excludeAbandonedCheckoutCancellations(query);
 
   const q = filters.q?.trim();
   if (q) {

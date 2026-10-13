@@ -26,6 +26,7 @@ import {
   shouldCountPaymentInRevenue,
   type RevenuePaymentRow,
 } from '@/lib/payments/revenue-aggregation';
+import { isAbandonedCheckoutCancellation } from '@/lib/subscriptions/abandoned-checkout';
 
 export interface SubscriptionMetricsPoint {
   date: string;
@@ -64,6 +65,7 @@ export interface SubscriptionMetricsChartData {
 type SubscriptionSnapshotRow = {
   started_at: string | null;
   cancelled_at: string | null;
+  cancel_reason: string | null;
   shipping_cents: number | null;
   special_notes: string | null;
   billing_term?: string | null;
@@ -186,6 +188,7 @@ export async function getSubscriptionMetricsChartData(
         `
         started_at,
         cancelled_at,
+        cancel_reason,
         shipping_cents,
         special_notes,
         billing_term,
@@ -247,6 +250,7 @@ export async function getSubscriptionMetricsChartData(
   const cancelledByDay = new Map<string, number>();
 
   for (const row of subscriptions) {
+    if (isAbandonedCheckoutCancellation(row.cancel_reason)) continue;
     const cancelledDay = dayKey(row.cancelled_at);
     if (cancelledDay && cancelledDay >= from && cancelledDay <= to) {
       cancelledByDay.set(cancelledDay, (cancelledByDay.get(cancelledDay) ?? 0) + 1);

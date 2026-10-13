@@ -10,9 +10,18 @@ interface Props {
   planName: string;
   photos: Array<{ src: string; alt: string }>;
   onOpen: (index: number) => void;
+  /** Área da foto no card — featured usa proporção mais alta. */
+  variant?: 'default' | 'featured';
 }
 
-export default function HomeV2PlanGallery({ planName, photos, onOpen }: Props) {
+export default function HomeV2PlanGallery({
+  planName,
+  photos,
+  onOpen,
+  variant = 'default',
+}: Props) {
+  const aspectClass =
+    variant === 'featured' ? 'aspect-[4/3]' : 'aspect-[3/2]';
   const scrollerRef = useRef<HTMLUListElement>(null);
   const [index, setIndex] = useState(0);
   const total = photos.length;
@@ -38,7 +47,7 @@ export default function HomeV2PlanGallery({ planName, photos, onOpen }: Props) {
       <ul
         ref={scrollerRef}
         onScroll={onScroll}
-        className="home-v2-snap flex aspect-[16/10] overflow-x-auto overscroll-x-contain bg-mesa-stone [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={`home-v2-snap flex ${aspectClass} overflow-x-auto overscroll-x-contain bg-mesa-stone [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
         aria-label={`Fotos do kit ${planName}`}
       >
         {photos.map((photo, photoIndex) => (

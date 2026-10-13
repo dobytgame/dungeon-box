@@ -20,6 +20,7 @@ import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { cancelPendingRedemptionsForUser } from '@/lib/referral/redemptions';
 import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
+import { ABANDONED_CHECKOUT_CANCEL_REASON } from '@/lib/subscriptions/abandoned-checkout';
 
 export type SubscriptionStatusAction = 'pause' | 'cancel' | 'resume';
 
@@ -112,7 +113,7 @@ export async function applySubscriptionStatusChange(
     updates.cancel_reason =
       options.reason?.trim() ||
       (subscription.status === 'pending'
-        ? 'Tentativa de checkout abandonada'
+        ? ABANDONED_CHECKOUT_CANCEL_REASON
         : null);
     mpStatus = 'cancelled';
   }

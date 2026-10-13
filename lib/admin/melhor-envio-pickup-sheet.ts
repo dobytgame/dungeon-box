@@ -20,6 +20,16 @@ export const MELHOR_ENVIO_PICKUP_HEADERS = [
   'AVISO DE RECEBIMENTO (AR)',
   'MÃO PRÓPRIA (MP)',
   'VALOR SEGURADO',
+  'NOME',
+  'TELEFONE',
+  'E-MAIL',
+  'CPF',
+  'ENDEREÇO',
+  'NÚMERO',
+  'COMPLEMENTO',
+  'BAIRRO',
+  'CIDADE',
+  'UF',
 ] as const;
 
 const RECEIPT = 'NÃO';
@@ -35,11 +45,42 @@ export type MelhorEnvioPickupRow = {
   receipt: 'SIM' | 'NÃO';
   ownHand: 'SIM' | 'NÃO';
   insuranceValue: number;
+  name: string;
+  phone: string;
+  email: string;
+  cpf: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+};
+
+type ShipmentAddress = {
+  recipient?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+};
+
+type ShipmentProfile = {
+  full_name?: string | null;
+  display_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  cpf?: string | null;
 };
 
 type LoadedShipment = {
   postalCode: string | null;
   awaitingPickup: boolean;
+  address: ShipmentAddress | null;
+  profile: ShipmentProfile | null;
 };
 
 function crc32(buffer: Buffer): number {
@@ -131,9 +172,34 @@ export function normalizePickupPostalCode(value: string | null | undefined): str
   return digits;
 }
 
+function sheetText(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function sheetDigits(value: string | null | undefined): string {
+  return (value ?? '').replace(/\D/g, '');
+}
+
+function columnName(index: number): string {
+  let current = index + 1;
+  let name = '';
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    current = Math.floor((current - 1) / 26);
+  }
+  return name;
+}
+
 export function toMelhorEnvioPickupRow(input: {
   postalCode: string;
+  address?: ShipmentAddress | null;
+  profile?: ShipmentProfile | null;
 }): MelhorEnvioPickupRow {
+  const address = input.address;
+  const profile = input.profile;
+  const state = sheetText(address?.state).toUpperCase();
+
   return {
     postalCode: input.postalCode,
     weightKg: SHIPPING_PARCEL.weightKg,
@@ -143,6 +209,19 @@ export function toMelhorEnvioPickupRow(input: {
     receipt: RECEIPT,
     ownHand: OWN_HAND,
     insuranceValue: INSURED_VALUE_REAIS,
+    name:
+      sheetText(address?.recipient) ||
+      sheetText(profile?.full_name) ||
+      sheetText(profile?.display_name),
+    phone: sheetDigits(profile?.phone),
+    email: sheetText(profile?.email),
+    cpf: sheetDigits(profile?.cpf),
+    street: sheetText(address?.street),
+    number: sheetText(address?.number),
+    complement: sheetText(address?.complement),
+    neighborhood: sheetText(address?.neighborhood),
+    city: sheetText(address?.city),
+    state: state.length > 2 ? state.slice(0, 2) : state,
   };
 }
 
@@ -160,7 +239,7 @@ export function buildMelhorEnvioPickupXlsx(rows: MelhorEnvioPickupRow[]): Buffer
 
   const cells: string[] = [];
   const headerCells = MELHOR_ENVIO_PICKUP_HEADERS.map((header, index) => {
-    const column = String.fromCharCode(65 + index);
+    const column = columnName(index);
     return `<c r="${column}1" t="s"><v>${share(header)}</v></c>`;
   });
   cells.push(`<row r="1">${headerCells.join('')}</row>`);
@@ -176,9 +255,19 @@ export function buildMelhorEnvioPickupXlsx(rows: MelhorEnvioPickupRow[]): Buffer
       { kind: 's', value: String(share(row.receipt)) },
       { kind: 's', value: String(share(row.ownHand)) },
       { kind: 'n', value: sheetNumber(row.insuranceValue) },
+      { kind: 's', value: String(share(row.name)) },
+      { kind: 's', value: String(share(row.phone)) },
+      { kind: 's', value: String(share(row.email)) },
+      { kind: 's', value: String(share(row.cpf)) },
+      { kind: 's', value: String(share(row.street)) },
+      { kind: 's', value: String(share(row.number)) },
+      { kind: 's', value: String(share(row.complement)) },
+      { kind: 's', value: String(share(row.neighborhood)) },
+      { kind: 's', value: String(share(row.city)) },
+      { kind: 's', value: String(share(row.state)) },
     ];
     const rowCells = values.map((cell, index) => {
-      const ref = `${String.fromCharCode(65 + index)}${excelRow}`;
+      const ref = `${columnName(index)}${excelRow}`;
       if (cell.kind === 's') {
         return `<c r="${ref}" t="s"><v>${cell.value}</v></c>`;
       }
@@ -241,9 +330,12 @@ export function melhorEnvioPickupFilename(date = new Date()): string {
   return `melhor-envio-coleta-${day}.xlsx`;
 }
 
-function postalFromAddress(address: unknown): string | null {
-  const row = relOne(address as { zip_code?: string | null } | { zip_code?: string | null }[] | null);
-  return normalizePickupPostalCode(row?.zip_code);
+function asAddress(address: unknown): ShipmentAddress | null {
+  return relOne(address as ShipmentAddress | ShipmentAddress[] | null);
+}
+
+function asProfile(profile: unknown): ShipmentProfile | null {
+  return relOne(profile as ShipmentProfile | ShipmentProfile[] | null);
 }
 
 async function loadCycleShipments(
@@ -260,7 +352,17 @@ async function loadCycleShipments(
       id,
       status,
       subscriptions(
-        addresses(zip_code)
+        addresses(
+          recipient,
+          street,
+          number,
+          complement,
+          neighborhood,
+          city,
+          state,
+          zip_code
+        ),
+        profiles(full_name, display_name, email, phone, cpf)
       )
     `
     )
@@ -272,16 +374,21 @@ async function loadCycleShipments(
     const subscription = relOne(
       row.subscriptions as
         | {
-            addresses?: { zip_code?: string | null } | { zip_code?: string | null }[] | null;
+            addresses?: ShipmentAddress | ShipmentAddress[] | null;
+            profiles?: ShipmentProfile | ShipmentProfile[] | null;
           }
         | Array<{
-            addresses?: { zip_code?: string | null } | { zip_code?: string | null }[] | null;
+            addresses?: ShipmentAddress | ShipmentAddress[] | null;
+            profiles?: ShipmentProfile | ShipmentProfile[] | null;
           }>
         | null
     );
+    const address = asAddress(subscription?.addresses ?? null);
     loaded.set(row.id as string, {
-      postalCode: postalFromAddress(subscription?.addresses ?? null),
+      postalCode: normalizePickupPostalCode(address?.zip_code),
       awaitingPickup: row.status === 'awaiting_pickup',
+      address,
+      profile: asProfile(subscription?.profiles ?? null),
     });
   }
 
@@ -297,7 +404,14 @@ async function loadStandaloneShipments(
 
   const { data, error } = await admin
     .from('payments')
-    .select('id, status, status_detail')
+    .select(
+      `
+      id,
+      status,
+      status_detail,
+      profiles(full_name, display_name, email, phone, cpf)
+    `
+    )
     .in('id', paymentIds);
 
   if (error) throw new Error(error.message);
@@ -309,27 +423,40 @@ async function loadStandaloneShipments(
     return { row, meta };
   });
 
-  const addresses = new Map<string, string | null>();
+  const addresses = new Map<string, ShipmentAddress>();
   if (addressIds.size > 0) {
     const { data: addressRows, error: addressError } = await admin
       .from('addresses')
-      .select('id, zip_code')
+      .select(
+        'id, recipient, street, number, complement, neighborhood, city, state, zip_code'
+      )
       .in('id', Array.from(addressIds));
     if (addressError) throw new Error(addressError.message);
     for (const address of addressRows ?? []) {
-      addresses.set(
-        address.id as string,
-        normalizePickupPostalCode(address.zip_code as string | null)
-      );
+      addresses.set(address.id as string, {
+        recipient: address.recipient as string | null,
+        street: address.street as string | null,
+        number: address.number as string | null,
+        complement: address.complement as string | null,
+        neighborhood: address.neighborhood as string | null,
+        city: address.city as string | null,
+        state: address.state as string | null,
+        zip_code: address.zip_code as string | null,
+      });
     }
   }
 
   for (const { row, meta } of parsed) {
+    const address = meta?.addressId ? addresses.get(meta.addressId) ?? null : null;
     loaded.set(row.id as string, {
-      postalCode: meta?.addressId ? addresses.get(meta.addressId) ?? null : null,
+      postalCode: normalizePickupPostalCode(address?.zip_code),
       awaitingPickup:
         row.status === 'approved' &&
         parseStandaloneFulfillmentStatus(meta) === 'awaiting_pickup',
+      address,
+      profile: asProfile(
+        (row as { profiles?: ShipmentProfile | ShipmentProfile[] | null }).profiles
+      ),
     });
   }
 
@@ -396,6 +523,8 @@ export async function buildAwaitingPickupMelhorEnvioExport(
     rows.push(
       toMelhorEnvioPickupRow({
         postalCode: shipment.postalCode,
+        address: shipment.address,
+        profile: shipment.profile,
       })
     );
   }

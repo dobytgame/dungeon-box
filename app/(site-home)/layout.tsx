@@ -1,16 +1,10 @@
-import { requireAdmin } from '@/lib/admin/auth';
-import { homeV2PreviewMetadata } from '@/lib/seo/metadata';
-import './home-v2.css';
+import '@/app/home-v2/home-v2.css';
 
-export const metadata = homeV2PreviewMetadata;
-
-export default async function HomeV2Layout({
+export default function SiteHomeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAdmin({ next: '/home-v2' });
-
   return (
     <div className="home-v2 font-body">
       <a
