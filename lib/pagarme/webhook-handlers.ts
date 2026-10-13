@@ -154,6 +154,27 @@ export async function handlePagarmeChargePaid(
 
   const local = subscriptionFromCharge;
 
+  if (local.status === 'paused' || local.status === 'cancelled') {
+    if (charge.id) {
+      await supabase.from('payments').upsert(
+        {
+          user_id: local.user_id,
+          subscription_id: local.id,
+          pagarme_charge_id: charge.id,
+          amount_cents: chargeAmountCents(charge),
+          currency: 'BRL',
+          status: 'cancelled',
+          status_detail: JSON.stringify({
+            type: 'phantom_duplicate_import',
+            reason: 'subscription_paused_or_cancelled',
+          }),
+        },
+        { onConflict: 'pagarme_charge_id' }
+      );
+    }
+    return 'processed';
+  }
+
   if (!charge.subscription_id) {
     const { data: extra } = await supabase
       .from('subscriptions')

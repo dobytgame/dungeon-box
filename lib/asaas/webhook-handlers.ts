@@ -153,6 +153,25 @@ export async function handleAsaasPaymentConfirmed(
 
   const amountCents = paymentAmountCents(payment);
 
+  if (local.status === 'paused' || local.status === 'cancelled') {
+    await supabase.from('payments').upsert(
+      {
+        user_id: local.user_id,
+        subscription_id: local.id,
+        asaas_payment_id: payment.id,
+        amount_cents: amountCents,
+        currency: 'BRL',
+        status: 'cancelled',
+        status_detail: JSON.stringify({
+          type: 'phantom_duplicate_import',
+          reason: 'subscription_paused_or_cancelled',
+        }),
+      },
+      { onConflict: 'asaas_payment_id' }
+    );
+    return 'processed';
+  }
+
   const { data: subscriptionBilling } = await supabase
     .from('subscriptions')
     .select(

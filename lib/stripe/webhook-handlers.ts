@@ -148,6 +148,10 @@ export async function handleStripeInvoicePaid(
     return 'processed';
   }
 
+  if (local.status === 'paused' || local.status === 'cancelled') {
+    return 'processed';
+  }
+
   const periodEndUnix = getSubscriptionPeriodEnd(stripeSub);
   const periodEnd = periodEndUnix
     ? new Date(periodEndUnix * 1000).toISOString()

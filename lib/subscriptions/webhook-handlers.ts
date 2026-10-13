@@ -174,6 +174,10 @@ export async function handlePaymentEvent(
       return 'processed';
     }
 
+    if (subscription.status === 'paused' || subscription.status === 'cancelled') {
+      return 'processed';
+    }
+
     if (payment) {
       await processActiveSubscriptionPayment(
         supabase,

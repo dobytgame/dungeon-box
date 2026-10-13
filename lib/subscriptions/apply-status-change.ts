@@ -93,6 +93,18 @@ export async function applySubscriptionStatusChange(
     return { error: 'Assinatura não encontrada' };
   }
 
+  if (action === 'pause' && subscription.status !== 'active') {
+    return {
+      error: 'Só assinaturas ativas podem ser pausadas.',
+    };
+  }
+
+  if (action === 'resume' && subscription.status !== 'paused') {
+    return {
+      error: 'Só assinaturas pausadas podem ser retomadas.',
+    };
+  }
+
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
