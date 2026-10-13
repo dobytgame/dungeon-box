@@ -1,7 +1,6 @@
 import LandingPageAnalytics from '@/components/analytics/LandingPageAnalytics';
 import HomeV2Analytics from '@/components/home-v2/HomeV2Analytics';
 import HomeV2EvidenceStrip from '@/components/home-v2/HomeV2EvidenceStrip';
-import HomeV2GrowthJourney from '@/components/home-v2/HomeV2GrowthJourney';
 import HomeV2Faq from '@/components/home-v2/HomeV2Faq';
 import HomeV2FinalCta from '@/components/home-v2/HomeV2FinalCta';
 import HomeV2Footer from '@/components/home-v2/HomeV2Footer';
@@ -46,7 +45,6 @@ export default async function HomeV2LandingPage() {
       <main id="conteudo-principal">
         <HomeV2Hero />
         <HomeV2EvidenceStrip />
-        <HomeV2GrowthJourney />
         <HomeV2KitShowcase />
         <HomeV2PlanSelector plans={plans} />
         <HomeV2MonthlyDungeon dungeon={dungeon} />
