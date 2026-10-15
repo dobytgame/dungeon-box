@@ -22,6 +22,7 @@ import { cleanupSubscriptionCyclesOnCancel } from '@/lib/subscriptions/cycles';
 import { cancelReferralForSubscription } from '@/lib/referral/referrals';
 import { resolveGatewayPaidAt } from '@/lib/datetime/brazil';
 import { isComboTerm, type BillingTerm } from '@/lib/checkout/combo-billing';
+import { isOnOrAfterPrepaidEndDay } from '@/lib/payments/prepaid-renewal';
 
 export type PagarmeWebhookCharge = {
   id?: string;
@@ -217,6 +218,31 @@ export async function handlePagarmeChargePaid(
     existingPayment?.payment_method as string | null
   );
 
+  const { data: billingMeta } = await supabase
+    .from('subscriptions')
+    .select(
+      'billing_term, prepaid_until, combo_total_cents, combo_auto_renew, pending_billing_term'
+    )
+    .eq('id', local.id)
+    .maybeSingle();
+
+  const billingTerm =
+    (billingMeta?.billing_term as BillingTerm | null) ?? 'monthly';
+  const comboRenewalDetail =
+    isComboTerm(billingTerm) &&
+    billingMeta?.pending_billing_term !== 'monthly' &&
+    billingMeta?.combo_auto_renew !== false &&
+    isOnOrAfterPrepaidEndDay(
+      billingMeta?.prepaid_until as string | null,
+      paidAt
+    )
+      ? JSON.stringify({
+          type: 'combo_renewal',
+          billing_term: billingTerm,
+          combo_total_cents: billingMeta?.combo_total_cents ?? amountCents,
+        })
+      : null;
+
   const { data: paymentRow } = await supabase
     .from('payments')
     .upsert(
@@ -229,6 +255,9 @@ export async function handlePagarmeChargePaid(
         status: 'approved',
         paid_at: paidAt,
         payment_method: paymentMethod,
+        ...(comboRenewalDetail && !existingPayment?.status_detail
+          ? { status_detail: comboRenewalDetail }
+          : {}),
       },
       { onConflict: 'pagarme_charge_id' }
     )

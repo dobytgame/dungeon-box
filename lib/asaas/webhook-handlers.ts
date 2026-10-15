@@ -61,7 +61,7 @@ function asaasRenewalAnchor(payment: AsaasWebhookPayment): string {
   );
 }
 
-/** Renovação mensal da assinatura Asaas no dia em que o combo pré-pago acaba. */
+/** Renovação do pacote combo no dia em que o pré-pago acaba (ou mensal se pending_billing_term). */
 function isPostPrepaidAsaasRenewal(
   payment: AsaasWebhookPayment,
   prepaidUntil: string | null | undefined
@@ -308,7 +308,7 @@ export async function handleAsaasPaymentConfirmed(
         ...(postPrepaidRenewal
           ? {
               status_detail: JSON.stringify({
-                type: 'post_combo_renewal',
+                type: 'combo_renewal',
                 due_date: payment.dueDate ?? payment.clientPaymentDate ?? null,
               }),
             }

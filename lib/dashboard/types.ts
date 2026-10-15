@@ -155,6 +155,7 @@ export interface Subscription {
   prepaid_until?: string | null;
   combo_total_cents?: number | null;
   combo_installments?: number | null;
+  combo_auto_renew?: boolean | null;
   is_partner?: boolean | null;
   created_at: string | null;
   updated_at: string | null;

@@ -81,6 +81,8 @@ export async function updateAsaasSubscriptionDetails(
     valueCents: number;
     description?: string;
     updatePendingPayments?: boolean;
+    cycle?: string;
+    nextDueDate?: Date;
   }
 ) {
   const body: Record<string, unknown> = {
@@ -89,6 +91,14 @@ export async function updateAsaasSubscriptionDetails(
 
   if (input.description) {
     body.description = input.description;
+  }
+
+  if (input.cycle) {
+    body.cycle = input.cycle;
+  }
+
+  if (input.nextDueDate) {
+    body.nextDueDate = formatAsaasDate(input.nextDueDate);
   }
 
   if (input.updatePendingPayments) {

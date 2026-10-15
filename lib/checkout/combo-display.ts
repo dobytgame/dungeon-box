@@ -46,6 +46,8 @@ export type SubscriptionComboFields = {
   prepaid_months?: number | null;
   combo_total_cents?: number | null;
   combo_installments?: number | null;
+  combo_auto_renew?: boolean | null;
+  pending_billing_term?: string | null;
   next_billing_date?: string | null;
   status?: string | null;
 };
@@ -59,6 +61,8 @@ export type SubscriptionComboSummary = {
   comboTotalCents: number | null;
   installmentLabel: string | null;
   nextBillingLabel: string;
+  autoRenewEnabled: boolean;
+  switchingToMonthly: boolean;
 };
 
 export function getSubscriptionComboSummary(
@@ -91,8 +95,14 @@ export function getSubscriptionComboSummary(
             interestFreeMax ?? COMBO_INTEREST_FREE_MAX
           )
         : null,
-    nextBillingLabel: isPrepaidActive
-      ? 'Renovação mensal após o combo'
-      : 'Cobrança mensal',
+    nextBillingLabel: subscription.pending_billing_term === 'monthly'
+      ? 'Próxima cobrança: plano mensal (sem desconto combo)'
+      : subscription.combo_auto_renew === false
+        ? 'Sem renovação automática após este pacote'
+        : isPrepaidActive
+          ? `Renovação automática do mesmo ${getComboTermLabel(term).toLowerCase()}`
+          : `Próxima cobrança: mesmo pacote ${getComboTermLabel(term).toLowerCase()}`,
+    autoRenewEnabled: subscription.combo_auto_renew !== false,
+    switchingToMonthly: subscription.pending_billing_term === 'monthly',
   };
 }

@@ -134,7 +134,7 @@ export const HOME_V2_COPY = {
     modes: { subscription: 'Assinatura', combo: 'Combo' },
     comboModeHint: 'até 1 mês grátis',
     comboTermLabel: 'Período do combo',
-    comboBilling: 'Pague uma vez · renova mensal ao fim do combo',
+    comboBilling: 'Pague o pacote · renova automaticamente no mesmo combo',
     comboEquivalent: 'equivale a',
     comboSavings: 'você economiza',
     comboFreeShipping: 'Frete grátis incluso',

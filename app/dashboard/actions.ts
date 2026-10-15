@@ -5,6 +5,11 @@ import type { PlanSlug } from '@/lib/checkout/plans';
 import { requireDashboardUser } from '@/lib/dashboard/queries';
 import { applySubscriptionStatusChange } from '@/lib/subscriptions/apply-status-change';
 import {
+  cancelComboSwitchToMonthly,
+  scheduleComboSwitchToMonthly,
+  setComboAutoRenew,
+} from '@/lib/subscriptions/combo-preferences';
+import {
   cancelPendingSubscriptionUpgrade,
   scheduleSubscriptionUpgrade,
 } from '@/lib/subscriptions/upgrade';
@@ -147,6 +152,52 @@ export async function updateSubscriptionStatus(formData: FormData) {
     userId: user.id,
   });
 
+  if (result.error) return result;
+  revalidateDashboard();
+  return { success: true as const };
+}
+
+export async function setComboAutoRenewAction(
+  subscriptionId: string,
+  enabled: boolean
+) {
+  const { supabase, user } = await requireDashboardUser();
+  if (!subscriptionId) return { error: 'Assinatura inválida.' };
+
+  const result = await setComboAutoRenew(
+    supabase,
+    subscriptionId,
+    user.id,
+    enabled
+  );
+  if (result.error) return result;
+  revalidateDashboard();
+  return { success: true as const };
+}
+
+export async function scheduleComboSwitchToMonthlyAction(subscriptionId: string) {
+  const { supabase, user } = await requireDashboardUser();
+  if (!subscriptionId) return { error: 'Assinatura inválida.' };
+
+  const result = await scheduleComboSwitchToMonthly(
+    supabase,
+    subscriptionId,
+    user.id
+  );
+  if (result.error) return result;
+  revalidateDashboard();
+  return { success: true as const };
+}
+
+export async function cancelComboSwitchToMonthlyAction(subscriptionId: string) {
+  const { supabase, user } = await requireDashboardUser();
+  if (!subscriptionId) return { error: 'Assinatura inválida.' };
+
+  const result = await cancelComboSwitchToMonthly(
+    supabase,
+    subscriptionId,
+    user.id
+  );
   if (result.error) return result;
   revalidateDashboard();
   return { success: true as const };

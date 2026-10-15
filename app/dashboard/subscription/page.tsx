@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ComboRenewalPreferences from '@/components/dashboard/ComboRenewalPreferences';
 import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
 import DashboardCard from '@/components/dashboard/DashboardCard';
 import DataRow from '@/components/dashboard/DataRow';
@@ -166,6 +167,9 @@ async function SubscriptionDetailCard({
       ) : null}
 
       <ComboSubscriptionCallout subscription={subscription} />
+      {!isPending && isComboTerm(billingTerm) ? (
+        <ComboRenewalPreferences subscription={subscription} />
+      ) : null}
 
       <DashboardCard
         title={plan?.name ?? 'Assinatura'}

@@ -2,7 +2,7 @@ import type { BillingTerm } from '@/lib/checkout/combo-billing';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
 
 export type ComboPaymentDetail = {
-  type: 'combo_prepaid' | 'combo_upgrade';
+  type: 'combo_prepaid' | 'combo_upgrade' | 'combo_renewal';
   billing_term?: BillingTerm | null;
   combo_total_cents?: number;
   combo_installments?: number;
@@ -42,7 +42,11 @@ export function parseComboPaymentDetail(
 
   try {
     const parsed = JSON.parse(statusDetail) as ComboPaymentDetail;
-    if (parsed?.type === 'combo_prepaid' || parsed?.type === 'combo_upgrade') {
+    if (
+      parsed?.type === 'combo_prepaid' ||
+      parsed?.type === 'combo_upgrade' ||
+      parsed?.type === 'combo_renewal'
+    ) {
       return parsed;
     }
     return null;
@@ -61,7 +65,9 @@ export function isComboInstallmentSlicePayment(
 ): boolean {
   const detail = parsePaymentStatusDetail(payment.status_detail);
   if (detail?.type === 'combo_installment_slice') return true;
-  if (detail?.type === 'post_combo_renewal') return false;
+  if (detail?.type === 'post_combo_renewal' || detail?.type === 'combo_renewal') {
+    return false;
+  }
   if (isComboPrepaidPayment(payment.status_detail)) return false;
 
   const billingTerm = subscription?.billing_term;

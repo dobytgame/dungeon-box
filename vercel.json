@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/gateway-migration-emails",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/subscriptions/combo-loyalty-expire",
+      "schedule": "30 4 * * *"
     }
   ]
 }

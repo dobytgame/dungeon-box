@@ -18,6 +18,10 @@ import {
   prepareBillingCyclePayments,
 } from '@/lib/subscriptions/billing-cycle-payments';
 import { isOnOrAfterPrepaidEndDay } from '@/lib/payments/prepaid-renewal';
+import {
+  isComboPackageRenewalPayment,
+  processComboPackageRenewal,
+} from '@/lib/subscriptions/combo-renewal';
 
 const PROTECTED_CYCLE_STATUSES = new Set([
   'production',
@@ -326,17 +330,50 @@ export async function processActiveSubscriptionPayment(
 
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('billing_term, prepaid_until')
+    .select(
+      'billing_term, prepaid_until, combo_auto_renew, pending_billing_term'
+    )
     .eq('id', subscriptionId)
     .maybeSingle();
 
-  const billingTerm = (subscription?.billing_term as BillingTerm | null) ?? 'monthly';
+  let billingTerm = (subscription?.billing_term as BillingTerm | null) ?? 'monthly';
   const postPrepaidRenewal =
     isComboTerm(billingTerm) &&
     isOnOrAfterPrepaidEndDay(
       subscription?.prepaid_until as string | null | undefined,
       payment.paid_at ?? now
     );
+
+  if (
+    postPrepaidRenewal &&
+    subscription?.pending_billing_term === 'monthly'
+  ) {
+    await supabase
+      .from('subscriptions')
+      .update({
+        billing_term: 'monthly',
+        pending_billing_term: null,
+        combo_auto_renew: false,
+        updated_at: now,
+      })
+      .eq('id', subscriptionId);
+    billingTerm = 'monthly';
+  } else if (
+    isComboPackageRenewalPayment({
+      billingTerm,
+      prepaidUntil: subscription?.prepaid_until as string | null,
+      paidAt: payment.paid_at ?? now,
+      comboAutoRenew: subscription?.combo_auto_renew as boolean | null,
+      pendingBillingTerm: subscription?.pending_billing_term as string | null,
+    })
+  ) {
+    return processComboPackageRenewal(
+      supabase,
+      subscriptionId,
+      billingTerm as Exclude<BillingTerm, 'monthly'>,
+      payment
+    );
+  }
 
   if (isComboTerm(billingTerm) && !postPrepaidRenewal) {
     const { count: existingCycles } = await supabase
@@ -402,7 +439,6 @@ export async function processActiveSubscriptionPayment(
       current_period_start: now,
       current_period_end: periodEndIso,
       next_billing_date: periodEndIso,
-      ...(postPrepaidRenewal ? { billing_term: 'monthly' } : {}),
       updated_at: now,
     })
     .eq('id', subscriptionId);

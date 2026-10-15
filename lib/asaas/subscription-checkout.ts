@@ -7,6 +7,7 @@ import {
   isComboTerm,
   prepaidMonthsForTerm,
 } from '@/lib/checkout/combo-billing';
+import { asaasCycleForComboTerm } from '@/lib/subscriptions/combo-recurring-gateway';
 import { getOrCreateAsaasCustomer } from '@/lib/asaas/customer';
 import { asaasRequest } from '@/lib/asaas/client';
 import { chargeAsaasOneTimePayment } from '@/lib/asaas/one-time-payment';
@@ -243,6 +244,7 @@ export async function createAsaasSubscription(
     }
 
     const renewalStart = prepaidUntil ?? addMonths(now, 1);
+    const comboTerm = input.billingTerm as Exclude<BillingTerm, 'monthly'>;
 
     const asaasSubscription = await asaasRequest<AsaasSubscriptionResponse>(
       '/subscriptions/',
@@ -251,10 +253,10 @@ export async function createAsaasSubscription(
         body: {
           customer: asaasCustomerId,
           billingType: 'CREDIT_CARD',
-          cycle: 'MONTHLY',
-          value: centsToReais(input.priceCents),
+          cycle: asaasCycleForComboTerm(comboTerm),
+          value: centsToReais(comboTotal),
           nextDueDate: formatAsaasDate(renewalStart),
-          description: `DungeonBox — ${input.planName} (renovação mensal)`,
+          description: `DungeonBox — ${input.planName} (renovação combo)`,
           externalReference: subscriptionId,
           creditCard: input.creditCard,
           creditCardHolderInfo: input.creditCardHolderInfo,
@@ -268,6 +270,7 @@ export async function createAsaasSubscription(
       .update({
         asaas_subscription_id: asaasSubscription.id,
         asaas_customer_id: asaasCustomerId,
+        combo_auto_renew: true,
         updated_at: new Date().toISOString(),
       })
       .eq('id', subscriptionId);

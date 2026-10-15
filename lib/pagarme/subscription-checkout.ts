@@ -6,6 +6,7 @@ import {
   isComboTerm,
   prepaidMonthsForTerm,
 } from '@/lib/checkout/combo-billing';
+import { pagarmeIntervalCountForComboTerm } from '@/lib/subscriptions/combo-recurring-gateway';
 import { getOrCreatePagarmeCustomer } from '@/lib/pagarme/customer';
 import { resolveLatestPagarmeCustomerCardId } from '@/lib/pagarme/cards';
 import {
@@ -348,6 +349,9 @@ export async function createPagarmeSubscription(
       now
     );
 
+    const comboTerm = input.billingTerm as Exclude<BillingTerm, 'monthly'>;
+    const intervalCount = pagarmeIntervalCountForComboTerm(comboTerm);
+
     const pagarmeSubscription = await pagarmeRequest<PagarmeSubscriptionResponse>(
       '/subscriptions',
       {
@@ -357,7 +361,7 @@ export async function createPagarmeSubscription(
           payment_method: 'credit_card',
           currency: 'BRL',
           interval: 'month',
-          interval_count: 1,
+          interval_count: intervalCount,
           billing_type: 'prepaid',
           start_at: formatPagarmeDate(renewalStart),
           customer_id: pagarmeCustomerId,
@@ -368,12 +372,12 @@ export async function createPagarmeSubscription(
           items: [
             {
               description: truncatePagarmeItemDescription(
-                `DungeonBox — ${input.planName} (renovação mensal)`
+                `DungeonBox — ${input.planName} (combo ${comboLabel(comboTerm)} · renovação automática)`
               ),
               quantity: 1,
               pricing_scheme: {
                 scheme_type: 'unit',
-                price: input.priceCents,
+                price: comboTotal,
               },
             },
           ],
@@ -381,6 +385,7 @@ export async function createPagarmeSubscription(
             subscription_id: subscriptionId,
             plan_slug: input.planSlug,
             billing_term: input.billingTerm,
+            charge_kind: 'combo_recurring',
           },
         },
       }
@@ -391,7 +396,7 @@ export async function createPagarmeSubscription(
       .update({
         pagarme_subscription_id: pagarmeSubscription.id,
         pagarme_customer_id: pagarmeCustomerId,
-        prepaid_until: renewalStart.toISOString(),
+        combo_auto_renew: true,
         next_billing_date:
           pagarmeSubscription.next_billing_at ?? renewalStart.toISOString(),
         updated_at: new Date().toISOString(),
