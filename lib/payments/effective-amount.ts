@@ -35,6 +35,17 @@ export function isComboUpgradePayment(statusDetail?: string | null): boolean {
   return parsePaymentStatusDetail(statusDetail)?.type === 'combo_upgrade';
 }
 
+export function isComboRenewalPayment(statusDetail?: string | null): boolean {
+  const type = parsePaymentStatusDetail(statusDetail)?.type;
+  return type === 'combo_renewal' || type === 'post_combo_renewal';
+}
+
+/** Compra inicial/upgrade do combo — não inclui renovação do período seguinte. */
+export function isComboPurchasePayment(statusDetail?: string | null): boolean {
+  const type = parseComboPaymentDetail(statusDetail)?.type;
+  return type === 'combo_prepaid' || type === 'combo_upgrade';
+}
+
 export function parseComboPaymentDetail(
   statusDetail?: string | null
 ): ComboPaymentDetail | null {
@@ -90,6 +101,13 @@ export function resolveEffectivePaymentAmountCents(
     comboDetail?.combo_total_cents != null && comboDetail.combo_total_cents > 0
       ? comboDetail.combo_total_cents
       : null;
+
+  // Renovação cobra o valor desta cobrança. Não reusa o total da compra original
+  // (Asaas pode registrar só a parcela; Pagar.me manda o total no próprio detail).
+  if (comboDetail?.type === 'combo_renewal') {
+    return detailTotal ?? payment.amount_cents;
+  }
+
   const comboTotal = subscription?.combo_total_cents ?? detailTotal ?? null;
 
   if (comboDetail && comboTotal != null && comboTotal > 0) {

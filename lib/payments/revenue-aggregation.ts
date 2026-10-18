@@ -10,6 +10,9 @@ import {
 import { parseStoreOrderMeta } from '@/lib/asaas/store-order-payment';
 import {
   isComboPrepaidPayment,
+  isComboPurchasePayment,
+  isComboRenewalPayment,
+  isComboUpgradePayment,
   isComboInstallmentSlicePayment,
   resolveEffectivePaymentAmountCents,
 } from '@/lib/payments/effective-amount';
@@ -104,7 +107,7 @@ export function buildCanonicalComboPrepaidIndex(
 
   const prepaidRows = sortPaymentsChronologically(
     rows.filter(
-      (row) => row.subscription_id && isComboPrepaidPayment(row.status_detail)
+      (row) => row.subscription_id && isComboPurchasePayment(row.status_detail)
     )
   );
 
@@ -254,6 +257,12 @@ function isPaymentCoveredByPrepaid(
   firstPaymentBySubscription: Map<string, string>
 ): boolean {
   if (!subscription?.prepaid_until || !row.subscription_id) return false;
+  if (
+    isComboRenewalPayment(row.status_detail) ||
+    isComboUpgradePayment(row.status_detail)
+  ) {
+    return false;
+  }
 
   const paidAt = row.paid_at ?? row.created_at;
   if (!paidAt) return false;
@@ -316,6 +325,16 @@ export function shouldCountPaymentInRevenue(
     return false;
   }
 
+  // Renovação/upgrade de combo é receita real. Depois do pagamento o
+  // prepaid_until já foi estendido, então a janela pré-paga não pode
+  // esconder essa cobrança como se ainda fosse o combo original.
+  if (
+    isComboRenewalPayment(row.status_detail) ||
+    isComboUpgradePayment(row.status_detail)
+  ) {
+    return true;
+  }
+
   if (isPaymentCoveredByPrepaid(subscription, row, firstPaymentBySubscription)) {
     return false;
   }
@@ -328,7 +347,7 @@ export function shouldCountPaymentInRevenue(
         return row.id === canonicalId;
       }
 
-      if (isComboPrepaidPayment(row.status_detail)) {
+      if (isComboPurchasePayment(row.status_detail)) {
         return true;
       }
 
@@ -336,7 +355,7 @@ export function shouldCountPaymentInRevenue(
     }
   }
 
-  if (isComboPrepaidPayment(row.status_detail) && subscriptionId) {
+  if (isComboPurchasePayment(row.status_detail) && subscriptionId) {
     return canonicalComboBySubscription.get(subscriptionId) === row.id;
   }
 
@@ -372,6 +391,14 @@ export function shouldCountInAdminSales(
 
   if (parseStoreOrderMeta(row.status_detail)) {
     return true;
+  }
+
+  if (isComboUpgradePayment(row.status_detail)) {
+    return true;
+  }
+
+  if (isComboRenewalPayment(row.status_detail)) {
+    return false;
   }
 
   if (!row.subscription_id) {

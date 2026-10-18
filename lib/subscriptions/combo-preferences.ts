@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { updateAsaasSubscriptionDetails } from '@/lib/asaas/subscription-api';
 import {
   pauseAsaasSubscription,
   resumeAsaasSubscription,
@@ -12,7 +11,7 @@ import {
   resumePagarmeSubscriptionBilling,
 } from '@/lib/pagarme/subscription-api';
 import {
-  asaasCycleForComboTerm,
+  syncAsaasSubscriptionComboRecurring,
   syncPagarmeSubscriptionComboRecurring,
   syncPagarmeSubscriptionMonthlyRecurring,
 } from '@/lib/subscriptions/combo-recurring-gateway';
@@ -33,10 +32,6 @@ function parsePrepaidUntil(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function centsToReais(cents: number): number {
-  return Math.round(cents) / 100;
-}
-
 type ComboSubscriptionRow = {
   id: string;
   user_id: string;
@@ -47,7 +42,9 @@ type ComboSubscriptionRow = {
   combo_auto_renew: boolean | null;
   pending_billing_term: string | null;
   pagarme_subscription_id: string | null;
+  pagarme_customer_id: string | null;
   asaas_subscription_id: string | null;
+  asaas_customer_id: string | null;
   next_billing_date: string | null;
   promo_code?: string | null;
   shipping_cents?: number | null;
@@ -73,7 +70,9 @@ async function loadComboSubscription(
       combo_auto_renew,
       pending_billing_term,
       pagarme_subscription_id,
+      pagarme_customer_id,
       asaas_subscription_id,
+      asaas_customer_id,
       next_billing_date,
       promo_code,
       shipping_cents,
@@ -108,6 +107,7 @@ async function pauseComboGatewayBilling(row: ComboSubscriptionRow): Promise<void
 }
 
 async function resumeComboGatewayBilling(
+  supabase: SupabaseClient,
   row: ComboSubscriptionRow,
   billingTerm: Exclude<BillingTerm, 'monthly'>,
   plan: PlanChargeRow
@@ -120,24 +120,52 @@ async function resumeComboGatewayBilling(
   const comboTotal = row.combo_total_cents ?? 0;
 
   if (row.pagarme_subscription_id && PAGARME_CONFIGURED && comboTotal > 0) {
-    await syncPagarmeSubscriptionComboRecurring(row.pagarme_subscription_id, {
-      planName: plan.name,
-      billingTerm,
-      comboTotalCents: comboTotal,
-      nextBillingAt: resumeAt,
-    });
-    await resumePagarmeSubscriptionBilling(row.pagarme_subscription_id, resumeAt);
+    const pagarmeResult = await syncPagarmeSubscriptionComboRecurring(
+      row.pagarme_subscription_id,
+      {
+        localSubscriptionId: row.id,
+        planName: plan.name,
+        planSlug: plan.slug ?? null,
+        billingTerm,
+        comboTotalCents: comboTotal,
+        nextBillingAt: resumeAt,
+        pagarmeCustomerId: row.pagarme_customer_id,
+      },
+      supabase
+    );
+    const pagarmeId =
+      pagarmeResult.status === 'recreated'
+        ? pagarmeResult.pagarmeSubscriptionId
+        : row.pagarme_subscription_id;
+    await resumePagarmeSubscriptionBilling(pagarmeId, resumeAt);
     return;
   }
 
   if (row.asaas_subscription_id && ASAAS_CONFIGURED && comboTotal > 0) {
-    await updateAsaasSubscriptionDetails(row.asaas_subscription_id, {
-      valueCents: comboTotal,
-      cycle: asaasCycleForComboTerm(billingTerm),
+    const asaasCustomerId = row.asaas_customer_id?.trim() || null;
+    if (!asaasCustomerId) {
+      throw new Error('Cliente Asaas não encontrado na assinatura.');
+    }
+
+    const asaasResult = await syncAsaasSubscriptionComboRecurring(supabase, {
+      localSubscriptionId: row.id,
+      asaasSubscriptionId: row.asaas_subscription_id,
+      asaasCustomerId,
+      planName: plan.name,
+      billingTerm,
+      comboTotalCents: comboTotal,
       nextDueDate: resumeAt,
-      description: `DungeonBox — ${plan.name} (renovação combo)`,
     });
-    await resumeAsaasSubscription(row.asaas_subscription_id, resumeAt);
+
+    if (asaasResult.status === 'failed') {
+      throw new Error(asaasResult.reason);
+    }
+
+    const asaasId =
+      asaasResult.status === 'recreated'
+        ? asaasResult.asaasSubscriptionId
+        : row.asaas_subscription_id;
+    await resumeAsaasSubscription(asaasId, resumeAt);
   }
 }
 
@@ -176,7 +204,7 @@ export async function setComboAutoRenew(
 
   try {
     if (enabled) {
-      await resumeComboGatewayBilling(row, billingTerm, plan);
+      await resumeComboGatewayBilling(supabase, row, billingTerm, plan);
     } else {
       await pauseComboGatewayBilling(row);
     }
@@ -241,19 +269,21 @@ export async function scheduleComboSwitchToMonthly(
 
   try {
     if (row.pagarme_subscription_id && PAGARME_CONFIGURED) {
-      await syncPagarmeSubscriptionMonthlyRecurring(row.pagarme_subscription_id, {
-        planName: plan.name,
-        monthlyTotalCents: charge.totalCents,
-        nextBillingAt: prepaidUntil,
-        description: `DungeonBox — ${plan.name} (renovação mensal após combo)`,
-      });
+      await syncPagarmeSubscriptionMonthlyRecurring(
+        row.pagarme_subscription_id,
+        {
+          localSubscriptionId: row.id,
+          planName: plan.name,
+          planSlug: plan.slug,
+          monthlyTotalCents: charge.totalCents,
+          nextBillingAt: prepaidUntil,
+          pagarmeCustomerId: row.pagarme_customer_id,
+          description: `DungeonBox — ${plan.name} (renovação mensal após combo)`,
+        },
+        supabase
+      );
     } else if (row.asaas_subscription_id && ASAAS_CONFIGURED) {
-      await updateAsaasSubscriptionDetails(row.asaas_subscription_id, {
-        valueCents: charge.totalCents,
-        cycle: 'MONTHLY',
-        nextDueDate: prepaidUntil,
-        description: `DungeonBox — ${plan.name} (renovação mensal após combo)`,
-      });
+      throw new Error('asaas_monthly_switch_unsupported');
     }
   } catch (gatewayError) {
     console.error('[combo] switch to monthly gateway:', gatewayError);
@@ -305,7 +335,7 @@ export async function cancelComboSwitchToMonthly(
 
   if (row.combo_auto_renew !== false) {
     try {
-      await resumeComboGatewayBilling(row, billingTerm, plan);
+      await resumeComboGatewayBilling(supabase, row, billingTerm, plan);
     } catch (gatewayError) {
       console.error('[combo] cancel monthly switch gateway:', gatewayError);
       return {

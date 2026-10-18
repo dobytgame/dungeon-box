@@ -6,6 +6,7 @@ import ExportCycleOrdersPrintPanel from '@/components/admin/ExportCycleOrdersPri
 import AdminTable from '@/components/admin/AdminTable';
 import ComboBadge from '@/components/admin/ComboBadge';
 import PlanUpgradeBadge from '@/components/admin/PlanUpgradeBadge';
+import RepairComboRecurringButton from '@/components/admin/RepairComboRecurringButton';
 import RepairPlanUpgradeAsaasButton from '@/components/admin/RepairPlanUpgradeAsaasButton';
 import SyncAsaasButton from '@/components/admin/SyncAsaasButton';
 import SyncPagarmeButton from '@/components/admin/SyncPagarmeButton';
@@ -122,6 +123,7 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
         defaultCycleNumber={defaultCycleNumber}
       />
 
+      <RepairComboRecurringButton />
       <RepairPlanUpgradeAsaasButton />
 
       <AdminTable

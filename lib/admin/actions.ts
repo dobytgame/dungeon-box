@@ -14,6 +14,7 @@ import {
   recreateAsaasSubscriptionForBillingPlan,
   repairAllPlanUpgradeAsaasRecurrences,
 } from '@/lib/asaas/plan-upgrade-recurrence';
+import { repairAllComboRecurringSubscriptions } from '@/lib/subscriptions/repair-combo-recurring';
 import {
   cancelPendingSubscriptionUpgrade,
   scheduleSubscriptionUpgrade,
@@ -623,6 +624,35 @@ export async function syncAsaasSubscriptionAction(subscriptionId: string) {
   } catch (error) {
     console.error('[admin] sync asaas:', error);
     return { error: 'Falha ao sincronizar com o Asaas.' };
+  }
+}
+
+export async function repairAllComboRecurringSubscriptionsAction() {
+  const { user, admin } = await requireAdmin();
+
+  try {
+    const result = await repairAllComboRecurringSubscriptions(admin);
+
+    await logAdminAction(admin, {
+      actorId: user.id,
+      action: 'subscription.repair_combo_recurring',
+      entityType: 'subscription',
+      entityId: null,
+      metadata: {
+        scanned: result.scanned,
+        synced: result.synced,
+        skipped: result.skipped,
+        failed: result.failed,
+        backfilledComboTotal: result.backfilledComboTotal,
+      },
+      ipAddress: await clientIp(),
+    });
+
+    revalidateAdmin();
+    return { success: true as const, ...result };
+  } catch (error) {
+    console.error('[admin] repair combo recurring:', error);
+    return { error: 'Falha ao alinhar renovação dos combos no gateway.' };
   }
 }
 
