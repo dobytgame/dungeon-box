@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isComboTerm } from '@/lib/checkout/combo-billing';
+import { addBrazilCalendarMonthsToIso } from '@/lib/datetime/brazil';
 import { relOne } from '@/lib/dashboard/format';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import {
@@ -15,7 +16,17 @@ import {
 export const OFFLINE_PAYMENT_METHODS = ['pix', 'manual'] as const;
 export type OfflinePaymentMethod = (typeof OFFLINE_PAYMENT_METHODS)[number];
 
-const RECORDABLE_STATUSES = new Set(['past_due', 'pending']);
+const RECORDABLE_STATUSES = new Set(['past_due', 'pending', 'active', 'paused']);
+
+export function canRecordOfflineSubscriptionPayment(input: {
+  status?: string | null;
+  is_partner?: boolean | null;
+  billing_term?: string | null;
+}): boolean {
+  if (input.is_partner) return false;
+  if (isComboTerm(input.billing_term)) return false;
+  return RECORDABLE_STATUSES.has(input.status ?? '');
+}
 
 function isOfflinePaymentMethod(value: string): value is OfflinePaymentMethod {
   return (OFFLINE_PAYMENT_METHODS as readonly string[]).includes(value);
@@ -107,9 +118,9 @@ export async function recordOfflineSubscriptionPayment(
     };
   }
 
-  if (!RECORDABLE_STATUSES.has(subscription.status as string)) {
+  if (!canRecordOfflineSubscriptionPayment(subscription)) {
     return {
-      error: `Só é possível lançar PIX atrasado em assinatura pendente ou em atraso. Status atual: ${subscription.status}.`,
+      error: `Só é possível lançar PIX avulso em assinatura mensal ativa, pausada, pendente ou em atraso. Status atual: ${subscription.status}.`,
     };
   }
 
@@ -158,6 +169,7 @@ export async function recordOfflineSubscriptionPayment(
     subscription.id
   );
   const currentCycle = Math.max(subscription.current_cycle ?? 1, cycleNumber);
+  const nextBillingDate = addBrazilCalendarMonthsToIso(input.paidAt, 1);
 
   const { error: updateError } = await admin
     .from('subscriptions')
@@ -167,6 +179,9 @@ export async function recordOfflineSubscriptionPayment(
       cancel_reason: null,
       current_cycle: currentCycle,
       loyalty_level: loyaltyLevelFromApprovedPayments(approvedPayments),
+      current_period_start: input.paidAt,
+      current_period_end: nextBillingDate,
+      next_billing_date: nextBillingDate,
       updated_at: nowIso,
     })
     .eq('id', subscription.id);
@@ -174,14 +189,14 @@ export async function recordOfflineSubscriptionPayment(
   if (updateError) {
     console.error('[admin] recordOfflineSubscriptionPayment activate:', updateError.message);
     return {
-      error: 'Pagamento lançado, mas a assinatura não foi reativada. Tente ativar de novo.',
+      error: 'Pagamento lançado, mas a assinatura não foi atualizada. Tente de novo.',
     };
   }
 
   return {
     paymentId: payment.id as string,
     cycleNumber,
-    nextBillingDate: (subscription.next_billing_date as string | null) ?? null,
+    nextBillingDate,
   };
 }
 

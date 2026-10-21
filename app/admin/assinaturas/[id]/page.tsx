@@ -25,7 +25,10 @@ import AdminGatewayMigrationTools from '@/components/admin/AdminGatewayMigration
 import ChangePagarmeBillingDayPanel from '@/components/admin/ChangePagarmeBillingDayPanel';
 import AdminPlanUpgradePanel from '@/components/admin/AdminPlanUpgradePanel';
 import RecordOfflinePaymentPanel from '@/components/admin/RecordOfflinePaymentPanel';
-import { defaultOfflinePaymentAmountCents } from '@/lib/admin/record-offline-payment';
+import {
+  canRecordOfflineSubscriptionPayment,
+  defaultOfflinePaymentAmountCents,
+} from '@/lib/admin/record-offline-payment';
 import { buildUpgradeOptionsPricing } from '@/lib/subscriptions/upgrade';
 import {
   formatDate,
@@ -305,9 +308,11 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
         />
       ) : null}
 
-      {!subscription.is_partner &&
-      !isComboTerm(billingTerm) &&
-      (subscription.status === 'past_due' || subscription.status === 'pending') ? (
+      {canRecordOfflineSubscriptionPayment({
+        status: subscription.status,
+        is_partner: subscription.is_partner,
+        billing_term: billingTerm,
+      }) ? (
         <RecordOfflinePaymentPanel
           subscriptionId={subscription.id}
           defaultAmountCents={defaultOfflinePaymentAmountCents({
@@ -316,6 +321,7 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
             plans: plan,
           })}
           nextBillingDate={subscription.next_billing_date}
+          subscriptionStatus={subscription.status}
         />
       ) : null}
 

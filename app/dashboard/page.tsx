@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { checkoutHref } from '@/lib/checkout/plans';
+import CycleKitThemeSwap from '@/components/dashboard/CycleKitThemeSwap';
 import CycleExtrasList from '@/components/dashboard/CycleExtrasList';
 import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
 import CycleProgress from '@/components/dashboard/CycleProgress';
@@ -42,6 +43,12 @@ import {
 import { userCanCastThemeVote, userCanSeeThemeVote } from '@/lib/theme-votes/access';
 import { THEME_VOTE_MAX_CHANGES } from '@/lib/theme-votes/types';
 import { getThemePollStatus } from '@/lib/theme-votes/window';
+import {
+  buildCycleKitThemeState,
+  loadChangeableCycleKitThemeState,
+  loadCycleKitThemeCatalog,
+} from '@/lib/subscriptions/cycle-kit-theme';
+import { formatStoreKitThemeLabel } from '@/lib/store/kit-themes';
 
 export default async function DashboardPage() {
   const { user } = await requireDashboardUser();
@@ -58,10 +65,33 @@ export default async function DashboardPage() {
   const isAdmin = profile?.is_admin === true;
   const showThemeVote = userCanSeeThemeVote(isAdmin);
   const admin = createAdminClient();
-  const nextCycleExtras =
+  const [nextCycleExtras, kitCatalog, changeableKit] = await Promise.all([
     nextCycle && Array.isArray(cycles)
-      ? (await loadDashboardCycleExtras(admin, cycles)).get(nextCycle.id) ?? []
-      : [];
+      ? loadDashboardCycleExtras(admin, cycles).then(
+          (map) => map.get(nextCycle.id) ?? []
+        )
+      : Promise.resolve([]),
+    loadCycleKitThemeCatalog(admin),
+    subscription
+      ? loadChangeableCycleKitThemeState(admin, subscription.id)
+      : Promise.resolve({ themes: [], state: null }),
+  ]);
+  const nextCycleTheme = nextCycle
+    ? buildCycleKitThemeState({
+        cycleId: nextCycle.id,
+        cycleNumber: nextCycle.cycle_number,
+        status: nextCycle.status,
+        themes: kitCatalog,
+        kitThemeId: nextCycle.kit_theme_id,
+        changedFromId: nextCycle.kit_theme_changed_from_id,
+      })
+    : null;
+  const swapState =
+    changeableKit.state?.cycleId && nextCycle?.id === changeableKit.state.cycleId
+      ? changeableKit.state
+      : changeableKit.state?.canChange
+        ? changeableKit.state
+        : nextCycleTheme;
   const isActiveSubscriber = showThemeVote
     ? await userHasActiveSubscription(admin, user.id)
     : false;
@@ -199,6 +229,12 @@ export default async function DashboardPage() {
               <div className="space-y-5">
                 <dl>
                   <DataRow label="Ciclo" value={`#${nextCycle.cycle_number}`} />
+                  {nextCycleTheme ? (
+                    <DataRow
+                      label="Tema"
+                      value={formatStoreKitThemeLabel(nextCycleTheme.current)}
+                    />
+                  ) : null}
                   <DataRow
                     label="Status"
                     value={<StatusBadge kind="cycle" status={nextCycle.status} />}
@@ -220,6 +256,20 @@ export default async function DashboardPage() {
                   ) : null}
                 </dl>
                 <CycleProgress status={nextCycle.status} showCopy />
+                {swapState && changeableKit.themes.length > 0 ? (
+                  <div className="border-t border-white/10 pt-4">
+                    <CycleKitThemeSwap
+                      subscriptionId={subscription.id}
+                      cycleId={swapState.cycleId}
+                      cycleNumber={swapState.cycleNumber}
+                      currentTheme={swapState.current}
+                      themes={changeableKit.themes}
+                      canChange={swapState.canChange}
+                      lockedReason={swapState.lockedReason}
+                      compact
+                    />
+                  </div>
+                ) : null}
                 {nextCycleExtras.length > 0 ? (
                   <CycleExtrasList items={nextCycleExtras} />
                 ) : null}

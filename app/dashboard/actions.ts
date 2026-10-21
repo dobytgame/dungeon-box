@@ -275,6 +275,35 @@ export async function sendCustomerMigrationEmailAction(input: {
   };
 }
 
+export async function changeCycleKitThemeAction(input: {
+  subscriptionId: string;
+  cycleId: string;
+  themeId: string;
+}) {
+  const { user } = await requireDashboardUser();
+  if (!input.subscriptionId || !input.cycleId || !input.themeId) {
+    return { error: 'Informe o tema do kit.' };
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const { changeSubscriptionCycleKitTheme } = await import(
+    '@/lib/subscriptions/cycle-kit-theme'
+  );
+
+  const result = await changeSubscriptionCycleKitTheme(createAdminClient(), {
+    userId: user.id,
+    subscriptionId: input.subscriptionId,
+    cycleId: input.cycleId,
+    themeId: input.themeId,
+  });
+
+  if (result.error) return { error: result.error };
+
+  revalidateDashboard();
+  revalidatePath('/admin/ciclos');
+  return { success: true as const, notice: result.notice ?? null };
+}
+
 export async function createCustomerMigrationLinkAction(input: {
   subscriptionId: string;
 }) {

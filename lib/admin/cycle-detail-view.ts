@@ -12,6 +12,11 @@ import {
   parsePaintKitBumpRecurring,
 } from '@/lib/checkout/special-notes';
 import { formatZip, relOne } from '@/lib/dashboard/format';
+import { formatStoreKitThemeLabel, type StoreKitTheme } from '@/lib/store/kit-themes';
+import {
+  buildCycleKitThemeState,
+  type CycleKitThemeRef,
+} from '@/lib/subscriptions/cycle-kit-theme';
 import { regionLabel } from '@/lib/shipping/regions';
 import type { ShippingRegion } from '@/lib/shipping/types';
 
@@ -66,6 +71,7 @@ export interface AdminCycleDetailView {
   feedbackRequestSentAt: string | null;
   estimated_delivery: string | null;
   themeName: string | null;
+  kitThemeChangedNotice: string | null;
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
@@ -184,7 +190,8 @@ export function toAdminCycleDetailView(
   productionChecklist: ProductionChecklistItem[] = [],
   shipmentFinance: CycleShipmentFinance | null = null,
   pendingBundledOrders: AdminCyclePendingStoreOrder[] = [],
-  storeOrderPurchases: AdminStoreOrderPurchaseView[] = []
+  storeOrderPurchases: AdminStoreOrderPurchaseView[] = [],
+  kitThemes: StoreKitTheme[] = []
 ): AdminCycleDetailView {
   const subscription = relOne(cycle.subscriptions);
   const plan = subscription ? relOne(subscription.plans) : null;
@@ -211,6 +218,28 @@ export function toAdminCycleDetailView(
       )
     : null;
   const theme = relOne(cycle.themes);
+  const kitThemeState = buildCycleKitThemeState({
+    cycleId: cycle.id,
+    cycleNumber: cycle.cycle_number,
+    status: cycle.status,
+    themes: kitThemes,
+    kitThemeId: cycle.kit_theme_id,
+    changedFromId: cycle.kit_theme_changed_from_id,
+    joinedCurrent: relOne(
+      (cycle as { kit_theme?: CycleKitThemeRef | CycleKitThemeRef[] | null })
+        .kit_theme
+    ),
+    joinedPrevious: relOne(
+      (
+        cycle as {
+          previous_kit_theme?: CycleKitThemeRef | CycleKitThemeRef[] | null;
+        }
+      ).previous_kit_theme
+    ),
+  });
+  const kitThemeName = kitThemeState
+    ? formatStoreKitThemeLabel(kitThemeState.current)
+    : null;
 
   const orderAddress = address ? buildOrderAddress(address) : null;
   const orderAddons = buildOrderAddons(subscription?.special_notes);
@@ -268,7 +297,8 @@ export function toAdminCycleDetailView(
     production_notes: cycle.production_notes,
     feedbackRequestSentAt: cycle.feedback_request_sent_at ?? null,
     estimated_delivery: cycle.estimated_delivery,
-    themeName: theme?.name ?? null,
+    themeName: kitThemeName ?? theme?.name ?? null,
+    kitThemeChangedNotice: kitThemeState?.changedNotice ?? null,
     customerName:
       profile?.full_name ?? profile?.display_name ?? profile?.email ?? null,
     customerEmail: profile?.email ?? null,
@@ -351,6 +381,7 @@ export function toStandaloneStoreOrderDetailView(input: {
     themeName: meta.items.find((line) => line.themeName)?.themeName as
       | string
       | undefined ?? null,
+    kitThemeChangedNotice: null,
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,

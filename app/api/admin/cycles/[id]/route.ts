@@ -17,6 +17,12 @@ import {
 } from '@/lib/admin/standalone-store-production';
 import { resolveSubscriptionMonthlyRevenueCents } from '@/lib/admin/subscription-monthly-revenue';
 import { relOne } from '@/lib/dashboard/format';
+import {
+  buildCycleKitThemeState,
+  loadCycleKitThemeCatalog,
+  type CycleKitThemeRef,
+} from '@/lib/subscriptions/cycle-kit-theme';
+import { formatStoreKitThemeLabel } from '@/lib/store/kit-themes';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -48,6 +54,28 @@ export async function GET(_request: Request, context: RouteContext) {
     const subscription = relOne(cycle.subscriptions);
     const plan = subscription ? relOne(subscription.plans) : null;
     const theme = relOne(cycle.themes);
+    const kitThemes = await loadCycleKitThemeCatalog(admin);
+    const kitThemeState = buildCycleKitThemeState({
+      cycleId: cycle.id,
+      cycleNumber: cycle.cycle_number,
+      status: cycle.status,
+      themes: kitThemes,
+      kitThemeId: cycle.kit_theme_id,
+      changedFromId: cycle.kit_theme_changed_from_id,
+      joinedCurrent: relOne(
+        (cycle as { kit_theme?: CycleKitThemeRef | CycleKitThemeRef[] | null }).kit_theme
+      ),
+      joinedPrevious: relOne(
+        (
+          cycle as {
+            previous_kit_theme?: CycleKitThemeRef | CycleKitThemeRef[] | null;
+          }
+        ).previous_kit_theme
+      ),
+    });
+    const kitThemeName = kitThemeState
+      ? formatStoreKitThemeLabel(kitThemeState.current)
+      : null;
     const subscriptionId = subscription?.id;
 
     if (subscriptionId) {
@@ -126,7 +154,7 @@ export async function GET(_request: Request, context: RouteContext) {
         planName: plan?.name ?? null,
         planSlug: plan?.slug ?? null,
         planProductionCostCents: plan?.production_cost_cents ?? 0,
-        themeName: theme?.name ?? null,
+        themeName: kitThemeName ?? theme?.name ?? null,
         piecesLabel:
           plan?.pieces_min && plan?.pieces_max
             ? `${plan.pieces_min}–${plan.pieces_max} peças`
@@ -155,7 +183,8 @@ export async function GET(_request: Request, context: RouteContext) {
         productionChecklist,
         shipmentFinance,
         pendingBundledOrders,
-        storeOrderPurchases
+        storeOrderPurchases,
+        kitThemes
       )
     );
   } catch {

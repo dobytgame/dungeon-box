@@ -218,6 +218,7 @@ export interface AdminCycleRow {
   planSlug: string | null;
   planProductionCostCents: number;
   themeName: string | null;
+  kitThemeChangedNotice: string | null;
   city: string | null;
   state: string | null;
   shippingAddressLine: string | null;

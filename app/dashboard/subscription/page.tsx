@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import CycleKitThemeSwap from '@/components/dashboard/CycleKitThemeSwap';
 import ComboRenewalPreferences from '@/components/dashboard/ComboRenewalPreferences';
 import ComboSubscriptionCallout from '@/components/dashboard/ComboSubscriptionCallout';
 import DashboardCard from '@/components/dashboard/DashboardCard';
@@ -30,6 +31,8 @@ import {
   relOne,
 } from '@/lib/dashboard/format';
 import { getManageableSubscriptions, requireDashboardUser } from '@/lib/dashboard/queries';
+import { loadChangeableCycleKitThemeState } from '@/lib/subscriptions/cycle-kit-theme';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { Subscription } from '@/lib/dashboard/types';
 import {
   buildComboUpgradeOptions,
@@ -71,10 +74,12 @@ async function SubscriptionDetailCard({
   subscription,
   showDevMeta,
   paymentLink,
+  kitTheme,
 }: {
   subscription: Subscription;
   showDevMeta: boolean;
   paymentLink?: CustomerSubscriptionPaymentLink | null;
+  kitTheme: Awaited<ReturnType<typeof loadChangeableCycleKitThemeState>>;
 }) {
   const comboUpgradeProvider = resolveComboUpgradeProvider(subscription);
   const isComboPrepaid = isActivePrepaidCombo(subscription);
@@ -169,6 +174,20 @@ async function SubscriptionDetailCard({
       <ComboSubscriptionCallout subscription={subscription} />
       {!isPending && isComboTerm(billingTerm) ? (
         <ComboRenewalPreferences subscription={subscription} />
+      ) : null}
+
+      {!isPending && kitTheme.state ? (
+        <DashboardCard title="Tema do kit" accent="jade">
+          <CycleKitThemeSwap
+            subscriptionId={subscription.id}
+            cycleId={kitTheme.state.cycleId}
+            cycleNumber={kitTheme.state.cycleNumber}
+            currentTheme={kitTheme.state.current}
+            themes={kitTheme.themes}
+            canChange={kitTheme.state.canChange}
+            lockedReason={kitTheme.state.lockedReason}
+          />
+        </DashboardCard>
       ) : null}
 
       <DashboardCard
@@ -348,6 +367,15 @@ export default async function SubscriptionPage({
 }) {
   const { user } = await requireDashboardUser();
   const subscriptions = await getManageableSubscriptions(user.id);
+  const admin = createAdminClient();
+  const kitThemesBySubscription = new Map(
+    await Promise.all(
+      subscriptions.map(async (subscription) => {
+        const kitTheme = await loadChangeableCycleKitThemeState(admin, subscription.id);
+        return [subscription.id, kitTheme] as const;
+      })
+    )
+  );
   const isDev = process.env.NODE_ENV === 'development';
   const referralBlocked = searchParams?.referral === 'inactive';
   const termsBlocked = searchParams?.terms === 'inactive';
@@ -433,6 +461,12 @@ export default async function SubscriptionPage({
             subscription={subscription}
             showDevMeta={isDev && index === 0}
             paymentLink={paymentLinkBySubscription.get(subscription.id) ?? null}
+            kitTheme={
+              kitThemesBySubscription.get(subscription.id) ?? {
+                themes: [],
+                state: null,
+              }
+            }
           />
         </section>
       ))}

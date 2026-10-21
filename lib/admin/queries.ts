@@ -5,6 +5,12 @@ import { isComboTerm } from '@/lib/checkout/combo-billing';
 import { getRecurringMrrSummary } from '@/lib/admin/recurring-mrr';
 import { getComboTermLabel } from '@/lib/checkout/combo-display';
 import { relOne } from '@/lib/dashboard/format';
+import { formatStoreKitThemeLabel, type StoreKitTheme } from '@/lib/store/kit-themes';
+import {
+  buildCycleKitThemeState,
+  loadCycleKitThemeCatalog,
+  type CycleKitThemeRef,
+} from '@/lib/subscriptions/cycle-kit-theme';
 import {
   buildCycleShipmentItems,
   loadAddonPaymentsBySubscription,
@@ -196,7 +202,11 @@ const ADMIN_CYCLE_LIST_SELECT = `
   payment_id,
   production_notes,
   feedback_request_sent_at,
+  kit_theme_id,
+  kit_theme_changed_from_id,
   themes(name),
+  kit_theme:store_kit_themes!kit_theme_id(id, name, slug, kit_number, image_url, is_active, sort_order),
+  previous_kit_theme:store_kit_themes!kit_theme_changed_from_id(id, name, slug, kit_number, image_url, is_active, sort_order),
   subscriptions(
     status,
     current_cycle,
@@ -215,7 +225,10 @@ const ADMIN_CYCLE_LIST_SELECT = `
   )
 `;
 
-function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
+function mapCycleRow(
+  row: Record<string, unknown>,
+  catalog: StoreKitTheme[] = []
+): AdminCycleRow {
   const subscription = relOne(
     row.subscriptions as Record<string, unknown> | Record<string, unknown>[] | null
   );
@@ -231,6 +244,23 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
   const theme = relOne(
     row.themes as Record<string, unknown> | Record<string, unknown>[] | null
   );
+  const kitThemeState = buildCycleKitThemeState({
+    cycleId: row.id as string,
+    cycleNumber: (row.cycle_number as number) ?? 1,
+    status: row.status as AdminCycleRow['status'],
+    themes: catalog,
+    kitThemeId: (row.kit_theme_id as string | null) ?? null,
+    changedFromId: (row.kit_theme_changed_from_id as string | null) ?? null,
+    joinedCurrent: relOne(
+      row.kit_theme as CycleKitThemeRef | CycleKitThemeRef[] | null
+    ),
+    joinedPrevious: relOne(
+      row.previous_kit_theme as CycleKitThemeRef | CycleKitThemeRef[] | null
+    ),
+  });
+  const kitThemeName = kitThemeState
+    ? formatStoreKitThemeLabel(kitThemeState.current)
+    : null;
 
   const scheduledProductionMonth =
     (row.scheduled_production_month as string | null) ?? null;
@@ -261,7 +291,8 @@ function mapCycleRow(row: Record<string, unknown>): AdminCycleRow {
     planSlug: (plan?.slug as string | null) ?? null,
     planProductionCostCents:
       (plan?.production_cost_cents as number | null) ?? 0,
-    themeName: (theme?.name as string | null) ?? null,
+    themeName: kitThemeName ?? (theme?.name as string | null) ?? null,
+    kitThemeChangedNotice: kitThemeState?.changedNotice ?? null,
     city: (address?.city as string | null) ?? null,
     state: (address?.state as string | null) ?? null,
     shippingAddressLine: formatProductionShippingAddress(
@@ -562,6 +593,7 @@ export async function getAdminDashboardStats(
     profitByMonth,
     totalRevenue,
     recurringMrr,
+    kitThemeCatalog,
   ] = await Promise.all([
     admin.from('mrr').select('*'),
     admin
@@ -640,6 +672,10 @@ export async function getAdminDashboardStats(
         carrier,
         shipped_at,
         themes(name),
+        kit_theme_id,
+        kit_theme_changed_from_id,
+        kit_theme:store_kit_themes!kit_theme_id(id, name, slug, kit_number),
+        previous_kit_theme:store_kit_themes!kit_theme_changed_from_id(id, name, slug, kit_number),
         subscriptions(
           profiles(full_name, display_name, email),
           plans!plan_id(name),
@@ -657,6 +693,7 @@ export async function getAdminDashboardStats(
     getProfitByMonth(admin),
     getTotalApprovedRevenue(admin),
     getRecurringMrrSummary(admin),
+    loadCycleKitThemeCatalog(admin),
   ]);
 
   const mrrRows = mrrRes.data ?? [];
@@ -694,7 +731,7 @@ export async function getAdminDashboardStats(
       mapPaymentRow(row as Record<string, unknown>)
     ),
     shipQueue: (shipQueueRes.data ?? []).map((row) =>
-      mapCycleRow(row as Record<string, unknown>)
+      mapCycleRow(row as Record<string, unknown>, kitThemeCatalog)
     ),
     userPlanStats,
     partnerReferralStats,
@@ -1129,7 +1166,8 @@ export async function listAdminCycles(
   }
 
   const rawRows = (data ?? []) as Record<string, unknown>[];
-  const mapped = rawRows.map((row) => mapCycleRow(row));
+  const kitThemeCatalog = await loadCycleKitThemeCatalog(admin);
+  const mapped = rawRows.map((row) => mapCycleRow(row, kitThemeCatalog));
 
   const subscriptionIds = Array.from(
     new Set(mapped.map((row) => row.subscription_id))
@@ -1194,7 +1232,8 @@ async function loadAdminProductionCycleRows(
     return monthKeyFromDate(new Date(anchor)) >= deliveredMonthFrom;
   });
 
-  return { mapped: rawRows.map((row) => mapCycleRow(row)), rawRows };
+  const kitThemeCatalog = await loadCycleKitThemeCatalog(admin);
+  return { mapped: rawRows.map((row) => mapCycleRow(row, kitThemeCatalog)), rawRows };
 }
 
 /** Ciclos operacionais enriquecidos (uma carga para calendário + kanban). */
@@ -1411,6 +1450,8 @@ export async function getAdminCycleDetail(
       `
       *,
       themes(*),
+      kit_theme:store_kit_themes!kit_theme_id(id, name, slug, kit_number, image_url, is_active, sort_order),
+      previous_kit_theme:store_kit_themes!kit_theme_changed_from_id(id, name, slug, kit_number, image_url, is_active, sort_order),
       subscriptions(
         *,
         plans!plan_id(*),

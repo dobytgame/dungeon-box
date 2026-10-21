@@ -18,6 +18,7 @@ import type { CycleStatus } from '@/lib/dashboard/types';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/dashboard/format';
 import ComboBadge from '@/components/admin/ComboBadge';
 import CycleBundledTags from '@/components/admin/CycleBundledTags';
+import CycleKitThemeChangedNotice from '@/components/admin/CycleKitThemeChangedNotice';
 import CycleProductionNotesHighlight from '@/components/admin/CycleProductionNotesHighlight';
 import AdminPlanChip from '@/components/admin/AdminPlanChip';
 import ProductionMonthBadge from '@/components/admin/ProductionMonthBadge';
@@ -404,6 +405,9 @@ export function ProductionKanbanCard({
           <p className="truncate font-mono text-[10px] text-zinc-600">
             {row.customerEmail}
           </p>
+        ) : null}
+        {row.kitThemeChangedNotice ? (
+          <CycleKitThemeChangedNotice notice={row.kitThemeChangedNotice} compact />
         ) : null}
         {row.productionNotes ? (
           <CycleProductionNotesHighlight notes={row.productionNotes} compact />

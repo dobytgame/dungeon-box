@@ -14,6 +14,11 @@ import {
   formatDashboardTracking,
 } from '@/lib/dashboard/cycle-status';
 import { getCycles, requireDashboardUser } from '@/lib/dashboard/queries';
+import { formatStoreKitThemeLabel } from '@/lib/store/kit-themes';
+import {
+  buildCycleKitThemeState,
+  loadCycleKitThemeCatalog,
+} from '@/lib/subscriptions/cycle-kit-theme';
 import { loadDashboardCycleExtras } from '@/lib/dashboard/cycle-extras';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
@@ -21,10 +26,13 @@ import { PRODUCTION_PIPELINE } from '@/lib/subscriptions/cycle-production';
 export default async function DeliveriesPage() {
   const { user } = await requireDashboardUser();
   const cycles = await getCycles(user.id);
-  const extrasByCycle =
+  const admin = createAdminClient();
+  const [extrasByCycle, kitThemes] = await Promise.all([
     cycles.length > 0
-      ? await loadDashboardCycleExtras(createAdminClient(), cycles)
-      : new Map();
+      ? loadDashboardCycleExtras(admin, cycles)
+      : Promise.resolve(new Map()),
+    loadCycleKitThemeCatalog(admin),
+  ]);
 
   return (
     <div className="space-y-8 md:space-y-10">
@@ -39,13 +47,21 @@ export default async function DeliveriesPage() {
         <div className="space-y-4">
           {cycles.map((cycle) => {
             const theme = relOne(cycle.themes);
+            const kitTheme = buildCycleKitThemeState({
+              cycleId: cycle.id,
+              cycleNumber: cycle.cycle_number,
+              status: cycle.status,
+              themes: kitThemes,
+              kitThemeId: cycle.kit_theme_id,
+              changedFromId: cycle.kit_theme_changed_from_id,
+            });
             const copy = dashboardCycleStatusCopy(cycle.status);
             const showProgress = PRODUCTION_PIPELINE.includes(cycle.status);
 
             return (
               <DashboardCard
                 key={cycle.id}
-                title={`Ciclo #${cycle.cycle_number}${theme ? ` — ${theme.emoji ?? ''} ${theme.name}` : ''}`}
+                title={`Ciclo #${cycle.cycle_number}${kitTheme ? ` — ${formatStoreKitThemeLabel(kitTheme.current)}` : theme ? ` — ${theme.emoji ?? ''} ${theme.name}` : ''}`}
                 action={<StatusBadge kind="cycle" status={cycle.status} />}
               >
                 {showProgress ? (
@@ -67,9 +83,11 @@ export default async function DeliveriesPage() {
                       Tema
                     </div>
                     <div className="py-2 text-sm text-mesa-parchment">
-                      {theme
-                        ? `${theme.name} (${theme.month_number}/${theme.year})`
-                        : '—'}
+                      {kitTheme
+                        ? formatStoreKitThemeLabel(kitTheme.current)
+                        : theme
+                          ? `${theme.name} (${theme.month_number}/${theme.year})`
+                          : '—'}
                     </div>
                   </div>
                   <div>

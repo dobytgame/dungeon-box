@@ -180,6 +180,10 @@ export const faqItems = [
     a: SUBSCRIPTION_DELIVERY_FAQ_ANSWER,
   },
   {
+    q: 'Qual tema inicia a minha assinatura?',
+    a: 'Todas as assinaturas começam no kit 1. Você pode trocar o tema pelo painel, desde que o kit ainda não tenha entrado em produção.',
+  },
+  {
     q: 'Quais formas de pagamento são aceitas?',
     a: 'Cartão de crédito com cobrança recorrente automática todo mês.',
   },

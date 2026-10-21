@@ -95,6 +95,8 @@ export interface SubscriptionCycle {
   subscription_id: string;
   cycle_number: number;
   theme_id: string | null;
+  kit_theme_id?: string | null;
+  kit_theme_changed_from_id?: string | null;
   status: CycleStatus;
   payment_id: string | null;
   paid_at: string | null;

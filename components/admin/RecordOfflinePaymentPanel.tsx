@@ -9,6 +9,7 @@ interface Props {
   subscriptionId: string;
   defaultAmountCents: number | null;
   nextBillingDate: string | null;
+  subscriptionStatus: string;
 }
 
 function todayInputValue() {
@@ -26,7 +27,10 @@ export default function RecordOfflinePaymentPanel({
   subscriptionId,
   defaultAmountCents,
   nextBillingDate,
+  subscriptionStatus,
 }: Props) {
+  const isRenewal =
+    subscriptionStatus === 'active' || subscriptionStatus === 'paused';
   const router = useRouter();
   const [paidAt, setPaidAt] = useState(todayInputValue);
   const [amountReais, setAmountReais] = useState(
@@ -41,7 +45,9 @@ export default function RecordOfflinePaymentPanel({
   function submit() {
     if (
       !window.confirm(
-        'Lançar este pagamento e reativar a assinatura? A cobrança do próximo mês no cartão continua no gateway.'
+        isRenewal
+          ? 'Lançar este PIX e gerar o próximo ciclo da assinatura?'
+          : 'Lançar este pagamento e reativar a assinatura? A cobrança do próximo mês no cartão continua no gateway.'
       )
     ) {
       return;
@@ -61,7 +67,11 @@ export default function RecordOfflinePaymentPanel({
         setError(result.error);
         return;
       }
-      setMessage('Pagamento lançado. Assinatura ativa de novo.');
+      setMessage(
+        isRenewal
+          ? 'Pagamento lançado. Próximo ciclo gerado na produção.'
+          : 'Pagamento lançado. Assinatura ativa de novo.'
+      );
       setNote('');
       router.refresh();
     });
@@ -70,18 +80,29 @@ export default function RecordOfflinePaymentPanel({
   return (
     <section className="rounded-sm border border-emerald-400/25 bg-emerald-500/[0.04] p-5 md:p-6">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300/80">
-        Atraso · PIX avulso
+        {isRenewal ? 'PIX avulso · novo ciclo' : 'Atraso · PIX avulso'}
       </p>
       <h3 className="mt-2 font-display text-lg uppercase tracking-wide text-white">
         Registrar pagamento feito
       </h3>
       <p className="mt-2 max-w-2xl text-sm text-stone-400">
-        Use quando o cartão falhou e o cliente pagou o mês atrasado no PIX.
-        O lançamento reativa a assinatura e{' '}
-        <strong className="font-medium text-stone-200">
-          não cancela a próxima cobrança no cartão
-        </strong>
-        {nextBillingDate ? ` (${formatDate(nextBillingDate)})` : ''}.
+        {isRenewal ? (
+          <>
+            Use quando o cliente pagou o próximo mês direto no PIX, fora do
+            site. O lançamento cria o próximo ciclo na produção e atualiza a
+            próxima cobrança
+            {nextBillingDate ? ` (hoje: ${formatDate(nextBillingDate)})` : ''}.
+          </>
+        ) : (
+          <>
+            Use quando o cartão falhou e o cliente pagou o mês atrasado no PIX.
+            O lançamento reativa a assinatura e{' '}
+            <strong className="font-medium text-stone-200">
+              não cancela a próxima cobrança no cartão
+            </strong>
+            {nextBillingDate ? ` (${formatDate(nextBillingDate)})` : ''}.
+          </>
+        )}
       </p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,7 +168,11 @@ export default function RecordOfflinePaymentPanel({
         onClick={submit}
         className="mt-5 cursor-pointer rounded-sm border border-emerald-400/40 bg-emerald-500/15 px-4 py-2 font-display text-xs uppercase tracking-widest text-emerald-100 transition hover:border-emerald-300/60 disabled:opacity-50"
       >
-        {pending ? 'Lançando…' : 'Lançar pagamento e reativar'}
+        {pending
+          ? 'Lançando…'
+          : isRenewal
+            ? 'Lançar pagamento e abrir ciclo'
+            : 'Lançar pagamento e reativar'}
       </button>
 
       {error ? (

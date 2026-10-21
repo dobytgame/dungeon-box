@@ -157,6 +157,7 @@ export function buildStandaloneStoreCycleRow(
     themeName: order.meta.items.find((line) => line.themeName)?.themeName as
       | string
       | undefined ?? null,
+    kitThemeChangedNotice: null,
     city: order.city,
     state: order.state,
     shippingAddressLine: order.shippingAddressLine,

@@ -8,6 +8,7 @@ import CycleBundledTags from '@/components/admin/CycleBundledTags';
 import CycleProductionPanel from '@/components/admin/CycleProductionPanel';
 import { DEFAULT_SHIPPING_CARRIER } from '@/lib/shipping/carrier';
 import CycleProductionMonthQuickSet from '@/components/admin/CycleProductionMonthQuickSet';
+import CycleKitThemeChangedNotice from '@/components/admin/CycleKitThemeChangedNotice';
 import CycleProductionNotesForm from '@/components/admin/CycleProductionNotesForm';
 import CycleScheduleForm from '@/components/admin/CycleScheduleForm';
 import CycleShippingCostForm from '@/components/admin/CycleShippingCostForm';
@@ -105,6 +106,12 @@ export default function CycleDetailContent({
               }}
             />
           </div>
+        </section>
+      ) : null}
+
+      {detail.kitThemeChangedNotice ? (
+        <section className="admin-panel rounded border-sky-500/20 p-4 md:p-5">
+          <CycleKitThemeChangedNotice notice={detail.kitThemeChangedNotice} />
         </section>
       ) : null}
 
