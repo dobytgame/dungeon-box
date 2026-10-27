@@ -2,13 +2,16 @@ import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
 import GuildLpCta from '@/components/guild-lp/GuildLpCta';
+import GuildLpGuildInviteLink from '@/components/guild-lp/GuildLpGuildInviteLink';
 import { GUILD_WHATSAPP_URL } from '@/lib/guild-lp/constants';
 
 const exploreLinks = [
   { href: '#produto', label: 'O kit' },
+  { href: '#primeira-caixa', label: 'Primeira caixa' },
   { href: '#como-funciona', label: 'Como funciona' },
   { href: '#planos', label: 'Planos' },
-  { href: '#captura', label: 'Entrar na Guilda' },
+  { href: '#frete', label: 'Frete e prazo' },
+  { href: '#guilda', label: 'Guilda' },
 ];
 
 const supportLinks = [{ href: '#faq', label: 'Perguntas frequentes' }];
@@ -36,16 +39,24 @@ export default function GuildLpFooter({
           <div className="max-w-sm">
             <Logo variant="footer" linked={false} />
             <p className="mt-4 text-sm leading-relaxed text-relic-muted">
-              A primeira assinatura mensal de cenários 3D modulares do Brasil.
-              Todo mês um kit novo na sua porta.
+              Assinatura mensal de cenários 3D modulares para RPG. Contrate pelo
+              site ou entre na Guilda para acompanhar a comunidade.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <GuildLpCta
+                href="#planos"
+                className="min-h-[44px] px-5 py-2.5 text-sm sm:w-auto sm:min-h-[44px] sm:px-5 sm:py-2.5 sm:text-sm"
+              >
+                Escolher plano
+              </GuildLpCta>
+              <GuildLpGuildInviteLink
                 href={GUILD_WHATSAPP_URL}
+                position="footer"
+                variant="secondary"
                 className="min-h-[44px] px-5 py-2.5 text-sm sm:w-auto sm:min-h-[44px] sm:px-5 sm:py-2.5 sm:text-sm"
               >
                 Entrar na Guilda
-              </GuildLpCta>
+              </GuildLpGuildInviteLink>
               {isLoggedIn ? (
                 <Link
                   href="/dashboard"
@@ -117,7 +128,7 @@ export default function GuildLpFooter({
 
         <div className="mt-12 flex flex-col gap-3 border-t border-white/[0.06] pt-8 text-sm text-relic-faint sm:flex-row sm:items-center sm:justify-between">
           <p>© {year} DungeonBox. Todos os direitos reservados.</p>
-          <p>{memberCount} mestres já na Guilda · Gratuito entrar</p>
+          <p>{memberCount} mestres na Guilda · Entrada gratuita e opcional</p>
         </div>
       </div>
     </footer>

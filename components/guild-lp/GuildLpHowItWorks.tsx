@@ -20,7 +20,7 @@ export default function GuildLpHowItWorks() {
           {guildLpCopy.howHeadline}
         </h2>
 
-        <ol className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+        <ol className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {guildLpCopy.steps.map((step) => (
             <li key={step.n} className="relative overflow-hidden pt-2">
               <span

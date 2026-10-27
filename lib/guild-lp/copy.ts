@@ -1,12 +1,14 @@
 import { SUBSCRIPTION_DELIVERY_FAQ_ANSWER } from '@/lib/production/lead-time';
 
 export const guildLpCopy = {
-  heroEyebrow: 'Assinatura mensal de cenários 3D',
-  heroHeadline: ['Sua dungeon', 'nunca mais', 'vai parecer amadora.'],
+  heroEyebrow: 'Assinatura mensal de cenários 3D para RPG',
+  heroHeadline: ['Dê vida à', 'sua próxima', 'sessão de RPG.'],
   heroSub:
-    'A primeira assinatura mensal de cenários 3D modulares do Brasil. Todo mês um kit novo na sua porta — tiles, paredes, props. Sua dungeon cresce a cada caixa. Para sempre.',
-  heroCta: 'Entrar na Guilda — é gratuito',
-  heroSupport: 'Grupo exclusivo no WhatsApp · Bastidores da produção · Sem compromisso',
+    'Receba cenários físicos com pisos, paredes e acessórios para montar sua dungeon. As peças usam encaixes OpenLOCK e permitem combinar os kits da sua coleção.',
+  heroPrimaryCta: 'Escolher meu plano',
+  heroSecondaryCta: 'Tirar dúvidas no WhatsApp',
+  heroSupport:
+    'Produto físico entregue em casa · Peças modulares OpenLOCK · Prazo informado antes da compra',
   systems: ['D&D', 'Tormenta', 'Pathfinder'] as const,
   openlock: 'Sistema OpenLOCK',
 
@@ -47,99 +49,73 @@ export const guildLpCopy = {
   steps: [
     {
       n: '01',
-      title: 'Todo mês',
-      body: 'Um kit temático sai da nossa produção e vai direto para a sua porta. Tiles, paredes, props. Tudo impresso em PLA premium.',
+      title: 'Escolha seu plano',
+      body: 'Compare o conteúdo e consulte o frete para seu CEP no checkout.',
     },
     {
       n: '02',
-      title: 'Encaixa sempre',
-      body: 'Sistema OpenLOCK — o padrão mais usado do mundo. Peças do Mês 1 encaixam no Mês 12. Sua dungeon nunca para de crescer.',
+      title: 'Receba sua caixa',
+      body: 'Produzimos o kit após a confirmação do pagamento e informamos o acompanhamento do envio.',
     },
     {
       n: '03',
-      title: 'Sua escolha',
-      body: 'Três planos. Você começa com o que cabe no bolso e evolui quando quiser. Sem carência. Cancele a qualquer momento.',
-    },
-    {
-      n: '04',
-      title: 'Sua dungeon',
-      body: 'Mês a mês, sessão a sessão, sua mesa vira o cenário que você sempre imaginou. Seu grupo nunca mais vai jogar no papel.',
+      title: 'Monte e expanda',
+      body: 'Combine as peças para criar encontros e ampliar sua coleção nos próximos ciclos.',
     },
   ],
 
-  midHeadline: 'Pronto para entrar?',
-  midSub: 'A Guilda é gratuita. É lá que acontece tudo antes do público geral.',
-  midCta: 'Entrar na Guilda',
-  midSupport: 'Abre o WhatsApp direto · Sem cadastro · Saia quando quiser',
+  initialKitEyebrow: 'Primeira entrega',
+  initialKitTitle: 'Sua primeira caixa',
+  initialKitBody: (kitName: string) =>
+    `Sua assinatura começa pelo kit ${kitName}. Escolha o plano e confira o conteúdo da sua primeira caixa antes de concluir a compra.`,
+  initialKitBodyFallback:
+    'Sua assinatura começa pelo kit inicial da coleção. Escolha o plano e confira o conteúdo da sua primeira caixa antes de concluir a compra.',
+  initialKitPlanNote:
+    'O volume de peças e miniaturas varia conforme o plano escolhido.',
+  initialKitFinishNote:
+    'Peças enviadas em acabamento cinza pedra, prontas para pintar ou usar na mesa.',
+  initialKitShippingNote: 'Frete calculado pelo CEP no checkout.',
+  initialKitSwapNote:
+    'Você pode trocar o tema pelo painel enquanto o kit ainda não entrou em produção.',
+  initialKitImageFallback: 'Imagem do kit inicial em breve.',
 
-  benefitsEyebrow: 'A Guilda',
-  benefitsHeadline: ['O que acontece', 'quando você entra.'],
-  benefits: [
-    {
-      title: 'Bastidores ao vivo',
-      body: 'Você acompanha cada kit saindo da impressora antes de todo mundo. Vídeos, fotos e o processo completo em tempo real.',
-    },
-    {
-      title: 'Vote no próximo tema',
-      body: 'Membros da Guilda votam nos temas dos próximos kits. Sua dungeon, sua escolha.',
-    },
-    {
-      title: 'Acesso antecipado',
-      body: 'O link de assinatura chega na Guilda antes de abrir para o público. Quem está aqui garante primeiro.',
-    },
-    {
-      title: 'Condições exclusivas',
-      body: 'Códigos de desconto e ofertas especiais só para membros. Nunca disponíveis fora do grupo.',
-    },
-  ],
-  benefitsFoot: 'Gratuito · Sem spam · Saia quando quiser',
+  benefitsEyebrow: 'Comunidade',
+  benefitsHeadline: ['Quer acompanhar', 'os próximos kits?'],
+  benefitsIntro:
+    'Entre na Guilda DungeonBox para acompanhar bastidores, conversar sobre os cenários e receber novidades da coleção. A participação no grupo é gratuita e não exige assinatura.',
+  guildInviteCta: 'Entrar na Guilda gratuita',
+  benefitsSupportCta: 'Tirar dúvidas no WhatsApp',
 
   plansEyebrow: 'Planos',
-  plansHeadline: 'A partir de R$ 89/mês.',
-  plansSub: 'Três planos. Você escolhe dentro da Guilda, com ajuda de quem já assina.',
+  plansHeadline: 'Compare os planos',
+  plansSub:
+    'Escolha o plano que combina com sua mesa. Cobrança mensal — cancele conforme as condições do plano.',
   plansNote: '+ frete calculado por CEP · Sem carência · Cancele quando quiser',
-  plans: [
-    {
-      id: 'aventureiro',
-      name: 'Aventureiro',
-      price: 89,
-      tagline: 'Sua primeira dungeon. Funcional no dia 1.',
-      detail: '~60 peças · 3–4 salas',
-      featured: false,
-    },
-    {
-      id: 'heroi',
-      name: 'Herói',
-      price: 139,
-      tagline: 'A dungeon do mestre. Com atmosfera desde o kit 1.',
-      detail: '~93 peças · 5–7 salas',
-      featured: false,
-    },
-    {
-      id: 'lendario',
-      name: 'Lendário',
-      price: 199,
-      tagline: 'A experiência épica completa.',
-      detail: '~132 peças + 3 miniaturas exclusivas',
-      featured: true,
-      badge: 'Mais popular',
-    },
-  ],
+  planChooseLabel: (planName: string) => `Escolher ${planName}`,
 
-  finalHeadline: [
-    'Seus jogadores merecem',
-    'uma dungeon à altura',
-    'da história que você criou.',
-  ],
-  finalCta: 'Entrar na Guilda — agora',
-  finalSupportPrefix: 'Grupo no WhatsApp · Gratuito ·',
+  shippingEyebrow: 'Frete e prazo',
+  shippingTitle: 'Estime a entrega antes de assinar',
+  shippingSub:
+    'Informe seu CEP e o plano desejado. A cobrança final e o frete definitivos são confirmados no checkout.',
+
+  finalHeadline: ['Escolha o próximo', 'cenário', 'da sua mesa.'],
+  finalPrimaryCta: 'Comparar os planos',
+  finalSecondaryCta: 'Tirar dúvidas no WhatsApp',
 
   faqEyebrow: 'Dúvidas',
   faqHeadline: 'Perguntas frequentes',
   faqItems: [
     {
+      q: 'Preciso entrar no grupo para assinar?',
+      a: 'Não. Você pode escolher seu plano e contratar pelo site. A Guilda é opcional, para quem quer acompanhar novidades e conversar com a comunidade.',
+    },
+    {
+      q: 'Qual caixa eu recebo primeiro?',
+      a: 'Todas as assinaturas começam pelo kit 1. Você pode trocar o tema pelo painel, desde que o kit ainda não tenha entrado em produção.',
+    },
+    {
       q: 'A Guilda é realmente gratuita?',
-      a: 'Sim. A Guilda é o grupo de WhatsApp da DungeonBox — gratuito, sem compromisso de assinatura. Você entra, acompanha a produção, e assina quando quiser. Ninguém vai te pressionar.',
+      a: 'Sim. A Guilda é o grupo de WhatsApp da DungeonBox — gratuito, sem compromisso de assinatura. Você entra quando quiser acompanhar bastidores e novidades.',
     },
     {
       q: 'Quantas pessoas já estão na Guilda?',

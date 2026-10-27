@@ -144,17 +144,18 @@ export const HOME_V2_COPY = {
   monthly: {
     eyebrow: 'Chegando à sua mesa',
     title: 'A próxima aventura já está tomando forma.',
-    cta: 'Ver o que vem na próxima caixa',
+    ctaRevealed: 'Conhecer o kit',
+    ctaSoon: 'Ver planos e primeira caixa',
     comingSoonLore:
-      'O tema da próxima caixa é revelado pela operação. Enquanto isso, cada mês continua expandindo a mesma dungeon.',
+      'Novas assinaturas começam pelo kit inicial da coleção. Compare os planos e veja o que entra na sua primeira caixa.',
     fallbackTitle: 'Dungeon do mês',
     highlightsRevealed: [
-      'Tema confirmado pela operação',
+      'Tema confirmado para assinantes',
       'Peças novas no sistema OpenLOCK',
       'Encaixa com todos os kits anteriores',
     ],
     highlightsSoon: [
-      'Tema revelado quando a operação confirmar',
+      'Assinatura começa pelo kit inicial',
       'Mesmo sistema de encaixe de sempre',
       'Sua coleção continua crescendo',
     ],

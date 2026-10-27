@@ -42,7 +42,9 @@ export default function PublicWhatsAppWidget() {
       className={
         pathname === '/'
           ? 'max-md:!bottom-[calc(5.75rem+env(safe-area-inset-bottom))]'
-          : undefined
+          : isGuildCampaignPath(pathname)
+            ? 'max-md:!bottom-[calc(4.5rem+env(safe-area-inset-bottom))] max-md:!right-4'
+            : undefined
       }
     />
   );

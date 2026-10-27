@@ -60,8 +60,12 @@ export default function HomeV2MonthlyDungeon({ dungeon }: Props) {
           </ul>
 
           <div className="home-v2-reveal mt-9">
-            <HomeV2Button href="#planos" arrow className="w-full sm:w-auto">
-              {monthly.cta}
+            <HomeV2Button
+              href={revealed ? '#kits' : '#planos'}
+              arrow
+              className="w-full sm:w-auto"
+            >
+              {revealed ? monthly.ctaRevealed : monthly.ctaSoon}
             </HomeV2Button>
           </div>
         </div>
@@ -88,7 +92,7 @@ export default function HomeV2MonthlyDungeon({ dungeon }: Props) {
               <div className="relative max-w-xs">
                 <p className="home-v2-display text-sm tracking-[0.2em] text-mesa-jade">Em breve</p>
                 <p className="mt-4 text-lg text-mesa-parchment">
-                  A próxima caixa será revelada pela operação.
+                  Compare os planos para ver o conteúdo da sua primeira caixa.
                 </p>
               </div>
               <div className="relative flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.14em] text-mesa-ash">

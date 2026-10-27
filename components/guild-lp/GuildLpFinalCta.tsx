@@ -1,12 +1,9 @@
 import GuildLpCta from '@/components/guild-lp/GuildLpCta';
-import { GUILD_WHATSAPP_URL } from '@/lib/guild-lp/constants';
-import { guildFinalSupport, guildLpCopy } from '@/lib/guild-lp/copy';
+import GuildLpSupportLink from '@/components/guild-lp/GuildLpSupportLink';
+import { guildLpCopy } from '@/lib/guild-lp/copy';
+import { guildStartingPriceLabel } from '@/lib/guild-lp/plans-display';
 
-interface Props {
-  memberCount: number;
-}
-
-export default function GuildLpFinalCta({ memberCount }: Props) {
+export default function GuildLpFinalCta() {
   return (
     <section
       className="relative overflow-hidden bg-relic-ink px-5 py-16 sm:px-6 sm:py-20 lg:py-28"
@@ -29,13 +26,20 @@ export default function GuildLpFinalCta({ memberCount }: Props) {
             {guildLpCopy.finalHeadline[2]}
           </span>
         </h2>
-        <div className="mx-auto mt-10 max-w-md">
-          <GuildLpCta href={GUILD_WHATSAPP_URL}>
-            {guildLpCopy.finalCta}
+        <p className="mx-auto mt-5 max-w-lg text-sm text-relic-muted sm:text-base">
+          {guildStartingPriceLabel()}
+        </p>
+        <div className="mx-auto mt-10 flex max-w-md flex-col gap-3 sm:max-w-none sm:flex-row sm:justify-center">
+          <GuildLpCta href="#planos" className="sm:min-w-[240px]">
+            {guildLpCopy.finalPrimaryCta}
           </GuildLpCta>
-          <p className="mt-4 text-sm text-relic-muted">
-            {guildFinalSupport(memberCount)}
-          </p>
+          <GuildLpSupportLink
+            position="final_cta"
+            variant="secondary"
+            className="sm:min-w-[240px]"
+          >
+            {guildLpCopy.finalSecondaryCta}
+          </GuildLpSupportLink>
         </div>
       </div>
     </section>

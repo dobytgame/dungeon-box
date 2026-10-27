@@ -2,8 +2,9 @@ import { ChevronDown } from 'lucide-react';
 import GuildLpCta from '@/components/guild-lp/GuildLpCta';
 import GuildLpHeroBackdrop from '@/components/guild-lp/GuildLpHeroBackdrop';
 import GuildLpMark from '@/components/guild-lp/GuildLpMark';
-import { GUILD_WHATSAPP_URL } from '@/lib/guild-lp/constants';
+import GuildLpSupportLink from '@/components/guild-lp/GuildLpSupportLink';
 import { guildLpCopy, guildSocialBadge } from '@/lib/guild-lp/copy';
+import { guildStartingPriceLabel } from '@/lib/guild-lp/plans-display';
 
 interface Props {
   memberCount: number;
@@ -46,6 +47,10 @@ export default function GuildLpHero({ memberCount }: Props) {
           {guildLpCopy.heroSub}
         </p>
 
+        <p className="mt-4 text-sm font-semibold text-relic-gold sm:text-base">
+          {guildStartingPriceLabel()}
+        </p>
+
         <p className="mt-5 flex max-w-xl flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-relic-gold sm:text-[13px] sm:tracking-[0.12em]">
           <span className="inline-flex items-center gap-1.5">
             <GuildLpMark className="h-2 w-2" />
@@ -54,27 +59,37 @@ export default function GuildLpHero({ memberCount }: Props) {
           <span className="text-relic-faint" aria-hidden="true">
             ·
           </span>
-          <span>
-            {guildLpCopy.systems.join(' · ')}
-          </span>
+          <span>{guildLpCopy.systems.join(' · ')}</span>
           <span className="text-relic-faint" aria-hidden="true">
             ·
           </span>
           <span>{guildLpCopy.openlock}</span>
         </p>
 
-        <div className="mt-8 max-w-md">
-          <GuildLpCta href={GUILD_WHATSAPP_URL}>{guildLpCopy.heroCta}</GuildLpCta>
-          <p className="mt-3 text-sm leading-relaxed text-relic-muted">
-            {guildLpCopy.heroSupport}
-          </p>
+        <div className="mt-8 flex max-w-md flex-col gap-3 sm:max-w-none sm:flex-row sm:items-start">
+          <GuildLpCta href="#planos" className="sm:min-w-[240px]">
+            {guildLpCopy.heroPrimaryCta}
+          </GuildLpCta>
+          <GuildLpSupportLink
+            position="hero"
+            variant="secondary"
+            className="sm:min-w-[240px]"
+          >
+            {guildLpCopy.heroSecondaryCta}
+          </GuildLpSupportLink>
         </div>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-relic-muted">
+          {guildLpCopy.heroSupport}
+        </p>
+        <p className="mt-2 max-w-xl text-xs text-relic-muted">
+          Cobrança mensal. Cancele conforme as condições do plano.
+        </p>
       </div>
 
       <a
-        href="#prova"
+        href="#produto"
         className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 cursor-pointer flex-col items-center gap-2 text-relic-muted transition-colors duration-200 hover:text-relic-gold sm:bottom-7"
-        aria-label="Rolar para depoimentos"
+        aria-label="Rolar para ver o kit"
       >
         <span className="font-cinzel text-[0.62rem] uppercase tracking-[0.32em]">
           Continuar

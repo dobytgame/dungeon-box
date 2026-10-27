@@ -1,11 +1,16 @@
+import GuildLpCheckoutLink from '@/components/guild-lp/GuildLpCheckoutLink';
 import GuildLpMark from '@/components/guild-lp/GuildLpMark';
+import { checkoutHref } from '@/lib/checkout/plans';
 import { guildLpCopy } from '@/lib/guild-lp/copy';
+import { getGuildDisplayPlans } from '@/lib/guild-lp/plans-display';
 
 function formatPrice(value: number): string {
   return value.toLocaleString('pt-BR');
 }
 
 export default function GuildLpPlans() {
+  const displayPlans = getGuildDisplayPlans();
+
   return (
     <section
       id="planos"
@@ -28,10 +33,10 @@ export default function GuildLpPlans() {
         </p>
 
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {guildLpCopy.plans.map((plan) => (
+          {displayPlans.map((plan) => (
             <article
               key={plan.id}
-              className={`rounded-lg border p-6 ${
+              className={`flex flex-col rounded-lg border p-6 ${
                 plan.featured
                   ? 'border-relic-gold/55 bg-relic-raised'
                   : 'border-white/[0.08] bg-relic-ink/60'
@@ -41,7 +46,7 @@ export default function GuildLpPlans() {
                 <h3 className="font-cinzel text-xl font-semibold uppercase tracking-wide text-relic-parchment">
                   {plan.name}
                 </h3>
-                {plan.featured ? (
+                {plan.featured && plan.badge ? (
                   <span className="rounded-full border border-relic-gold/30 bg-relic-gold/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-relic-gold">
                     {plan.badge}
                   </span>
@@ -57,6 +62,18 @@ export default function GuildLpPlans() {
                 {plan.tagline}
               </p>
               <p className="mt-3 text-sm text-relic-muted">{plan.detail}</p>
+              <p className="mt-2 text-sm text-relic-muted">
+                + frete calculado pelo CEP
+              </p>
+              <div className="mt-auto pt-6">
+                <GuildLpCheckoutLink
+                  href={checkoutHref(plan.id)}
+                  planId={plan.id}
+                  position="plan_card"
+                >
+                  {guildLpCopy.planChooseLabel(plan.name)}
+                </GuildLpCheckoutLink>
+              </div>
             </article>
           ))}
         </div>

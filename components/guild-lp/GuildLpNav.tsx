@@ -5,14 +5,12 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import GuildLpCta from '@/components/guild-lp/GuildLpCta';
-import { GUILD_WHATSAPP_URL } from '@/lib/guild-lp/constants';
 
 const navLinks = [
-  { href: '#prova', label: 'Mestres' },
   { href: '#produto', label: 'O kit' },
   { href: '#como-funciona', label: 'Como funciona' },
   { href: '#planos', label: 'Planos' },
-  { href: '#faq', label: 'FAQ' },
+  { href: '#faq', label: 'Dúvidas' },
 ] as const;
 
 interface Props {
@@ -56,7 +54,7 @@ export default function GuildLpNav({ isLoggedIn = false, userName }: Props) {
       >
         <nav
           className="flex min-w-0 items-center justify-between gap-3 px-3 py-2 sm:px-5 sm:py-3"
-          aria-label="Navegação da Guilda"
+          aria-label="Navegação principal"
         >
           <div className="min-w-0 shrink">
             <Logo variant="nav" href="/" />
@@ -82,12 +80,19 @@ export default function GuildLpNav({ isLoggedIn = false, userName }: Props) {
               >
                 {userName ? `Olá, ${userName.split(' ')[0]}` : 'Minha conta'}
               </Link>
-            ) : null}
+            ) : (
+              <Link
+                href="/auth?next=/entre-para-guilda"
+                className="hidden cursor-pointer font-sora text-sm text-relic-muted transition-colors hover:text-relic-parchment sm:inline"
+              >
+                Entrar
+              </Link>
+            )}
             <GuildLpCta
-              href={GUILD_WHATSAPP_URL}
+              href="#planos"
               className="hidden min-h-[44px] px-5 py-2.5 text-sm sm:inline-flex sm:min-h-[44px] sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm"
             >
-              Entrar na Guilda
+              Escolher meu plano
             </GuildLpCta>
             <button
               type="button"
@@ -124,8 +129,8 @@ export default function GuildLpNav({ isLoggedIn = false, userName }: Props) {
                 </li>
               ))}
             </ul>
-            <GuildLpCta href={GUILD_WHATSAPP_URL} className="mt-5">
-              Entrar na Guilda
+            <GuildLpCta href="#planos" className="mt-5">
+              Escolher meu plano
             </GuildLpCta>
           </div>
         ) : null}
