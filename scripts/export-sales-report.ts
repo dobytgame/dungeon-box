@@ -338,7 +338,7 @@ async function main() {
   const outDir = resolve(process.cwd(), 'reports', `vendas-${today}`);
   mkdirSync(outDir, { recursive: true });
 
-  const buyers = [...clients.values()].filter((c) => c.orders > 0);
+  const buyers = Array.from(clients.values()).filter((c) => c.orders > 0);
   buyers.sort((a, b) => b.revenueCents - a.revenueCents);
   const totalRevenue = buyers.reduce((s, c) => s + c.revenueCents, 0);
   let running = 0;
@@ -412,7 +412,7 @@ async function main() {
     })
   );
 
-  const months = [...monthly.keys()].sort();
+  const months = Array.from(monthly.keys()).sort();
   writeCsv(
     resolve(outDir, '2-vendas-por-mes.csv'),
     [
@@ -452,8 +452,8 @@ async function main() {
     resolve(outDir, '3-vendas-por-plano.csv'),
     ['Plano', 'Qtd cobranças', 'Clientes', 'Receita (R$)', '% da receita de assinatura'],
     (() => {
-      const subTotal = [...byPlan.values()].reduce((s, p) => s + p.revenue, 0);
-      return [...byPlan.entries()]
+      const subTotal = Array.from(byPlan.values()).reduce((s, p) => s + p.revenue, 0);
+      return Array.from(byPlan.entries())
         .sort((a, b) => b[1].revenue - a[1].revenue)
         .map(([name, p]) => [
           name,
@@ -484,7 +484,7 @@ async function main() {
   );
 
   const subsCount = (status: string) => subscriptions.filter((s) => s.status === status).length;
-  const subStatuses = [...new Set(subscriptions.map((s) => s.status))].sort();
+  const subStatuses = Array.from(new Set(subscriptions.map((s) => s.status))).sort();
   const totalOrders = buyers.reduce((s, c) => s + c.orders, 0);
   const repeat = buyers.filter((c) => c.orders > 1).length;
   const top10 = buyers.slice(0, Math.ceil(buyers.length * 0.1));
@@ -492,8 +492,8 @@ async function main() {
   const storeTotal = buyers.reduce((s, c) => s + c.storeCents, 0);
   const acqTotal = buyers.reduce((s, c) => s + c.subscriptionCents, 0);
   const renTotal = buyers.reduce((s, c) => s + c.renewalCents, 0);
-  const refundedTotal = [...clients.values()].reduce((s, c) => s + c.refundedCents, 0);
-  const refundedCount = [...clients.values()].reduce((s, c) => s + c.refundedCount, 0);
+  const refundedTotal = Array.from(clients.values()).reduce((s, c) => s + c.refundedCents, 0);
+  const refundedCount = Array.from(clients.values()).reduce((s, c) => s + c.refundedCount, 0);
 
   const summary = [
     `RELATÓRIO DE VENDAS DUNGEONBOX`,
@@ -516,7 +516,7 @@ async function main() {
     ...subStatuses.map((s) => `  ${s}: ${subsCount(s)}`),
     ``,
     `Por método de pagamento:`,
-    ...[...byMethod.entries()]
+    ...Array.from(byMethod.entries())
       .sort((a, b) => b[1].revenue - a[1].revenue)
       .map(([k, v]) => `  ${k}: ${v.orders} cobranças, R$ ${money(v.revenue)}`),
     ``,
