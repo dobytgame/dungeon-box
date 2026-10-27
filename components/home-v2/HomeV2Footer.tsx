@@ -4,7 +4,11 @@ import CookiePreferencesLink from '@/components/legal/CookiePreferencesLink';
 import HomeV2Button from '@/components/home-v2/HomeV2Button';
 import Logo from '@/components/ui/Logo';
 import { COMPANY } from '@/lib/legal/constants';
-import { HOME_V2_COPY, HOME_V2_PUBLIC_PATH } from '@/lib/home-v2/content';
+import {
+  HOME_V2_COPY,
+  HOME_V2_PUBLIC_PATH,
+  HOME_V2_SHOW_MONTHLY_DUNGEON,
+} from '@/lib/home-v2/content';
 import { STORE_ROUTES } from '@/lib/store/routes';
 
 const LEGAL_GROUP = {
@@ -14,6 +18,14 @@ const LEGAL_GROUP = {
     { href: '/termos', label: 'Termos de Uso' },
   ],
 } as const;
+
+const monthlyDungeonFooterLink = HOME_V2_SHOW_MONTHLY_DUNGEON
+  ? [{ href: '/#dungeon-do-mes', label: 'Dungeon do mês' as const }]
+  : [];
+
+const monthlyDungeonHomeLink = HOME_V2_SHOW_MONTHLY_DUNGEON
+  ? [{ href: '#dungeon-do-mes', label: 'Dungeon do mês' as const }]
+  : [];
 
 const SHOP_LINK_GROUPS = [
   {
@@ -28,7 +40,7 @@ const SHOP_LINK_GROUPS = [
     title: 'Assinatura',
     links: [
       { href: '/#planos', label: 'Planos' },
-      { href: '/#dungeon-do-mes', label: 'Dungeon do mês' },
+      ...monthlyDungeonFooterLink,
       { href: '/#faq', label: 'Perguntas frequentes' },
     ],
   },
@@ -41,7 +53,7 @@ const HOME_LINK_GROUPS = [
     links: [
       { href: '#kits', label: 'Os kits' },
       { href: '#planos', label: 'Planos' },
-      { href: '#dungeon-do-mes', label: 'Dungeon do mês' },
+      ...monthlyDungeonHomeLink,
       { href: '#loja', label: 'Loja' },
       { href: '#prova', label: 'Depoimentos' },
     ],

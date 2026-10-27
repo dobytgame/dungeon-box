@@ -19,14 +19,17 @@ import {
   getHomeV2StoreProducts,
   getHomeV2Testimonials,
 } from '@/lib/home-v2/cms';
-import { getHomeV2Plans } from '@/lib/home-v2/content';
+import {
+  getHomeV2Plans,
+  HOME_V2_SHOW_MONTHLY_DUNGEON,
+} from '@/lib/home-v2/content';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function HomeV2LandingPage() {
-  const [products, dungeon, testimonials] = await Promise.all([
+  const [products, testimonials, dungeon] = await Promise.all([
     getHomeV2StoreProducts(),
-    getHomeV2MonthlyDungeon(),
     getHomeV2Testimonials(),
+    HOME_V2_SHOW_MONTHLY_DUNGEON ? getHomeV2MonthlyDungeon() : Promise.resolve(null),
   ]);
   const plans = getHomeV2Plans();
   const supabase = createClient();
@@ -47,7 +50,9 @@ export default async function HomeV2LandingPage() {
         <HomeV2EvidenceStrip />
         <HomeV2KitShowcase />
         <HomeV2PlanSelector plans={plans} />
-        <HomeV2MonthlyDungeon dungeon={dungeon} />
+        {HOME_V2_SHOW_MONTHLY_DUNGEON && dungeon ? (
+          <HomeV2MonthlyDungeon dungeon={dungeon} />
+        ) : null}
         <HomeV2StoreShelf products={products} />
         <HomeV2SocialProof testimonials={testimonials} />
         <HomeV2Faq />

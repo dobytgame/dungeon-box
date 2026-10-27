@@ -2,6 +2,9 @@ import { checkoutHref, type PlanSlug } from '@/lib/checkout/plans';
 import { faqItems, plans, planSupportCopy } from '@/lib/data';
 export const HOME_V2_VARIANT = 'home-v2';
 
+/** Seção “Chegando à sua mesa” / dungeon do mês na home. */
+export const HOME_V2_SHOW_MONTHLY_DUNGEON = false;
+
 /** URL pública da home (LP2). */
 export const HOME_V2_PUBLIC_PATH = '/';
 
