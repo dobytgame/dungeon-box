@@ -358,9 +358,18 @@ export default function BlackFridayPage() {
                 <div className={styles.hangTag} aria-hidden="true">
                   <span className={styles.hangString} />
                   <span className={styles.hangCard}>
-                    <small>{showBonus ? 'Bônus' : 'Kit 1'}</small>
-                    <strong>{showBonus ? 'Estreia' : 'Ruínas'}</strong>
-                    <small>{showBonus ? 'na 1ª caixa' : 'Perdidas'}</small>
+                    {showBonus ? (
+                      <>
+                        <small>Bônus</small>
+                        <strong>Estreia</strong>
+                        <small>na 1ª caixa</small>
+                      </>
+                    ) : (
+                      <>
+                        <small>Kit</small>
+                        <strong>Lendário</strong>
+                      </>
+                    )}
                   </span>
                 </div>
               }
