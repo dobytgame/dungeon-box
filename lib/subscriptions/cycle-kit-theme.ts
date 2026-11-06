@@ -93,13 +93,24 @@ export function resolveDefaultKitTheme(themes: StoreKitTheme[]): StoreKitTheme |
   );
 }
 
+/**
+ * Tema do kit do ciclo: `kit_theme_id` (troca explícita) ou, se ausente, o `store_kit_themes`
+ * cujo `kit_number` coincide com o número do ciclo (ciclo 1 = kit 1, etc.).
+ */
 export function resolveCycleKitTheme(
   themes: StoreKitTheme[],
   kitThemeId: string | null | undefined,
-  joined?: CycleKitThemeRef | StoreKitTheme | null
+  joined?: CycleKitThemeRef | StoreKitTheme | null,
+  cycleNumber?: number
 ): StoreKitTheme | null {
   if (joined?.id) return asTheme(joined);
-  return findKitThemeById(themes, kitThemeId) ?? resolveDefaultKitTheme(themes);
+  const byId = findKitThemeById(themes, kitThemeId);
+  if (byId) return byId;
+  if (cycleNumber != null && cycleNumber >= 1) {
+    const byCycle = findKitThemeByNumber(themes, cycleNumber);
+    if (byCycle) return byCycle;
+  }
+  return resolveDefaultKitTheme(themes);
 }
 
 export function cycleKitThemeChanged(
@@ -139,22 +150,25 @@ export function buildCycleKitThemeState(input: {
   joinedCurrent?: CycleKitThemeRef | StoreKitTheme | null;
   joinedPrevious?: CycleKitThemeRef | StoreKitTheme | null;
 }): CycleKitThemeState | null {
-  const defaultTheme = resolveDefaultKitTheme(input.themes);
+  const defaultForCycle =
+    findKitThemeByNumber(input.themes, input.cycleNumber) ??
+    resolveDefaultKitTheme(input.themes);
   const current = resolveCycleKitTheme(
     input.themes,
     input.kitThemeId,
-    input.joinedCurrent
+    input.joinedCurrent,
+    input.cycleNumber
   );
   if (!current) return null;
 
   const previous =
     findKitThemeById(input.themes, input.changedFromId) ??
     (input.joinedPrevious ? asTheme(input.joinedPrevious) : null) ??
-    (cycleKitThemeChanged(current, defaultTheme, input.changedFromId)
-      ? defaultTheme
+    (cycleKitThemeChanged(current, defaultForCycle, input.changedFromId)
+      ? defaultForCycle
       : null);
 
-  const changed = cycleKitThemeChanged(current, defaultTheme, input.changedFromId);
+  const changed = cycleKitThemeChanged(current, defaultForCycle, input.changedFromId);
 
   return {
     cycleId: input.cycleId,
@@ -301,11 +315,14 @@ export async function changeSubscriptionCycleKitTheme(
     return { error: cycleKitThemeLockedReason(cycle.status as CycleStatus) ?? 'Tema bloqueado.' };
   }
 
-  const defaultTheme = resolveDefaultKitTheme(themes);
+  const cycleNumber = cycle.cycle_number as number;
+  const defaultTheme =
+    findKitThemeByNumber(themes, cycleNumber) ?? resolveDefaultKitTheme(themes);
   const current = resolveCycleKitTheme(
     themes,
     cycle.kit_theme_id as string | null,
-    relKitTheme(cycle.kit_theme)
+    relKitTheme(cycle.kit_theme),
+    cycleNumber
   );
 
   const revertingToDefault = defaultTheme && nextTheme.id === defaultTheme.id;

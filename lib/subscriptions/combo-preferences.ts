@@ -15,6 +15,7 @@ import {
   syncPagarmeSubscriptionComboRecurring,
   syncPagarmeSubscriptionMonthlyRecurring,
 } from '@/lib/subscriptions/combo-recurring-gateway';
+import { resolveComboRenewalCents } from '@/lib/subscriptions/combo-renewal-price';
 import { resolveResumeBillingDate } from '@/lib/subscriptions/apply-status-change';
 import {
   resolveSubscriptionRecurringCharge,
@@ -117,7 +118,11 @@ async function resumeComboGatewayBilling(
     ? prepaidUntil
     : resolveResumeBillingDate(row.next_billing_date);
 
-  const comboTotal = row.combo_total_cents ?? 0;
+  const comboTotal = await resolveComboRenewalCents(
+    supabase,
+    row.id,
+    row.combo_total_cents ?? 0
+  );
 
   if (row.pagarme_subscription_id && PAGARME_CONFIGURED && comboTotal > 0) {
     const pagarmeResult = await syncPagarmeSubscriptionComboRecurring(

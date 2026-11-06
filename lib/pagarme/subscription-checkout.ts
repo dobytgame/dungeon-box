@@ -39,6 +39,11 @@ export type CreatePagarmeSubscriptionInput = {
   billingTerm: BillingTerm;
   installmentCount?: number;
   comboTotalCents?: number;
+  /** Preço da renovação automática do combo, quando difere do valor pago agora. */
+  comboRenewalCents?: number;
+  /** Mensal: desconto em centavos nos primeiros ciclos (aplicado pelo Pagar.me). */
+  monthlyDiscount?: { flatCents: number; cycles: number } | null;
+  campaignCode?: string | null;
   promoCode?: string | null;
   addressId: string;
   specialNotes: string | null;
@@ -202,6 +207,10 @@ export async function createPagarmeSubscription(
     ...(input.marketingAttribution
       ? { marketing_attribution: input.marketingAttribution }
       : {}),
+    ...(input.campaignCode ? { campaign_code: input.campaignCode } : {}),
+    ...(isCombo && input.comboRenewalCents != null
+      ? { combo_renewal_cents: input.comboRenewalCents }
+      : {}),
   };
 
   let subscriptionId: string;
@@ -269,14 +278,18 @@ export async function createPagarmeSubscription(
       billingAddress,
       orderCode: buildPagarmeSubscriptionComboCode(subscriptionId),
       installments: installmentCount,
+      installmentType: installmentCount === 1 ? 'merchant' : undefined,
       metadata: {
         subscription_id: subscriptionId,
         charge_kind: 'combo',
         billing_term: input.billingTerm,
         plan_slug: input.planSlug,
         interest_free_max: String(
-          comboInterestFreeMax(input.planSlug, input.billingTerm)
+          input.campaignCode
+            ? 1
+            : comboInterestFreeMax(input.planSlug, input.billingTerm)
         ),
+        ...(input.campaignCode ? { campaign_code: input.campaignCode } : {}),
       },
     });
 
@@ -377,7 +390,7 @@ export async function createPagarmeSubscription(
               quantity: 1,
               pricing_scheme: {
                 scheme_type: 'unit',
-                price: comboTotal,
+                price: input.comboRenewalCents ?? comboTotal,
               },
             },
           ],
@@ -386,6 +399,7 @@ export async function createPagarmeSubscription(
             plan_slug: input.planSlug,
             billing_term: input.billingTerm,
             charge_kind: 'combo_recurring',
+            ...(input.campaignCode ? { campaign_code: input.campaignCode } : {}),
           },
         },
       }
@@ -451,9 +465,21 @@ export async function createPagarmeSubscription(
             },
           },
         ],
+        ...(input.monthlyDiscount && input.monthlyDiscount.flatCents > 0
+          ? {
+              discounts: [
+                {
+                  value: input.monthlyDiscount.flatCents,
+                  discount_type: 'flat',
+                  cycles: input.monthlyDiscount.cycles,
+                },
+              ],
+            }
+          : {}),
         metadata: {
           subscription_id: subscriptionId,
           plan_slug: input.planSlug,
+          ...(input.campaignCode ? { campaign_code: input.campaignCode } : {}),
         },
       },
     }

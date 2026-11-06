@@ -181,11 +181,15 @@ async function createPagarmeOrder(input: {
   });
 }
 
+/** `merchant` = taxa de parcelamento a cargo do lojista (1x “à vista” sem repasse ao cliente no cartão). */
+export type PagarmeInstallmentType = 'merchant' | 'issuer';
+
 function buildCreditCardPayment(
   valueCents: number,
   billingAddress: PagarmeBillingAddressInput,
   card: { cardToken?: string; cardId?: string },
-  installments = 1
+  installments = 1,
+  installmentType?: PagarmeInstallmentType
 ): Record<string, unknown> {
   const address = {
     ...billingAddress,
@@ -196,6 +200,10 @@ function buildCreditCardPayment(
     installments: Math.max(1, installments),
     operation_type: 'auth_and_capture',
   };
+
+  if (installmentType) {
+    creditCard.installment_type = installmentType;
+  }
 
   if (card.cardId) {
     creditCard.card_id = card.cardId;
@@ -253,6 +261,8 @@ export async function chargePagarmeOneTimeOrder(input: {
   orderCode: string;
   metadata?: Record<string, string>;
   installments?: number;
+  /** 1x à vista no crédito: use `merchant` para não repassar taxa de parcelamento ao portador. */
+  installmentType?: PagarmeInstallmentType;
   cardToken?: string;
   cardId?: string;
 }) {
@@ -267,7 +277,8 @@ export async function chargePagarmeOneTimeOrder(input: {
         input.valueCents,
         input.billingAddress,
         { cardToken: input.cardToken, cardId: input.cardId },
-        input.installments ?? 1
+        input.installments ?? 1,
+        input.installmentType
       ),
     ],
   });

@@ -99,18 +99,22 @@ interface Props {
   /** `shop` swaps in-page anchors for links that work outside the landing page. */
   context?: 'home' | 'shop';
   homePath?: string;
+  ctaHref?: string;
+  ctaLabel?: string;
 }
 
 export default function HomeV2Footer({
   context = 'home',
   homePath = HOME_V2_PUBLIC_PATH,
+  ctaHref,
+  ctaLabel,
 }: Props) {
   const year = new Date().getFullYear();
   const { footer } = HOME_V2_COPY;
   const isShop = context === 'shop';
   const linkGroups = isShop ? SHOP_LINK_GROUPS : HOME_LINK_GROUPS;
   const homeHref = isShop ? '/' : homePath;
-  const plansHref = isShop ? '/#planos' : '#planos';
+  const plansHref = ctaHref ?? (isShop ? '/#planos' : '#planos');
 
   return (
     <footer
@@ -144,7 +148,7 @@ export default function HomeV2Footer({
             </ul>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
               <HomeV2Button href={plansHref} size="md" arrow className="w-full sm:w-auto">
-                {footer.cta}
+                {ctaLabel ?? footer.cta}
               </HomeV2Button>
               <p className="text-center text-sm text-mesa-ash sm:text-left">{footer.priceNote}</p>
             </div>

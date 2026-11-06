@@ -20,6 +20,7 @@ import {
   syncPagarmeSubscriptionComboRecurring,
   syncPagarmeSubscriptionMonthlyRecurring,
 } from '@/lib/subscriptions/combo-recurring-gateway';
+import { resolveComboRenewalCents } from '@/lib/subscriptions/combo-renewal-price';
 import {
   resolveSubscriptionRecurringCharge,
   type PlanChargeRow,
@@ -255,6 +256,8 @@ export async function repairComboRecurringSubscription(
       };
     }
 
+    const renewalCents = await resolveComboRenewalCents(admin, row.id, comboTotal);
+
     if (pagarmeId && PAGARME_CONFIGURED) {
       const pagarmeResult = await syncPagarmeSubscriptionComboRecurring(
         pagarmeId,
@@ -263,7 +266,7 @@ export async function repairComboRecurringSubscription(
           planName: plan.name,
           planSlug: plan.slug ?? null,
           billingTerm: term,
-          comboTotalCents: comboTotal,
+          comboTotalCents: renewalCents,
           nextBillingAt,
           pagarmeCustomerId: row.pagarme_customer_id,
         },
@@ -294,7 +297,7 @@ export async function repairComboRecurringSubscription(
         asaasCustomerId,
         planName: plan.name,
         billingTerm: term,
-        comboTotalCents: comboTotal,
+        comboTotalCents: renewalCents,
         nextDueDate: nextBillingAt,
       });
 
