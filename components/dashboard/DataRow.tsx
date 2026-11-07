@@ -2,14 +2,20 @@ interface Props {
   label: string;
   value: React.ReactNode;
   mono?: boolean;
+  /** Evita quebra estranha em datas e valores curtos. */
+  nowrap?: boolean;
 }
 
-export default function DataRow({ label, value, mono }: Props) {
+export default function DataRow({ label, value, mono, nowrap }: Props) {
   return (
-    <div className="grid gap-1 border-b border-white/[0.06] py-3.5 last:border-0 sm:grid-cols-[minmax(0,11rem)_1fr] sm:gap-6">
-      <dt className="home-v2-display text-[11px] tracking-[0.18em] text-mesa-jade">{label}</dt>
+    <div className="grid gap-1 border-b border-white/[0.06] py-3 sm:items-baseline sm:py-3.5 last:border-0 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4">
+      <dt className="home-v2-display text-[10px] tracking-[0.16em] text-mesa-jade sm:text-[11px] sm:tracking-[0.18em]">
+        {label}
+      </dt>
       <dd
-        className={`text-sm leading-relaxed text-mesa-parchment ${mono ? 'break-all font-mono text-xs text-mesa-ash' : ''}`}
+        className={`min-w-0 text-sm leading-snug text-mesa-parchment ${
+          mono ? 'break-all font-mono text-xs text-mesa-ash' : ''
+        } ${nowrap ? 'sm:whitespace-nowrap' : ''}`}
       >
         {value ?? '—'}
       </dd>

@@ -9,6 +9,8 @@ interface Props {
   className?: string;
   action?: ReactNode;
   accent?: Accent;
+  /** Iguala altura em grids de colunas (ex.: resumo da home). */
+  fillHeight?: boolean;
 }
 
 const accentBar = {
@@ -26,15 +28,20 @@ export default function DashboardCard({
   className = '',
   action,
   accent = 'ember',
+  fillHeight = false,
 }: Props) {
   return (
     <section
-      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-mesa-stone ${
+        fillHeight ? 'flex h-full flex-col' : ''
+      } ${className}`}
     >
       <div className={`absolute inset-y-0 left-0 w-1 ${accentBar[accent]}`} aria-hidden="true" />
-      <div className="px-5 py-5 md:px-6 md:py-6">
+      <div
+        className={`px-5 py-5 md:px-6 md:py-6 ${fillHeight ? 'flex flex-1 flex-col' : ''}`}
+      >
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h2 className="home-v2-display text-2xl leading-none text-mesa-parchment">{title}</h2>
             {description ? (
               <p className="mt-2 text-sm leading-relaxed text-mesa-ash">{description}</p>
@@ -42,7 +49,11 @@ export default function DashboardCard({
           </div>
           {action}
         </div>
-        {children}
+        {fillHeight ? (
+          <div className="flex flex-1 flex-col">{children}</div>
+        ) : (
+          children
+        )}
       </div>
     </section>
   );

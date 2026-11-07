@@ -187,18 +187,16 @@ export default async function DashboardPage() {
       ) : subscription ? (
         <div className="space-y-6">
           <ComboSubscriptionCallout subscription={subscription} />
-          <div className="grid gap-6 lg:grid-cols-3">
-          <DashboardCard title="Assinatura" accent="ember">
-            <dl>
+          <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+          <DashboardCard title="Assinatura" accent="ember" fillHeight>
+            <dl className="flex-1">
               <DataRow
                 label="Plano"
                 value={
-                  <span className="text-mesa-parchment">
-                    {plan?.name ?? '—'}{' '}
+                  <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                    <span className="text-mesa-parchment">{plan?.name ?? '—'}</span>
                     {plan ? (
-                      <span className="text-mesa-ash">
-                        ({formatMoney(plan.price_cents)}/mês)
-                      </span>
+                      <span className="text-mesa-ash">({formatMoney(plan.price_cents)}/mês)</span>
                     ) : null}
                   </span>
                 }
@@ -207,38 +205,42 @@ export default async function DashboardPage() {
                 label="Status"
                 value={<StatusBadge kind="subscription" status={subscription.status} />}
               />
-              <DataRow
-                label="Ciclo atual"
-                value={subscription.current_cycle ?? 0}
-              />
+              <DataRow label="Ciclo atual" value={subscription.current_cycle ?? 0} />
               <DataRow
                 label="Próxima cobrança"
                 value={formatDate(subscription.next_billing_date)}
+                nowrap
               />
             </dl>
             <Link
               href="/dashboard/subscription"
-              className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-ember transition-colors duration-200 hover:underline"
+              className="mt-auto inline-flex min-h-11 cursor-pointer items-center pt-4 text-sm text-mesa-ember transition-colors duration-200 hover:underline"
             >
               Ver detalhes →
             </Link>
           </DashboardCard>
 
-          <DashboardCard title="Próxima entrega" accent="jade">
+          <DashboardCard
+            title="Próxima entrega"
+            accent="jade"
+            fillHeight
+            description={
+              nextCycle
+                ? nextCycleTheme
+                  ? `Ciclo #${nextCycle.cycle_number} · ${formatStoreKitThemeLabel(nextCycleTheme.current)}`
+                  : `Ciclo #${nextCycle.cycle_number}`
+                : undefined
+            }
+            action={
+              nextCycle ? (
+                <StatusBadge kind="cycle" status={nextCycle.status} />
+              ) : undefined
+            }
+          >
             {nextCycle ? (
-              <div className="space-y-5">
-                <dl>
-                  <DataRow label="Ciclo" value={`#${nextCycle.cycle_number}`} />
-                  {nextCycleTheme ? (
-                    <DataRow
-                      label="Tema"
-                      value={formatStoreKitThemeLabel(nextCycleTheme.current)}
-                    />
-                  ) : null}
-                  <DataRow
-                    label="Status"
-                    value={<StatusBadge kind="cycle" status={nextCycle.status} />}
-                  />
+              <div className="flex flex-1 flex-col space-y-4">
+                <CycleProgress status={nextCycle.status} showCopy />
+                <dl className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3">
                   <DataRow
                     label="Rastreio"
                     value={formatDashboardTracking(
@@ -246,16 +248,17 @@ export default async function DashboardPage() {
                       nextCycle.tracking_code,
                       nextCycle.carrier
                     )}
+                    mono={Boolean(nextCycle.tracking_code)}
                   />
                   <DataRow
                     label="Previsão"
                     value={formatDate(nextCycle.estimated_delivery)}
+                    nowrap
                   />
                   {nextCycle.bonus_notes ? (
                     <DataRow label="Brinde" value={nextCycle.bonus_notes} />
                   ) : null}
                 </dl>
-                <CycleProgress status={nextCycle.status} showCopy />
                 {swapState && changeableKit.themes.length > 0 ? (
                   <div className="border-t border-white/10 pt-4">
                     <CycleKitThemeSwap
@@ -275,38 +278,51 @@ export default async function DashboardPage() {
                 ) : null}
               </div>
             ) : (
-              <p className="text-sm text-mesa-ash">
+              <p className="flex-1 text-sm text-mesa-ash">
                 Nenhum ciclo em andamento. Quando a assinatura for ativada, as entregas
                 aparecem aqui.
               </p>
             )}
             <Link
               href="/dashboard/deliveries"
-              className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-jade transition-colors duration-200 hover:underline"
+              className="mt-auto inline-flex min-h-11 cursor-pointer items-center pt-4 text-sm text-mesa-jade transition-colors duration-200 hover:underline"
             >
               Histórico de entregas →
             </Link>
           </DashboardCard>
 
-          <DashboardCard title="Fidelidade" accent="ember">
-            <dl>
-              <DataRow
-                label="Ciclo 3"
-                value={
-                  cycleThreeSent
+          <DashboardCard title="Fidelidade" accent="ember" fillHeight>
+            <ul className="flex-1 space-y-2">
+              <li className="rounded-xl border border-mesa-jade/25 bg-mesa-jade/[0.06] px-4 py-3">
+                <p className="home-v2-display text-[10px] tracking-[0.16em] text-mesa-jade">
+                  Ciclo 3
+                </p>
+                <p className="mt-1 text-sm font-medium text-mesa-parchment">
+                  {cycleThreeSent
                     ? `${LOYALTY_CYCLE_DISCOUNT}% na loja`
-                    : 'Em breve'
-                }
-              />
-              <DataRow
-                label="Cupom"
-                value={cycleThreeSent ? LOYALTY_CYCLE_COUPON : 'Libera no envio'}
-              />
-              <DataRow label="Ciclos 6, 9 e 12" value="Fechados" />
-            </dl>
+                    : 'Libera quando o kit 3 for enviado'}
+                </p>
+                {cycleThreeSent ? (
+                  <p className="mt-1 font-mono text-xs tracking-wider text-mesa-ember">
+                    {LOYALTY_CYCLE_COUPON}
+                  </p>
+                ) : null}
+              </li>
+              {([6, 9, 12] as const).map((n) => (
+                <li
+                  key={n}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5"
+                >
+                  <span className="text-sm text-mesa-ash">Ciclo {n}</span>
+                  <span className="home-v2-display text-[10px] tracking-[0.14em] text-mesa-ash/80">
+                    Em breve
+                  </span>
+                </li>
+              ))}
+            </ul>
             <Link
               href="/dashboard/loyalty"
-              className="mt-4 inline-flex min-h-11 cursor-pointer items-center text-sm text-mesa-ember transition-colors duration-200 hover:underline"
+              className="mt-auto inline-flex min-h-11 cursor-pointer items-center pt-4 text-sm text-mesa-ember transition-colors duration-200 hover:underline"
             >
               Ver fidelidade →
             </Link>
