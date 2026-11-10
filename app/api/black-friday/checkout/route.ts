@@ -10,6 +10,7 @@ import {
   BLACK_FRIDAY_CAMPAIGN_CODE,
   BLACK_FRIDAY_PLAN_SLUG,
   getBlackFridayWindow,
+  parseBlackFridayCtaPlacement,
   quoteBlackFriday,
 } from '@/lib/campaigns/black-friday';
 import { notifyAdminSubscriptionEvent } from '@/lib/admin/subscription-payment-notifications';
@@ -42,6 +43,7 @@ const bodySchema = z.object({
   cardLast4: z.string().regex(/^\d{4}$/),
   cardBrand: z.string().max(32),
   expectedChargeCents: z.number().int().positive(),
+  ctaPlacement: z.string().optional(),
   marketingAttribution: marketingAttributionInputSchema,
 });
 
@@ -78,6 +80,7 @@ export async function POST(request: Request) {
 
   const isCombo = body.option === 'combo';
   const installmentCount = isCombo ? body.installmentCount : 1;
+  const ctaPlacement = parseBlackFridayCtaPlacement(body.ctaPlacement);
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -246,6 +249,7 @@ export async function POST(request: Request) {
         interest_cents: quote.option === 'combo' ? quote.installments.interestCents : 0,
         first_charge_cents: chargeCents,
         renewal_cents: quote.option === 'combo' ? quote.renewalCents : quote.regularChargeCents,
+        cta_placement: ctaPlacement,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'campaign_code,subscription_id' }

@@ -127,6 +127,7 @@ export const ADMIN_NAV = [
     children: [
       { href: '/admin/marketing', label: 'Enviar campanha' },
       { href: '/admin/marketing/leads', label: 'Leads', showCount: true },
+      { href: '/admin/marketing/black-friday', label: 'Black Friday' },
       { href: '/admin/marketing/historico', label: 'Histórico de disparos' },
     ],
   },

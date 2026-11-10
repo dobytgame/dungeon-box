@@ -17,6 +17,7 @@ import {
   bfComboListCents,
   bfComboTotalCents,
   bfMonthlyPromoPlanCents,
+  blackFridayCheckoutHref,
   formatCents,
   formatRatePercent,
 } from '@/lib/campaigns/black-friday';
@@ -64,8 +65,8 @@ const planCents = Math.round(plan.price * 100);
 const monthlyPromo = formatCents(bfMonthlyPromoPlanCents(planCents));
 const comboListCents = bfComboListCents(planCents, 0);
 const comboPromoCents = bfComboTotalCents(planCents, 0);
-const checkoutMensal = '/black-friday/checkout?plano=mensal';
-const checkoutCombo = '/black-friday/checkout?plano=combo';
+const checkoutMensal = blackFridayCheckoutHref('mensal', 'oferta');
+const checkoutCombo = blackFridayCheckoutHref('combo', 'oferta');
 
 const stats = [
   { value: String(plan.pieceCount), unit: 'peças', note: 'pisos, paredes, decoração e clips' },
@@ -198,7 +199,11 @@ export default function BlackFridayPage() {
   const promoLive = offerWindow !== 'closed';
   const showBonus = bonusReady && promoLive;
   const checkout = checkoutHref('lendario');
-  const heroHref = open ? checkoutCombo : promoLive ? '#oferta' : checkout;
+  const heroHref = open
+    ? blackFridayCheckoutHref('combo', 'hero')
+    : promoLive
+      ? '#oferta'
+      : checkout;
   const heroAction = open ? `Combo 3 meses −${BF_COMBO_DISCOUNT_PERCENT}%` : promoLive ? 'Ver a oferta' : 'Assinar o Lendário';
   const HeroArrow = heroHref === '#oferta' ? ArrowDown : ArrowRight;
   const countdownTarget = open ? BLACK_FRIDAY_END : BLACK_FRIDAY_START;
@@ -577,7 +582,11 @@ export default function BlackFridayPage() {
       </main>
 
       <div className={`home-v2 ${styles.footerWrap}`}>
-        <HomeV2Footer context="shop" ctaHref={open ? checkoutCombo : checkout} ctaLabel="Assinar o Lendário" />
+        <HomeV2Footer
+          context="shop"
+          ctaHref={open ? blackFridayCheckoutHref('combo', 'footer') : checkout}
+          ctaLabel="Assinar o Lendário"
+        />
       </div>
 
       <StickyCta

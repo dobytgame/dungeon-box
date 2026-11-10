@@ -4,7 +4,10 @@ import {
   BLACK_FRIDAY_PLAN_SLUG,
   getBlackFridayWindow,
   isBlackFridayOption,
+  parseBlackFridayCtaPlacement,
 } from '@/lib/campaigns/black-friday';
+import { recordBlackFridayCheckoutIntent } from '@/lib/campaigns/black-friday-tracking';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { getAddresses, getProfile } from '@/lib/dashboard/queries';
 import { privatePageMetadata } from '@/lib/seo/metadata';
@@ -25,9 +28,12 @@ export const viewport: Viewport = {
 export default async function BlackFridayCheckoutPage({
   searchParams,
 }: {
-  searchParams: { plano?: string };
+  searchParams: { plano?: string; origem?: string };
 }) {
   const option = isBlackFridayOption(searchParams.plano) ? searchParams.plano : 'mensal';
+  const ctaPlacement = searchParams.origem
+    ? parseBlackFridayCtaPlacement(searchParams.origem)
+    : 'direct';
   const offerWindow = getBlackFridayWindow();
 
   if (offerWindow !== 'open') {
@@ -40,7 +46,8 @@ export default async function BlackFridayCheckoutPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/auth?next=${encodeURIComponent(`/black-friday/checkout?plano=${option}`)}`);
+    const next = new URLSearchParams({ plano: option, origem: ctaPlacement });
+    redirect(`/auth?next=${encodeURIComponent(`/black-friday/checkout?${next.toString()}`)}`);
   }
 
   const { data: plan } = await supabase
@@ -61,12 +68,20 @@ export default async function BlackFridayCheckoutPage({
 
   const [addresses, profile] = await Promise.all([getAddresses(user.id), getProfile(user.id)]);
 
+  const admin = createAdminClient();
+  void recordBlackFridayCheckoutIntent(admin, {
+    userId: user.id,
+    option,
+    ctaPlacement,
+  });
+
   return (
     <BlackFridayCheckout
       initialOption={option}
       planCents={plan.price_cents}
       addresses={addresses}
       profile={profile}
+      ctaPlacement={ctaPlacement}
     />
   );
 }

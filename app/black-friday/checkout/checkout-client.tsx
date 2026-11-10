@@ -14,6 +14,7 @@ import {
   formatCents,
   formatRatePercent,
   quoteBlackFriday,
+  type BlackFridayCtaPlacement,
   type BlackFridayOption,
 } from '@/lib/campaigns/black-friday';
 import { BRAZIL_STATES } from '@/lib/dashboard/constants';
@@ -31,6 +32,7 @@ type Props = {
   planCents: number;
   addresses: Address[];
   profile: Profile | null;
+  ctaPlacement: BlackFridayCtaPlacement;
 };
 
 type Shipping = { cents: number; label: string; etaDaysMin: number; etaDaysMax: number };
@@ -55,7 +57,13 @@ function formatExpiry(value: string) {
   return d.length <= 2 ? d : `${d.slice(0, 2)}/${d.slice(2)}`;
 }
 
-export default function BlackFridayCheckout({ initialOption, planCents, addresses: initialAddresses, profile }: Props) {
+export default function BlackFridayCheckout({
+  initialOption,
+  planCents,
+  addresses: initialAddresses,
+  profile,
+  ctaPlacement,
+}: Props) {
   const router = useRouter();
   const [option, setOption] = useState<BlackFridayOption>(initialOption);
   const [installments, setInstallments] = useState(1);
@@ -300,6 +308,7 @@ export default function BlackFridayCheckout({ initialOption, planCents, addresse
             cardLast4: token.last4,
             cardBrand: token.brand,
             expectedChargeCents: chargeCents,
+            ctaPlacement,
             ...(marketingAttribution ? { marketingAttribution } : {}),
           }),
         });
@@ -320,7 +329,20 @@ export default function BlackFridayCheckout({ initialOption, planCents, addresse
         setPaying(false);
       }
     },
-    [addressId, cardNumber, chargeCents, cvv, expiry, holderName, installments, option, paying, readyToPay, router]
+    [
+      addressId,
+      cardNumber,
+      chargeCents,
+      ctaPlacement,
+      cvv,
+      expiry,
+      holderName,
+      installments,
+      option,
+      paying,
+      readyToPay,
+      router,
+    ]
   );
 
   const selectedAddress = addresses.find((a) => a.id === addressId);

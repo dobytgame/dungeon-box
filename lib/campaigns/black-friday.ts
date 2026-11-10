@@ -169,3 +169,46 @@ export function formatCents(cents: number): string {
 export function formatRatePercent(rate: number = BF_INSTALLMENT_MONTHLY_RATE): string {
   return `${(rate * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 }
+
+/** Onde o cliente clicou antes do checkout (LP Black Friday). */
+export const BLACK_FRIDAY_CTA_PLACEMENTS = [
+  'hero',
+  'oferta',
+  'sticky',
+  'footer',
+  'promo_bar',
+  'direct',
+  'unknown',
+] as const;
+
+export type BlackFridayCtaPlacement = (typeof BLACK_FRIDAY_CTA_PLACEMENTS)[number];
+
+const CTA_PLACEMENT_SET = new Set<string>(BLACK_FRIDAY_CTA_PLACEMENTS);
+
+export function parseBlackFridayCtaPlacement(value: unknown): BlackFridayCtaPlacement {
+  if (typeof value === 'string' && CTA_PLACEMENT_SET.has(value)) {
+    return value as BlackFridayCtaPlacement;
+  }
+  return 'unknown';
+}
+
+export function blackFridayCtaPlacementLabel(placement: string): string {
+  const labels: Record<string, string> = {
+    hero: 'Hero (topo)',
+    oferta: 'Cupom no meio da página',
+    sticky: 'Barra fixa (mobile)',
+    footer: 'Rodapé',
+    promo_bar: 'Faixa promocional',
+    direct: 'Link direto',
+    unknown: 'Sem origem',
+  };
+  return labels[placement] ?? placement;
+}
+
+export function blackFridayCheckoutHref(
+  option: BlackFridayOption,
+  placement: BlackFridayCtaPlacement
+): string {
+  const params = new URLSearchParams({ plano: option, origem: placement });
+  return `/black-friday/checkout?${params.toString()}`;
+}
