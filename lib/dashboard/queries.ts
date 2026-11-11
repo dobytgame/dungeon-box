@@ -293,6 +293,38 @@ export async function getCardUpdateSubscriptions(
   });
 }
 
+export type PixCardMigrationSubscription = {
+  id: string;
+  planName: string;
+  status: SubscriptionStatus;
+};
+
+/** Assinaturas em PIX manual elegíveis para cartão recorrente. */
+export async function getPixCardMigrationSubscriptions(
+  userId: string
+): Promise<PixCardMigrationSubscription[]> {
+  const { isPixSubscriptionNeedingCardMigration } = await import(
+    '@/lib/pagarme/complete-pix-card-migration'
+  );
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const admin = createAdminClient();
+  const subscriptions = await getManageableSubscriptions(userId);
+  const out: PixCardMigrationSubscription[] = [];
+
+  for (const sub of subscriptions) {
+    if (sub.status !== 'active' && sub.status !== 'past_due') continue;
+    if (await isPixSubscriptionNeedingCardMigration(admin, sub.id)) {
+      out.push({
+        id: sub.id,
+        planName: relOnePlanName(sub),
+        status: sub.status,
+      });
+    }
+  }
+
+  return out;
+}
+
 /** @deprecated Use getCardUpdateSubscriptions */
 export async function getAsaasCardUpdateSubscriptions(
   userId: string

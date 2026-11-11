@@ -17,6 +17,8 @@ interface Props {
   nextBillingDate: string | null;
   subscriptionStatus: string;
   amountCents?: number | null;
+  /** assinatura PIX manual → cartão recorrente; default migração Asaas */
+  variant?: 'asaas' | 'pix';
 }
 
 export default function SubscriptionGatewayMigration({
@@ -25,7 +27,9 @@ export default function SubscriptionGatewayMigration({
   nextBillingDate,
   subscriptionStatus,
   amountCents = null,
+  variant = 'asaas',
 }: Props) {
+  const isPix = variant === 'pix';
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -62,8 +66,8 @@ export default function SubscriptionGatewayMigration({
           {chargedImmediately ? 'Pagamento regularizado' : 'Pagamento atualizado'}
         </p>
         <p className="mt-2">
-          Sua assinatura <span className="text-white">{planName}</span> agora
-          está no Pagar.me.
+          Sua assinatura <span className="text-white">{planName}</span>{' '}
+          {isPix ? 'agora renova no cartão automaticamente' : 'agora está no Pagar.me'}.
           {chargedImmediately ? (
             <>
               {amountLabel ? (
@@ -114,11 +118,27 @@ export default function SubscriptionGatewayMigration({
           chargeNow ? 'text-amber-200' : 'text-ember-bright'
         }`}
       >
-        {chargeNow ? 'Regularize e migre o pagamento' : 'Atualize seu pagamento'}
+        {chargeNow
+          ? isPix
+            ? 'Quite o atraso e cadastre o cartão'
+            : 'Regularize e migre o pagamento'
+          : isPix
+            ? 'Cadastre o cartão'
+            : 'Atualize seu pagamento'}
       </p>
       <p className="mt-2 text-sm text-stone-300">
-        Estamos migrando cobranças para o Pagar.me. Cadastre o cartão aqui para
-        continuar a assinatura <span className="text-white">{planName}</span>
+        {isPix ? (
+          <>
+            Sua renovação hoje é via <span className="text-white">PIX manual</span>.
+            Cadastre um cartão para as próximas cobranças automáticas da assinatura{' '}
+            <span className="text-white">{planName}</span>
+          </>
+        ) : (
+          <>
+            Estamos migrando cobranças para o Pagar.me. Cadastre o cartão aqui para
+            continuar a assinatura <span className="text-white">{planName}</span>
+          </>
+        )}
         {chargeNow ? (
           <>
             . Há um pagamento em atraso
@@ -162,13 +182,25 @@ export default function SubscriptionGatewayMigration({
           }}
           className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center rounded-sm bg-ember px-4 py-2 font-display text-xs uppercase tracking-widest text-stone-950 transition-colors duration-200 hover:bg-ember-bright"
         >
-          {chargeNow ? 'Pagar atraso e migrar' : 'Atualizar cartão agora'}
+          {chargeNow
+            ? isPix
+              ? 'Pagar atraso e cadastrar cartão'
+              : 'Pagar atraso e migrar'
+            : isPix
+              ? 'Cadastrar cartão agora'
+              : 'Atualizar cartão agora'}
         </button>
       ) : (
         <div className="mt-4 border-t border-white/10 pt-4">
           <PagarmePaymentForm
             submitLabel={
-              chargeNow ? 'Pagar atraso e migrar' : 'Confirmar e migrar'
+              chargeNow
+                ? isPix
+                  ? 'Pagar e cadastrar cartão'
+                  : 'Pagar atraso e migrar'
+                : isPix
+                  ? 'Confirmar cartão'
+                  : 'Confirmar e migrar'
             }
             onSubmit={async (tokenized) => {
               setError('');

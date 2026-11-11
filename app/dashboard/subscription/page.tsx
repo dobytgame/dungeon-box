@@ -51,6 +51,7 @@ import {
 import { ASAAS_CONFIGURED } from '@/lib/asaas/client';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
+import { isPixSubscriptionNeedingCardMigration } from '@/lib/pagarme/complete-pix-card-migration';
 
 function resolveComboUpgradeProvider(
   subscription: Subscription
@@ -120,6 +121,11 @@ async function SubscriptionDetailCard({
     ? checkoutHref(plan.slug as PlanSlug)
     : checkoutHref('heroi');
 
+  const admin = createAdminClient();
+  const showPixCardMigration =
+    PAGARME_CONFIGURED &&
+    (await isPixSubscriptionNeedingCardMigration(admin, subscription.id));
+
   return (
     <div className="space-y-8">
       {PAGARME_CONFIGURED &&
@@ -130,6 +136,17 @@ async function SubscriptionDetailCard({
           nextBillingDate={subscription.next_billing_date}
           subscriptionStatus={subscription.status}
           amountCents={currentRecurringPricing?.totalCents ?? plan?.price_cents}
+        />
+      ) : null}
+
+      {showPixCardMigration ? (
+        <SubscriptionGatewayMigration
+          subscriptionId={subscription.id}
+          planName={plan?.name ?? 'Assinatura'}
+          nextBillingDate={subscription.next_billing_date}
+          subscriptionStatus={subscription.status}
+          amountCents={currentRecurringPricing?.totalCents ?? plan?.price_cents}
+          variant="pix"
         />
       ) : null}
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { completeAsaasToPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
+import { completePixToPagarmeCardMigration } from '@/lib/pagarme/complete-pix-card-migration';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
 
   const { data: migration } = await admin
     .from('gateway_migration_log')
-    .select('id, subscription_id, user_id, status, token_expires_at')
+    .select('id, subscription_id, user_id, status, token_expires_at, gateway_from')
     .eq('update_token', body.updateToken)
     .eq('status', 'sent')
     .maybeSingle();
@@ -57,15 +58,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await completeAsaasToPagarmeMigration({
-    admin,
-    subscriptionId: migration.subscription_id,
-    userId: migration.user_id,
-    cardToken: body.cardToken,
-    cardLast4: body.cardLast4,
-    cardBrand: body.cardBrand,
-    migrationLogId: migration.id,
-  });
+  const isPix = migration.gateway_from === 'pix';
+  const result = isPix
+    ? await completePixToPagarmeCardMigration({
+        admin,
+        subscriptionId: migration.subscription_id,
+        userId: migration.user_id,
+        cardToken: body.cardToken,
+        cardLast4: body.cardLast4,
+        cardBrand: body.cardBrand,
+        migrationLogId: migration.id,
+      })
+    : await completeAsaasToPagarmeMigration({
+        admin,
+        subscriptionId: migration.subscription_id,
+        userId: migration.user_id,
+        cardToken: body.cardToken,
+        cardLast4: body.cardLast4,
+        cardBrand: body.cardBrand,
+        migrationLogId: migration.id,
+      });
 
   if ('error' in result) {
     return NextResponse.json(

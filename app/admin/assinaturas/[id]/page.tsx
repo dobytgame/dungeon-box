@@ -7,7 +7,9 @@ import PartnerSubscriptionPanel from '@/components/admin/PartnerSubscriptionPane
 import AdminTable from '@/components/admin/AdminTable';
 import PaintKitAddonLink from '@/components/admin/PaintKitAddonLink';
 import PendingPaymentLinkPanel from '@/components/admin/PendingPaymentLinkPanel';
+import AdminPixCardMigrationTools from '@/components/admin/AdminPixCardMigrationTools';
 import SendPixRenewalEmailPanel from '@/components/admin/SendPixRenewalEmailPanel';
+import { isPixSubscriptionNeedingCardMigration } from '@/lib/pagarme/complete-pix-card-migration';
 import DataRow from '@/components/dashboard/DataRow';
 import StatusBadge from '@/components/dashboard/StatusBadge';
 import { hasPaintKitBump } from '@/lib/checkout/special-notes';
@@ -91,6 +93,10 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
     !subscription.is_partner
       ? await getPixRenewalPreview(admin, subscription.id)
       : null;
+  const showPixCardMigration =
+    PAGARME_CONFIGURED &&
+    !subscription.is_partner &&
+    (await isPixSubscriptionNeedingCardMigration(admin, subscription.id));
 
   const combo = getSubscriptionComboSummary(subscription, plan?.slug ?? null);
   const billingTerm = (subscription.billing_term ?? 'monthly') as BillingTerm;
@@ -290,6 +296,13 @@ export default async function AdminSubscriptionDetailPage({ params }: Props) {
 
       {pixRenewalPreview ? (
         <SendPixRenewalEmailPanel preview={pixRenewalPreview} />
+      ) : null}
+
+      {showPixCardMigration ? (
+        <AdminPixCardMigrationTools
+          subscriptionId={subscription.id}
+          customerEmail={profile?.email}
+        />
       ) : null}
 
       {showPagarmeMigration ? (

@@ -257,13 +257,21 @@ export async function sendCustomerMigrationEmailAction(input: {
     return { error: 'Assinatura não encontrada.' };
   }
 
-  const { sendMigrationEmailForSubscription } = await import(
-    '@/lib/pagarme/send-migration-email'
+  const { isPixSubscriptionNeedingCardMigration } = await import(
+    '@/lib/pagarme/complete-pix-card-migration'
   );
-  const result = await sendMigrationEmailForSubscription(
+  const pixEligible = await isPixSubscriptionNeedingCardMigration(
     admin,
     input.subscriptionId
   );
+
+  const result = pixEligible
+    ? await (
+        await import('@/lib/pagarme/send-pix-card-migration-email')
+      ).sendPixCardMigrationEmailForSubscription(admin, input.subscriptionId)
+    : await (
+        await import('@/lib/pagarme/send-migration-email')
+      ).sendMigrationEmailForSubscription(admin, input.subscriptionId);
 
   if ('error' in result) return { error: result.error };
 
@@ -326,13 +334,21 @@ export async function createCustomerMigrationLinkAction(input: {
     return { error: 'Assinatura não encontrada.' };
   }
 
-  const { createOrReuseMigrationUpdateLink } = await import(
-    '@/lib/pagarme/send-migration-email'
+  const { isPixSubscriptionNeedingCardMigration } = await import(
+    '@/lib/pagarme/complete-pix-card-migration'
   );
-  const result = await createOrReuseMigrationUpdateLink(
+  const pixEligible = await isPixSubscriptionNeedingCardMigration(
     admin,
     input.subscriptionId
   );
+
+  const result = pixEligible
+    ? await (
+        await import('@/lib/pagarme/send-pix-card-migration-email')
+      ).createOrReusePixCardMigrationLink(admin, input.subscriptionId)
+    : await (
+        await import('@/lib/pagarme/send-migration-email')
+      ).createOrReuseMigrationUpdateLink(admin, input.subscriptionId);
 
   if ('error' in result) return { error: result.error };
 

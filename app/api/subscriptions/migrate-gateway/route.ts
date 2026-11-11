@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PAGARME_CONFIGURED } from '@/lib/pagarme/client';
 import { completeAsaasToPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
+import { completePixToPagarmeCardMigration } from '@/lib/pagarme/complete-pix-card-migration';
+import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
+import { isPixSubscriptionNeedingCardMigration } from '@/lib/pagarme/complete-pix-card-migration';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -41,14 +44,47 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const result = await completeAsaasToPagarmeMigration({
-    admin,
-    subscriptionId: body.subscriptionId,
-    userId: user.id,
-    cardToken: body.cardToken,
-    cardLast4: body.cardLast4,
-    cardBrand: body.cardBrand,
-  });
+
+  const { data: subscription } = await admin
+    .from('subscriptions')
+    .select(
+      'id, status, asaas_subscription_id, pagarme_subscription_id, migrated_to_pagarme_at'
+    )
+    .eq('id', body.subscriptionId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!subscription) {
+    return NextResponse.json({ error: 'Assinatura não encontrada.' }, { status: 404 });
+  }
+
+  const usePix = await isPixSubscriptionNeedingCardMigration(admin, body.subscriptionId);
+  const useAsaas = isAsaasSubscriptionNeedingPagarmeMigration(subscription);
+
+  if (!usePix && !useAsaas) {
+    return NextResponse.json(
+      { error: 'Esta assinatura não está elegível para cadastro de cartão.' },
+      { status: 409 }
+    );
+  }
+
+  const result = useAsaas
+    ? await completeAsaasToPagarmeMigration({
+        admin,
+        subscriptionId: body.subscriptionId,
+        userId: user.id,
+        cardToken: body.cardToken,
+        cardLast4: body.cardLast4,
+        cardBrand: body.cardBrand,
+      })
+    : await completePixToPagarmeCardMigration({
+        admin,
+        subscriptionId: body.subscriptionId,
+        userId: user.id,
+        cardToken: body.cardToken,
+        cardLast4: body.cardLast4,
+        cardBrand: body.cardBrand,
+      });
 
   if ('error' in result) {
     return NextResponse.json(

@@ -154,6 +154,7 @@ export default function UpdatePaymentClient({
   const overdueLabel = formatDate(preview.nextBillingDate);
   const scheduledLabel = formatDate(preview.scheduledBillingDate);
   const chargeNow = preview.chargeImmediately;
+  const isPixMigration = preview.migrationKind === 'pix';
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-stone-950 bg-grid noise">
@@ -184,8 +185,17 @@ export default function UpdatePaymentClient({
                 {firstName ? `Olá, ${firstName}` : 'Olá, aventureiro'}
               </h1>
               <p className="mt-4 max-w-md text-sm leading-relaxed text-stone-400">
-                Estamos migrando sua cobrança para o Pagar.me. Confira o resumo
-                da assinatura e cadastre o cartão.
+                {isPixMigration ? (
+                  <>
+                    Sua assinatura renova hoje via <span className="text-white">PIX</span>.
+                    Cadastre um cartão para as próximas cobranças automáticas.
+                  </>
+                ) : (
+                  <>
+                    Estamos migrando sua cobrança para o Pagar.me. Confira o resumo
+                    da assinatura e cadastre o cartão.
+                  </>
+                )}
                 {chargeNow ? (
                   <>
                     {' '}

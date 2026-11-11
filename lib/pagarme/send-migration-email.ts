@@ -97,6 +97,7 @@ export async function createOrReuseMigrationUpdateLink(
     .from('gateway_migration_log')
     .select('update_token, token_expires_at')
     .eq('subscription_id', subscription.id)
+    .eq('gateway_from', 'asaas')
     .eq('status', 'sent')
     .not('update_token', 'is', null)
     .gt('token_expires_at', now.toISOString())

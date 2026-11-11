@@ -3597,6 +3597,90 @@ export async function createGatewayMigrationLinkAction(input: {
   };
 }
 
+export async function sendPixCardMigrationEmailAction(input: {
+  subscriptionId: string;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { sendPixCardMigrationEmailForSubscription } = await import(
+    '@/lib/pagarme/send-pix-card-migration-email'
+  );
+
+  const result = await sendPixCardMigrationEmailForSubscription(
+    admin,
+    input.subscriptionId
+  );
+
+  if ('error' in result) {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.send_pix_card_migration_email',
+    entityType: 'subscription',
+    entityId: input.subscriptionId,
+    metadata: { email: result.email },
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+  revalidatePath('/dashboard/subscription');
+
+  return {
+    success: true as const,
+    email: result.email,
+    updateLink: result.updateLink,
+  };
+}
+
+export async function createPixCardMigrationLinkAction(input: {
+  subscriptionId: string;
+}) {
+  const { user, admin } = await requireAdmin();
+
+  if (!input.subscriptionId) {
+    return { error: 'Informe a assinatura.' };
+  }
+
+  const { createOrReusePixCardMigrationLink } = await import(
+    '@/lib/pagarme/send-pix-card-migration-email'
+  );
+
+  const result = await createOrReusePixCardMigrationLink(admin, input.subscriptionId);
+
+  if ('error' in result) {
+    return { error: result.error };
+  }
+
+  await logAdminAction(admin, {
+    actorId: user.id,
+    action: 'subscription.create_pix_card_migration_link',
+    entityType: 'subscription',
+    entityId: input.subscriptionId,
+    metadata: {
+      email: result.email,
+      reused: result.reused,
+      expiresAt: result.expiresAt,
+    },
+    ipAddress: await clientIp(),
+  });
+
+  revalidatePath(`/admin/assinaturas/${input.subscriptionId}`);
+
+  return {
+    success: true as const,
+    updateLink: result.updateLink,
+    email: result.email,
+    expiresAt: result.expiresAt,
+    reused: result.reused,
+  };
+}
+
 export async function createUpgradePaymentLinkAction(subscriptionId: string) {
   const { user, admin } = await requireAdmin();
 

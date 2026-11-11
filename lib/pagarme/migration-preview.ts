@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isAsaasSubscriptionNeedingPagarmeMigration } from '@/lib/pagarme/complete-asaas-migration';
+import { isPixSubscriptionNeedingCardMigration } from '@/lib/pagarme/complete-pix-card-migration';
 import {
   migrationNeedsImmediateCharge,
   resolveMigrationCatchUpStartAt,
@@ -30,6 +32,7 @@ export type MigrationPreview =
       chargeImmediately: boolean;
       billingTerm: string | null;
       subscriptionStatus: string;
+      migrationKind: 'asaas' | 'pix';
     }
   | {
       ok: false;
@@ -55,7 +58,7 @@ export async function loadMigrationPreviewByToken(
   const { data: migration } = await admin
     .from('gateway_migration_log')
     .select(
-      'id, subscription_id, user_id, status, token_expires_at, card_updated_at'
+      'id, subscription_id, user_id, status, token_expires_at, card_updated_at, gateway_from'
     )
     .eq('update_token', updateToken)
     .maybeSingle();
@@ -120,6 +123,7 @@ export async function loadMigrationPreviewByToken(
       shipping_cents,
       promo_code,
       special_notes,
+      asaas_subscription_id,
       pagarme_subscription_id,
       migrated_to_pagarme_at,
       plans!plan_id(name, slug, price_cents)
@@ -137,6 +141,9 @@ export async function loadMigrationPreviewByToken(
     };
   }
 
+  const migrationKind =
+    migration.gateway_from === 'pix' ? ('pix' as const) : ('asaas' as const);
+
   if (subscription.pagarme_subscription_id || subscription.migrated_to_pagarme_at) {
     return {
       ok: false,
@@ -144,6 +151,26 @@ export async function loadMigrationPreviewByToken(
       message:
         'Sua assinatura já está no Pagar.me. Não é necessário atualizar novamente.',
     };
+  }
+
+  if (migrationKind === 'asaas') {
+    if (!isAsaasSubscriptionNeedingPagarmeMigration(subscription)) {
+      return {
+        ok: false,
+        reason: 'incomplete',
+        message: 'Esta assinatura não está elegível para este link de atualização.',
+      };
+    }
+  } else {
+    const pixOk = await isPixSubscriptionNeedingCardMigration(admin, subscription.id);
+    if (!pixOk) {
+      return {
+        ok: false,
+        reason: 'incomplete',
+        message:
+          'Esta assinatura já tem cartão recorrente ou não renova mais via PIX manual.',
+      };
+    }
   }
 
   const { data: profile } = await admin
@@ -218,5 +245,6 @@ export async function loadMigrationPreviewByToken(
     chargeImmediately,
     billingTerm: subscription.billing_term,
     subscriptionStatus: subscription.status,
+    migrationKind,
   };
 }
